@@ -1,13 +1,22 @@
 // Deploy: supabase functions deploy parse-cv
-// Secrets: supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+// Secrets: supabase secrets set GEMINI_API_KEY=AIza...
 //
 // Reads an uploaded CV and returns a DRAFT that the candidate then confirms.
 // Nothing here writes to candidates, employment_history or registrations.
+//
+// Uses the Gemini API free tier rather than a paid model, by product
+// decision. Trade-off worth knowing: Google's free tier terms allow
+// submitted content to be used to improve their models, unlike a paid tier
+// with a data processing agreement. Revisit before real candidate CVs are
+// flowing through this at volume.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
-const MODEL = "claude-sonnet-4-6"; // check current model names before deploying
+const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY")!;
+// Verify this is still current and still free-tier at ai.google.dev/pricing
+// before deploying — Gemini's flash line moves fast (2.0 Flash was retired
+// June 2026). Override without a redeploy via the GEMINI_MODEL secret.
+const MODEL = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.5-flash";
 
 /* -- the taxonomy the parser must map into ------------------------------- */
 
@@ -49,91 +58,94 @@ These are either irrelevant to the role or create discrimination risk for the em
 
 Dates: return YYYY-MM. If only a year is given, use YYYY-01 and drop that entry's confidence. "Present", "current", "to date" means is_current true and ended_on null. Never invent a month.
 
-Addresses: return only the outward postcode (the part before the space — EN1, N17, BT38). Never a full postcode or street address.`;
+Addresses: return only the outward postcode (the part before the space — EN1, N17, BT38). Never a full postcode or street address.
 
-const TOOL = {
-  name: "cv_draft",
-  description: "Structured draft extracted from a CV.",
-  input_schema: {
-    type: "object",
-    required: ["employment", "confidence", "sensitive_present"],
-    properties: {
-      full_name: { type: ["string", "null"] },
-      headline: {
-        type: ["string", "null"],
-        description: "One line, max 90 characters, in the candidate's own register. Not marketing copy.",
-      },
-      profession_id: { type: ["string", "null"], enum: [...PROFESSION_IDS, null] },
-      postcode_district: { type: ["string", "null"] },
-      town: { type: ["string", "null"] },
-      has_driving_licence: { type: ["boolean", "null"] },
-      employment: {
-        type: "array",
-        items: {
-          type: "object",
-          required: ["employer", "job_title", "started_on", "is_current"],
-          properties: {
-            employer: { type: "string" },
-            job_title: { type: "string" },
-            setting: { type: ["string", "null"], enum: [...SETTINGS, null] },
-            started_on: { type: ["string", "null"], description: "YYYY-MM" },
-            ended_on: { type: ["string", "null"], description: "YYYY-MM, null if current" },
-            is_current: { type: "boolean" },
-            description: {
-              type: ["string", "null"],
-              description: "Two sentences max, rewritten as plain statements of what they did. Drop filler like 'excellent communication skills'.",
-            },
+Respond only with JSON matching the given schema. If the file has no usable CV content — a blank scan, wrong document, unreadable photo — set "unreadable" to true and leave everything else at its default.`;
+
+const CV_SCHEMA = {
+  type: "OBJECT",
+  required: ["employment", "confidence", "sensitive_present"],
+  properties: {
+    full_name: { type: "STRING", nullable: true },
+    headline: {
+      type: "STRING",
+      nullable: true,
+      description: "One line, max 90 characters, in the candidate's own register. Not marketing copy.",
+    },
+    profession_id: { type: "STRING", nullable: true, enum: PROFESSION_IDS },
+    postcode_district: { type: "STRING", nullable: true },
+    town: { type: "STRING", nullable: true },
+    has_driving_licence: { type: "BOOLEAN", nullable: true },
+    employment: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        required: ["employer", "job_title", "started_on", "is_current"],
+        properties: {
+          employer: { type: "STRING" },
+          job_title: { type: "STRING" },
+          setting: { type: "STRING", nullable: true, enum: SETTINGS },
+          started_on: { type: "STRING", nullable: true, description: "YYYY-MM" },
+          ended_on: { type: "STRING", nullable: true, description: "YYYY-MM, null if current" },
+          is_current: { type: "BOOLEAN" },
+          description: {
+            type: "STRING",
+            nullable: true,
+            description: "Two sentences max, rewritten as plain statements of what they did. Drop filler like 'excellent communication skills'.",
           },
         },
       },
-      qualifications: {
-        type: "array",
-        items: {
-          type: "object",
-          required: ["label"],
-          properties: {
-            type_id: { type: ["string", "null"], enum: [...QUALIFICATION_IDS, null] },
-            label: { type: "string" },
-            awarding_body: { type: ["string", "null"] },
-            awarded_on: { type: ["string", "null"] },
-          },
-        },
-      },
-      registration: {
-        type: ["object", "null"],
-        description: "Statutory registration if a number appears on the CV.",
+    },
+    qualifications: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        required: ["label"],
         properties: {
-          regulator: { type: "string", enum: ["nmc", "hcpc", "gdc", "gmc", "gphc", "swe"] },
-          reg_number: { type: "string" },
+          type_id: { type: "STRING", nullable: true, enum: QUALIFICATION_IDS },
+          label: { type: "STRING" },
+          awarding_body: { type: "STRING", nullable: true },
+          awarded_on: { type: "STRING", nullable: true },
         },
       },
-      dbs_mentioned: { type: "boolean" },
-      dbs_on_update_service: {
-        type: ["boolean", "null"],
-        description: "Only true if the CV explicitly says Update Service. Never infer it.",
+    },
+    registration: {
+      type: "OBJECT",
+      nullable: true,
+      description: "Statutory registration if a number appears on the CV.",
+      required: ["regulator", "reg_number"],
+      properties: {
+        regulator: { type: "STRING", enum: ["nmc", "hcpc", "gdc", "gmc", "gphc", "swe"] },
+        reg_number: { type: "STRING" },
       },
-      confidence: {
-        type: "object",
-        required: ["overall", "employment_dates"],
-        properties: {
-          overall: { type: "number" },
-          employment_dates: { type: "number" },
-          profession: { type: "number" },
-          location: { type: "number" },
-        },
+    },
+    dbs_mentioned: { type: "BOOLEAN" },
+    dbs_on_update_service: {
+      type: "BOOLEAN",
+      nullable: true,
+      description: "Only true if the CV explicitly says Update Service. Never infer it.",
+    },
+    confidence: {
+      type: "OBJECT",
+      required: ["overall", "employment_dates"],
+      properties: {
+        overall: { type: "NUMBER" },
+        employment_dates: { type: "NUMBER" },
+        profession: { type: "NUMBER" },
+        location: { type: "NUMBER" },
       },
-      sensitive_present: {
-        type: "array",
-        items: {
-          type: "string",
-          enum: ["date_of_birth", "photo", "nationality", "marital_status",
-                 "ni_number", "health_information", "religion", "gender"],
-        },
+    },
+    sensitive_present: {
+      type: "ARRAY",
+      items: {
+        type: "STRING",
+        enum: ["date_of_birth", "photo", "nationality", "marital_status",
+               "ni_number", "health_information", "religion", "gender"],
       },
-      unreadable: {
-        type: "boolean",
-        description: "True if the file contains no usable CV content — a blank scan, wrong document, unreadable photo.",
-      },
+    },
+    unreadable: {
+      type: "BOOLEAN",
+      description: "True if the file contains no usable CV content — a blank scan, wrong document, unreadable photo.",
     },
   },
 };
@@ -146,7 +158,7 @@ async function docxToText(bytes: Uint8Array): Promise<string> {
   const xml = await zip.file("word/document.xml")?.async("string");
   if (!xml) throw new Error("no document.xml");
   return xml
-    .replace(/<w:p[ >][^]*?<\/w:p>/g, (m) => m + "\n")
+    .replace(/<w:p[ >][^]*?<\/w:p>/g, (m: string) => m + "\n")
     .replace(/<[^>]+>/g, " ")
     .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/[ \t]+/g, " ")
@@ -165,7 +177,7 @@ function b64(bytes: Uint8Array): string {
 
 /* -- handler ------------------------------------------------------------- */
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   const { import_id } = await req.json();
 
   const admin = createClient(
@@ -187,49 +199,54 @@ Deno.serve(async (req) => {
 
     const bytes = new Uint8Array(await file.arrayBuffer());
     const mime = imp.mime_type ?? "";
-    let content: unknown[];
+    const parts: unknown[] = [];
 
     if (mime === "application/pdf") {
-      // Claude reads PDFs directly, including scanned ones, so no separate OCR.
-      content = [
-        { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64(bytes) } },
-        { type: "text", text: "Extract this CV." },
-      ];
+      // Gemini reads PDFs directly, including scanned ones, so no separate OCR.
+      parts.push({ inline_data: { mime_type: "application/pdf", data: b64(bytes) } });
+      parts.push({ text: "Extract this CV." });
     } else if (mime.startsWith("image/")) {
-      content = [
-        { type: "image", source: { type: "base64", media_type: mime, data: b64(bytes) } },
-        { type: "text", text: "Extract this CV. It is a photograph, so read carefully and lower confidence where the text is unclear." },
-      ];
+      parts.push({ inline_data: { mime_type: mime, data: b64(bytes) } });
+      parts.push({ text: "Extract this CV. It is a photograph, so read carefully and lower confidence where the text is unclear." });
     } else {
       const text = await docxToText(bytes);
       if (text.length < 80) throw new Error("empty document");
-      content = [{ type: "text", text: `Extract this CV.\n\n---\n${text.slice(0, 60000)}` }];
+      parts.push({ text: `Extract this CV.\n\n---\n${text.slice(0, 60000)}` });
     }
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": ANTHROPIC_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 4000,
-        system: SYSTEM,
-        tools: [TOOL],
-        tool_choice: { type: "tool", name: "cv_draft" },
-        messages: [{ role: "user", content }],
-      }),
-    });
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": GEMINI_KEY,
+        },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: SYSTEM }] },
+          contents: [{ role: "user", parts }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: CV_SCHEMA,
+            maxOutputTokens: 4000,
+          },
+        }),
+      }
+    );
 
-    if (!res.ok) throw new Error(`anthropic ${res.status}: ${await res.text()}`);
+    if (!res.ok) throw new Error(`gemini ${res.status}: ${await res.text()}`);
 
     const body = await res.json();
-    const block = body.content.find((c: { type: string }) => c.type === "tool_use");
-    if (!block) throw new Error("no tool_use in response");
 
-    const draft = block.input;
+    if (body.promptFeedback?.blockReason) {
+      throw new Error(`blocked: ${body.promptFeedback.blockReason}`);
+    }
+
+    const candidate = body.candidates?.[0];
+    const text = candidate?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("no text in gemini response");
+
+    const draft = JSON.parse(text);
 
     if (draft.unreadable) {
       await admin.from("cv_imports").update({
