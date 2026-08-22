@@ -29,7 +29,6 @@ export default async function CvReviewPage({
         importId={imp.id}
         status={imp.status}
         draft={imp.parsed}
-        confidence={imp.confidence}
         sensitive={imp.sensitive_found ?? []}
       />
     </main>

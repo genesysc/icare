@@ -30,7 +30,10 @@ async function sniff(file: File): Promise<string | null> {
   return null;
 }
 
-export async function uploadCv(_prev: unknown, form: FormData) {
+export async function uploadCv(
+  _prev: unknown,
+  form: FormData
+): Promise<{ error: string } | undefined> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/sign-in");
@@ -100,7 +103,10 @@ export async function getImport(id: string) {
  * candidate left in those inputs. If they corrected a date, the correction
  * wins — which is the entire point of the review step.
  */
-export async function applyCvDraft(_prev: unknown, form: FormData) {
+export async function applyCvDraft(
+  _prev: unknown,
+  form: FormData
+): Promise<{ error: string } | undefined> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/sign-in");

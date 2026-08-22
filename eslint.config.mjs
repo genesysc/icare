@@ -9,6 +9,7 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  { ignores: [".next/**", "node_modules/**", ".open-next/**", "supabase/functions/**", "next-env.d.ts"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   { rules: { "react/no-unescaped-entities": "off" } },
 ];

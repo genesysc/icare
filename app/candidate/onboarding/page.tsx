@@ -2,7 +2,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { enterStep } from "./actions";
 import { CvGate } from "./_components/cv-gate";
-import { StepRole, StepAvailability, StepExperience } from "./_components/steps";
+import {
+  StepRole,
+  StepAvailability,
+  StepExperience,
+  StepEligibility,
+  StepPrompt,
+} from "./_components/steps";
 
 export const metadata = { title: "Set up your profile" };
 
@@ -19,7 +25,7 @@ export default async function OnboardingPage({
 
   const { data: candidate } = await supabase
     .from("candidates")
-    .select("onboarding_step, onboarding_done, postcode_district, town, travel_radius_miles, availability, has_driving_licence")
+    .select("onboarding_step, onboarding_done, postcode_district, town, travel_radius_miles, availability, has_driving_licence, right_to_work")
     .eq("id", user.id)
     .single();
 
@@ -45,6 +51,12 @@ export default async function OnboardingPage({
     .eq("candidate_id", user.id)
     .limit(1);
 
+  const { data: prompts } = await supabase
+    .from("prompts")
+    .select("id, label, placeholder")
+    .eq("active", true)
+    .order("sort_order");
+
   // First visit, no CV tried yet, nothing filled in — offer the shortcut.
   const untouched = !stepParam && !cvImports?.length && !professions && !jobs?.length;
   if (untouched) return <main className="wizard"><CvGate /></main>;
@@ -55,7 +67,7 @@ export default async function OnboardingPage({
   return (
     <main className="wizard">
       <nav className="progress" aria-label="Progress">
-        {["Your job", "Where and when", "Experience"].map((label, i) => (
+        {["Your job", "Where and when", "Experience", "Eligibility", "In your words"].map((label, i) => (
           <span key={label} className={i + 1 <= step ? "on" : ""}>
             {i + 1}. {label}
           </span>
@@ -72,6 +84,8 @@ export default async function OnboardingPage({
       {step === 1 && <StepRole initial={professions?.profession_id} />}
       {step === 2 && <StepAvailability initial={candidate} />}
       {step === 3 && <StepExperience existing={jobs ?? []} />}
+      {step === 4 && <StepEligibility initial={candidate} />}
+      {step === 5 && <StepPrompt prompts={prompts ?? []} />}
     </main>
   );
 }
