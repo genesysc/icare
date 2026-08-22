@@ -1,0 +1,52 @@
+/* Placeholder styling. Mobile-first because that is where every one of these
+   people will be. Replace wholesale when the design work happens — nothing
+   else depends on these class names. */
+
+.wizard { max-width: 34rem; margin: 0 auto; padding: 1.5rem 1.25rem 5rem; }
+.wizard h1 { font-size: 1.6rem; line-height: 1.2; margin: 0 0 .5rem; }
+.wizard h2 { font-size: 1.15rem; margin: 2rem 0 .5rem; }
+.wizard > p { color: #4b5563; line-height: 1.55; margin: 0 0 1.5rem; }
+
+.progress { display: flex; gap: .5rem; font-size: .75rem; margin-bottom: 1.75rem; color: #9ca3af; }
+.progress span { flex: 1; border-top: 3px solid #e5e7eb; padding-top: .5rem; }
+.progress span.on { border-color: #0e6b57; color: #0e6b57; font-weight: 600; }
+
+label { display: block; margin-bottom: 1.1rem; font-size: .9rem; font-weight: 600; }
+label.check { display: flex; align-items: center; gap: .55rem; font-weight: 400; margin-bottom: .6rem; }
+
+input[type="text"], input[type="email"], input[type="month"], input:not([type]),
+select, textarea, input[type="file"] {
+  display: block; width: 100%; box-sizing: border-box; margin-top: .35rem;
+  font: inherit; font-weight: 400; padding: .7rem .75rem;
+  border: 1px solid #d1d5db; border-radius: 6px; background: #fff;
+}
+input[type="checkbox"], input[type="radio"] { width: 1.15rem; height: 1.15rem; margin: 0; }
+textarea { resize: vertical; }
+:focus-visible { outline: 2px solid #0e6b57; outline-offset: 2px; }
+
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+@media (max-width: 30rem) { .row { grid-template-columns: 1fr; } }
+
+fieldset { border: 1px solid #e5e7eb; border-radius: 6px; padding: 1rem; margin: 0 0 1.25rem; }
+fieldset.job { background: #f9fafb; }
+legend { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 0 .4rem; }
+
+.btn-primary {
+  display: inline-block; background: #0e6b57; color: #fff; border: 0; border-radius: 6px;
+  padding: .85rem 1.4rem; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.btn-primary:disabled { opacity: .6; }
+.btn-link { background: none; border: 0; color: #0e6b57; font: inherit; text-decoration: underline;
+  text-underline-offset: 3px; cursor: pointer; padding: .75rem 0; }
+
+.actions { display: flex; gap: .75rem; flex-wrap: wrap; }
+.actions .btn-primary:first-child { background: #fff; color: #0e6b57; border: 1px solid #0e6b57; }
+
+.error { background: #fef2f2; color: #991b1b; padding: .7rem .85rem; border-radius: 6px; font-size: .9rem; }
+.notice { background: #f0f7f4; border: 1px solid #cfe3da; padding: .9rem 1rem; border-radius: 6px; margin-bottom: 1.5rem; }
+.notice p { margin: .35rem 0 0; font-size: .9rem; line-height: 1.5; color: #374151; }
+.fine { font-size: .82rem; color: #6b7280; line-height: 1.5; font-weight: 400; }
+
+.added { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+.added li { padding: .7rem .85rem; background: #f9fafb; border: 1px solid #e5e7eb;
+  border-radius: 6px; margin-bottom: .5rem; font-size: .9rem; }
