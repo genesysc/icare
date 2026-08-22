@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "icare",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "account_id": "181e44a6963cb30381a30edbd56a4b46",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "icare-db",
+      "database_id": "dfd93b50-c45d-4fb0-b93d-930f3248830f"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
