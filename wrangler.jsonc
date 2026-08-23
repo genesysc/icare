@@ -1,6 +1,9 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "care-register",
+  // Pinned so deploys are deterministic regardless of which API token is
+  // used — the Cloudflare account this project actually lives in ("iCare").
+  "account_id": "181e44a6963cb30381a30edbd56a4b46",
   // Bump this when you bump wrangler/@opennextjs/cloudflare — it must stay
   // >= the minimum compatibility date those packages require.
   "compatibility_date": "2026-08-22",
