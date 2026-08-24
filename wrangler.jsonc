@@ -11,6 +11,12 @@
       "database_id": "dfd93b50-c45d-4fb0-b93d-930f3248830f"
     }
   ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "icare"
+    }
+  ],
   "observability": {
     "enabled": true
   }
