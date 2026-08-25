@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { createClient } from "@supabase/supabase-js";
 import auth from "./auth";
 import candidates from "./candidates";
+import waitlist from "./waitlist";
 import landingPage from "./landing.html";
 
 type Bindings = {
@@ -14,6 +15,7 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 app.route("/auth", auth);
 app.route("/candidates", candidates);
+app.route("/waitlist", waitlist);
 
 app.get("/", (c) => c.html(landingPage));
 
