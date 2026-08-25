@@ -1,29 +1,28 @@
 <!--
-  iCare landing page — v2, rebuilt against the copy/design brief
-  (LANDING_PAGE_COPY.md + landingpage.pdf mockup).
+  iCare employer landing page — companion to src/landing.html (candidate-
+  primary). Separate piece of work per HANDOVER.md §8 item 10.
 
-  Key differences from v1: candidate-primary (employer messaging is
-  supporting context only, no separate employer CTA — a dedicated
-  employer page is a later, separate piece of work), waitlist-capture
-  flow instead of live account creation, and copy taken verbatim from
-  the brief. "Coming soon" tags mark roadmap features (self-expression
-  posts, AI-assisted discovery, impact stats) so nothing here overstates
-  what's live today. The waitlist counter is real (GET /waitlist/count)
-  and starts at 0 — no fabricated social-proof numbers.
+  Same design system as the candidate page (tokens, fonts, motion
+  techniques, GSAP+ScrollTrigger reveal) for brand consistency, reused
+  directly rather than re-derived. Copy is grounded in what's actually
+  built: nothing about employer search/shortlisting exists yet (no
+  employer API, no verification flow — see HANDOVER.md §8 item 4), so
+  every specific capability is tagged "Coming soon" except the waitlist
+  mechanism itself, which is real. No pricing is stated or implied —
+  employer pricing hasn't been decided.
 
-  Motion techniques (epic-design catalogue), kept restrained for a
-  healthcare/editorial tone: word-by-word headline fade-rise, scroll
-  reveal-on-enter, cascading card stack for the feature list, float
-  loop on the hero cards. Full prefers-reduced-motion and coarse-pointer
-  fallbacks.
+  Waitlist submissions from this page post role: "employer" + org_name
+  to the same POST /waitlist used by the candidate page (migration
+  0009_waitlist_employer_role added the columns; waitlist_count(p_role)
+  keeps the two pools' counts and "early supporter" positions separate).
 -->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>iCare — You're not a list of skills</title>
-<meta name="description" content="iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile that shows your skills and experience — and, if you choose, the person behind them too." />
+<title>iCare for Employers — Hire who they really are</title>
+<meta name="description" content="iCare helps health and social care employers hire from real, evidenced candidate profiles — with written shortlisting before anything visual, and honest handling of DBS and verification status." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
@@ -150,7 +149,7 @@
   .body-text { margin-top: 18px; font-size: 16.5px; line-height: 1.75; color: var(--ink-soft); }
   .body-text strong { color: var(--plum-950); font-weight: 700; }
 
-  /* ---------- Feature cards (stacked, single column) ---------- */
+  /* ---------- Feature cards ---------- */
   .feature-list { margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; align-items: start; }
   .feature-card { border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; background: var(--white); }
   .feature-title { margin-top: 8px; font-size: 19px; font-weight: 600; }
@@ -210,7 +209,7 @@
 <header class="nav" aria-label="Primary">
   <a href="#top" class="logo">i<em>Care</em></a>
   <div class="nav-links">
-    <a class="nav-link" href="/employers">For employers</a>
+    <a class="nav-link" href="/">For candidates</a>
     <button class="nav-cta" data-scroll-to="#join">Join the waitlist</button>
   </div>
 </header>
@@ -221,18 +220,18 @@
 
   <!-- HERO -->
   <section class="hero wrap">
-    <span class="label eyebrow">Now building — United Kingdom</span>
-    <h1 class="hero-title" id="hero-title">You're not a list of skills. You're <em>who</em> a patient trusts.</h1>
+    <span class="label eyebrow">Now building — United Kingdom · For employers</span>
+    <h1 class="hero-title" id="hero-title">They're not a stack of CVs. They're <em>who</em> your patients will trust.</h1>
     <p class="hero-sub reveal">
-      iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile
-      that shows your skills and experience — and, if you choose, the person behind them too. Because
-      some of the best carers we know don't interview well. They just are who they are. Now employers
-      can see that, before they ever meet you.
+      iCare is a new kind of platform for health and social care employers. Every candidate profile is
+      built around real, evidenced experience — not just what fits on a page. When you're ready to hire,
+      shortlisting starts with the written case, before you ever see a photo, so every decision is about
+      the work, not who looks the part.
     </p>
     <div class="hero-actions reveal">
       <button class="btn btn-ghost" data-scroll-to="#join">Join the Waitlist</button>
     </div>
-    <p class="hero-note reveal"><strong>Free to join.</strong>&nbsp;Candidates are never charged, for anything.</p>
+    <p class="hero-note reveal"><strong>Free to join the waitlist.</strong>&nbsp;No cost, no commitment — we'll share access details before you commit to anything.</p>
 
     <div class="hero-visual reveal" aria-hidden="true">
       <div class="visual-glow"></div>
@@ -256,7 +255,7 @@
           <div><div class="stat-num">3</div><div class="stat-label">shortlists</div></div>
         </div>
       </div>
-      <p class="visual-caption">Illustrative example profile — not a real person</p>
+      <p class="visual-caption">Illustrative example of what you'll see — not a real person</p>
     </div>
   </section>
 
@@ -268,11 +267,11 @@
       <span class="label">What we're building</span>
     </div>
     <p class="body-text reveal">
-      Most job platforms reduce you to a CV. We think that's the wrong way round.
-      <strong>iCare gives you a real profile</strong> — your skills, your experience, and, entirely on
-      your terms, your own voice. Share what matters to you, professionally or personally, and build a
-      presence that shows employers who you really are. Whether you want flexible shift work or a
-      stable, permanent role, employers are actively searching for people like you, right now.
+      Most hiring platforms show you a CV and a photo, and ask you to decide from there. We think that's
+      backwards — and increasingly, it's a compliance risk too. <strong>iCare shows you real, evidenced
+      experience first</strong> — qualifications, clinical skills, work history, verified where it can be
+      — enough to build a genuine shortlist before you ever see a face. When you're ready to hire health
+      and social care staff, you'll be searching real people, not guessing from a stack of PDFs.
     </p>
   </section>
 
@@ -282,37 +281,38 @@
   <section class="section wrap">
     <div class="section-label-block reveal">
       <span class="label">Why join</span>
-      <h2 class="section-title">Everything you need to be seen — for the right reasons.</h2>
+      <h2 class="section-title">Hire for who they are — and stay on the right side of the law doing it.</h2>
     </div>
 
     <div class="feature-list">
       <div class="feature-card reveal">
         <span class="label">Identity</span>
-        <h3 class="feature-title">Your identity, not just your CV</h3>
-        <p class="feature-text">Build a profile that shows your real experience and expertise — evidenced, verified, and trusted, not just typed in a box.</p>
-      </div>
-      <div class="feature-card reveal">
-        <span class="label">Demand</span>
-        <h3 class="feature-title">Found by employers who need you now</h3>
-        <p class="feature-text">From urgent locum cover to permanent posts, employers are searching iCare every day for people ready to work.</p>
-      </div>
-      <div class="feature-card reveal">
-        <span class="label">Your voice</span>
-        <h3 class="feature-title">Say what you want, share what you choose</h3>
-        <p class="feature-text">Post your thoughts, your experiences, whatever feels true to who you are. You decide exactly what's private, what's shared with other carers, and what employers can see. Nothing is used without your say-so.</p>
+        <h3 class="feature-title">Verified, not just claimed</h3>
+        <p class="feature-text">Every profile carries a clear grade on each claim — verified against a register, evidenced by a reviewed document, derived from platform data, or simply declared. You'll always know which is which.</p>
         <span class="soon-tag">Coming soon</span>
       </div>
       <div class="feature-card reveal">
-        <span class="label">Discovery</span>
-        <h3 class="feature-title">Let your character do the talking</h3>
-        <p class="feature-text">Employers search in plain English — "an experienced carer, great with dementia patients, based near Reading." Our AI helps them find people like you, drawing only on what you've chosen to share.</p>
+        <span class="label">Compliance</span>
+        <h3 class="feature-title">Written shortlisting, by design</h3>
+        <p class="feature-text">Shortlisting starts with the written case — skills, experience, qualifications — before a photo or video ever enters the picture. Built to help you hire fairly under the Equality Act, not just document that you tried to.</p>
         <span class="soon-tag">Coming soon</span>
       </div>
       <div class="feature-card reveal">
-        <span class="label">Visibility</span>
-        <h3 class="feature-title">See your own impact</h3>
-        <p class="feature-text">Know how many employers and peers have viewed your profile, so you can see, in real numbers, that you're being noticed.</p>
+        <span class="label">DBS</span>
+        <h3 class="feature-title">DBS status, handled honestly</h3>
+        <p class="feature-text">We'll show you a candidate's DBS status plainly — "Enhanced DBS · on Update Service" — without ever claiming we verified it ourselves. Only you can do that, via the Update Service, and we won't pretend otherwise.</p>
         <span class="soon-tag">Coming soon</span>
+      </div>
+      <div class="feature-card reveal">
+        <span class="label">Search</span>
+        <h3 class="feature-title">Search in plain English</h3>
+        <p class="feature-text">Describe who you need — "an experienced carer, great with dementia patients, based near Reading" — and search what candidates have actually chosen to share. Descriptive, never a "fit score."</p>
+        <span class="soon-tag">Coming soon</span>
+      </div>
+      <div class="feature-card reveal">
+        <span class="label">Pool</span>
+        <h3 class="feature-title">A real, growing pool</h3>
+        <p class="feature-text">Carers, nurses and healthcare professionals are already joining iCare's waitlist today, so when employer access opens, you won't be starting from zero.</p>
       </div>
     </div>
   </section>
@@ -324,7 +324,7 @@
     <div class="reveal">
       <span class="quote-mark" aria-hidden="true">&rdquo;</span>
       <blockquote>
-        <p class="quote-text">You've been searching for a long time. It's time to stop being one CV in a stack, and start being someone employers actually find — for exactly who you are.</p>
+        <p class="quote-text">Hiring shouldn't start with a photo. It should start with whether someone can do the job — and do it well.</p>
       </blockquote>
     </div>
   </section>
@@ -335,29 +335,31 @@
   <section class="section wrap" id="join">
     <div class="reveal">
       <span class="label">Early access</span>
-      <h2 class="section-title join-headline">Be one of the first to be seen.</h2>
+      <h2 class="section-title join-headline">Be one of the first to search.</h2>
       <p class="body-text">
-        Join the iCare waitlist today. The first people to sign up will be first in line when we launch —
-        the sooner your profile is live, the sooner employers can find you.
+        Join the iCare employer waitlist. We'll email you the moment organisations can start searching —
+        and early waitlist members get priority access when we open the doors.
       </p>
 
       <form class="join-form" id="waitlist-form" novalidate>
-        <label for="wl-name" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Full name</label>
+        <label for="wl-org" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Organisation name</label>
+        <input id="wl-org" name="org_name" type="text" placeholder="Organisation name" autocomplete="organization" required />
+        <label for="wl-name" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Your name</label>
         <input id="wl-name" name="full_name" type="text" placeholder="Your name" autocomplete="name" required />
-        <label for="wl-email" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Email address</label>
-        <input id="wl-email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required />
+        <label for="wl-email" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Work email</label>
+        <input id="wl-email" name="email" type="email" placeholder="you@yourorganisation.com" autocomplete="email" required />
         <label for="wl-phone" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Phone number (optional)</label>
         <input id="wl-phone" name="phone" type="tel" placeholder="Phone (optional)" autocomplete="tel" />
-        <span class="join-form-optional">We'll only use these to let you know when iCare is live.</span>
+        <span class="join-form-optional">We'll only use these to let you know when employer access opens.</span>
         <button type="submit" class="btn btn-teal">Join the waitlist</button>
       </form>
       <p class="join-status" data-status></p>
 
-      <p class="join-note"><strong>Free to join and build your profile.</strong>&nbsp;You always control what you share, and with whom.</p>
+      <p class="join-note"><strong>Free to join.</strong>&nbsp;No cost, no commitment — pricing and access details come later, before you commit to anything.</p>
 
       <div class="join-success" id="waitlist-success" aria-live="polite">
         <h3 class="join-success-title" data-success-title>You're on the list.</h3>
-        <p class="join-success-text" data-success-text>We'll email you the moment iCare is live.</p>
+        <p class="join-success-text" data-success-text>We'll email you the moment employer access opens.</p>
         <div class="share-row">
           <a class="share-btn" data-share="twitter" href="#" target="_blank" rel="noopener">Share on X</a>
           <a class="share-btn" data-share="linkedin" href="#" target="_blank" rel="noopener">Share on LinkedIn</a>
@@ -370,7 +372,7 @@
       <div class="counter-row">
         <div>
           <div class="counter-num" data-waitlist-count>—</div>
-          <div class="counter-label">on the waitlist</div>
+          <div class="counter-label">organisations on the waitlist</div>
         </div>
       </div>
     </div>
@@ -383,7 +385,7 @@
 <footer class="footer wrap">
   <div class="footer-inner">
     <a href="#top" class="logo">i<em>Care</em></a>
-    <p class="footer-tag">Hiring instead? <a href="/employers" style="color:var(--teal-700);font-weight:600;">See the employer page</a> · &copy; 2026 iCare</p>
+    <p class="footer-tag">Looking for work instead? <a href="/" style="color:var(--teal-700);font-weight:600;">See the candidate page</a> · &copy; 2026 iCare</p>
   </div>
 </footer>
 
@@ -452,15 +454,15 @@
     btn.addEventListener("click", function () {
       var target = document.querySelector(btn.getAttribute("data-scroll-to"));
       if (target) target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
-      var emailInput = document.getElementById("wl-email");
-      if (emailInput) setTimeout(function () { emailInput.focus(); }, reducedMotion ? 0 : 500);
+      var orgInput = document.getElementById("wl-org");
+      if (orgInput) setTimeout(function () { orgInput.focus(); }, reducedMotion ? 0 : 500);
     });
   });
 
   // ---- Live waitlist counter (real — starts at 0, no fabricated numbers) ----
   var counterEl = document.querySelector("[data-waitlist-count]");
   if (counterEl) {
-    fetch("/waitlist/count")
+    fetch("/waitlist/count?role=employer")
       .then(function (res) { return res.json(); })
       .then(function (body) { counterEl.textContent = typeof body.count === "number" ? body.count : "0"; })
       .catch(function () { counterEl.textContent = "0"; });
@@ -475,9 +477,9 @@
     statusEl.className = "join-status is-visible " + kind;
   }
 
-  function wireShareLinks(isEarlySupporter) {
+  function wireShareLinks(orgName) {
     var pageUrl = window.location.href.split("#")[0];
-    var text = "I just joined the iCare waitlist — a new platform for carers, nurses and healthcare professionals. Worth a look:";
+    var text = "We just joined the iCare employer waitlist — a new way to find verified health and social care staff. Worth a look:";
     var encodedUrl = encodeURIComponent(pageUrl);
     var encodedText = encodeURIComponent(text);
     var urls = {
@@ -500,26 +502,17 @@
         el.setAttribute("href", urls[key]);
       }
     });
-
-    var titleEl = successPanel.querySelector("[data-success-title]");
-    var textEl = successPanel.querySelector("[data-success-text]");
-    if (isEarlySupporter) {
-      titleEl.textContent = "You're in — and one of our first " + "100.";
-      textEl.textContent = "That means you'll be near the very front of the queue when we launch. We'll email you the moment iCare is live.";
-    } else {
-      titleEl.textContent = "You're on the list.";
-      textEl.textContent = "We'll email you the moment iCare is live.";
-    }
     successPanel.classList.add("is-visible");
   }
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     var submitBtn = form.querySelector('button[type="submit"]');
+    var orgName = document.getElementById("wl-org").value.trim();
     var fullName = document.getElementById("wl-name").value.trim();
     var email = document.getElementById("wl-email").value.trim();
     var phone = document.getElementById("wl-phone").value.trim();
-    if (!fullName || !email) return;
+    if (!orgName || !fullName || !email) return;
 
     submitBtn.disabled = true;
     submitBtn.textContent = "Joining…";
@@ -527,7 +520,13 @@
     fetch("/waitlist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ full_name: fullName, email: email, phone: phone || undefined }),
+      body: JSON.stringify({
+        role: "employer",
+        org_name: orgName,
+        full_name: fullName,
+        email: email,
+        phone: phone || undefined,
+      }),
     })
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
       .then(function (result) {
@@ -541,7 +540,7 @@
           setStatus("ok", "You're already on the list — we'll be in touch.");
         } else {
           form.style.display = "none";
-          wireShareLinks(!!result.body.is_early_supporter);
+          wireShareLinks(orgName);
         }
         form.reset();
         if (counterEl && !result.body.already_joined) {

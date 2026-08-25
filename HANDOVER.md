@@ -283,7 +283,8 @@ deploy confirmation yet.
    flow (not just waitlist) ships.
 9. A real signed-in app UI (dashboard, profile editor) — nothing exists
    yet for a user to land on after authenticating via `/auth/*`.
-10. Employer-facing landing page — separate piece of work, not started.
+10. ~~Employer-facing landing page~~ — built (`GET /employers`), see
+    PROGRESS.md's "Done" section. Not yet pushed/PR'd as of this note.
 
 ---
 
@@ -385,18 +386,26 @@ real photo for that hero card's illustrative profile; it's cropped to a
 52px circular avatar, embedded as a base64 data URI (still a single
 self-contained landing.html, no new asset route), and the card's
 name/role text was updated to match the badge visible in the photo
-("Emily R." / "Healthcare Assistant · Belfast"). Both changes are on
-PR #10, still open — check current branch/PR state (see below) before
-assuming it's live. I've asked once whether to merge it; no answer yet.
+("Emily R." / "Healthcare Assistant · Belfast"). Both changes shipped on
+PR #10, which the user approved merging — squash-merged to `main`, deploy
+run #11 succeeded. Both are live.
 
-**Next priorities**: pick from §8's blocking list — the custom `icare`
-domain is the single highest-leverage unblock (gates Sender.net for both
-auth emails and the waitlist welcome email), independent of that, the
-Supabase email template fix (`{{ .Token }}`) is needed before OTP auth
-actually works end-to-end. Beyond those, §8's "next, no particular
-blocker" list (employer-side API, candidate qualifications/DBS/
-references/badges, `/privacy`+`/terms` pages) is unprioritized — ask the
-user which matters most rather than guessing.
+The user then explicitly parked the custom-domain/Sender.net work ("will
+buy the domain in a few days time so let's park this for now") and asked
+for the employer-facing landing page instead (§8 item 10). That's now
+built — `GET /employers`, same design system as the candidate page,
+separate employer waitlist pool (migration `0009_waitlist_employer_role`).
+See PROGRESS.md's "Done" section for full detail. Not yet pushed/PR'd —
+check current branch/PR state before assuming it's live.
+
+**Next priorities**: with the domain parked and the employer page done,
+pick from §8's remaining "next, no particular blocker" list — candidate
+qualifications/DBS/references/badges/prompts/CV import, `/privacy`+
+`/terms` pages, a real signed-in app UI, or the employer-side API proper
+(search/shortlisting — distinct from the employer landing page, which is
+just a waitlist capture, not built) — unprioritized, ask the user which
+matters most rather than guessing. Don't restart the domain/Sender.net
+work unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.
