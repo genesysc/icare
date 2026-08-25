@@ -62,7 +62,7 @@
   button { font-family: inherit; }
   em { font-style: italic; color: var(--teal-700); }
 
-  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
   .divider { border: none; border-top: 1px solid var(--line); margin: 0; }
 
   .label {
@@ -115,19 +115,14 @@
   .hero-note { margin-top: 18px; font-size: 14px; color: var(--ink-faint); }
   .hero-note strong { color: var(--plum-950); }
 
-  .hero-visual { position: relative; margin-top: 56px; height: 300px; }
+  .hero-visual { position: relative; margin-top: 48px; }
   .float-loop { animation: floaty 10s ease-in-out infinite; }
-  @keyframes floaty { 0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); } 50% { transform: translateY(-12px) rotate(var(--tilt, 0deg)); } }
+  @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 
-  .photo-card { position: absolute; left: 0; top: 40px; width: 240px; height: 220px; border-radius: 18px; overflow: hidden; background: linear-gradient(155deg, var(--teal-100), var(--paper-dim) 70%); border: 1px solid var(--line); --tilt: -1.5deg; }
-  .photo-card::after { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 90% at 30% 20%, rgba(22,184,166,0.18), transparent 60%); }
-  .stat-card { position: absolute; left: 150px; top: 0; background: var(--white); border-radius: 16px; box-shadow: var(--shadow-soft); border: 1px solid var(--line); padding: 16px 18px; display: flex; gap: 22px; --tilt: 1deg; }
-  .stat { text-align: left; }
-  .stat-num { font-family: "Fraunces", serif; font-weight: 600; font-size: 21px; color: var(--plum-950); }
-  .stat-label { font-size: 11.5px; color: var(--ink-faint); margin-top: 2px; }
+  .visual-glow { position: absolute; width: 300px; height: 300px; border-radius: 50%; top: -50px; left: -40px; background: radial-gradient(circle, var(--teal-100), transparent 70%); filter: blur(6px); z-index: 0; }
 
-  .verify-card { position: absolute; right: 0; bottom: 0; width: 270px; background: var(--white); border-radius: 18px; box-shadow: var(--shadow-soft); border: 1px solid var(--line); padding: 22px; --tilt: -1deg; }
-  .verify-name { font-family: "Fraunces", serif; font-weight: 600; font-size: 17px; color: var(--plum-950); }
+  .profile-card { position: relative; z-index: 1; width: 100%; max-width: 340px; background: var(--white); border-radius: 20px; box-shadow: var(--shadow-soft); border: 1px solid var(--line); padding: 24px; }
+  .verify-name { font-family: "Fraunces", serif; font-weight: 600; font-size: 18px; color: var(--plum-950); }
   .verify-role { font-size: 13px; color: var(--ink-faint); margin-top: 2px; }
   .verify-tags { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; }
   .verify-tag { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; font-weight: 600; }
@@ -135,18 +130,22 @@
   .verify-tag.t-evidenced { color: var(--plum-800); }
   .verify-tag.t-derived { color: var(--amber-600); }
   .verify-tag.t-declared { color: var(--ink-faint); }
-  .visual-caption { position: absolute; left: 0; bottom: -26px; font-size: 12px; color: var(--ink-faint); font-style: italic; }
+
+  .profile-card-stats { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; gap: 20px; }
+  .stat-num { font-family: "Fraunces", serif; font-weight: 600; font-size: 18px; color: var(--plum-950); }
+  .stat-label { font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
+
+  .visual-caption { margin-top: 14px; font-size: 12px; color: var(--ink-faint); font-style: italic; }
 
   /* ---------- Section shells ---------- */
   .section { padding: 64px 0; }
-  .section-tight { padding-top: 44px; }
   .section-label-block { margin-bottom: 18px; }
   .section-title { margin-top: 10px; font-size: clamp(24px, 3.4vw, 32px); font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; }
   .body-text { margin-top: 18px; font-size: 16.5px; line-height: 1.75; color: var(--ink-soft); }
   .body-text strong { color: var(--plum-950); font-weight: 700; }
 
   /* ---------- Feature cards (stacked, single column) ---------- */
-  .feature-list { margin-top: 30px; display: grid; gap: 16px; }
+  .feature-list { margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; align-items: start; }
   .feature-card { border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; background: var(--white); }
   .feature-title { margin-top: 8px; font-size: 19px; font-weight: 600; }
   .feature-text { margin-top: 10px; font-size: 15px; line-height: 1.65; color: var(--ink-soft); }
@@ -195,11 +194,8 @@
   .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
   .footer-tag { font-size: 13px; color: var(--ink-faint); }
 
-  @media (max-width: 620px) {
-    .hero-visual { height: 420px; }
-    .photo-card { width: 200px; height: 180px; top: 0; }
-    .stat-card { left: 20px; top: 130px; flex-wrap: wrap; }
-    .verify-card { right: 0; bottom: -30px; width: 230px; }
+  @media (max-width: 480px) {
+    .visual-glow { width: 220px; height: 220px; top: -30px; left: -20px; }
   }
 </style>
 </head>
@@ -230,13 +226,8 @@
     <p class="hero-note reveal"><strong>Free to join.</strong>&nbsp;Candidates are never charged, for anything.</p>
 
     <div class="hero-visual reveal" aria-hidden="true">
-      <div class="photo-card float-loop"></div>
-      <div class="stat-card float-loop">
-        <div class="stat"><div class="stat-num">248</div><div class="stat-label">profile views</div></div>
-        <div class="stat"><div class="stat-num">6</div><div class="stat-label">years experience</div></div>
-        <div class="stat"><div class="stat-num">3</div><div class="stat-label">shortlists</div></div>
-      </div>
-      <div class="verify-card float-loop">
+      <div class="visual-glow"></div>
+      <div class="profile-card float-loop">
         <div class="verify-name">Aoife M.</div>
         <div class="verify-role">Senior Care Assistant · Belfast</div>
         <div class="verify-tags">
@@ -244,6 +235,11 @@
           <span class="verify-tag t-evidenced">evidenced</span>
           <span class="verify-tag t-derived">derived</span>
           <span class="verify-tag t-declared">declared</span>
+        </div>
+        <div class="profile-card-stats">
+          <div><div class="stat-num">248</div><div class="stat-label">profile views</div></div>
+          <div><div class="stat-num">6</div><div class="stat-label">years experience</div></div>
+          <div><div class="stat-num">3</div><div class="stat-label">shortlists</div></div>
         </div>
       </div>
       <p class="visual-caption">Illustrative example profile — not a real person</p>
