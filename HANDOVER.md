@@ -370,19 +370,33 @@ the hard constraints this must respect.
 
 ---
 
-## 13. Immediate next step (as of hand-off)
+## 13. Immediate next step (updated 2026-08-25, post-hand-off)
 
-The user's very next task: **check UI fluidity of the landing page across
-desktop and mobile.** `src/landing.html` has breakpoints at `920px`
-(nav links hide, hero visual restacks, split panels go single-column,
-step connector line hides) and `560px`/`620px` (value grid single-column,
-hero visual height adjusts, mock cards go full-width). This hasn't been
-visually verified on real viewport sizes yet — worth checking the hero's
-absolutely-positioned card stack (`.photo-card`/`.stat-card`/
-`.verify-card`) especially, since it's the most layout-fragile part of
-the page.
+**Done since this doc was written**: PR #9 merged and deployed. The
+UI-fluidity check this section used to flag is also done — actually
+rendered the landing page at 6 real viewport sizes via headless Chromium
+(not just read the CSS) and fixed two real problems: the hero's
+absolutely-positioned card stack (previously the most layout-fragile part
+of the page, flagged here) is now one naturally-flowing card with no
+per-breakpoint overrides, and the feature grid now uses the available
+width on larger screens instead of always single-column. No horizontal
+overflow at any tested size, before or after. The user then supplied a
+real photo for that hero card's illustrative profile; it's cropped to a
+52px circular avatar, embedded as a base64 data URI (still a single
+self-contained landing.html, no new asset route), and the card's
+name/role text was updated to match the badge visible in the photo
+("Emily R." / "Healthcare Assistant · Belfast"). Both changes are on
+PR #10, still open — check current branch/PR state (see below) before
+assuming it's live. I've asked once whether to merge it; no answer yet.
 
-PR #9 (branch `claude/cloudflare-icare-setup-qt575f`) is open with all of
-this session's work and has not been merged yet — the user wanted to hold
-off and review first. Check its current state before assuming anything
-in this doc is deployed to `main`.
+**Next priorities**: pick from §8's blocking list — the custom `icare`
+domain is the single highest-leverage unblock (gates Sender.net for both
+auth emails and the waitlist welcome email), independent of that, the
+Supabase email template fix (`{{ .Token }}`) is needed before OTP auth
+actually works end-to-end. Beyond those, §8's "next, no particular
+blocker" list (employer-side API, candidate qualifications/DBS/
+references/badges, `/privacy`+`/terms` pages) is unprioritized — ask the
+user which matters most rather than guessing.
+
+As always: check current branch/PR state before assuming anything in
+this doc is deployed to `main`.
