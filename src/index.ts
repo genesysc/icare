@@ -1,7 +1,9 @@
 import { Hono } from "hono";
+import { createClient } from "@supabase/supabase-js";
 
 type Bindings = {
-  DB: D1Database;
+  SUPABASE_URL: string;
+  SUPABASE_PUBLISHABLE_KEY: string;
   MEDIA: R2Bucket;
 };
 
@@ -10,8 +12,10 @@ const app = new Hono<{ Bindings: Bindings }>();
 app.get("/health", (c) => c.json({ status: "ok" }));
 
 app.get("/db-check", async (c) => {
-  const result = await c.env.DB.prepare("SELECT 1 AS ok").first();
-  return c.json({ db: result });
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
+  const { data, error } = await supabase.from("professions").select("id").limit(1);
+  if (error) return c.json({ db: "error", message: error.message }, 500);
+  return c.json({ db: "ok", sample: data });
 });
 
 app.get("/media-check", async (c) => {
