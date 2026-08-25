@@ -1,0 +1,775 @@
+<!--
+  iCare landing page — techniques applied from the epic-design catalogue:
+  - 6-layer depth/parallax system (hero), restrained (subtle, not extreme)
+  - Cascading card stack entrance (value props)
+  - Directional reveals: clip-path birth, left/right offset (split section)
+  - Scroll-drawn connector line (how-it-works)
+  - Staggered word/line fade-rise for headline (restrained, no gimmicks)
+  - Float loop on hero mockup cards
+  All motion respects prefers-reduced-motion and reduces on coarse pointers.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>iCare — Healthcare recruitment, built on trust</title>
+<meta name="description" content="iCare connects verified healthcare professionals with employers who need them — built for the registrations, checks, and standards healthcare recruitment actually requires." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --teal-950: #08211d;
+    --teal-900: #0a3d36;
+    --teal-800: #0f5148;
+    --teal-700: #0f6b62;
+    --teal-500: #1c9c8e;
+    --teal-300: #7fc9bd;
+    --teal-100: #e6f5f2;
+    --amber-600: #c17f1f;
+    --amber-500: #d9a441;
+    --amber-100: #faedd4;
+    --paper: #fbfaf7;
+    --paper-dim: #f3f1ea;
+    --ink: #0d211d;
+    --ink-soft: #4b5a57;
+    --ink-faint: #7c8a86;
+    --line: #e3ddcf;
+    --white: #ffffff;
+    --radius: 20px;
+    --radius-sm: 12px;
+    --shadow-soft: 0 20px 60px -20px rgba(10, 61, 54, 0.25);
+    --shadow-tight: 0 8px 24px -12px rgba(10, 61, 54, 0.3);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  img, svg { display: block; max-width: 100%; }
+  a { color: inherit; }
+  button { font-family: inherit; }
+  h1, h2, h3, p { margin: 0; }
+
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- Accessibility & performance (mandatory) ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  .reveal { opacity: 0; transform: translateY(28px); }
+  .reveal.is-visible { opacity: 1; transform: translateY(0); transition: opacity 0.9s var(--ease), transform 0.9s var(--ease); }
+  .no-js .reveal, .reduced-motion .reveal { opacity: 1; transform: none; }
+
+  /* ---------- Nav ---------- */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 24px;
+    background: rgba(251, 250, 247, 0.82);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner { max-width: 1160px; margin: 0 auto; width: 100%; display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 20px; letter-spacing: -0.02em; color: var(--teal-900); text-decoration: none; }
+  .logo-mark { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(145deg, var(--teal-500), var(--teal-800)); position: relative; flex: none; }
+  .logo-mark::after { content: ""; position: absolute; inset: 8px; border: 2px solid var(--paper); border-radius: 5px; opacity: 0.9; }
+  .nav-links { display: flex; align-items: center; gap: 28px; }
+  .nav-links a { text-decoration: none; font-size: 15px; font-weight: 500; color: var(--ink-soft); transition: color 0.2s var(--ease); }
+  .nav-links a:hover { color: var(--teal-800); }
+  .nav-cta { display: flex; align-items: center; gap: 10px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; border-radius: 999px; padding: 12px 22px; font-weight: 700; font-size: 15px; cursor: pointer; text-decoration: none; transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), background 0.25s var(--ease); white-space: nowrap; }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--teal-800); color: var(--white); box-shadow: var(--shadow-tight); }
+  .btn-primary:hover { background: var(--teal-900); box-shadow: 0 12px 28px -10px rgba(10, 61, 54, 0.45); }
+  .btn-amber { background: var(--amber-500); color: var(--teal-950); box-shadow: 0 12px 28px -12px rgba(217, 164, 65, 0.55); }
+  .btn-amber:hover { background: var(--amber-600); }
+  .btn-ghost { background: transparent; color: var(--teal-900); border: 1.5px solid var(--line); }
+  .btn-ghost:hover { border-color: var(--teal-500); background: var(--teal-100); }
+  .btn-sm { padding: 9px 16px; font-size: 14px; }
+  .btn-block { width: 100%; }
+
+  /* ---------- Depth layer system ---------- */
+  .scene { position: relative; overflow: hidden; }
+  .layer { position: absolute; inset: 0; pointer-events: none; }
+  .layer.is-interactive { pointer-events: auto; }
+  .depth-0 { z-index: 0; }
+  .depth-1 { z-index: 1; }
+  .depth-2 { z-index: 2; }
+  .depth-3 { z-index: 3; }
+  .depth-4 { z-index: 4; }
+  .depth-5 { z-index: 5; }
+
+  /* ---------- Hero ---------- */
+  .hero { padding-top: 96px; padding-bottom: 80px; }
+  .hero-bg {
+    background:
+      radial-gradient(60% 55% at 82% 8%, rgba(217,164,65,0.16), transparent 60%),
+      radial-gradient(70% 60% at 10% 0%, rgba(28,156,142,0.20), transparent 55%),
+      linear-gradient(180deg, var(--teal-100) 0%, var(--paper) 62%);
+  }
+  .hero-glow { filter: blur(60px); opacity: 0.55; }
+  .hero-glow span { position: absolute; border-radius: 50%; }
+  .glow-a { width: 420px; height: 420px; top: -140px; left: -80px; background: radial-gradient(circle, var(--teal-300), transparent 70%); }
+  .glow-b { width: 320px; height: 320px; top: 60px; right: -60px; background: radial-gradient(circle, var(--amber-100), transparent 70%); }
+
+  .hero-net { opacity: 0.35; }
+  .hero-net circle { fill: var(--teal-700); }
+  .hero-net line { stroke: var(--teal-500); stroke-width: 1; }
+
+  .hero-grid { position: relative; z-index: 4; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 48px; align-items: center; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; background: var(--amber-100); color: var(--amber-600); border-radius: 999px; padding: 7px 14px; font-size: 13px; font-weight: 700; letter-spacing: 0.01em; }
+  .eyebrow-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber-600); }
+
+  .hero-title { font-size: clamp(34px, 4.6vw, 58px); line-height: 1.06; font-weight: 800; letter-spacing: -0.03em; color: var(--teal-950); margin-top: 20px; }
+  .word { display: inline-block; opacity: 0; transform: translateY(0.4em); }
+  .word.is-visible { opacity: 1; transform: translateY(0); transition: opacity 0.7s var(--ease), transform 0.7s var(--ease); }
+
+  .hero-sub { margin-top: 20px; font-size: 18px; line-height: 1.6; color: var(--ink-soft); max-width: 52ch; }
+  .hero-actions { margin-top: 32px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .hero-note { margin-top: 18px; font-size: 13.5px; color: var(--ink-faint); }
+
+  .hero-visual { position: relative; height: 420px; }
+  .float-loop { animation: floaty 9s ease-in-out infinite; }
+  @keyframes floaty { 0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); } 50% { transform: translateY(-14px) rotate(var(--tilt, 0deg)); } }
+
+  .mock-card { position: absolute; width: 280px; background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow-soft); padding: 20px; border: 1px solid var(--line); }
+  .mock-card-primary { top: 10px; right: 10px; z-index: 3; --tilt: -2deg; }
+  .mock-card-secondary { bottom: 6px; left: 0; z-index: 2; --tilt: 2deg; width: 250px; opacity: 0.96; animation-delay: -3s; }
+  .mock-row { display: flex; align-items: center; gap: 12px; }
+  .mock-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(145deg, var(--teal-500), var(--teal-800)); flex: none; display: flex; align-items: center; justify-content: center; color: var(--white); font-weight: 700; font-size: 15px; }
+  .mock-name { font-weight: 700; font-size: 15px; color: var(--teal-950); }
+  .mock-role { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+  .mock-badge { margin-top: 14px; display: inline-flex; align-items: center; gap: 6px; background: var(--teal-100); color: var(--teal-800); font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 999px; }
+  .mock-tags { margin-top: 14px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .mock-tag { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); background: var(--paper-dim); border: 1px solid var(--line); padding: 4px 9px; border-radius: 999px; }
+  .mock-example { position: absolute; bottom: -24px; left: 4px; font-size: 11.5px; color: var(--ink-faint); font-style: italic; }
+  .mock-match { display: flex; align-items: center; justify-content: space-between; }
+  .mock-match-text { font-size: 13px; font-weight: 600; color: var(--teal-900); }
+
+  /* ---------- Section shell ---------- */
+  .section { padding: 100px 0; }
+  .section-alt { background: var(--paper-dim); }
+  .section-head { max-width: 640px; margin: 0 auto 52px; text-align: center; }
+  .kicker { color: var(--teal-700); font-weight: 700; font-size: 13.5px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .section-title { margin-top: 12px; font-size: clamp(28px, 3.4vw, 40px); font-weight: 800; letter-spacing: -0.02em; color: var(--teal-950); line-height: 1.15; }
+  .section-sub { margin-top: 16px; font-size: 16.5px; color: var(--ink-soft); line-height: 1.65; }
+
+  /* ---------- Value grid (cascading card stack) ---------- */
+  .value-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .value-card { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px 22px; clip-path: inset(0 0 0 0); }
+  .value-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--teal-100); display: flex; align-items: center; justify-content: center; color: var(--teal-800); }
+  .value-title { margin-top: 18px; font-size: 17px; font-weight: 700; color: var(--teal-950); }
+  .value-text { margin-top: 8px; font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); }
+
+  /* ---------- Split section ---------- */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .split-panel { background: var(--white); border: 1px solid var(--line); border-radius: 24px; padding: 40px; position: relative; overflow: hidden; }
+  .split-panel::before { content: ""; position: absolute; top: -60px; right: -60px; width: 180px; height: 180px; border-radius: 50%; opacity: 0.5; }
+  .panel-candidate::before { background: radial-gradient(circle, var(--teal-100), transparent 70%); }
+  .panel-employer::before { background: radial-gradient(circle, var(--amber-100), transparent 70%); }
+  .panel-tag { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .panel-candidate .panel-tag { color: var(--teal-700); }
+  .panel-employer .panel-tag { color: var(--amber-600); }
+  .panel-title { margin-top: 10px; font-size: 24px; font-weight: 800; color: var(--teal-950); letter-spacing: -0.01em; }
+  .panel-list { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 13px; position: relative; z-index: 1; }
+  .panel-list li { display: flex; gap: 10px; font-size: 15px; color: var(--ink-soft); line-height: 1.5; }
+  .panel-check { flex: none; width: 20px; height: 20px; margin-top: 1px; }
+  .panel-cta { margin-top: 28px; position: relative; z-index: 1; }
+
+  /* ---------- How it works ---------- */
+  .steps { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 12px; }
+  .steps-line { position: absolute; top: 27px; left: 8%; right: 8%; height: 2px; z-index: 0; }
+  .steps-line svg { width: 100%; height: 2px; overflow: visible; }
+  .steps-line path { stroke: var(--teal-300); stroke-width: 2; fill: none; stroke-dasharray: 1 1; pathLength: 100; }
+  .step { position: relative; z-index: 1; text-align: left; }
+  .step-num { width: 56px; height: 56px; border-radius: 50%; background: var(--white); border: 2px solid var(--teal-500); color: var(--teal-800); font-weight: 800; font-size: 20px; display: flex; align-items: center; justify-content: center; }
+  .step-title { margin-top: 18px; font-size: 18px; font-weight: 700; color: var(--teal-950); }
+  .step-text { margin-top: 8px; font-size: 14.5px; color: var(--ink-soft); line-height: 1.55; max-width: 32ch; }
+
+  /* ---------- Join / auth card ---------- */
+  .join { background: var(--teal-950); color: var(--paper); position: relative; overflow: hidden; }
+  .join-glow { position: absolute; width: 600px; height: 600px; border-radius: 50%; background: radial-gradient(circle, rgba(28,156,142,0.35), transparent 70%); top: -220px; right: -160px; filter: blur(10px); }
+  .join-grid { position: relative; z-index: 2; display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: start; }
+  .join-title { font-size: clamp(28px, 3.2vw, 38px); font-weight: 800; letter-spacing: -0.02em; }
+  .join-sub { margin-top: 16px; font-size: 16px; line-height: 1.65; color: rgba(251,250,247,0.72); max-width: 44ch; }
+  .join-points { margin-top: 28px; display: grid; gap: 12px; }
+  .join-point { display: flex; gap: 10px; font-size: 14.5px; color: rgba(251,250,247,0.85); }
+
+  .auth-card { background: var(--paper); color: var(--ink); border-radius: 22px; padding: 30px; box-shadow: 0 30px 80px -30px rgba(0,0,0,0.5); }
+  .auth-tabs { display: flex; background: var(--paper-dim); border-radius: 12px; padding: 4px; gap: 4px; }
+  .auth-tab { flex: 1; text-align: center; padding: 9px; border-radius: 9px; font-weight: 700; font-size: 14px; color: var(--ink-faint); cursor: pointer; border: none; background: transparent; }
+  .auth-tab[aria-selected="true"] { background: var(--white); color: var(--teal-900); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+
+  .role-toggle { display: flex; gap: 8px; margin-top: 20px; }
+  .role-option { flex: 1; border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 10px; text-align: center; cursor: pointer; font-size: 13.5px; font-weight: 700; color: var(--ink-soft); transition: border-color 0.2s var(--ease), background 0.2s var(--ease), color 0.2s var(--ease); }
+  .role-option[aria-pressed="true"] { border-color: var(--teal-500); background: var(--teal-100); color: var(--teal-900); }
+
+  .field { margin-top: 16px; }
+  .field label { display: block; font-size: 13px; font-weight: 700; color: var(--ink-soft); margin-bottom: 6px; }
+  .field input { width: 100%; padding: 11px 13px; border-radius: 10px; border: 1.5px solid var(--line); font-size: 15px; font-family: inherit; background: var(--white); color: var(--ink); }
+  .field input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
+  .field-hint { font-size: 12px; color: var(--ink-faint); margin-top: 5px; }
+  .field[hidden] { display: none; }
+
+  .auth-submit { margin-top: 22px; }
+  .auth-status { margin-top: 14px; font-size: 13.5px; line-height: 1.5; border-radius: 10px; padding: 10px 12px; display: none; }
+  .auth-status.is-visible { display: block; }
+  .auth-status.ok { background: var(--teal-100); color: var(--teal-900); }
+  .auth-status.err { background: #fbe7e2; color: #9a3412; }
+  .auth-form[hidden] { display: none; }
+
+  /* ---------- Footer ---------- */
+  .footer { padding: 48px 0; border-top: 1px solid var(--line); }
+  .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+  .footer-tag { font-size: 13.5px; color: var(--ink-faint); }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 920px) {
+    .nav-links { display: none; }
+    .hero-grid { grid-template-columns: 1fr; }
+    .hero-visual { height: 300px; margin-top: 12px; }
+    .value-grid { grid-template-columns: 1fr 1fr; }
+    .split { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr; }
+    .steps-line { display: none; }
+    .join-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .value-grid { grid-template-columns: 1fr; }
+    .hero-actions .btn { width: 100%; }
+    .mock-card { position: relative; width: 100%; margin-bottom: 16px; }
+    .hero-visual { height: auto; }
+  }
+</style>
+</head>
+<body class="no-js">
+
+<nav class="nav" aria-label="Primary">
+  <div class="nav-inner">
+    <a href="#top" class="logo">
+      <span class="logo-mark" aria-hidden="true"></span>
+      iCare
+    </a>
+    <div class="nav-links">
+      <a href="#professionals">For professionals</a>
+      <a href="#employers">For employers</a>
+      <a href="#how">How it works</a>
+    </div>
+    <div class="nav-cta">
+      <button class="btn btn-ghost btn-sm" data-open-auth="login">Log in</button>
+      <button class="btn btn-primary btn-sm" data-open-auth="signup">Get started</button>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="scene hero" data-scene="hero">
+    <div class="layer depth-0 hero-bg" aria-hidden="true"></div>
+
+    <div class="layer depth-1 hero-glow" aria-hidden="true">
+      <span class="glow-a"></span>
+      <span class="glow-b"></span>
+    </div>
+
+    <div class="layer depth-2" aria-hidden="true">
+      <svg class="hero-net" width="100%" height="100%" viewBox="0 0 1160 520" preserveAspectRatio="xMidYMid slice">
+        <g>
+          <circle cx="120" cy="90" r="4"></circle>
+          <circle cx="260" cy="60" r="3"></circle>
+          <circle cx="180" cy="220" r="3"></circle>
+          <circle cx="980" cy="120" r="4"></circle>
+          <circle cx="1060" cy="260" r="3"></circle>
+          <circle cx="900" cy="320" r="3"></circle>
+          <circle cx="60" cy="380" r="3"></circle>
+          <line x1="120" y1="90" x2="260" y2="60"></line>
+          <line x1="120" y1="90" x2="180" y2="220"></line>
+          <line x1="980" y1="120" x2="1060" y2="260"></line>
+          <line x1="1060" y1="260" x2="900" y2="320"></line>
+        </g>
+      </svg>
+    </div>
+
+    <div class="wrap hero-grid">
+      <div class="layer-content depth-4">
+        <span class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>Now in early access</span>
+        <h1 class="hero-title" id="hero-title">Healthcare careers, built on trust.</h1>
+        <p class="hero-sub reveal">
+          iCare connects verified healthcare professionals with the employers who need them —
+          built around the registrations, checks, and standards that healthcare recruitment
+          actually requires, not a generic job board.
+        </p>
+        <div class="hero-actions reveal">
+          <button class="btn btn-primary" data-open-auth="signup" data-role="candidate">Join as a professional</button>
+          <button class="btn btn-ghost" data-open-auth="signup" data-role="employer">I'm hiring</button>
+        </div>
+        <p class="hero-note reveal">Free to join. No recruitment agency in the middle.</p>
+      </div>
+
+      <div class="hero-visual depth-3">
+        <div class="mock-card mock-card-primary float-loop">
+          <div class="mock-row">
+            <div class="mock-avatar" aria-hidden="true">AK</div>
+            <div>
+              <div class="mock-name">Amara K.</div>
+              <div class="mock-role">Registered Nurse · NMC</div>
+            </div>
+          </div>
+          <span class="mock-badge">
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 10.5l2 2 4-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.5"/></svg>
+            Registration verified
+          </span>
+          <div class="mock-tags">
+            <span class="mock-tag">Wound care</span>
+            <span class="mock-tag">Medication admin</span>
+            <span class="mock-tag">+3</span>
+          </div>
+        </div>
+        <div class="mock-card mock-card-secondary float-loop">
+          <div class="mock-match">
+            <div>
+              <div class="mock-match-text">Sunrise Care Home</div>
+              <div class="mock-role">Shortlisted your profile</div>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12M12 6l4 4-4 4" stroke="var(--teal-700)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <p class="mock-example" aria-hidden="true">Illustrative example — not a real profile</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- VALUE PROPS -->
+  <section class="section" id="why">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Why iCare</span>
+        <h2 class="section-title">Recruitment built for how healthcare actually works</h2>
+        <p class="section-sub">Every part of iCare is modelled around the real standards healthcare recruitment runs on — not bolted on afterwards.</p>
+      </div>
+      <div class="value-grid">
+        <div class="value-card reveal">
+          <div class="value-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 3l7 3v6c0 4.5-3 8.4-7 9-4-.6-7-4.5-7-9V6l7-3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          </div>
+          <h3 class="value-title">Verification, not guesswork</h3>
+          <p class="value-text">Track NMC, HCPC, GDC, GMC, GPhC, SWE and GOC registrations, DBS checks and qualifications in one place.</p>
+        </div>
+        <div class="value-card reveal">
+          <div class="value-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 20v-2a6 6 0 016-6h0a6 6 0 016 6v2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="10" cy="7" r="3.2" stroke="currentColor" stroke-width="1.7"/><path d="M16 8.5a3 3 0 100-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M18 20v-1.5a5.5 5.5 0 00-2.7-4.7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </div>
+          <h3 class="value-title">Built for healthcare roles</h3>
+          <p class="value-text">From registered nurses to care assistants and allied health professionals — profiles built around real clinical skills.</p>
+        </div>
+        <div class="value-card reveal">
+          <div class="value-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="4" stroke="currentColor" stroke-width="1.7"/><path d="M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="9" cy="8.3" r="1" fill="currentColor"/></svg>
+          </div>
+          <h3 class="value-title">You control what's shown</h3>
+          <p class="value-text">Candidates publish their profile when they're ready. Nothing goes live without your say-so.</p>
+        </div>
+        <div class="value-card reveal">
+          <div class="value-icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="2.6" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="6" r="2.6" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="18" r="2.6" stroke="currentColor" stroke-width="1.7"/><path d="M8.3 11l7.4-3.6M8.3 13l7.4 3.6" stroke="currentColor" stroke-width="1.7"/></svg>
+          </div>
+          <h3 class="value-title">Direct connections</h3>
+          <p class="value-text">Verified employers can shortlist and reach out directly — no recruitment agency in the middle.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPLIT: two audiences -->
+  <section class="section section-alt">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">Built for two audiences</span>
+        <h2 class="section-title">Whichever side of the table you're on</h2>
+      </div>
+      <div class="split">
+        <div class="split-panel panel-candidate reveal" id="professionals">
+          <span class="panel-tag">For healthcare professionals</span>
+          <h3 class="panel-title">Let your registrations speak for you</h3>
+          <ul class="panel-list">
+            <li><svg class="panel-check" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="var(--teal-100)"/><path d="M6.5 10.2l2.3 2.3 4.7-5" stroke="var(--teal-700)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Build a profile around your registrations, qualifications and clinical skills</li>
+            <li><svg class="panel-check" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="var(--teal-100)"/><path d="M6.5 10.2l2.3 2.3 4.7-5" stroke="var(--teal-700)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Add your employment history and let your experience speak for itself</li>
+            <li><svg class="panel-check" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="var(--teal-100)"/><path d="M6.5 10.2l2.3 2.3 4.7-5" stroke="var(--teal-700)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Publish when you're ready — you're always in control</li>
+            <li><svg class="panel-check" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="var(--teal-100)"/><path d="M6.5 10.2l2.3 2.3 4.7-5" stroke="var(--teal-700)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Get discovered by verified employers looking for people like you</li>
+          </ul>
+          <div class="panel-cta">
+            <button class="btn btn-primary" data-open-auth="signup" data-role="candidate">Create your profile</button>
+          </div>
+        </div>
+        <div class="split-panel panel-employer reveal" id="employers">
+          <span class="panel-tag">For employers &amp; care providers</span>
+          <h3 class="panel-title">Reach people who actually fit the role</h3>
+          <ul class="panel-list">
+            <li><svg class="panel-check" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="var(--amber-100)"/><path d="M6.5 10.2l2.3 2.3 4.7-5" stroke="var(--amber-600)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Get verified so candidates and the platform trust your organisation</li>
+            <li><svg class="panel-check" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="var(--amber-100)"/><path d="M6.5 10.2l2.3 2.3 4.7-5" stroke="var(--amber-600)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Browse published profiles from registered, vetted professionals</li>
+            <li><svg class="panel-check" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="var(--amber-100)"/><path d="M6.5 10.2l2.3 2.3 4.7-5" stroke="var(--amber-600)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Shortlist candidates and reach out directly</li>
+            <li><svg class="panel-check" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="var(--amber-100)"/><path d="M6.5 10.2l2.3 2.3 4.7-5" stroke="var(--amber-600)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>No noise — just people who fit the role</li>
+          </ul>
+          <div class="panel-cta">
+            <button class="btn btn-amber" data-open-auth="signup" data-role="employer">Register your organisation</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section" id="how">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="kicker">How it works</span>
+        <h2 class="section-title">Three steps, either side of the table</h2>
+      </div>
+      <div class="steps">
+        <div class="steps-line" aria-hidden="true">
+          <svg preserveAspectRatio="none" viewBox="0 0 100 2"><path id="stepsPath" d="M0 1 L100 1"></path></svg>
+        </div>
+        <div class="step reveal">
+          <div class="step-num">1</div>
+          <h3 class="step-title">Sign up</h3>
+          <p class="step-text">Create an account as a healthcare professional or an employer in minutes.</p>
+        </div>
+        <div class="step reveal">
+          <div class="step-num">2</div>
+          <h3 class="step-title">Get verified</h3>
+          <p class="step-text">Professionals confirm registrations and checks; employers are verified before they can browse.</p>
+        </div>
+        <div class="step reveal">
+          <div class="step-num">3</div>
+          <h3 class="step-title">Connect</h3>
+          <p class="step-text">Publish your profile or start browsing — and connect directly, with no middleman.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- JOIN / AUTH -->
+  <section class="section join" id="join">
+    <div class="layer depth-0 join-glow" aria-hidden="true"></div>
+    <div class="wrap join-grid">
+      <div class="reveal">
+        <span class="kicker" style="color:var(--teal-300)">Get started</span>
+        <h2 class="join-title">Ready when you are.</h2>
+        <p class="join-sub">Create your free account below. Professionals and employers both start here — pick whichever side you're on.</p>
+        <div class="join-points">
+          <div class="join-point">✓&nbsp; Free to join, no card required</div>
+          <div class="join-point">✓&nbsp; You choose when your profile goes live</div>
+          <div class="join-point">✓&nbsp; Built specifically for healthcare recruitment</div>
+        </div>
+      </div>
+
+      <div class="auth-card reveal">
+        <div class="auth-tabs" role="tablist" aria-label="Sign up or log in">
+          <button class="auth-tab" role="tab" id="tab-signup" aria-selected="true" aria-controls="form-signup">Sign up</button>
+          <button class="auth-tab" role="tab" id="tab-login" aria-selected="false" aria-controls="form-login">Log in</button>
+        </div>
+
+        <form class="auth-form" id="form-signup" novalidate>
+          <div class="role-toggle" role="group" aria-label="I am a">
+            <div class="role-option" role="button" tabindex="0" aria-pressed="true" data-role-option="candidate">Healthcare professional</div>
+            <div class="role-option" role="button" tabindex="0" aria-pressed="false" data-role-option="employer">Employer</div>
+          </div>
+          <input type="hidden" name="role" value="candidate" />
+
+          <div class="field">
+            <label for="su-name">Full name</label>
+            <input id="su-name" name="full_name" type="text" autocomplete="name" required />
+          </div>
+          <div class="field" data-org-field hidden>
+            <label for="su-org">Organisation name</label>
+            <input id="su-org" name="org_name" type="text" autocomplete="organization" />
+          </div>
+          <div class="field">
+            <label for="su-email">Email</label>
+            <input id="su-email" name="email" type="email" autocomplete="email" required />
+          </div>
+          <div class="field">
+            <label for="su-password">Password</label>
+            <input id="su-password" name="password" type="password" autocomplete="new-password" minlength="6" required />
+            <div class="field-hint">At least 6 characters.</div>
+          </div>
+
+          <div class="auth-submit">
+            <button type="submit" class="btn btn-primary btn-block">Create account</button>
+          </div>
+          <div class="auth-status" data-status></div>
+        </form>
+
+        <form class="auth-form" id="form-login" hidden novalidate>
+          <div class="field">
+            <label for="li-email">Email</label>
+            <input id="li-email" name="email" type="email" autocomplete="email" required />
+          </div>
+          <div class="field">
+            <label for="li-password">Password</label>
+            <input id="li-password" name="password" type="password" autocomplete="current-password" required />
+          </div>
+          <div class="auth-submit">
+            <button type="submit" class="btn btn-primary btn-block">Log in</button>
+          </div>
+          <div class="auth-status" data-status></div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <a href="#top" class="logo"><span class="logo-mark" aria-hidden="true"></span>iCare</a>
+    <p class="footer-tag">Healthcare recruitment, built on trust. Currently in early access.</p>
+    <p class="footer-tag">&copy; 2026 iCare</p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script>
+(function () {
+  document.body.classList.remove("no-js");
+
+  var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  var canAnimate = window.gsap && !reducedMotion;
+
+  if (canAnimate) {
+    gsap.registerPlugin(ScrollTrigger);
+  } else {
+    document.body.classList.add("reduced-motion");
+  }
+
+  // ---- Headline word-by-word entrance ----
+  var titleEl = document.getElementById("hero-title");
+  if (titleEl) {
+    var text = titleEl.textContent.trim();
+    titleEl.innerHTML = text.split(" ").map(function (w) {
+      return '<span class="word">' + w + "&nbsp;</span>";
+    }).join("");
+    var words = titleEl.querySelectorAll(".word");
+    if (canAnimate) {
+      gsap.to(words, { opacity: 1, y: 0, duration: 0.7, ease: "power3.out", stagger: 0.06, delay: 0.15 });
+    } else {
+      words.forEach(function (w) { w.classList.add("is-visible"); });
+    }
+  }
+
+  // ---- Generic reveal-on-scroll ----
+  var reveals = document.querySelectorAll(".reveal");
+  if (canAnimate) {
+    reveals.forEach(function (el, i) {
+      ScrollTrigger.create({
+        trigger: el,
+        start: "top 85%",
+        once: true,
+        onEnter: function () { el.classList.add("is-visible"); },
+      });
+    });
+
+    // Cascading stagger for value cards
+    gsap.utils.toArray(".value-card").forEach(function (card, i) {
+      ScrollTrigger.create({
+        trigger: card,
+        start: "top 88%",
+        once: true,
+        onEnter: function () {
+          gsap.fromTo(card, { opacity: 0, y: 34, clipPath: "inset(0 0 100% 0)" },
+            { opacity: 1, y: 0, clipPath: "inset(0 0 0% 0)", duration: 0.7, ease: "power3.out", delay: i * 0.08 });
+        },
+      });
+    });
+
+    // Split panels — directional entrance
+    var panelC = document.querySelector(".panel-candidate");
+    var panelE = document.querySelector(".panel-employer");
+    if (panelC) {
+      ScrollTrigger.create({ trigger: panelC, start: "top 85%", once: true, onEnter: function () {
+        gsap.fromTo(panelC, { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.8, ease: "power3.out" });
+      }});
+    }
+    if (panelE) {
+      ScrollTrigger.create({ trigger: panelE, start: "top 85%", once: true, onEnter: function () {
+        gsap.fromTo(panelE, { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: 0.8, ease: "power3.out" });
+      }});
+    }
+
+    // Steps connector line draw
+    var path = document.getElementById("stepsPath");
+    if (path && path.getTotalLength) {
+      var len = path.getTotalLength();
+      gsap.set(path, { strokeDasharray: len, strokeDashoffset: len });
+      ScrollTrigger.create({
+        trigger: ".steps",
+        start: "top 75%",
+        once: true,
+        onEnter: function () { gsap.to(path, { strokeDashoffset: 0, duration: 1.1, ease: "power2.inOut" }); },
+      });
+    }
+
+    // Subtle parallax on hero depth layers (skipped on coarse pointers)
+    if (!coarsePointer) {
+      gsap.to(".depth-1", { yPercent: 12, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: true } });
+      gsap.to(".depth-2", { yPercent: 6, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: true } });
+    }
+  } else {
+    reveals.forEach(function (el) { el.classList.add("is-visible"); });
+  }
+
+  // ---- Auth card: tabs ----
+  var tabSignup = document.getElementById("tab-signup");
+  var tabLogin = document.getElementById("tab-login");
+  var formSignup = document.getElementById("form-signup");
+  var formLogin = document.getElementById("form-login");
+
+  function showTab(which) {
+    var signupActive = which === "signup";
+    tabSignup.setAttribute("aria-selected", String(signupActive));
+    tabLogin.setAttribute("aria-selected", String(!signupActive));
+    formSignup.hidden = !signupActive;
+    formLogin.hidden = signupActive;
+  }
+  tabSignup.addEventListener("click", function () { showTab("signup"); });
+  tabLogin.addEventListener("click", function () { showTab("login"); });
+
+  // ---- Nav / hero buttons open the join section on the right tab ----
+  document.querySelectorAll("[data-open-auth]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var which = btn.getAttribute("data-open-auth");
+      showTab(which);
+      var role = btn.getAttribute("data-role");
+      if (role) setRole(role);
+      document.getElementById("join").scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
+    });
+  });
+
+  // ---- Role toggle (candidate / employer) ----
+  var roleOptions = document.querySelectorAll("[data-role-option]");
+  var roleInput = formSignup.querySelector('input[name="role"]');
+  var orgField = formSignup.querySelector("[data-org-field]");
+  var orgInput = document.getElementById("su-org");
+
+  function setRole(role) {
+    roleInput.value = role;
+    roleOptions.forEach(function (opt) {
+      opt.setAttribute("aria-pressed", String(opt.getAttribute("data-role-option") === role));
+    });
+    var isEmployer = role === "employer";
+    orgField.hidden = !isEmployer;
+    orgInput.required = isEmployer;
+  }
+  roleOptions.forEach(function (opt) {
+    opt.addEventListener("click", function () { setRole(opt.getAttribute("data-role-option")); });
+    opt.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setRole(opt.getAttribute("data-role-option")); }
+    });
+  });
+
+  // ---- Status helper ----
+  function setStatus(form, kind, message) {
+    var el = form.querySelector("[data-status]");
+    el.textContent = message;
+    el.className = "auth-status is-visible " + kind;
+  }
+
+  // ---- Signup submit ----
+  formSignup.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var submitBtn = formSignup.querySelector('button[type="submit"]');
+    var data = new FormData(formSignup);
+    var payload = {
+      email: data.get("email"),
+      password: data.get("password"),
+      role: data.get("role"),
+      full_name: data.get("full_name"),
+    };
+    if (payload.role === "employer") payload.org_name = data.get("org_name");
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creating account…";
+
+    fetch("/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Create account";
+        if (!result.ok) {
+          setStatus(formSignup, "err", result.body.error || "Something went wrong. Please try again.");
+          return;
+        }
+        if (result.body.session) {
+          try { localStorage.setItem("icare_session", JSON.stringify(result.body.session)); } catch (err) {}
+          setStatus(formSignup, "ok", "You're in! We'll be in touch as we get iCare ready for you.");
+        } else {
+          setStatus(formSignup, "ok", "Account created — check your email to confirm your address.");
+        }
+        formSignup.reset();
+        setRole("candidate");
+      })
+      .catch(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Create account";
+        setStatus(formSignup, "err", "Network error — please try again.");
+      });
+  });
+
+  // ---- Login submit ----
+  formLogin.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var submitBtn = formLogin.querySelector('button[type="submit"]');
+    var data = new FormData(formLogin);
+    var payload = { email: data.get("email"), password: data.get("password") };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Logging in…";
+
+    fetch("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Log in";
+        if (!result.ok) {
+          setStatus(formLogin, "err", result.body.error || "Couldn't log you in. Check your details and try again.");
+          return;
+        }
+        try { localStorage.setItem("icare_session", JSON.stringify(result.body.session)); } catch (err) {}
+        setStatus(formLogin, "ok", "Welcome back!");
+      })
+      .catch(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Log in";
+        setStatus(formLogin, "err", "Network error — please try again.");
+      });
+  });
+})();
+</script>
+</body>
+</html>
