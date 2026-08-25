@@ -93,9 +93,24 @@ security boundary — RLS is), a Deno Edge Function (`parse-cv`) calling
 Claude for CV parsing. This is a materially different, more complete
 system than what exists in this Cloudflare Workers repo (it already has a
 3-step onboarding wizard, CV upload/parse/review, and a candidate home
-page — none of which exist here yet). **Not reconciled yet — see chat for
-the open question on which of these two builds is the one going forward.**
-Do not delete or ignore either side without the user's direction.
+page — none of which exist here yet).
+**Decision (2026-08-25): Cloudflare Workers is the build going forward.**
+The Next.js files are a spec for what each screen needs to do — port the
+*logic and business rules*, not the code verbatim (different framework:
+no server components, no server actions, no Next.js middleware here).
+Concretely still to build, using the Next.js files as reference:
+  - Onboarding wizard (3 steps: role/registration → location/availability
+    → employment history), with resume-where-left-off via
+    `candidates.onboarding_step`.
+  - CV upload → parse → review → apply flow. The real version calls Claude
+    from a server-side function to parse the CV into a draft, which the
+    candidate must confirm before it's written (non-negotiable #5) — ours
+    would need an equivalent Worker-side call to the Claude API, not yet
+    built. Data-minimisation rules (non-negotiable #6) apply directly.
+  - A candidate home page (completeness %, published status, badges list,
+    "badges are earned, never bought" messaging per non-negotiable #2).
+  - `/privacy` and `/terms` pages — referenced by the real join form,
+    must exist before a real signup flow ships.
 
 ## Stack / accounts
 - **GitHub**: `genesysc/icare`
@@ -169,15 +184,32 @@ Do not delete or ignore either side without the user's direction.
   `is_verified_employer()`). Useful RPCs already in the DB:
   `current_role_is(role)`, `is_verified_employer()`, `close_my_account(reason)`,
   `publish_my_profile()`.
+  **Auth method: email OTP, no passwords** (per HANDOVER.md — this
+  audience returns every few months, a forgotten password is a lost
+  candidate; magic links were explicitly rejected — opening one in a
+  mobile mail app opens a different browser and loses the session).
   Worker routes in `src/auth.ts`, mounted at `/auth`:
-  - `POST /auth/signup` — `{ email, password, role, full_name, org_name?, terms_version? }`
-  - `POST /auth/login` — `{ email, password }`
+  - `POST /auth/request-code` — `{ email, create?, role?, full_name?, org_name?, terms_version? }`.
+    One entry point for both sign-up and sign-in; `create` (default true,
+    maps to Supabase's `shouldCreateUser`) is the only difference — pass
+    `create: false` on a sign-in screen so an unrecognised email doesn't
+    silently create an account. `role` is required when `create` is true.
+  - `POST /auth/verify-code` — `{ email, token }` (the 6-digit code) →
+    `{ user, session }`.
   - `POST /auth/logout` — needs `Authorization: Bearer <access_token>`
   - `GET /auth/me` — needs `Authorization: Bearer <access_token>`, returns
     `{ user, account }`
-  All four use the anon/publishable key with the caller's own bearer token
+  All use the anon/publishable key with the caller's own bearer token
   forwarded — no service_role key anywhere in the Worker, RLS applies
   normally.
+  **⚠️ Manual Supabase Dashboard step still needed, not yet done**:
+  HANDOVER.md flags that the default "Magic Link" email template must be
+  changed to reference `{{ .Token }}` (Authentication → Emails →
+  Templates), or `verifyOtp` rejects every valid code — described there as
+  "the first thing that breaks." No API/MCP tool covers Supabase Auth
+  email template config; this needs a human in the dashboard, same
+  category of blocker as the `workers.dev` subdomain and SMTP settings
+  were.
 - **Candidate profile API**: `src/candidates.ts`, mounted at `/candidates`,
   all routes behind the shared `requireAuth` middleware (`src/middleware.ts`
   — verifies the bearer token, attaches an RLS-scoped Supabase client as
@@ -313,10 +345,11 @@ they aren't lost:
   conversational AI search + its protected-characteristics guardrail —
   see "Product direction" above. Explicitly phase 2; the guardrail design
   needs care before any of this is built.
-- **Auth method reconciliation** — OTP vs password, see Non-negotiables
-  section. Open question for the user.
-- **Next.js reference app reconciliation** — see Non-negotiables section.
-  Open question for the user: which build is the one going forward.
+- **Supabase email template fix** — the "Magic Link" template needs to
+  reference `{{ .Token }}` for `verify-code` to work at all. Manual
+  Dashboard step, not yet done (see Stack section). Untested end-to-end
+  until this is done — the code is deployed but a real OTP flow hasn't
+  been verified against a live inbox yet.
 - Candidate paid "boost" feature — will not be built. (Was previously
   listed as blocked-on-legal; now settled as a hard no.)
 - Employer-facing landing page — separate piece of work, not started.
