@@ -380,9 +380,14 @@ absolutely-positioned card stack (previously the most layout-fragile part
 of the page, flagged here) is now one naturally-flowing card with no
 per-breakpoint overrides, and the feature grid now uses the available
 width on larger screens instead of always single-column. No horizontal
-overflow at any tested size, before or after. That fix is on a new,
-not-yet-merged PR — check current branch/PR state (see below) before
-assuming it's live.
+overflow at any tested size, before or after. The user then supplied a
+real photo for that hero card's illustrative profile; it's cropped to a
+52px circular avatar, embedded as a base64 data URI (still a single
+self-contained landing.html, no new asset route), and the card's
+name/role text was updated to match the badge visible in the photo
+("Emily R." / "Healthcare Assistant · Belfast"). Both changes are on
+PR #10, still open — check current branch/PR state (see below) before
+assuming it's live. I've asked once whether to merge it; no answer yet.
 
 **Next priorities**: pick from §8's blocking list — the custom `icare`
 domain is the single highest-leverage unblock (gates Sender.net for both

@@ -9,18 +9,19 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: landing page deployed and responsive-audited
+## Status: PR #10 open (responsive cleanup + hero photo), awaiting merge decision
 
 PR #9 merged and deployed (all of the auth/candidate-API/landing-page/
-HANDOVER.md work from the earlier hand-off). The hand-off's flagged next
-task — checking landing page UI fluidity across screen sizes — is done:
-actually rendered `src/landing.html` at 6 real viewport sizes (iPhone
-SE/13, small Android, tablet portrait, laptop, desktop) via headless
-Chromium rather than just reading the CSS, found and fixed two real
-issues (see "Done" below). Confirmed no horizontal overflow at any size
-after the fix. Not yet merged — see below.
+HANDOVER.md work from the earlier hand-off). PR #10, still open, adds two
+things on top: the responsive/UI cleanup (hero visual rebuilt as one
+flowing card, `.wrap`/`.feature-list` fixes — actually tested at 6 real
+viewport sizes via headless Chromium, not just CSS-read) and a real photo
+now embedded in that hero card's illustrative profile (see "Done" below).
+Zero horizontal overflow confirmed at any tested size, before and after
+both changes. I asked the user whether to merge PR #10 once already —
+still unanswered, ask again or just merge if no reply.
 
-Otherwise: deployed and live, wired to the real Supabase backend.
+Otherwise: `main` is deployed and live, wired to the real Supabase backend.
 
 ## ⚠️ Non-negotiables (from HANDOVER.md, "care·register" — uploaded 2026-08-25)
 
@@ -406,8 +407,25 @@ they aren't lost:
   - Confirmed: zero horizontal overflow at any tested size, before or
     after the fix (the underlying breakpoints were already sound — the
     problems were composition/space-usage, not overflow bugs).
-  - Not yet merged — new PR needed (branch pushed, PR not opened as of
-    this note; check for one before opening a duplicate).
+  - Opened as PR #10 (https://github.com/genesysc/icare/pull/10). Not yet
+    merged — asked the user whether to merge; they sent the photo (next
+    bullet) instead of answering, so it's still open.
+- **Real photo for the hero card's illustrative profile.** User uploaded a
+  photo (woman in blue scrubs, ID badge "Emily R." / "Healthcare
+  Assistant"). Cropped to a centered 240x240 square (`Pillow`, biased
+  toward the face), re-encoded as JPEG (~10KB), embedded as a base64 data
+  URI in a new `.profile-avatar` (52px circle) inside `.profile-card`,
+  next to the name/role — keeps `landing.html` a single self-contained
+  file, no R2/asset route needed. Updated the card text from "Aoife M." /
+  "Senior Care Assistant · Belfast" to "Emily R." / "Healthcare Assistant ·
+  Belfast" to match the badge in the photo (kept Belfast — not visible in
+  the photo, no reason to change it). Kept the existing "Illustrative
+  example profile — not a real person" caption unchanged. Verified: `tsc
+  --noEmit` clean, `wrangler deploy --dry-run` succeeds (839 KiB / 179 KiB
+  gzip, up ~14 KiB from the avatar), re-ran the 6-viewport headless-Chromium
+  audit — zero horizontal overflow, avatar renders cleanly on mobile and
+  desktop. Pushed as a second commit on the same branch/PR #10 (not yet
+  merged).
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
