@@ -29,9 +29,26 @@ for the standing instruction.
   Supabase was confirmed as the real backend.
 - **R2 bucket**: `icare`, bound as `MEDIA` in `wrangler.jsonc` — still used
   for media/file storage, untouched by the Supabase migration.
-- **Worker**: `icare` (Hono app in `src/index.ts`), routes: `/health`,
-  `/db-check` (queries `professions` via Supabase), `/media-check`,
-  and `/auth/*` (see below).
+- **Worker**: `icare` (Hono app in `src/index.ts`), routes: `GET /` (landing
+  page, see below), `/health`, `/db-check` (queries `professions` via
+  Supabase), `/media-check`, and `/auth/*` / `/candidates/*` (see below).
+- **Landing page**: `src/landing.html`, a single self-contained static page
+  (no framework, no build step) served via `c.html(landingPage)` at `GET /`.
+  Imported as a raw string via wrangler's `rules: [{ type: "Text", globs:
+  ["**/*.html"] }]` config in `wrangler.jsonc` (needs the `src/html.d.ts`
+  ambient module declaration for `tsc` to accept the import). No image
+  assets exist for the project yet — all visuals are CSS/SVG (gradients, an
+  inline SVG "network" motif, a CSS-built profile-card mockup explicitly
+  labelled "Illustrative example — not a real profile"). Copy is grounded
+  in what's actually built (registrations, DBS checks, regulator-scoped
+  professions) — deliberately no fabricated stats/testimonials, since
+  there are no real users yet. Signup/login forms on the page call
+  `POST /auth/signup` / `POST /auth/login` directly (same-origin, no CORS
+  needed) and store the returned session in `localStorage` under
+  `icare_session` for whenever a real app shell exists to use it. Built
+  with the `epic-design` skill, restrained for a healthcare audience
+  (subtle depth/parallax, no dramatic scroll theatrics); GSAP + ScrollTrigger
+  via CDN, full `prefers-reduced-motion` and coarse-pointer fallbacks.
 - **Auth**: Supabase Auth, already fully wired at the DB level (migrations
   `0002_auth`, `0005_security_hardening` — not something we need to build,
   only to call correctly). On `auth.users` insert, `handle_new_user()`
@@ -126,8 +143,10 @@ for the standing instruction.
 - Decided the auth-email approach (Sender.net as SMTP relay behind Supabase
   Auth) — see Stack section. Not yet built, waiting on an iCare domain.
 - Built the candidate profile API (`src/candidates.ts`) — see Stack section
-  for the full route list. Not yet confirmed deployed/green in CI (just
-  pushed).
+  for the full route list. Confirmed deployed and green (CI run
+  `32848054672`).
+- Built the landing page (`src/landing.html`), served at `GET /` — see
+  Stack section. Not yet confirmed deployed/green in CI (just pushed).
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
@@ -137,7 +156,10 @@ for the standing instruction.
   CV import — not covered by the candidate API slice just built.
 - Feed/social features per the README's "LinkedIn for healthcare" framing —
   not started, not modeled in the DB yet either.
-- No frontend/UI of any kind exists — the Worker is a JSON API only so far.
+- A real signed-in app UI (dashboard, profile editor, etc.) — the landing
+  page has signup/login forms, but nothing exists yet for a user to land on
+  *after* authenticating. `icare_session` is stored client-side in
+  anticipation of this but nothing reads it yet.
 - Employer verification review flow (`employer_verification_requests`,
   `is_verified`) — who reviews these and how is undecided.
 - **Custom domain for iCare — now blocking**: needed both for Cloudflare
