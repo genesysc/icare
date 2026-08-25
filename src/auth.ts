@@ -1,17 +1,19 @@
 import { Hono } from "hono";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { requireAuth } from "./middleware";
 
 type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
 };
 
-const auth = new Hono<{ Bindings: Bindings }>();
+type Variables = {
+  supabase: SupabaseClient;
+  userId: string;
+  user: User;
+};
 
-function bearerToken(authHeader: string | undefined): string | null {
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  return authHeader.slice("Bearer ".length);
-}
+const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Matches the signup_role/full_name/org_name/terms_version fields the
 // handle_new_user() DB trigger reads from raw_user_meta_data to create the
@@ -53,38 +55,22 @@ auth.post("/login", async (c) => {
   return c.json({ user: data.user, session: data.session });
 });
 
-auth.post("/logout", async (c) => {
-  const token = bearerToken(c.req.header("Authorization"));
-  if (!token) return c.json({ error: "missing bearer token" }, 401);
-
-  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { error } = await supabase.auth.signOut();
-
+auth.post("/logout", requireAuth, async (c) => {
+  const { error } = await c.get("supabase").auth.signOut();
   if (error) return c.json({ error: error.message }, 500);
   return c.json({ status: "ok" });
 });
 
-auth.get("/me", async (c) => {
-  const token = bearerToken(c.req.header("Authorization"));
-  if (!token) return c.json({ error: "missing bearer token" }, 401);
-
-  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !userData.user) return c.json({ error: "invalid session" }, 401);
-
-  const { data: account, error: accountError } = await supabase
+auth.get("/me", requireAuth, async (c) => {
+  const { data: account, error } = await c
+    .get("supabase")
     .from("accounts")
     .select("id, role, full_name, email, status")
-    .eq("id", userData.user.id)
+    .eq("id", c.get("userId"))
     .single();
-  if (accountError) return c.json({ error: accountError.message }, 500);
 
-  return c.json({ user: userData.user, account });
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ user: c.get("user"), account });
 });
 
 export default auth;

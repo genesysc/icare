@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { createClient } from "@supabase/supabase-js";
 import auth from "./auth";
+import candidates from "./candidates";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -11,6 +12,7 @@ type Bindings = {
 const app = new Hono<{ Bindings: Bindings }>();
 
 app.route("/auth", auth);
+app.route("/candidates", candidates);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
@@ -19,6 +21,25 @@ app.get("/db-check", async (c) => {
   const { data, error } = await supabase.from("professions").select("id").limit(1);
   if (error) return c.json({ db: "error", message: error.message }, 500);
   return c.json({ db: "ok", sample: data });
+});
+
+// Public reference tables (RLS: readable by anyone), used to populate
+// pickers for candidate_professions / candidate_skills.
+app.get("/professions", async (c) => {
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
+  const { data, error } = await supabase
+    .from("professions")
+    .select("id, name, family, regulator")
+    .order("sort_order", { ascending: true });
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ professions: data });
+});
+
+app.get("/skills", async (c) => {
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
+  const { data, error } = await supabase.from("clinical_skills").select("id, label, family");
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ skills: data });
 });
 
 app.get("/media-check", async (c) => {
