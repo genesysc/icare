@@ -1,0 +1,551 @@
+<!--
+  iCare landing page — v2, rebuilt against the copy/design brief
+  (LANDING_PAGE_COPY.md + landingpage.pdf mockup).
+
+  Key differences from v1: candidate-primary (employer messaging is
+  supporting context only, no separate employer CTA — a dedicated
+  employer page is a later, separate piece of work), waitlist-capture
+  flow instead of live account creation, and copy taken verbatim from
+  the brief. "Coming soon" tags mark roadmap features (self-expression
+  posts, AI-assisted discovery, impact stats) so nothing here overstates
+  what's live today. The waitlist counter is real (GET /waitlist/count)
+  and starts at 0 — no fabricated social-proof numbers.
+
+  Motion techniques (epic-design catalogue), kept restrained for a
+  healthcare/editorial tone: word-by-word headline fade-rise, scroll
+  reveal-on-enter, cascading card stack for the feature list, float
+  loop on the hero cards. Full prefers-reduced-motion and coarse-pointer
+  fallbacks.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>iCare — You're not a list of skills</title>
+<meta name="description" content="iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile that shows your skills and experience — and, if you choose, the person behind them too." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533;
+    --plum-800: #382349;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --amber-600: #b8791f;
+    --amber-100: #faedd4;
+    --paper: #fefefc;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper);
+    color: var(--ink-soft);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  h1, h2, h3 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; }
+  p { margin: 0; }
+  a { color: inherit; }
+  button { font-family: inherit; }
+  em { font-style: italic; color: var(--teal-700); }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 0; }
+
+  .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--teal-700);
+  }
+
+  /* ---------- Accessibility & performance ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  .reveal { opacity: 0; transform: translateY(24px); }
+  .reveal.is-visible { opacity: 1; transform: translateY(0); transition: opacity 0.85s var(--ease), transform 0.85s var(--ease); }
+  .no-js .reveal, .reduced-motion .reveal { opacity: 1; transform: none; }
+
+  /* ---------- Nav ---------- */
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 24px; max-width: 760px; margin: 0 auto; }
+  .logo { display: flex; align-items: baseline; gap: 1px; font-family: "Fraunces", serif; font-weight: 600; font-size: 21px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+  .nav-cta { font-size: 14.5px; font-weight: 600; color: var(--ink-faint); text-decoration: none; background: none; border: none; cursor: pointer; padding: 8px 4px; }
+  .nav-cta:hover { color: var(--teal-700); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; padding: 13px 24px; font-weight: 700; font-size: 15px; cursor: pointer; text-decoration: none; transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), background 0.25s var(--ease), border-color 0.25s var(--ease); white-space: nowrap; }
+  .btn:active { transform: translateY(1px); }
+  .btn-ghost { background: transparent; color: var(--plum-950); border: 1.5px solid var(--plum-950); }
+  .btn-ghost:hover { background: var(--plum-950); color: var(--white); }
+  .btn-teal { background: var(--teal-500); color: var(--white); border: none; box-shadow: 0 14px 30px -14px rgba(22, 184, 166, 0.55); }
+  .btn-teal:hover { background: var(--teal-700); }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 40px 0 60px; }
+  .eyebrow { display: inline-block; }
+  .hero-title { font-size: clamp(30px, 5vw, 44px); line-height: 1.16; font-weight: 600; letter-spacing: -0.02em; margin-top: 18px; }
+  .hero-title em { font-family: "Fraunces", serif; font-style: italic; font-weight: 500; }
+  .word { display: inline-block; opacity: 0; transform: translateY(0.35em); }
+  .word.is-visible { opacity: 1; transform: translateY(0); transition: opacity 0.65s var(--ease), transform 0.65s var(--ease); }
+
+  .hero-sub { margin-top: 22px; font-size: 17px; line-height: 1.7; color: var(--ink-soft); max-width: 58ch; }
+  .hero-actions { margin-top: 30px; }
+  .hero-note { margin-top: 18px; font-size: 14px; color: var(--ink-faint); }
+  .hero-note strong { color: var(--plum-950); }
+
+  .hero-visual { position: relative; margin-top: 56px; height: 300px; }
+  .float-loop { animation: floaty 10s ease-in-out infinite; }
+  @keyframes floaty { 0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); } 50% { transform: translateY(-12px) rotate(var(--tilt, 0deg)); } }
+
+  .photo-card { position: absolute; left: 0; top: 40px; width: 240px; height: 220px; border-radius: 18px; overflow: hidden; background: linear-gradient(155deg, var(--teal-100), var(--paper-dim) 70%); border: 1px solid var(--line); --tilt: -1.5deg; }
+  .photo-card::after { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 90% at 30% 20%, rgba(22,184,166,0.18), transparent 60%); }
+  .stat-card { position: absolute; left: 150px; top: 0; background: var(--white); border-radius: 16px; box-shadow: var(--shadow-soft); border: 1px solid var(--line); padding: 16px 18px; display: flex; gap: 22px; --tilt: 1deg; }
+  .stat { text-align: left; }
+  .stat-num { font-family: "Fraunces", serif; font-weight: 600; font-size: 21px; color: var(--plum-950); }
+  .stat-label { font-size: 11.5px; color: var(--ink-faint); margin-top: 2px; }
+
+  .verify-card { position: absolute; right: 0; bottom: 0; width: 270px; background: var(--white); border-radius: 18px; box-shadow: var(--shadow-soft); border: 1px solid var(--line); padding: 22px; --tilt: -1deg; }
+  .verify-name { font-family: "Fraunces", serif; font-weight: 600; font-size: 17px; color: var(--plum-950); }
+  .verify-role { font-size: 13px; color: var(--ink-faint); margin-top: 2px; }
+  .verify-tags { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; }
+  .verify-tag { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; font-weight: 600; }
+  .verify-tag.t-verified { color: var(--teal-700); }
+  .verify-tag.t-evidenced { color: var(--plum-800); }
+  .verify-tag.t-derived { color: var(--amber-600); }
+  .verify-tag.t-declared { color: var(--ink-faint); }
+  .visual-caption { position: absolute; left: 0; bottom: -26px; font-size: 12px; color: var(--ink-faint); font-style: italic; }
+
+  /* ---------- Section shells ---------- */
+  .section { padding: 64px 0; }
+  .section-tight { padding-top: 44px; }
+  .section-label-block { margin-bottom: 18px; }
+  .section-title { margin-top: 10px; font-size: clamp(24px, 3.4vw, 32px); font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; }
+  .body-text { margin-top: 18px; font-size: 16.5px; line-height: 1.75; color: var(--ink-soft); }
+  .body-text strong { color: var(--plum-950); font-weight: 700; }
+
+  /* ---------- Feature cards (stacked, single column) ---------- */
+  .feature-list { margin-top: 30px; display: grid; gap: 16px; }
+  .feature-card { border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; background: var(--white); }
+  .feature-title { margin-top: 8px; font-size: 19px; font-weight: 600; }
+  .feature-text { margin-top: 10px; font-size: 15px; line-height: 1.65; color: var(--ink-soft); }
+  .soon-tag { display: inline-flex; margin-top: 16px; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--amber-600); background: var(--amber-100); padding: 5px 10px; border-radius: 999px; }
+
+  /* ---------- Pull quote ---------- */
+  .quote-wrap { padding: 76px 0; }
+  .quote-mark { font-family: "Fraunces", serif; font-size: 48px; color: var(--teal-500); line-height: 0.5; }
+  blockquote { margin: 18px 0 0; border-left: 2px solid var(--teal-100); padding-left: 24px; }
+  .quote-text { font-family: "Fraunces", serif; font-style: italic; font-weight: 500; font-size: clamp(19px, 2.6vw, 25px); line-height: 1.5; color: var(--plum-950); }
+
+  /* ---------- Waitlist CTA ---------- */
+  .join-headline { margin-top: 10px; }
+  .join-form { margin-top: 30px; display: grid; gap: 12px; max-width: 420px; }
+  .join-form input {
+    width: 100%; padding: 13px 16px; border-radius: 12px; border: 1.5px solid var(--line);
+    font-size: 15px; font-family: inherit; background: var(--white); color: var(--plum-950);
+  }
+  .join-form input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
+  .join-form-optional { font-size: 12px; color: var(--ink-faint); }
+  .join-note { margin-top: 16px; font-size: 14px; color: var(--ink-faint); }
+  .join-note strong { color: var(--plum-950); font-weight: 700; }
+  .join-status { margin-top: 14px; font-size: 14px; display: none; }
+  .join-status.is-visible { display: block; }
+  .join-status.ok { color: var(--teal-700); }
+  .join-status.err { color: #b23a24; }
+
+  .join-success { display: none; max-width: 460px; }
+  .join-success.is-visible { display: block; }
+  .join-success-title { font-family: "Fraunces", serif; font-weight: 600; font-size: 22px; color: var(--plum-950); }
+  .join-success-text { margin-top: 10px; font-size: 15px; line-height: 1.6; color: var(--ink-soft); }
+  .share-row { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .share-btn {
+    display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: 999px;
+    background: var(--plum-950); color: var(--white); font-size: 13.5px; font-weight: 700;
+    text-decoration: none; border: none; cursor: pointer; font-family: inherit;
+  }
+  .share-btn:hover { background: var(--teal-700); }
+
+  .counter-row { margin-top: 40px; display: flex; gap: 40px; }
+  .counter-num { font-family: "Fraunces", serif; font-weight: 600; font-size: 30px; color: var(--plum-950); }
+  .counter-label { font-size: 13px; color: var(--ink-faint); margin-top: 4px; }
+
+  /* ---------- Footer ---------- */
+  .footer { padding: 40px 0 56px; }
+  .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+  .footer-tag { font-size: 13px; color: var(--ink-faint); }
+
+  @media (max-width: 620px) {
+    .hero-visual { height: 420px; }
+    .photo-card { width: 200px; height: 180px; top: 0; }
+    .stat-card { left: 20px; top: 130px; flex-wrap: wrap; }
+    .verify-card { right: 0; bottom: -30px; width: 230px; }
+  }
+</style>
+</head>
+<body class="no-js">
+
+<header class="nav" aria-label="Primary">
+  <a href="#top" class="logo">i<em>Care</em></a>
+  <button class="nav-cta" data-scroll-to="#join">Join the waitlist</button>
+</header>
+
+<hr class="divider" />
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero wrap">
+    <span class="label eyebrow">Now building — United Kingdom</span>
+    <h1 class="hero-title" id="hero-title">You're not a list of skills. You're <em>who</em> a patient trusts.</h1>
+    <p class="hero-sub reveal">
+      iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile
+      that shows your skills and experience — and, if you choose, the person behind them too. Because
+      some of the best carers we know don't interview well. They just are who they are. Now employers
+      can see that, before they ever meet you.
+    </p>
+    <div class="hero-actions reveal">
+      <button class="btn btn-ghost" data-scroll-to="#join">Join the Waitlist</button>
+    </div>
+    <p class="hero-note reveal"><strong>Free to join.</strong>&nbsp;Candidates are never charged, for anything.</p>
+
+    <div class="hero-visual reveal" aria-hidden="true">
+      <div class="photo-card float-loop"></div>
+      <div class="stat-card float-loop">
+        <div class="stat"><div class="stat-num">248</div><div class="stat-label">profile views</div></div>
+        <div class="stat"><div class="stat-num">6</div><div class="stat-label">years experience</div></div>
+        <div class="stat"><div class="stat-num">3</div><div class="stat-label">shortlists</div></div>
+      </div>
+      <div class="verify-card float-loop">
+        <div class="verify-name">Aoife M.</div>
+        <div class="verify-role">Senior Care Assistant · Belfast</div>
+        <div class="verify-tags">
+          <span class="verify-tag t-verified">verified</span>
+          <span class="verify-tag t-evidenced">evidenced</span>
+          <span class="verify-tag t-derived">derived</span>
+          <span class="verify-tag t-declared">declared</span>
+        </div>
+      </div>
+      <p class="visual-caption">Illustrative example profile — not a real person</p>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- WHAT WE'RE BUILDING -->
+  <section class="section wrap">
+    <div class="section-label-block reveal">
+      <span class="label">What we're building</span>
+    </div>
+    <p class="body-text reveal">
+      Most job platforms reduce you to a CV. We think that's the wrong way round.
+      <strong>iCare gives you a real profile</strong> — your skills, your experience, and, entirely on
+      your terms, your own voice. Share what matters to you, professionally or personally, and build a
+      presence that shows employers who you really are. Whether you want flexible shift work or a
+      stable, permanent role, employers are actively searching for people like you, right now.
+    </p>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- WHY JOIN -->
+  <section class="section wrap">
+    <div class="section-label-block reveal">
+      <span class="label">Why join</span>
+      <h2 class="section-title">Everything you need to be seen — for the right reasons.</h2>
+    </div>
+
+    <div class="feature-list">
+      <div class="feature-card reveal">
+        <span class="label">Identity</span>
+        <h3 class="feature-title">Your identity, not just your CV</h3>
+        <p class="feature-text">Build a profile that shows your real experience and expertise — evidenced, verified, and trusted, not just typed in a box.</p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="label">Demand</span>
+        <h3 class="feature-title">Found by employers who need you now</h3>
+        <p class="feature-text">From urgent locum cover to permanent posts, employers are searching iCare every day for people ready to work.</p>
+      </div>
+      <div class="feature-card reveal">
+        <span class="label">Your voice</span>
+        <h3 class="feature-title">Say what you want, share what you choose</h3>
+        <p class="feature-text">Post your thoughts, your experiences, whatever feels true to who you are. You decide exactly what's private, what's shared with other carers, and what employers can see. Nothing is used without your say-so.</p>
+        <span class="soon-tag">Coming soon</span>
+      </div>
+      <div class="feature-card reveal">
+        <span class="label">Discovery</span>
+        <h3 class="feature-title">Let your character do the talking</h3>
+        <p class="feature-text">Employers search in plain English — "an experienced carer, great with dementia patients, based near Reading." Our AI helps them find people like you, drawing only on what you've chosen to share.</p>
+        <span class="soon-tag">Coming soon</span>
+      </div>
+      <div class="feature-card reveal">
+        <span class="label">Visibility</span>
+        <h3 class="feature-title">See your own impact</h3>
+        <p class="feature-text">Know how many employers and peers have viewed your profile, so you can see, in real numbers, that you're being noticed.</p>
+        <span class="soon-tag">Coming soon</span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- PULL QUOTE -->
+  <section class="quote-wrap wrap">
+    <div class="reveal">
+      <span class="quote-mark" aria-hidden="true">&rdquo;</span>
+      <blockquote>
+        <p class="quote-text">You've been searching for a long time. It's time to stop being one CV in a stack, and start being someone employers actually find — for exactly who you are.</p>
+      </blockquote>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- WAITLIST CTA -->
+  <section class="section wrap" id="join">
+    <div class="reveal">
+      <span class="label">Early access</span>
+      <h2 class="section-title join-headline">Be one of the first to be seen.</h2>
+      <p class="body-text">
+        Join the iCare waitlist today. The first people to sign up will be first in line when we launch —
+        the sooner your profile is live, the sooner employers can find you.
+      </p>
+
+      <form class="join-form" id="waitlist-form" novalidate>
+        <label for="wl-name" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Full name</label>
+        <input id="wl-name" name="full_name" type="text" placeholder="Your name" autocomplete="name" required />
+        <label for="wl-email" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Email address</label>
+        <input id="wl-email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required />
+        <label for="wl-phone" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Phone number (optional)</label>
+        <input id="wl-phone" name="phone" type="tel" placeholder="Phone (optional)" autocomplete="tel" />
+        <span class="join-form-optional">We'll only use these to let you know when iCare is live.</span>
+        <button type="submit" class="btn btn-teal">Join the waitlist</button>
+      </form>
+      <p class="join-status" data-status></p>
+
+      <p class="join-note"><strong>Free to join and build your profile.</strong>&nbsp;You always control what you share, and with whom.</p>
+
+      <div class="join-success" id="waitlist-success" aria-live="polite">
+        <h3 class="join-success-title" data-success-title>You're on the list.</h3>
+        <p class="join-success-text" data-success-text>We'll email you the moment iCare is live.</p>
+        <div class="share-row">
+          <a class="share-btn" data-share="twitter" href="#" target="_blank" rel="noopener">Share on X</a>
+          <a class="share-btn" data-share="linkedin" href="#" target="_blank" rel="noopener">Share on LinkedIn</a>
+          <a class="share-btn" data-share="facebook" href="#" target="_blank" rel="noopener">Facebook</a>
+          <a class="share-btn" data-share="whatsapp" href="#" target="_blank" rel="noopener">WhatsApp</a>
+          <button class="share-btn" type="button" data-share="copy">Copy link</button>
+        </div>
+      </div>
+
+      <div class="counter-row">
+        <div>
+          <div class="counter-num" data-waitlist-count>—</div>
+          <div class="counter-label">on the waitlist</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<hr class="divider" />
+
+<footer class="footer wrap">
+  <div class="footer-inner">
+    <a href="#top" class="logo">i<em>Care</em></a>
+    <p class="footer-tag">&copy; 2026 iCare</p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script>
+(function () {
+  document.body.classList.remove("no-js");
+
+  var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var canAnimate = window.gsap && !reducedMotion;
+
+  if (canAnimate) {
+    gsap.registerPlugin(ScrollTrigger);
+  } else {
+    document.body.classList.add("reduced-motion");
+  }
+
+  // ---- Headline word-by-word entrance ----
+  var titleEl = document.getElementById("hero-title");
+  if (titleEl) {
+    var html = titleEl.innerHTML;
+    var wrapped = html.replace(/(<em>.*?<\/em>|[^\s<]+)/g, function (match) {
+      if (match.indexOf("<em>") === 0) return '<span class="word">' + match + "</span>";
+      return '<span class="word">' + match + "</span>";
+    });
+    titleEl.innerHTML = wrapped.split(/(\s+)/).map(function (part) {
+      return part;
+    }).join(" ");
+    var words = titleEl.querySelectorAll(".word");
+    if (canAnimate) {
+      gsap.to(words, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.045, delay: 0.1 });
+    } else {
+      words.forEach(function (w) { w.classList.add("is-visible"); });
+    }
+  }
+
+  // ---- Generic reveal-on-scroll ----
+  var reveals = document.querySelectorAll(".reveal");
+  if (canAnimate) {
+    reveals.forEach(function (el) {
+      ScrollTrigger.create({
+        trigger: el,
+        start: "top 88%",
+        once: true,
+        onEnter: function () { el.classList.add("is-visible"); },
+      });
+    });
+
+    gsap.utils.toArray(".feature-card").forEach(function (card, i) {
+      ScrollTrigger.create({
+        trigger: card,
+        start: "top 90%",
+        once: true,
+        onEnter: function () {
+          gsap.fromTo(card, { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", delay: i * 0.06 });
+        },
+      });
+    });
+  } else {
+    reveals.forEach(function (el) { el.classList.add("is-visible"); });
+  }
+
+  // ---- Scroll-to helpers ----
+  document.querySelectorAll("[data-scroll-to]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var target = document.querySelector(btn.getAttribute("data-scroll-to"));
+      if (target) target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
+      var emailInput = document.getElementById("wl-email");
+      if (emailInput) setTimeout(function () { emailInput.focus(); }, reducedMotion ? 0 : 500);
+    });
+  });
+
+  // ---- Live waitlist counter (real — starts at 0, no fabricated numbers) ----
+  var counterEl = document.querySelector("[data-waitlist-count]");
+  if (counterEl) {
+    fetch("/waitlist/count")
+      .then(function (res) { return res.json(); })
+      .then(function (body) { counterEl.textContent = typeof body.count === "number" ? body.count : "0"; })
+      .catch(function () { counterEl.textContent = "0"; });
+  }
+
+  // ---- Waitlist form submit ----
+  var form = document.getElementById("waitlist-form");
+  var statusEl = form.querySelector("[data-status]");
+  var successPanel = document.getElementById("waitlist-success");
+  function setStatus(kind, message) {
+    statusEl.textContent = message;
+    statusEl.className = "join-status is-visible " + kind;
+  }
+
+  function wireShareLinks(isEarlySupporter) {
+    var pageUrl = window.location.href.split("#")[0];
+    var text = "I just joined the iCare waitlist — a new platform for carers, nurses and healthcare professionals. Worth a look:";
+    var encodedUrl = encodeURIComponent(pageUrl);
+    var encodedText = encodeURIComponent(text);
+    var urls = {
+      twitter: "https://twitter.com/intent/tweet?text=" + encodedText + "&url=" + encodedUrl,
+      linkedin: "https://www.linkedin.com/sharing/share-offsite/?url=" + encodedUrl,
+      facebook: "https://www.facebook.com/sharer/sharer.php?u=" + encodedUrl,
+      whatsapp: "https://wa.me/?text=" + encodedText + "%20" + encodedUrl,
+    };
+    successPanel.querySelectorAll("[data-share]").forEach(function (el) {
+      var key = el.getAttribute("data-share");
+      if (key === "copy") {
+        el.addEventListener("click", function () {
+          navigator.clipboard.writeText(pageUrl).then(function () {
+            var original = el.textContent;
+            el.textContent = "Copied!";
+            setTimeout(function () { el.textContent = original; }, 1800);
+          });
+        });
+      } else if (urls[key]) {
+        el.setAttribute("href", urls[key]);
+      }
+    });
+
+    var titleEl = successPanel.querySelector("[data-success-title]");
+    var textEl = successPanel.querySelector("[data-success-text]");
+    if (isEarlySupporter) {
+      titleEl.textContent = "You're in — and one of our first " + "100.";
+      textEl.textContent = "That means you'll be near the very front of the queue when we launch. We'll email you the moment iCare is live.";
+    } else {
+      titleEl.textContent = "You're on the list.";
+      textEl.textContent = "We'll email you the moment iCare is live.";
+    }
+    successPanel.classList.add("is-visible");
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var submitBtn = form.querySelector('button[type="submit"]');
+    var fullName = document.getElementById("wl-name").value.trim();
+    var email = document.getElementById("wl-email").value.trim();
+    var phone = document.getElementById("wl-phone").value.trim();
+    if (!fullName || !email) return;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Joining…";
+
+    fetch("/waitlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ full_name: fullName, email: email, phone: phone || undefined }),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Join the waitlist";
+        if (!result.ok) {
+          setStatus("err", result.body.error || "Something went wrong. Please try again.");
+          return;
+        }
+        if (result.body.already_joined) {
+          setStatus("ok", "You're already on the list — we'll be in touch.");
+        } else {
+          form.style.display = "none";
+          wireShareLinks(!!result.body.is_early_supporter);
+        }
+        form.reset();
+        if (counterEl && !result.body.already_joined) {
+          var current = parseInt(counterEl.textContent, 10);
+          if (!isNaN(current)) counterEl.textContent = String(current + 1);
+        }
+      })
+      .catch(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Join the waitlist";
+        setStatus("err", "Network error — please try again.");
+      });
+  });
+})();
+</script>
+</body>
+</html>
