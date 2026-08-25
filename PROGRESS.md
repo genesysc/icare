@@ -9,20 +9,21 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: employer landing page built, not yet merged
+## Status: employer landing page merged and deployed
 
-PR #9 and PR #10 both merged and deployed (candidate landing page, its
-responsive cleanup, and the hero photo). `main` is deployed and live,
-wired to the real Supabase backend.
+PR #9, #10, and #11 all merged and deployed. PR #11 (squash-merged as
+`7d51b24`, deploy run #12 succeeded) added the employer-facing landing
+page: `GET /employers`, same design system as the candidate page,
+employer waitlist with its own DB columns and a separate count/early-
+supporter pool (see "Done" below for full detail). Both pages cross-link.
 
-User decided to park the custom-domain/Sender.net work for a few days
-("will buy the domain in a few days time so let's park this for now")
-and asked for the employer-facing landing page next instead — the item
-flagged in HANDOVER.md §8 as "next, no particular blocker." That's now
-built on this branch (see "Done" below): `GET /employers`, same design
-system as the candidate page, employer waitlist with its own DB columns
-and a separate count/early-supporter pool. Not yet pushed/PR'd — do that
-next, then ask the user whether to merge (same pattern as PR #10).
+`main` is deployed and live, wired to the real Supabase backend. Branch
+restarted from `main` after the merge per this repo's convention (see
+"Conventions" — HANDOVER.md §10).
+
+Custom-domain/Sender.net work remains explicitly parked per the user's
+request ("will buy the domain in a few days time") — don't restart it
+unless the user brings it back up.
 
 ## ⚠️ Non-negotiables (from HANDOVER.md, "care·register" — uploaded 2026-08-25)
 
@@ -469,7 +470,8 @@ they aren't lost:
     test employer row inserted successfully, an employer row without
     `org_name` correctly rejected by the constraint, then the test row
     deleted and both waitlist counts confirmed back at 0.
-  - Not yet pushed or opened as a PR — do that next.
+  - Opened as PR #11 (https://github.com/genesysc/icare/pull/11),
+    squash-merged to `main`. Deploy run #12 succeeded.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

@@ -283,8 +283,8 @@ deploy confirmation yet.
    flow (not just waitlist) ships.
 9. A real signed-in app UI (dashboard, profile editor) — nothing exists
    yet for a user to land on after authenticating via `/auth/*`.
-10. ~~Employer-facing landing page~~ — built (`GET /employers`), see
-    PROGRESS.md's "Done" section. Not yet pushed/PR'd as of this note.
+10. ~~Employer-facing landing page~~ — built and merged (`GET /employers`,
+    PR #11, deploy run #12), see PROGRESS.md's "Done" section.
 
 ---
 
@@ -395,8 +395,9 @@ buy the domain in a few days time so let's park this for now") and asked
 for the employer-facing landing page instead (§8 item 10). That's now
 built — `GET /employers`, same design system as the candidate page,
 separate employer waitlist pool (migration `0009_waitlist_employer_role`).
-See PROGRESS.md's "Done" section for full detail. Not yet pushed/PR'd —
-check current branch/PR state before assuming it's live.
+See PROGRESS.md's "Done" section for full detail. Shipped on PR #11,
+which the user approved merging — squash-merged to `main`, deploy run
+#12 succeeded. Live.
 
 **Next priorities**: with the domain parked and the employer page done,
 pick from §8's remaining "next, no particular blocker" list — candidate
