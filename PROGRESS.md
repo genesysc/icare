@@ -60,7 +60,27 @@ for the standing instruction.
 - **CI**: `.github/workflows/deploy.yml` deploys to Cloudflare Workers on
   push to `main`. Repo secrets `CLOUDFLARE_API_TOKEN` (scoped to the iCare
   account) and `CLOUDFLARE_ACCOUNT_ID` are set. Confirmed working
-  end-to-end (run `32843844966`).
+  end-to-end multiple times, most recently with the auth routes (run
+  `32846907150`).
+- **Transactional email (auth emails): decided, not yet built.** Will use
+  Sender.net as the SMTP relay behind Supabase Auth's custom SMTP setting
+  (Supabase Dashboard → Authentication → Emails → SMTP Settings) — Supabase
+  keeps generating/verifying the secure confirmation/reset links, Sender.net
+  just delivers them, and email HTML is fully custom via Supabase's
+  Authentication → Emails → Templates editor (`{{ .ConfirmationURL }}` etc.).
+  Rejected: a fully custom Worker→Sender.net flow using the `service_role`
+  key — more to build, duplicates security logic Supabase already handles,
+  no benefit over the SMTP-relay approach since template customization is
+  available either way.
+  **Blocked on**: a dedicated `icare` domain — user wants auth emails to
+  come from an iCare address, not the existing verified
+  `genesysconsultancy.co.uk` domain in Sender.net (account "Genesys
+  Consultancy Ltd", id `egLgor`, free plan). Once a domain exists: verify
+  it in Sender.net (Domains → Add Domain → add the SPF/DKIM/DMARC records
+  it gives you), grab SMTP relay credentials from Sender.net (Settings →
+  SMTP/API — no MCP tool exposes these, manual dashboard step), then add
+  them under Supabase's custom SMTP settings (also a manual dashboard step,
+  no MCP/API tool covers Supabase Auth config).
 
 ## Done
 - Connected Cloudflare account "iCare" (separate from other projects).
@@ -76,6 +96,9 @@ for the standing instruction.
 - Built `/auth/signup`, `/auth/login`, `/auth/logout`, `/auth/me` in
   `src/auth.ts`, matching the DB's existing `handle_new_user()` trigger
   contract exactly (see Stack section above for the field names it expects).
+  Confirmed deployed and working (CI run `32846907150`).
+- Decided the auth-email approach (Sender.net as SMTP relay behind Supabase
+  Auth) — see Stack section. Not yet built, waiting on an iCare domain.
 
 ## Not started yet
 - Everything past auth: candidate/employer profile flows (onboarding wizard,
@@ -86,7 +109,9 @@ for the standing instruction.
 - No frontend/UI of any kind exists — the Worker is a JSON API only so far.
 - Employer verification review flow (`employer_verification_requests`,
   `is_verified`) — who reviews these and how is undecided.
-- Custom domain (account currently has none) — still an open choice, not
-  blocking anything.
-- Confirming the latest deploy (with the auth routes) actually goes green
-  in CI — was pushed but not yet verified by a passing run.
+- **Custom domain for iCare — now blocking**: needed both for Cloudflare
+  (currently on the free `workers.dev` subdomain, fine) and for Sender.net
+  (needed to send auth emails from an iCare address). This is the next
+  concrete unblock to prioritize.
+- Auth-email templates (signup confirmation, password reset, magic link,
+  invite) — not designed or written yet, blocked on the domain above.
