@@ -30,7 +30,33 @@ for the standing instruction.
 - **R2 bucket**: `icare`, bound as `MEDIA` in `wrangler.jsonc` — still used
   for media/file storage, untouched by the Supabase migration.
 - **Worker**: `icare` (Hono app in `src/index.ts`), routes: `/health`,
-  `/db-check` (queries `professions` via Supabase), `/media-check`.
+  `/db-check` (queries `professions` via Supabase), `/media-check`,
+  and `/auth/*` (see below).
+- **Auth**: Supabase Auth, already fully wired at the DB level (migrations
+  `0002_auth`, `0005_security_hardening` — not something we need to build,
+  only to call correctly). On `auth.users` insert, `handle_new_user()`
+  reads `raw_user_meta_data.signup_role` (`candidate`|`employer`,
+  clamped — `admin` is unreachable from signup), `full_name`, `org_name`,
+  `terms_version`, and creates the matching `accounts` row plus a
+  `candidates`+`candidate_contact` row or an `employers`+
+  `employer_verification_requests` row. It also mirrors `role` into
+  `auth.users.raw_app_meta_data` so it rides in the JWT. `sync_account_email()`
+  keeps `accounts.email` in sync with `auth.users.email`. RLS: a user can
+  read/update only their own `accounts` row and their own
+  `candidates`/`employers` row (`*_self` policies); a verified employer can
+  read published candidates (`candidate_read_published` +
+  `is_verified_employer()`). Useful RPCs already in the DB:
+  `current_role_is(role)`, `is_verified_employer()`, `close_my_account(reason)`,
+  `publish_my_profile()`.
+  Worker routes in `src/auth.ts`, mounted at `/auth`:
+  - `POST /auth/signup` — `{ email, password, role, full_name, org_name?, terms_version? }`
+  - `POST /auth/login` — `{ email, password }`
+  - `POST /auth/logout` — needs `Authorization: Bearer <access_token>`
+  - `GET /auth/me` — needs `Authorization: Bearer <access_token>`, returns
+    `{ user, account }`
+  All four use the anon/publishable key with the caller's own bearer token
+  forwarded — no service_role key anywhere in the Worker, RLS applies
+  normally.
 - **CI**: `.github/workflows/deploy.yml` deploys to Cloudflare Workers on
   push to `main`. Repo secrets `CLOUDFLARE_API_TOKEN` (scoped to the iCare
   account) and `CLOUDFLARE_ACCOUNT_ID` are set. Confirmed working
@@ -47,15 +73,20 @@ for the standing instruction.
 - Replaced D1 with Supabase: `@supabase/supabase-js` added, Worker reads
   `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` from `wrangler.jsonc` vars,
   `/db-check` queries the real `professions` table, old D1 database deleted.
+- Built `/auth/signup`, `/auth/login`, `/auth/logout`, `/auth/me` in
+  `src/auth.ts`, matching the DB's existing `handle_new_user()` trigger
+  contract exactly (see Stack section above for the field names it expects).
 
 ## Not started yet
-- The actual app (routes/UI beyond the three check endpoints) — auth,
-  candidate/employer flows, feed/social features per the README's "LinkedIn
-  for healthcare" framing. The data model already exists in Supabase; no
-  app logic has been built against it yet.
-- Auth strategy — likely Supabase Auth (`accounts` table FKs to
-  `auth.users`), not yet wired into the Worker.
+- Everything past auth: candidate/employer profile flows (onboarding wizard,
+  publishing, CV import), feed/social features per the README's "LinkedIn
+  for healthcare" framing. The data model and its triggers/RPCs already
+  exist in Supabase; almost no app logic has been built against it yet
+  beyond signup/login.
+- No frontend/UI of any kind exists — the Worker is a JSON API only so far.
+- Employer verification review flow (`employer_verification_requests`,
+  `is_verified`) — who reviews these and how is undecided.
 - Custom domain (account currently has none) — still an open choice, not
   blocking anything.
-- Confirming the latest deploy (with the Supabase wiring) actually goes
-  green in CI — was pushed but not yet verified by a passing run.
+- Confirming the latest deploy (with the auth routes) actually goes green
+  in CI — was pushed but not yet verified by a passing run.

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { createClient } from "@supabase/supabase-js";
+import auth from "./auth";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -8,6 +9,8 @@ type Bindings = {
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
+
+app.route("/auth", auth);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
