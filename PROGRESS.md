@@ -32,23 +32,37 @@ for the standing instruction.
 - **Worker**: `icare` (Hono app in `src/index.ts`), routes: `GET /` (landing
   page, see below), `/health`, `/db-check` (queries `professions` via
   Supabase), `/media-check`, and `/auth/*` / `/candidates/*` (see below).
-- **Landing page**: `src/landing.html`, a single self-contained static page
-  (no framework, no build step) served via `c.html(landingPage)` at `GET /`.
-  Imported as a raw string via wrangler's `rules: [{ type: "Text", globs:
-  ["**/*.html"] }]` config in `wrangler.jsonc` (needs the `src/html.d.ts`
-  ambient module declaration for `tsc` to accept the import). No image
-  assets exist for the project yet — all visuals are CSS/SVG (gradients, an
-  inline SVG "network" motif, a CSS-built profile-card mockup explicitly
-  labelled "Illustrative example — not a real profile"). Copy is grounded
-  in what's actually built (registrations, DBS checks, regulator-scoped
-  professions) — deliberately no fabricated stats/testimonials, since
-  there are no real users yet. Signup/login forms on the page call
-  `POST /auth/signup` / `POST /auth/login` directly (same-origin, no CORS
-  needed) and store the returned session in `localStorage` under
-  `icare_session` for whenever a real app shell exists to use it. Built
-  with the `epic-design` skill, restrained for a healthcare audience
-  (subtle depth/parallax, no dramatic scroll theatrics); GSAP + ScrollTrigger
-  via CDN, full `prefers-reduced-motion` and coarse-pointer fallbacks.
+- **Landing page (v2 — waitlist, candidate-primary)**: `src/landing.html`,
+  a single self-contained static page (no framework, no build step) served
+  via `c.html(landingPage)` at `GET /`. Imported as a raw string via
+  wrangler's `rules: [{ type: "Text", globs: ["**/*.html"] }]` config in
+  `wrangler.jsonc` (needs `src/html.d.ts` for `tsc` to accept the import).
+  **This replaced a first draft** that was built without the real brief and
+  got the fundamentals wrong (dual-audience, live account signup) — see
+  "Product direction" below for the source documents and what changed.
+  Design: serif display type (Fraunces) + monospace labels (IBM Plex Mono)
+  + teal/plum palette, matching the provided mockup. No photo assets exist,
+  so the hero's "Aoife M." card is CSS-built and captioned "Illustrative
+  example profile — not a real person"; its badge labels (verified /
+  evidenced / derived / declared) are the real values of `badges.grade` in
+  the DB, not invented. Roadmap features (self-expression posts, AI
+  discovery, impact stats) are marked "Coming soon" in the UI. Built with
+  the `epic-design` skill, restrained for a healthcare/editorial tone; GSAP
+  + ScrollTrigger via CDN, full `prefers-reduced-motion` and
+  coarse-pointer fallbacks.
+- **Waitlist**: `src/waitlist.ts`, mounted at `/waitlist`. Backs the
+  landing page's email-capture form (this page's actual primary CTA — not
+  full account creation). DB: migration `0007_waitlist` adds a `waitlist`
+  table (`email citext unique`, `created_at`) with RLS allowing anyone to
+  insert but nobody to read the raw table (emails stay private), plus a
+  `SECURITY DEFINER waitlist_count()` RPC so the public count can be shown
+  without exposing emails.
+  - `POST /waitlist` — `{ email }`. Duplicate email → `{ status: "ok",
+    already_joined: true }` (not an error).
+  - `GET /waitlist/count` — `{ count }`, currently real and starts at 0.
+  **Deliberately not implemented**: the mockup's "53 spots left with
+  launch credits" stat — the launch-credit pool size is an explicitly open
+  product decision (see below), so no number is shown or guessed.
 - **Auth**: Supabase Auth, already fully wired at the DB level (migrations
   `0002_auth`, `0005_security_hardening` — not something we need to build,
   only to call correctly). On `auth.users` insert, `handle_new_user()`
@@ -125,6 +139,55 @@ for the standing instruction.
   them under Supabase's custom SMTP settings (also a manual dashboard step,
   no MCP/API tool covers Supabase Auth config).
 
+## Product direction (from LANDING_PAGE_COPY.md, uploaded 2026-08-25)
+
+The user uploaded `LANDING_PAGE_COPY.md` and a `landingpage.pdf` mockup,
+which is where the v2 landing page above came from. That doc also contains
+product-wide decisions that go beyond the landing page — recorded here so
+they aren't lost:
+
+- **Candidate self-expression posts (phase 2, not built)**: candidates
+  will be able to post freely (not just structured CV fields). Consent is
+  **per-post and revocable**: each post is (a) visible to other candidates
+  only, (b) included in the employer-facing AI summary/search pool, or
+  (c) private. Default must be the most restrictive; inclusion in
+  employer-facing AI search is opt-in, never opt-out. Candidates must be
+  able to see their current AI summary and retract consent at any time.
+- **Employer conversational AI search (phase 2, not built)**: natural-
+  language search, not form filters. Two hard constraints from the brief:
+  1. **Descriptive, not evaluative** — the AI may say things like
+     "frequently posts about dementia care, mentions patience and
+     resilience," but must never score, rank, rate, or recommend
+     candidates, and must never produce a "fit score." This sharpens (does
+     not relax) a stated non-negotiable: no AI scoring/ranking of
+     candidates.
+  2. **Hard exclusion on protected characteristics** (Equality Act 2010:
+     sex, age, race, religion, disability, pregnancy/maternity, sexual
+     orientation, gender reassignment, marriage/civil partnership) — the
+     search must not filter, rank, or query by these, even if an employer
+     phrases a query that way. The brief flags this as needing a real
+     validation/guardrail layer on incoming queries (prompt-level
+     instructions alone are not sufficient) — **not yet designed or
+     built**, and worth getting right before any AI search work starts.
+- **Candidate pricing — open legal question, do not ship or advertise
+  yet**: the model has shifted from "candidates never pay" to "free to
+  join, optional paid boost" (~£30/30 days, not yet built, not advertised
+  anywhere including this landing page). The brief itself flags this needs
+  legal review: an existing non-negotiable prohibits charging work-seekers
+  in connection with finding work (Employment Agencies Act 1973), and a
+  paid visibility boost is close enough to that line that it shouldn't be
+  assumed compliant. **Do not build or market a boost feature until this
+  is confirmed with an employment law specialist.**
+- **Referenced but not yet provided: `HANDOVER.md`.** The copy doc treats
+  it as the authoritative source for "non-negotiables" (the AI
+  scoring/ranking rule above is described as one of them). We don't have
+  this file yet — worth asking the user for it, since it likely affects
+  more than just the landing page.
+- An employer-facing landing page is planned as a separate follow-up
+  draft — not yet written, not this page's job (this page keeps employer
+  mentions to supporting context only, e.g. "employers are searching iCare
+  every day," with no employer signup CTA).
+
 ## Done
 - Connected Cloudflare account "iCare" (separate from other projects).
 - Enabled R2 and created bucket `icare`.
@@ -145,8 +208,10 @@ for the standing instruction.
 - Built the candidate profile API (`src/candidates.ts`) — see Stack section
   for the full route list. Confirmed deployed and green (CI run
   `32848054672`).
-- Built the landing page (`src/landing.html`), served at `GET /` — see
-  Stack section. Not yet confirmed deployed/green in CI (just pushed).
+- Built the landing page v1, then **rebuilt it as v2** against the real
+  brief once it was uploaded — see "Product direction" and Stack section
+  above. Includes the new `waitlist` table/RPC and `/waitlist` routes. Not
+  yet confirmed deployed/green in CI (just pushed).
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
@@ -154,12 +219,20 @@ for the standing instruction.
   candidate API first.
 - Candidate qualifications, DBS records, references, badges, prompts,
   CV import — not covered by the candidate API slice just built.
-- Feed/social features per the README's "LinkedIn for healthcare" framing —
-  not started, not modeled in the DB yet either.
-- A real signed-in app UI (dashboard, profile editor, etc.) — the landing
-  page has signup/login forms, but nothing exists yet for a user to land on
-  *after* authenticating. `icare_session` is stored client-side in
-  anticipation of this but nothing reads it yet.
+- Candidate self-expression posts + per-post consent model, employer
+  conversational AI search + its protected-characteristics guardrail —
+  see "Product direction" above. Explicitly phase 2 in the brief; the
+  guardrail design in particular needs care before any of this is built.
+- `HANDOVER.md` — referenced by the copy brief as authoritative for
+  product non-negotiables, not yet in our hands. Worth asking for.
+- Candidate paid "boost" feature — blocked on legal review (Employment
+  Agencies Act 1973 question), not just an engineering task.
+- Employer-facing landing page — separate piece of work, not started.
+- A real signed-in app UI (dashboard, profile editor, etc.) — nothing
+  exists yet for a user to land on after authenticating via `/auth/*`.
+  The old landing page draft stashed a session in `localStorage` for this;
+  the new waitlist-first page doesn't authenticate anyone yet, so that's
+  moot until there's a real post-launch flow.
 - Employer verification review flow (`employer_verification_requests`,
   `is_verified`) — who reviews these and how is undecided.
 - **Custom domain for iCare — now blocking**: needed both for Cloudflare
