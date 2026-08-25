@@ -160,18 +160,31 @@
 
   /* ---------- Waitlist CTA ---------- */
   .join-headline { margin-top: 10px; }
-  .join-form { margin-top: 30px; display: flex; gap: 10px; flex-wrap: wrap; }
-  .join-form input[type="email"] {
-    flex: 1; min-width: 220px; padding: 14px 16px; border-radius: 999px; border: 1.5px solid var(--line);
+  .join-form { margin-top: 30px; display: grid; gap: 12px; max-width: 420px; }
+  .join-form input {
+    width: 100%; padding: 13px 16px; border-radius: 12px; border: 1.5px solid var(--line);
     font-size: 15px; font-family: inherit; background: var(--white); color: var(--plum-950);
   }
-  .join-form input[type="email"]:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
+  .join-form input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
+  .join-form-optional { font-size: 12px; color: var(--ink-faint); }
   .join-note { margin-top: 16px; font-size: 14px; color: var(--ink-faint); }
   .join-note strong { color: var(--plum-950); font-weight: 700; }
   .join-status { margin-top: 14px; font-size: 14px; display: none; }
   .join-status.is-visible { display: block; }
   .join-status.ok { color: var(--teal-700); }
   .join-status.err { color: #b23a24; }
+
+  .join-success { display: none; max-width: 460px; }
+  .join-success.is-visible { display: block; }
+  .join-success-title { font-family: "Fraunces", serif; font-weight: 600; font-size: 22px; color: var(--plum-950); }
+  .join-success-text { margin-top: 10px; font-size: 15px; line-height: 1.6; color: var(--ink-soft); }
+  .share-row { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .share-btn {
+    display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: 999px;
+    background: var(--plum-950); color: var(--white); font-size: 13.5px; font-weight: 700;
+    text-decoration: none; border: none; cursor: pointer; font-family: inherit;
+  }
+  .share-btn:hover { background: var(--teal-700); }
 
   .counter-row { margin-top: 40px; display: flex; gap: 40px; }
   .counter-num { font-family: "Fraunces", serif; font-weight: 600; font-size: 30px; color: var(--plum-950); }
@@ -319,13 +332,30 @@
       </p>
 
       <form class="join-form" id="waitlist-form" novalidate>
+        <label for="wl-name" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Full name</label>
+        <input id="wl-name" name="full_name" type="text" placeholder="Your name" autocomplete="name" required />
         <label for="wl-email" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Email address</label>
         <input id="wl-email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required />
+        <label for="wl-phone" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Phone number (optional)</label>
+        <input id="wl-phone" name="phone" type="tel" placeholder="Phone (optional)" autocomplete="tel" />
+        <span class="join-form-optional">We'll only use these to let you know when iCare is live.</span>
         <button type="submit" class="btn btn-teal">Join the waitlist</button>
       </form>
       <p class="join-status" data-status></p>
 
       <p class="join-note"><strong>Free to join and build your profile.</strong>&nbsp;You always control what you share, and with whom.</p>
+
+      <div class="join-success" id="waitlist-success" aria-live="polite">
+        <h3 class="join-success-title" data-success-title>You're on the list.</h3>
+        <p class="join-success-text" data-success-text>We'll email you the moment iCare is live.</p>
+        <div class="share-row">
+          <a class="share-btn" data-share="twitter" href="#" target="_blank" rel="noopener">Share on X</a>
+          <a class="share-btn" data-share="linkedin" href="#" target="_blank" rel="noopener">Share on LinkedIn</a>
+          <a class="share-btn" data-share="facebook" href="#" target="_blank" rel="noopener">Facebook</a>
+          <a class="share-btn" data-share="whatsapp" href="#" target="_blank" rel="noopener">WhatsApp</a>
+          <button class="share-btn" type="button" data-share="copy">Copy link</button>
+        </div>
+      </div>
 
       <div class="counter-row">
         <div>
@@ -429,16 +459,57 @@
   // ---- Waitlist form submit ----
   var form = document.getElementById("waitlist-form");
   var statusEl = form.querySelector("[data-status]");
+  var successPanel = document.getElementById("waitlist-success");
   function setStatus(kind, message) {
     statusEl.textContent = message;
     statusEl.className = "join-status is-visible " + kind;
   }
 
+  function wireShareLinks(isEarlySupporter) {
+    var pageUrl = window.location.href.split("#")[0];
+    var text = "I just joined the iCare waitlist — a new platform for carers, nurses and healthcare professionals. Worth a look:";
+    var encodedUrl = encodeURIComponent(pageUrl);
+    var encodedText = encodeURIComponent(text);
+    var urls = {
+      twitter: "https://twitter.com/intent/tweet?text=" + encodedText + "&url=" + encodedUrl,
+      linkedin: "https://www.linkedin.com/sharing/share-offsite/?url=" + encodedUrl,
+      facebook: "https://www.facebook.com/sharer/sharer.php?u=" + encodedUrl,
+      whatsapp: "https://wa.me/?text=" + encodedText + "%20" + encodedUrl,
+    };
+    successPanel.querySelectorAll("[data-share]").forEach(function (el) {
+      var key = el.getAttribute("data-share");
+      if (key === "copy") {
+        el.addEventListener("click", function () {
+          navigator.clipboard.writeText(pageUrl).then(function () {
+            var original = el.textContent;
+            el.textContent = "Copied!";
+            setTimeout(function () { el.textContent = original; }, 1800);
+          });
+        });
+      } else if (urls[key]) {
+        el.setAttribute("href", urls[key]);
+      }
+    });
+
+    var titleEl = successPanel.querySelector("[data-success-title]");
+    var textEl = successPanel.querySelector("[data-success-text]");
+    if (isEarlySupporter) {
+      titleEl.textContent = "You're in — and one of our first " + "100.";
+      textEl.textContent = "That means you'll be near the very front of the queue when we launch. We'll email you the moment iCare is live.";
+    } else {
+      titleEl.textContent = "You're on the list.";
+      textEl.textContent = "We'll email you the moment iCare is live.";
+    }
+    successPanel.classList.add("is-visible");
+  }
+
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     var submitBtn = form.querySelector('button[type="submit"]');
+    var fullName = document.getElementById("wl-name").value.trim();
     var email = document.getElementById("wl-email").value.trim();
-    if (!email) return;
+    var phone = document.getElementById("wl-phone").value.trim();
+    if (!fullName || !email) return;
 
     submitBtn.disabled = true;
     submitBtn.textContent = "Joining…";
@@ -446,7 +517,7 @@
     fetch("/waitlist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email }),
+      body: JSON.stringify({ full_name: fullName, email: email, phone: phone || undefined }),
     })
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
       .then(function (result) {
@@ -456,7 +527,12 @@
           setStatus("err", result.body.error || "Something went wrong. Please try again.");
           return;
         }
-        setStatus("ok", result.body.already_joined ? "You're already on the list — we'll be in touch." : "You're on the list! We'll be in touch as we get ready to launch.");
+        if (result.body.already_joined) {
+          setStatus("ok", "You're already on the list — we'll be in touch.");
+        } else {
+          form.style.display = "none";
+          wireShareLinks(!!result.body.is_early_supporter);
+        }
         form.reset();
         if (counterEl && !result.body.already_joined) {
           var current = parseInt(counterEl.textContent, 10);
