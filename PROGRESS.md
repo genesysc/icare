@@ -5,7 +5,7 @@ picking up this project — on any device, any tool — should read this file
 first, and update it before ending a session. See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: blocked on a manual Cloudflare Dashboard step
+## Status: deployed and live — first Worker is running in the iCare account
 
 ## Stack / accounts
 - **GitHub**: `genesysc/icare`
@@ -30,19 +30,19 @@ for the standing instruction.
 - Scaffolded a minimal Workers app (Hono) with D1 + R2 bindings.
 - Fixed CI: pinned `wranglerVersion: "4"` and Node 22 in `deploy.yml`
   (wrangler-action was defaulting to an incompatible Wrangler 3.x).
-
-## Current blocker
-Deploy fails with: `You need to register a workers.dev subdomain before
-publishing to workers.dev`. This is a one-time, account-level manual step
-Cloudflare requires — no API/MCP tool available to do it programmatically.
-
-**Next step (needs a human in the Cloudflare Dashboard):**
-Dashboard → iCare account → Workers & Pages → set up the `workers.dev`
-subdomain → re-run the `Deploy to Cloudflare Workers` GitHub Actions
-workflow (push to `main`, or re-run the failed run).
+- Registered the account's `workers.dev` subdomain (manual Dashboard step,
+  no API path exists for it).
+- Deploy succeeded (GitHub Actions run `32843844966`, triggered manually
+  via `workflow_dispatch` — CI is confirmed working end-to-end). The
+  `icare` Worker is live at `https://icare.<subdomain>.workers.dev`
+  (exact URL: Cloudflare Dashboard → iCare account → Workers & Pages →
+  `icare` Worker). Verify with `/health`, `/db-check`, `/media-check`.
 
 ## Not started yet
 - Actual app features (this is a LinkedIn-style platform for healthcare,
   per the README) — no data model, auth, or UI exists yet.
 - D1 schema / migrations.
-- Custom domain (account currently has none).
+- Custom domain (account currently has none) — deciding whether to add one
+  is still open.
+- **Open decision**: whether to add Supabase to the stack (instead of or
+  alongside D1) — raised by the user, not yet resolved.
