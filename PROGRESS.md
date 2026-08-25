@@ -9,15 +9,16 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: agent hand-off in progress (2026-08-25)
+## Status: landing page deployed and responsive-audited
 
-The user is switching to a different agent (out of credits on this one).
-`HANDOVER.md` was written specifically for this transition — read it in
-full before continuing. **Immediate next task, per the user's own words:**
-check UI fluidity of the landing page (`src/landing.html`) across desktop
-and mobile viewports — not yet visually verified on real screen sizes.
-PR #9 (branch `claude/cloudflare-icare-setup-qt575f`) is open with all of
-this session's work, not yet merged — the user wants to review first.
+PR #9 merged and deployed (all of the auth/candidate-API/landing-page/
+HANDOVER.md work from the earlier hand-off). The hand-off's flagged next
+task — checking landing page UI fluidity across screen sizes — is done:
+actually rendered `src/landing.html` at 6 real viewport sizes (iPhone
+SE/13, small Android, tablet portrait, laptop, desktop) via headless
+Chromium rather than just reading the CSS, found and fixed two real
+issues (see "Done" below). Confirmed no horizontal overflow at any size
+after the fix. Not yet merged — see below.
 
 Otherwise: deployed and live, wired to the real Supabase backend.
 
@@ -385,6 +386,28 @@ they aren't lost:
   sharing, built (not yet sending) a real welcome email — see Stack
   section. Early-signup incentive is recognition-only per an explicit user
   decision, not a paid-feature credit.
+- PR #9 merged and deployed to `main` (CI run `32860791093`) — auth,
+  candidate API, landing page, waitlist, and `HANDOVER.md` all live.
+- **Landing page responsive cleanup**, actually tested (not just read) at
+  6 real viewport sizes via headless Chromium:
+  - Rebuilt the hero visual: was 3 separately absolutely-positioned
+    floating elements (an empty decorative box + a stat pill + a profile
+    card) needing per-breakpoint repositioning, worst on mobile where the
+    empty box alone ate most of the first screen. Now one naturally-
+    flowing profile card (name/role/badges/stats combined) with a soft
+    glow behind it — no absolute positioning, no per-breakpoint
+    overrides, shrinks cleanly on its own.
+  - `.wrap` container widened 760px → 880px; `.feature-list` switched
+    from a hardcoded single column to `repeat(auto-fit, minmax(240px,
+    1fr))` so it flows to 2-3 columns on wider screens instead of always
+    stacking vertically.
+  - Removed one dead CSS rule (`.section-tight`) found via a full pass
+    checking every class in the stylesheet against actual markup usage.
+  - Confirmed: zero horizontal overflow at any tested size, before or
+    after the fix (the underlying breakpoints were already sound — the
+    problems were composition/space-usage, not overflow bugs).
+  - Not yet merged — new PR needed (branch pushed, PR not opened as of
+    this note; check for one before opening a duplicate).
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
