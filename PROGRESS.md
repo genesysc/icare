@@ -57,6 +57,32 @@ for the standing instruction.
   All four use the anon/publishable key with the caller's own bearer token
   forwarded — no service_role key anywhere in the Worker, RLS applies
   normally.
+- **Candidate profile API**: `src/candidates.ts`, mounted at `/candidates`,
+  all routes behind the shared `requireAuth` middleware (`src/middleware.ts`
+  — verifies the bearer token, attaches an RLS-scoped Supabase client as
+  `c.get("supabase")` plus `c.get("userId")`/`c.get("user")`; also used by
+  `/auth/logout` and `/auth/me` now, replacing duplicated token-parsing
+  code). Routes:
+  - `GET`/`PATCH /candidates/me` — profile fields. `PATCH` only accepts an
+    explicit whitelist (`headline`, `about`, `proud_of`, `postcode_district`,
+    `town`, `travel_radius_miles`, `willing_to_relocate`, `right_to_work`,
+    `visa_expiry`, `has_driving_licence`, `has_own_vehicle`, `availability`,
+    `available_from`, `shift_prefs`, `min_hourly_rate`) — deliberately
+    excludes `is_published`/`completeness`/`onboarding_*`, which are owned
+    by `publish_my_profile()` and onboarding triggers, not the client.
+  - `POST /candidates/me/photo` — raw image body, `Content-Type: image/*`,
+    stored in R2 at `candidates/{id}/photo`, updates `photo_path`.
+  - `POST /candidates/me/publish` — calls the existing `publish_my_profile()`
+    RPC (badge/completeness logic already lives in DB triggers).
+  - `GET`/`PUT /candidates/me/professions`, same for `/skills` —
+    replace-whole-set semantics against `candidate_professions` /
+    `candidate_skills`.
+  - `GET`/`POST`/`PATCH`/`DELETE /candidates/me/employment-history/[:id]` —
+    full CRUD, each row independently owned.
+  - `GET /professions`, `GET /skills` (top-level, no auth) — public
+    reference lists to populate pickers.
+  **Not yet covered**: qualifications, DBS records, references, badges,
+  prompts, CV import.
 - **CI**: `.github/workflows/deploy.yml` deploys to Cloudflare Workers on
   push to `main`. Repo secrets `CLOUDFLARE_API_TOKEN` (scoped to the iCare
   account) and `CLOUDFLARE_ACCOUNT_ID` are set. Confirmed working
@@ -99,13 +125,18 @@ for the standing instruction.
   Confirmed deployed and working (CI run `32846907150`).
 - Decided the auth-email approach (Sender.net as SMTP relay behind Supabase
   Auth) — see Stack section. Not yet built, waiting on an iCare domain.
+- Built the candidate profile API (`src/candidates.ts`) — see Stack section
+  for the full route list. Not yet confirmed deployed/green in CI (just
+  pushed).
 
 ## Not started yet
-- Everything past auth: candidate/employer profile flows (onboarding wizard,
-  publishing, CV import), feed/social features per the README's "LinkedIn
-  for healthcare" framing. The data model and its triggers/RPCs already
-  exist in Supabase; almost no app logic has been built against it yet
-  beyond signup/login.
+- Employer-side API (profile, verification-request flow, browsing/
+  shortlisting published candidates) — deliberately deferred in favor of
+  candidate API first.
+- Candidate qualifications, DBS records, references, badges, prompts,
+  CV import — not covered by the candidate API slice just built.
+- Feed/social features per the README's "LinkedIn for healthcare" framing —
+  not started, not modeled in the DB yet either.
 - No frontend/UI of any kind exists — the Worker is a JSON API only so far.
 - Employer verification review flow (`employer_verification_requests`,
   `is_verified`) — who reviews these and how is undecided.
