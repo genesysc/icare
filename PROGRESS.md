@@ -9,21 +9,27 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: employer landing page merged and deployed
+## Status: sprint plan written, starting the real platform build
 
-PR #9, #10, and #11 all merged and deployed. PR #11 (squash-merged as
-`7d51b24`, deploy run #12 succeeded) added the employer-facing landing
-page: `GET /employers`, same design system as the candidate page,
-employer waitlist with its own DB columns and a separate count/early-
-supporter pool (see "Done" below for full detail). Both pages cross-link.
+PR #9, #10, and #11 all merged and deployed (waitlist landing pages,
+candidate + employer). `main` is deployed and live, wired to the real
+Supabase backend. Branch restarted from `main` after each merge per this
+repo's convention (see "Conventions" — HANDOVER.md §10).
 
-`main` is deployed and live, wired to the real Supabase backend. Branch
-restarted from `main` after the merge per this repo's convention (see
-"Conventions" — HANDOVER.md §10).
+User asked to move past the waitlist and start building the actual
+platform, candidate journey first then employer, and asked for sprints
+to tackle the scope one by one. `SPRINTS.md` now holds the full ordered
+plan (Sprint 0 foundations → 5 candidate sprints → 5 employer sprints),
+grounded in the real DB schema already in place (`candidates
+.onboarding_step`/`onboarding_done` + `onboarding_events` show a stepped
+wizard was the original design intent) and in `HANDOVER.md` §1's
+non-negotiables. Not started yet — see `SPRINTS.md` for what's next.
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
-request ("will buy the domain in a few days time") — don't restart it
-unless the user brings it back up.
+earlier request ("will buy the domain in a few days time") — don't
+restart it unless the user brings it back up. One exception carved out
+in `SPRINTS.md` Sprint 0: the Supabase Magic Link email template fix
+doesn't need the domain and is worth doing regardless.
 
 ## ⚠️ Non-negotiables (from HANDOVER.md, "care·register" — uploaded 2026-08-25)
 
@@ -472,6 +478,28 @@ they aren't lost:
     deleted and both waitlist counts confirmed back at 0.
   - Opened as PR #11 (https://github.com/genesysc/icare/pull/11),
     squash-merged to `main`. Deploy run #12 succeeded.
+- **`SPRINTS.md` written.** User wants to move past the waitlist and
+  build the real platform: candidate onboarding journey first, then
+  employer. Queried the full real Supabase schema (`list_tables`,
+  verbose) rather than guessing at column names, and found
+  `candidates.onboarding_step`/`onboarding_done` plus an
+  `onboarding_events` table already exist — confirms a stepped wizard
+  was the original design intent, not new scope being invented. Plan:
+  Sprint 0 (privacy/terms pages, the Magic Link template fix, an explicit
+  UI-approach default of continuing server-rendered HTML + vanilla JS
+  with no new framework, a shared client-side auth-token helper), then
+  5 candidate sprints (auth UI → onboarding wizard shell + basics/skills/
+  availability → employment history/qualifications/registrations → DBS
+  consent/references/prompts → photo/review/publish/candidate home), then
+  5 employer sprints (auth UI → verification flow → compliant written-
+  first search per non-negotiable #4 → shortlisting + consent unlock →
+  employer dashboard). Each sprint lists which routes already exist vs.
+  need building, so nothing gets rebuilt by accident. Explicitly flagged
+  as deferred, not forgotten: admin review tooling for
+  qualifications/registrations/employer-verification (manual Supabase
+  review for now), self-expression posts + employer AI search (§9,
+  phase 2), anything needing real outbound email (still blocked on the
+  parked domain), employer 2FA. Not started — no code written yet.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

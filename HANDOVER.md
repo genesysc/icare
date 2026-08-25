@@ -138,6 +138,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
+| `SPRINTS.md` | Forward-looking roadmap — candidate journey sprints, then employer journey sprints. Check here before picking "what's next" |
 | `AGENTS.md` / `CLAUDE.md` | Pointer files: read `PROGRESS.md` (and now this file) first, update before ending a session |
 
 No `supabase/migrations/*.sql` files exist in this repo — all Postgres
@@ -399,14 +400,12 @@ See PROGRESS.md's "Done" section for full detail. Shipped on PR #11,
 which the user approved merging — squash-merged to `main`, deploy run
 #12 succeeded. Live.
 
-**Next priorities**: with the domain parked and the employer page done,
-pick from §8's remaining "next, no particular blocker" list — candidate
-qualifications/DBS/references/badges/prompts/CV import, `/privacy`+
-`/terms` pages, a real signed-in app UI, or the employer-side API proper
-(search/shortlisting — distinct from the employer landing page, which is
-just a waitlist capture, not built) — unprioritized, ask the user which
-matters most rather than guessing. Don't restart the domain/Sender.net
-work unless the user brings it back up.
+**Next priorities**: the user asked to move from waitlist-only to the
+actual platform, candidate journey first then employer. `SPRINTS.md` now
+has the full ordered sprint plan — read it before picking up work here;
+it supersedes the unprioritized list this section used to have. Start at
+whichever sprint is next un-shipped in that file. Don't restart the
+domain/Sender.net work unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.
