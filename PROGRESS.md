@@ -156,18 +156,51 @@ Concretely still to build, using the Next.js files as reference:
   + ScrollTrigger via CDN, full `prefers-reduced-motion` and
   coarse-pointer fallbacks.
 - **Waitlist**: `src/waitlist.ts`, mounted at `/waitlist`. Backs the
-  landing page's email-capture form (this page's actual primary CTA — not
-  full account creation). DB: migration `0007_waitlist` adds a `waitlist`
-  table (`email citext unique`, `created_at`) with RLS allowing anyone to
-  insert but nobody to read the raw table (emails stay private), plus a
-  `SECURITY DEFINER waitlist_count()` RPC so the public count can be shown
-  without exposing emails.
-  - `POST /waitlist` — `{ email }`. Duplicate email → `{ status: "ok",
-    already_joined: true }` (not an error).
-  - `GET /waitlist/count` — `{ count }`, currently real and starts at 0.
-  **Deliberately not implemented**: the mockup's "53 spots left with
-  launch credits" stat — the launch-credit pool size is an explicitly open
-  product decision (see below), so no number is shown or guessed.
+  landing page's signup form (this page's actual primary CTA — not full
+  account creation; captures name/email/phone, not credentials). DB:
+  migration `0007_waitlist` creates the table (`email citext unique`,
+  `created_at`), `0008_waitlist_details` adds `full_name` (required),
+  `phone` (optional). RLS: anyone can insert, nobody can read the raw
+  table (emails/names/phones stay private), plus a
+  `SECURITY DEFINER waitlist_count()` RPC so a public count can be shown
+  without exposing anyone's data.
+  - `POST /waitlist` — `{ email, full_name, phone? }`. Duplicate email →
+    `{ status: "ok", already_joined: true }` (not an error). On success:
+    `{ status: "ok", position, is_early_supporter }` — `position` is a
+    real count-based rank (not exact under concurrency, fine for this),
+    `is_early_supporter` is true when `position <= 100`
+    (`EARLY_SUPPORTER_THRESHOLD` in `src/emails/waitlist-welcome.ts`).
+    Also fires (currently no-op, see below) a welcome email.
+  - `GET /waitlist/count` — `{ count }`, real, starts at 0.
+  **Early-signup incentive is recognition only, never a credit**: the
+  landing page and welcome email tell someone in the first 100 they'll be
+  "near the front of the queue," full stop — no bonus credit, no paid
+  feature unlock. `LANDING_PAGE_COPY.md`'s "50 bonus credit... paid
+  features" idea was rejected outright: it's exactly what HANDOVER.md's
+  non-negotiable #1 prohibits (a candidate payment/fee in disguise). This
+  was an explicit user decision, not an inferred one.
+  **Deliberately not implemented**: the mockup's "53 spots left" stat —
+  the launch-credit pool size (if any non-monetary version of it is ever
+  decided) is still an open product decision, so no number is shown.
+- **Welcome email — built, not sending yet.**
+  `src/emails/waitlist-welcome.ts` has the real subject/HTML (personalised
+  greeting, early-supporter messaging when true, social share links for
+  X/LinkedIn/Facebook/WhatsApp built from the recipient's own referral
+  intent). `src/email.ts` (`sendTransactionalEmail`) is a **deliberate
+  no-op** right now — logs what it would send instead of sending —
+  because actually sending needs a verified `icare` domain in Sender.net,
+  and the user chose to wait for that rather than send from the existing
+  `genesysconsultancy.co.uk` address. To activate later: verify the
+  domain in Sender.net, `wrangler secret put SENDER_API_KEY` (a real
+  secret — never a plain `wrangler.jsonc` var), add `SENDER_FROM_EMAIL` to
+  `wrangler.jsonc` vars, then fill in the actual Sender.net API call in
+  `sendTransactionalEmail` (not yet looked up which endpoint/payload
+  shape — check current Sender.net docs when this is picked up).
+- **Social sharing**: on-page (a share panel with the same four platforms
+  appears after a successful waitlist signup, replacing the form) and in
+  the welcome email template — both use plain share-intent URLs
+  (twitter.com/intent, LinkedIn sharing, Facebook sharer, wa.me), no
+  external library, no API keys needed.
 - **Auth**: Supabase Auth, already fully wired at the DB level (migrations
   `0002_auth`, `0005_security_hardening` — not something we need to build,
   only to call correctly). On `auth.users` insert, `handle_new_user()`
@@ -332,6 +365,12 @@ they aren't lost:
 - Received `HANDOVER.md` + Next.js reference files; removed the
   candidate-boost pricing language it invalidated (compliance fix, already
   pushed); recorded all non-negotiables above so they can't be lost again.
+- Switched `/auth` to email OTP (`request-code`/`verify-code`), matching
+  HANDOVER.md — see Stack section.
+- Expanded waitlist to capture name + phone, added on-page + email social
+  sharing, built (not yet sending) a real welcome email — see Stack
+  section. Early-signup incentive is recognition-only per an explicit user
+  decision, not a paid-feature credit.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
@@ -360,9 +399,15 @@ they aren't lost:
   moot until there's a real post-launch flow.
 - Employer verification review flow (`employer_verification_requests`,
   `is_verified`) — who reviews these and how is undecided.
-- **Custom domain for iCare — now blocking**: needed both for Cloudflare
-  (currently on the free `workers.dev` subdomain, fine) and for Sender.net
-  (needed to send auth emails from an iCare address). This is the next
-  concrete unblock to prioritize.
-- Auth-email templates (signup confirmation, password reset, magic link,
-  invite) — not designed or written yet, blocked on the domain above.
+- **Custom domain for iCare — now blocking three things**: (1) auth emails
+  via Sender.net SMTP relay, (2) the waitlist welcome email
+  (`sendTransactionalEmail` in `src/email.ts` is a no-op until this
+  exists), (3) cosmetic only — Cloudflare is fine on the free
+  `workers.dev` subdomain for now. This is the single next concrete
+  unblock that matters most.
+- Auth-email templates (signup confirmation, magic link/OTP, invite) —
+  not designed or written yet, blocked on the domain above. (No password
+  reset template needed — there are no passwords.)
+- Sender.net API integration itself — `src/email.ts` has a documented
+  stub but the actual transactional-send API call was never looked up/
+  written, since sending is blocked on the domain anyway.
