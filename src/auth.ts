@@ -15,41 +15,45 @@ type Variables = {
 
 const auth = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-// Matches the signup_role/full_name/org_name/terms_version fields the
+// Email OTP, no passwords — this audience returns every few months, and a
+// forgotten password is a lost candidate (per HANDOVER.md). One entry
+// point handles both sign-up and sign-in; `create` (maps to Supabase's
+// shouldCreateUser) is the only difference — a sign-in screen should pass
+// create: false so an unrecognised email doesn't silently create an
+// account. `role`/`full_name`/`org_name`/`terms_version` match what the
 // handle_new_user() DB trigger reads from raw_user_meta_data to create the
 // accounts row (and candidates/employers row) automatically.
-auth.post("/signup", async (c) => {
+auth.post("/request-code", async (c) => {
   const body = await c.req.json();
-  const { email, password, role, full_name, org_name, terms_version } = body;
+  const { email, role, full_name, org_name, terms_version } = body;
+  const create = body.create !== false;
 
-  if (!email || !password) {
-    return c.json({ error: "email and password are required" }, 400);
-  }
-  if (role !== "candidate" && role !== "employer") {
+  if (!email) return c.json({ error: "email is required" }, 400);
+  if (create && role !== "candidate" && role !== "employer") {
     return c.json({ error: "role must be 'candidate' or 'employer'" }, 400);
   }
 
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
-  const { data, error } = await supabase.auth.signUp({
+  const { error } = await supabase.auth.signInWithOtp({
     email,
-    password,
     options: {
-      data: { signup_role: role, full_name, org_name, terms_version },
+      shouldCreateUser: create,
+      data: create ? { signup_role: role, full_name, org_name, terms_version } : undefined,
     },
   });
 
   if (error) return c.json({ error: error.message }, 400);
-  return c.json({ user: data.user, session: data.session });
+  return c.json({ status: "ok" });
 });
 
-auth.post("/login", async (c) => {
-  const { email, password } = await c.req.json();
-  if (!email || !password) {
-    return c.json({ error: "email and password are required" }, 400);
+auth.post("/verify-code", async (c) => {
+  const { email, token } = await c.req.json();
+  if (!email || !token) {
+    return c.json({ error: "email and token are required" }, 400);
   }
 
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
 
   if (error) return c.json({ error: error.message }, 401);
   return c.json({ user: data.user, session: data.session });
