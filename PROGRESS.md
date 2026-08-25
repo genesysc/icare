@@ -9,19 +9,19 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: PR #10 open (responsive cleanup + hero photo), awaiting merge decision
+## Status: landing page responsive-cleanup + hero photo deployed
 
-PR #9 merged and deployed (all of the auth/candidate-API/landing-page/
-HANDOVER.md work from the earlier hand-off). PR #10, still open, adds two
-things on top: the responsive/UI cleanup (hero visual rebuilt as one
-flowing card, `.wrap`/`.feature-list` fixes — actually tested at 6 real
-viewport sizes via headless Chromium, not just CSS-read) and a real photo
-now embedded in that hero card's illustrative profile (see "Done" below).
-Zero horizontal overflow confirmed at any tested size, before and after
-both changes. I asked the user whether to merge PR #10 once already —
-still unanswered, ask again or just merge if no reply.
+PR #9 and PR #10 both merged and deployed. PR #10 (squash-merged as
+`19b8ab1`, deploy run #11 succeeded) added two things on top of PR #9's
+work: the responsive/UI cleanup (hero visual rebuilt as one flowing card,
+`.wrap`/`.feature-list` fixes — actually tested at 6 real viewport sizes
+via headless Chromium, not just CSS-read) and a real photo embedded in
+that hero card's illustrative profile (see "Done" below). Zero horizontal
+overflow confirmed at any tested size, before and after both changes.
 
-Otherwise: `main` is deployed and live, wired to the real Supabase backend.
+`main` is deployed and live, wired to the real Supabase backend. Branch
+restarted from `main` after the merge per this repo's convention (see
+"Conventions" — HANDOVER.md §10).
 
 ## ⚠️ Non-negotiables (from HANDOVER.md, "care·register" — uploaded 2026-08-25)
 
@@ -407,9 +407,9 @@ they aren't lost:
   - Confirmed: zero horizontal overflow at any tested size, before or
     after the fix (the underlying breakpoints were already sound — the
     problems were composition/space-usage, not overflow bugs).
-  - Opened as PR #10 (https://github.com/genesysc/icare/pull/10). Not yet
-    merged — asked the user whether to merge; they sent the photo (next
-    bullet) instead of answering, so it's still open.
+  - Opened as PR #10 (https://github.com/genesysc/icare/pull/10),
+    squash-merged to `main` after the photo change below was added to it.
+    Deploy run #11 succeeded.
 - **Real photo for the hero card's illustrative profile.** User uploaded a
   photo (woman in blue scrubs, ID badge "Emily R." / "Healthcare
   Assistant"). Cropped to a centered 240x240 square (`Pillow`, biased
@@ -424,8 +424,8 @@ they aren't lost:
   --noEmit` clean, `wrangler deploy --dry-run` succeeds (839 KiB / 179 KiB
   gzip, up ~14 KiB from the avatar), re-ran the 6-viewport headless-Chromium
   audit — zero horizontal overflow, avatar renders cleanly on mobile and
-  desktop. Pushed as a second commit on the same branch/PR #10 (not yet
-  merged).
+  desktop. Pushed as a second commit on PR #10, which is now merged and
+  deployed (see Status above).
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

@@ -385,9 +385,9 @@ real photo for that hero card's illustrative profile; it's cropped to a
 52px circular avatar, embedded as a base64 data URI (still a single
 self-contained landing.html, no new asset route), and the card's
 name/role text was updated to match the badge visible in the photo
-("Emily R." / "Healthcare Assistant · Belfast"). Both changes are on
-PR #10, still open — check current branch/PR state (see below) before
-assuming it's live. I've asked once whether to merge it; no answer yet.
+("Emily R." / "Healthcare Assistant · Belfast"). Both changes shipped on
+PR #10, which the user approved merging — squash-merged to `main`, deploy
+run #11 succeeded. Both are live.
 
 **Next priorities**: pick from §8's blocking list — the custom `icare`
 domain is the single highest-leverage unblock (gates Sender.net for both
