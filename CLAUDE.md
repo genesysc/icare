@@ -1,2 +1,2 @@
-See `AGENTS.md` — same instructions apply here: read `PROGRESS.md` first,
-update it before ending a session.
+See `AGENTS.md` — same instructions apply here: read `HANDOVER.md` then
+`PROGRESS.md` first, update them before ending a session.

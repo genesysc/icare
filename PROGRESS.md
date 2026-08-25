@@ -1,11 +1,25 @@
 # iCare — Progress Log
 
-This file is the source of truth for "where we left off." Any AI assistant
-picking up this project — on any device, any tool — should read this file
-first, and update it before ending a session. See `AGENTS.md` / `CLAUDE.md`
+**Read `HANDOVER.md` first** — it's the curated entry point (non-negotiables,
+stack, file map, what's built/not, gotchas, open questions). This file is
+the detailed chronological session log: consult it for history or specifics
+`HANDOVER.md` doesn't cover. Any AI assistant picking up this project — on
+any device, any tool — should read both before doing anything, and update
+this file before ending a session (update `HANDOVER.md` too if something
+changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: deployed and live, now wired to the real Supabase backend
+## Status: agent hand-off in progress (2026-08-25)
+
+The user is switching to a different agent (out of credits on this one).
+`HANDOVER.md` was written specifically for this transition — read it in
+full before continuing. **Immediate next task, per the user's own words:**
+check UI fluidity of the landing page (`src/landing.html`) across desktop
+and mobile viewports — not yet visually verified on real screen sizes.
+PR #9 (branch `claude/cloudflare-icare-setup-qt575f`) is open with all of
+this session's work, not yet merged — the user wants to review first.
+
+Otherwise: deployed and live, wired to the real Supabase backend.
 
 ## ⚠️ Non-negotiables (from HANDOVER.md, "care·register" — uploaded 2026-08-25)
 
