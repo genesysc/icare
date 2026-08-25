@@ -7,6 +7,96 @@ for the standing instruction.
 
 ## Status: deployed and live, now wired to the real Supabase backend
 
+## ⚠️ Non-negotiables (from HANDOVER.md, "care·register" — uploaded 2026-08-25)
+
+The product's actual name/internal codename is **care·register** (same
+Supabase project we've been calling `care-register`). This doc is the real
+engineering source of truth referenced earlier as "HANDOVER.md" — the user
+found it via a shared Claude conversation link I couldn't fetch, then
+uploaded it directly along with several Next.js reference files. **Read
+this section before touching auth, badges, DBS, search, or pricing.**
+These are compliance-driven, not ordinary product preferences — treat them
+like `AGENTS.md`-level instructions, not suggestions:
+
+1. **Candidates are never charged, for anything.** Employment Agencies Act
+   1973 s6(1) (no fee for finding work, directly or indirectly) + 2003
+   Conduct Regulations reg. 5 (can't condition work-finding on buying other
+   services) + DHSC Code of Practice (stricter still for international
+   health/social care recruitment). No premium profile, no featured
+   listing, **no profile boost**, no paid CV review. This **settles** the
+   "optional boost, pending legal review" note from `LANDING_PAGE_COPY.md`
+   — it's not pending, it's prohibited. Already fixed: removed "optional
+   boosts available" copy from the landing page.
+2. **Badge grades are earned, never bought, never mis-graded.** Four fixed
+   grades on `badges.grade` (confirmed matches the real enum): `verified`
+   (checked against a public register/identity provider, awarded by
+   system), `evidenced` (document uploaded, human-reviewed), `derived`
+   (computed from platform data), `declared` (candidate said so,
+   unchecked). UI must keep these visually distinct — a declared badge must
+   never look like a verified one. No client write path to
+   `candidate_badges` should ever exist (RLS: read-only to clients; awards
+   via service role or `SECURITY DEFINER` functions only).
+3. **Never claim a DBS is "verified."** We cannot verify a DBS certificate
+   — only the employer can, via the DBS Update Service. Correct wording:
+   *"Enhanced DBS · on Update Service."* Forbidden: "DBS Certified/Verified/
+   Checked" or anything implying we validated it. The certificate number
+   is stored (`dbs_records`) but never shown on the open profile — only
+   released after shortlist + candidate consent.
+4. **Written shortlisting before anything visual.** Equality Act 2010
+   exposure. Any future employer-facing search view must exclude photo,
+   name, video, and CV file — those unlock only after shortlist + consent.
+   Not yet built on our side (no employer search exists), but binding on
+   whatever we build.
+5. **AI never scores, ranks, or filters a candidate.** Matches (sharpens)
+   what `LANDING_PAGE_COPY.md` already said. AI may summarise/extract/
+   transcribe/draft; a human decides. A CV parser (not yet built here)
+   must propose a draft that the candidate confirms — never auto-apply a
+   parse.
+6. **Data minimisation on anything ingested.** A CV parser must not
+   extract DOB, nationality, immigration detail, marital status, gender,
+   religion, ethnicity, health info, NI numbers, or photos — flag them in
+   `sensitive_found` instead (matches the real `cv_imports.sensitive_found`
+   column already in the schema) so the candidate can be told to remove
+   them. Postcodes on profile are outward-district only (`EN1`) — full
+   postcode lives in `candidate_contact`, gated behind shortlist +
+   consent. (Our `PATCH /candidates/me` whitelist already only exposes
+   `postcode_district`, not a full postcode — already compliant here.)
+7. **Regulation 22 (vulnerable persons)**: before a placement, confirm
+   identity, qualifications, and **two references**, and give the hirer
+   copies. `registrations`, `qualifications`, `candidate_references`,
+   `shortlists` are the audit trail. No placement feature exists yet on
+   either build — flagging so it isn't skipped when one is built.
+8. **Immigration facts constraining copy/filters**: overseas recruitment
+   for *care worker* and *senior care worker* roles closed 22 July 2025;
+   in-country switching runs to 22 July 2028. Don't build copy/filters
+   implying overseas sponsorship for those two specific roles. Other
+   healthcare roles are unaffected.
+
+**Auth method mismatch — flagging, not yet changed.** HANDOVER.md specifies
+**email OTP (6-digit code), no passwords at all** — magic links were
+explicitly rejected (opening one in a mobile mail app loses the session in
+a different browser); reasoning given is that this audience returns every
+few months and a forgotten password is a lost candidate. What we've built
+in `src/auth.ts` is **password-based** (`signUp`/`signInWithPassword`).
+Low risk to change right now — nothing currently deployed calls
+`/auth/signup` or `/auth/login` (the live landing page only calls
+`/waitlist`) — but it's a real rework of those two routes, so flagging for
+a decision rather than silently redoing it. See chat for the question.
+
+**Architecture note — a separate Next.js reference app exists.** The
+uploaded files (`onboarding-page.tsx`, `candidate-home-page.tsx`,
+`cv-review-page.tsx`, `cv-gate.tsx`, `cv-status-route.ts`, `onboarding.css`,
+plus HANDOVER's own file map) are from a **Next.js App Router** build
+against the *same* Supabase project — cookie-based `@supabase/ssr` auth,
+server actions for mutations, middleware for route-gating (not the
+security boundary — RLS is), a Deno Edge Function (`parse-cv`) calling
+Claude for CV parsing. This is a materially different, more complete
+system than what exists in this Cloudflare Workers repo (it already has a
+3-step onboarding wizard, CV upload/parse/review, and a candidate home
+page — none of which exist here yet). **Not reconciled yet — see chat for
+the open question on which of these two builds is the one going forward.**
+Do not delete or ignore either side without the user's direction.
+
 ## Stack / accounts
 - **GitHub**: `genesysc/icare`
 - **Cloudflare account**: "iCare" (`181e44a6963cb30381a30edbd56a4b46`) — dedicated
@@ -169,20 +259,16 @@ they aren't lost:
      validation/guardrail layer on incoming queries (prompt-level
      instructions alone are not sufficient) — **not yet designed or
      built**, and worth getting right before any AI search work starts.
-- **Candidate pricing — open legal question, do not ship or advertise
-  yet**: the model has shifted from "candidates never pay" to "free to
-  join, optional paid boost" (~£30/30 days, not yet built, not advertised
-  anywhere including this landing page). The brief itself flags this needs
-  legal review: an existing non-negotiable prohibits charging work-seekers
-  in connection with finding work (Employment Agencies Act 1973), and a
-  paid visibility boost is close enough to that line that it shouldn't be
-  assumed compliant. **Do not build or market a boost feature until this
-  is confirmed with an employment law specialist.**
-- **Referenced but not yet provided: `HANDOVER.md`.** The copy doc treats
-  it as the authoritative source for "non-negotiables" (the AI
-  scoring/ranking rule above is described as one of them). We don't have
-  this file yet — worth asking the user for it, since it likely affects
-  more than just the landing page.
+- **Candidate pricing — RESOLVED, not open.** `LANDING_PAGE_COPY.md`
+  described this as pending legal review; `HANDOVER.md` (the real
+  engineering source of truth) settles it: candidates are never charged,
+  full stop, no boost feature, ever. See the Non-negotiables section
+  above. Landing page copy already fixed.
+- **`HANDOVER.md` — now provided** (see Non-negotiables section above).
+  The user found it via a shared Claude conversation link this session
+  couldn't fetch (sandboxed network policy blocks `claude.ai/share/*`,
+  confirmed via both the standard fetch tool and a headless-browser
+  fallback through the configured proxy), so they uploaded it directly.
 - An employer-facing landing page is planned as a separate follow-up
   draft — not yet written, not this page's job (this page keeps employer
   mentions to supporting context only, e.g. "employers are searching iCare
@@ -210,23 +296,29 @@ they aren't lost:
   `32848054672`).
 - Built the landing page v1, then **rebuilt it as v2** against the real
   brief once it was uploaded — see "Product direction" and Stack section
-  above. Includes the new `waitlist` table/RPC and `/waitlist` routes. Not
-  yet confirmed deployed/green in CI (just pushed).
+  above. Includes the new `waitlist` table/RPC and `/waitlist` routes.
+- Received `HANDOVER.md` + Next.js reference files; removed the
+  candidate-boost pricing language it invalidated (compliance fix, already
+  pushed); recorded all non-negotiables above so they can't be lost again.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
   shortlisting published candidates) — deliberately deferred in favor of
-  candidate API first.
+  candidate API first. Any employer search view must exclude photo/name/
+  video/CV per non-negotiable #4 above.
 - Candidate qualifications, DBS records, references, badges, prompts,
-  CV import — not covered by the candidate API slice just built.
+  CV import — not covered by the candidate API slice just built. DBS/badge
+  copy must follow non-negotiables #2–#3 above when built.
 - Candidate self-expression posts + per-post consent model, employer
   conversational AI search + its protected-characteristics guardrail —
-  see "Product direction" above. Explicitly phase 2 in the brief; the
-  guardrail design in particular needs care before any of this is built.
-- `HANDOVER.md` — referenced by the copy brief as authoritative for
-  product non-negotiables, not yet in our hands. Worth asking for.
-- Candidate paid "boost" feature — blocked on legal review (Employment
-  Agencies Act 1973 question), not just an engineering task.
+  see "Product direction" above. Explicitly phase 2; the guardrail design
+  needs care before any of this is built.
+- **Auth method reconciliation** — OTP vs password, see Non-negotiables
+  section. Open question for the user.
+- **Next.js reference app reconciliation** — see Non-negotiables section.
+  Open question for the user: which build is the one going forward.
+- Candidate paid "boost" feature — will not be built. (Was previously
+  listed as blocked-on-legal; now settled as a hard no.)
 - Employer-facing landing page — separate piece of work, not started.
 - A real signed-in app UI (dashboard, profile editor, etc.) — nothing
   exists yet for a user to land on after authenticating via `/auth/*`.
