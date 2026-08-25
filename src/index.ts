@@ -4,6 +4,7 @@ import auth from "./auth";
 import candidates from "./candidates";
 import waitlist from "./waitlist";
 import landingPage from "./landing.html";
+import employerLandingPage from "./employers.html";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -18,6 +19,7 @@ app.route("/candidates", candidates);
 app.route("/waitlist", waitlist);
 
 app.get("/", (c) => c.html(landingPage));
+app.get("/employers", (c) => c.html(employerLandingPage));
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
