@@ -9,19 +9,20 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: landing page responsive-cleanup + hero photo deployed
+## Status: employer landing page built, not yet merged
 
-PR #9 and PR #10 both merged and deployed. PR #10 (squash-merged as
-`19b8ab1`, deploy run #11 succeeded) added two things on top of PR #9's
-work: the responsive/UI cleanup (hero visual rebuilt as one flowing card,
-`.wrap`/`.feature-list` fixes — actually tested at 6 real viewport sizes
-via headless Chromium, not just CSS-read) and a real photo embedded in
-that hero card's illustrative profile (see "Done" below). Zero horizontal
-overflow confirmed at any tested size, before and after both changes.
+PR #9 and PR #10 both merged and deployed (candidate landing page, its
+responsive cleanup, and the hero photo). `main` is deployed and live,
+wired to the real Supabase backend.
 
-`main` is deployed and live, wired to the real Supabase backend. Branch
-restarted from `main` after the merge per this repo's convention (see
-"Conventions" — HANDOVER.md §10).
+User decided to park the custom-domain/Sender.net work for a few days
+("will buy the domain in a few days time so let's park this for now")
+and asked for the employer-facing landing page next instead — the item
+flagged in HANDOVER.md §8 as "next, no particular blocker." That's now
+built on this branch (see "Done" below): `GET /employers`, same design
+system as the candidate page, employer waitlist with its own DB columns
+and a separate count/early-supporter pool. Not yet pushed/PR'd — do that
+next, then ask the user whether to merge (same pattern as PR #10).
 
 ## ⚠️ Non-negotiables (from HANDOVER.md, "care·register" — uploaded 2026-08-25)
 
@@ -426,6 +427,49 @@ they aren't lost:
   audit — zero horizontal overflow, avatar renders cleanly on mobile and
   desktop. Pushed as a second commit on PR #10, which is now merged and
   deployed (see Status above).
+- **Employer-facing landing page** (`src/employers.html`, `GET /employers`).
+  Same design tokens/fonts/motion as the candidate page, reused directly
+  rather than re-derived — kept the same profile-card hero visual (with
+  the real photo) since "this is what you'll see when you search" reads
+  naturally from an employer's perspective too, just with a different
+  caption. Copy is grounded in what's actually built: no employer
+  search/shortlisting/verification exists yet (HANDOVER.md §8 item 4), so
+  every specific feature card (verified badges, written shortlisting,
+  DBS handling, natural-language search) is tagged "Coming soon" — only
+  the waitlist mechanism and the "real, growing candidate pool" claim are
+  live today. No pricing is stated anywhere — employer pricing hasn't
+  been decided, and non-negotiable #1 (candidates never pay) doesn't
+  apply to employers, but nothing here commits to a number either.
+  - **Backend**: migration `0009_waitlist_employer_role` adds `role`
+    (`text`, default `'candidate'`, checked against `('candidate',
+    'employer')`) and `org_name` (`text`, nullable) to `waitlist`, plus a
+    check constraint requiring `org_name` when `role = 'employer'`.
+    `waitlist_count()` now takes an optional `p_role` param (default
+    `'candidate'`) — the old zero-arg overload was dropped (`create or
+    replace` with a new signature adds an overload rather than replacing;
+    caught this via a direct SQL query erroring "not unique" and fixed
+    with an explicit `drop function`). `POST /waitlist` and
+    `GET /waitlist/count` both accept `role`, defaulting to `'candidate'`
+    so the existing candidate page's calls are untouched.
+  - New `src/emails/employer-waitlist.ts` — same structure/compliance
+    conventions as the candidate welcome email, employer-specific copy,
+    no pricing language. Still routed through the same
+    `sendTransactionalEmail()` no-op stub (domain blocker, see above).
+  - Both pages cross-link: a short nav item ("For employers" /
+    "For candidates" — a first attempt at longer sentence-style links
+    wrapped onto two lines on a 390px-wide phone, caught by the
+    responsive audit and fixed by shortening) plus a footer link.
+  - Verified: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+    cleanly (885 KiB / 199 KiB gzip), 6-viewport headless-Chromium audit
+    on both pages — zero horizontal overflow. Local `wrangler dev`
+    couldn't reach Supabase directly (this sandbox's network egress
+    allowlist doesn't include `*.supabase.co` — a sandbox limitation, not
+    a code issue), so the insert path and the `org_name` check constraint
+    were verified directly against the real Supabase schema instead: a
+    test employer row inserted successfully, an employer row without
+    `org_name` correctly rejected by the constraint, then the test row
+    deleted and both waitlist counts confirmed back at 0.
+  - Not yet pushed or opened as a PR — do that next.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
