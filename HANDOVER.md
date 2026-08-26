@@ -142,6 +142,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
 | `src/candidates.ts` | Candidate profile CRUD, photo upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, badges (read-only), close-account, onboarding advance/complete, CV import (upload → Claude parse → review/apply) |
+| `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
 | `src/emails/waitlist-welcome.ts` | The actual welcome email subject/HTML, unused until `email.ts` is wired up |
@@ -288,6 +289,16 @@ row plus `candidates`+`candidate_contact` or `employers`+
   already creates the `employers` row and an
   `employer_verification_requests` row automatically, so this needed no
   new backend routes.
+- **Employer verification flow** (`src/employers.ts`, Sprint 7):
+  `GET /employers/me` (own row + full verification-request history),
+  `POST /employers/me/verification-requests` (submit/re-submit a CQC
+  provider ID and/or Companies House number). `employers.is_verified`
+  itself is the real gate (`is_verified_employer()` RPC) and can only be
+  flipped by `service_role` — a DB trigger enforces this, so no client
+  path can self-verify even by bug. `employer-home.html` now shows a
+  real, data-driven verification card (4 states: none/pending/rejected/
+  verified) instead of Sprint 6's static line. Review stays manual via
+  the Supabase dashboard, same as qualifications/registrations.
 - Landing pages: candidate-primary (`src/landing.html`) and employer
   (`src/employers.html`, v2, built against a real design/copy brief).
   Both waitlist-first pre-launch pages, not the real signed-in product.
@@ -653,10 +664,32 @@ PROGRESS.md's "Done" section for full detail, including how redirects
 were verified given `file://`'s navigation limitation in this sandbox.
 Not yet pushed as a PR.
 
-**Next priorities**: Sprint 7 (employer verification flow — CQC
-provider ID / Companies House number, gating search behind
-`is_verified_employer()`). Sprint 8 (chat infrastructure) will need an
-`ANTHROPIC_API_KEY` secret — see above, still not provisioned. Don't
+All of the above (professions/DBS fixes, CV import, Sprint 6) shipped
+on **PR #15**, which the user asked to be opened and merged —
+`mergeable_state` confirmed `clean`, squash-merged into `main`, deploy
+run #16 (https://github.com/genesysc/icare/actions/runs/33000995853)
+confirmed `success`. Live. Branch restarted from `main` per convention.
+
+Sprint 7 (employer verification flow) is now shipped. New
+`src/employers.ts` (`GET /employers/me`, `POST /employers/me/
+verification-requests`) and a real verification card in
+`employer-home.html` replacing Sprint 6's static line — four states
+(no identifier yet / submitted-under-review / rejected with reviewer
+note / verified), matching the real `evidence_status` enum lifecycle.
+Reading `lock_employer_verification()`'s real SQL first confirmed
+`employers.is_verified` can only ever be flipped by `service_role` — no
+client code path, even a bug in this route, can self-verify an
+employer. `employer_verification_requests` is append-only by RLS (no
+UPDATE policy), so each (re)submission is a new audit row rather than
+an edit — the route's design follows that directly rather than fighting
+it. See PROGRESS.md's "Done" section for full detail, including a
+`PATCH /employers/me` route that was drafted then deliberately removed
+before committing since nothing used it. Not yet pushed as a PR.
+
+**Next priorities**: Sprint 8 (chat infrastructure + candidate search —
+the foundation the rest of the employer track sits on). It will need an
+`ANTHROPIC_API_KEY` secret — see above, still not provisioned; CV import
+needs the same secret, so provisioning it unblocks both at once. Don't
 restart the domain/Sender.net work unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in

@@ -1322,6 +1322,69 @@ they aren't lost:
     both its sign-in and sign-up states — zero horizontal overflow
     anywhere.
   - Not yet pushed as a PR.
+- **PR #15 opened, merged, and deployed** (squash-merged into `main`,
+  `mergeable_state` confirmed `clean` before merging): bundles all three
+  pieces above — the professions/DBS review-pause fixes, CV import, and
+  Sprint 6 (employer sign-up/sign-in) — now live on `main`. CI run #16
+  (https://github.com/genesysc/icare/actions/runs/33000995853) confirmed
+  `success`. Branch restarted from `main` per convention. The
+  `ANTHROPIC_API_KEY` provisioning blocker for CV import is called out in
+  the PR body as follow-up work, not silently dropped.
+- **Sprint 7: employer verification flow** — the employer track's second
+  sprint. Checked the real schema before writing anything, same
+  discipline as every prior sprint, and it surfaced the actual shape of
+  the gate: `employers.is_verified` (not `employer_verification_requests
+  .status`) is what the **existing** `is_verified_employer()` RPC
+  checks, and a DB trigger (`lock_employer_verification()`) enforces
+  that only `service_role` can ever flip it — reading its real SQL
+  first confirmed the app layer can never accidentally grant
+  verification, even by bug. `employer_verification_requests` itself is
+  append-only by RLS (INSERT + SELECT only, confirmed no UPDATE policy
+  exists, and no unique constraint on `employer_id`) — each submission
+  is a new audit row, not an edit of a previous one, matching the
+  `evidence_status` enum's own `submitted → under_review →
+  accepted/rejected/expired` lifecycle.
+  - **New `src/employers.ts`** router, mounted at `/employers`:
+    - `GET /employers/me` — the employer's own row
+      (`org_name`/`cqc_provider_id`/`is_verified`) plus their full
+      verification-request history (newest first), so the UI can show
+      not just current status but why a rejection happened.
+    - `POST /employers/me/verification-requests` — submits or
+      re-submits for review. Requires at least one of a CQC provider ID
+      or Companies House number (validated server-side, not just in the
+      UI). `submitted_org_name`/`submitted_email` are stamped
+      server-side from the employer's own current `employers`/
+      `accounts` rows rather than trusted from the client — same
+      philosophy as the DBS route's server-stamped `consent_given_at`
+      from Sprint 4. When a CQC provider ID is supplied, also updates
+      the live `employers.cqc_provider_id` so the "currently claimed"
+      value and the latest submission never drift out of sync.
+    - A `PATCH /employers/me` general-profile-edit route was drafted
+      and then deliberately removed before committing — nothing in this
+      sprint's UI called it (the verification POST route already keeps
+      `cqc_provider_id` current), and adding an unused route wasn't
+      warranted by this sprint's actual scope.
+  - **UI** (`src/employer-home.html`, replacing Sprint 6's static
+    "Verification: pending" line with a real, data-driven card): four
+    distinct visual states, each with its own copy and status-row
+    color — no identifier submitted yet (amber, prompts for one),
+    submitted/under review (amber), rejected (red, shows the
+    `reviewer_note` verbatim if present), and verified (teal, the form
+    disappears entirely — nothing left to submit). The CQC ID field
+    pre-fills from the employer's current claimed value on every load,
+    so resubmitting after a rejection doesn't mean retyping it.
+  - Review stays entirely manual via the Supabase dashboard for now —
+    same reasoning as Sprint 3's qualifications/registrations — no admin
+    review UI in this sprint.
+  - **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly (~1.52MB / 316KB gzip). Exercised with headless
+    Chromium against mocked `GET /employers/me` responses covering all 4
+    states plus a live form submission: confirmed the exact POST body
+    sent, the success message, and that submitting with both fields
+    blank is caught client-side before any network call. 5-viewport
+    overflow audit on the rejected state (longest content on the page,
+    including a long reviewer note) — zero horizontal overflow anywhere.
+  - Not yet pushed as a PR.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

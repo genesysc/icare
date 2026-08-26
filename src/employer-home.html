@@ -1,15 +1,21 @@
 <!--
-  iCare employer home — SPRINTS.md Sprint 6.
+  iCare employer home — SPRINTS.md Sprints 6-7.
 
   A non-broken landing target for a signed-in employer, same role the
   Sprint 1 onboarding.html/dashboard.html stubs played for candidates
   before Sprints 2-5 built the real thing. verify.html redirects here for
   role: "employer" (decided via GET /auth/me, not a client-side guess).
 
-  Deliberately minimal — no new backend routes this sprint (matches
-  SPRINTS.md's Sprint 6 scope exactly). Sprint 7 adds real verification-
-  status routes/UI; Sprint 8 replaces this page's body outright with the
-  chat interface. Only calls the EXISTING GET /auth/me to greet by name.
+  Sprint 7 replaced the static "verification pending" line with a real
+  verification card: GET /employers/me loads the employer's own row plus
+  their verification-request history, and — while not yet verified — a
+  form posts to POST /employers/me/verification-requests (CQC provider ID
+  and/or Companies House number). employers.is_verified itself can only
+  be flipped by service_role (a DB trigger enforces this, confirmed by
+  reading its real SQL before building this route), so review stays
+  manual via the Supabase dashboard for now, same as Sprint 3's
+  qualifications/registrations. Sprint 8 replaces the rest of this page's
+  body with the chat interface.
 -->
 <!doctype html>
 <html lang="en">
@@ -31,6 +37,9 @@
     --teal: #00a499;
     --teal-dark: #00807a;
     --teal-100: #e0f5f3;
+    --amber-100: #faedd4;
+    --amber-700: #a3690f;
+    --err: #b23a24;
     --paper: #fbf9f6;
     --line: #e7e3da;
     --white: #ffffff;
@@ -70,7 +79,38 @@
     margin-top: 24px; padding: 14px 16px; border-radius: 12px; background: var(--teal-100);
     display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--teal-dark); font-weight: 600;
   }
+  .status-row.status-row-pending { background: var(--amber-100); color: var(--amber-700); }
+  .status-row.status-row-rejected { background: #fbe4de; color: var(--err); }
   .status-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--teal-dark); flex: none; }
+  .status-row-pending .status-dot { background: var(--amber-700); }
+  .status-row-rejected .status-dot { background: var(--err); }
+
+  .reviewer-note { margin-top: 10px; font-size: 13px; color: var(--ink-faint); line-height: 1.5; }
+  .reviewer-note strong { color: var(--ink); }
+
+  .verify-form { margin-top: 20px; }
+  .field { margin-top: 16px; }
+  .field:first-child { margin-top: 0; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--purple-dark); margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 11px 13px; border-radius: 10px; border: 1.5px solid var(--line);
+    font-size: 14.5px; font-family: inherit; background: var(--white); color: var(--ink);
+  }
+  .field input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-100); }
+  .field-hint { margin-top: 10px; font-size: 12.5px; color: var(--ink-faint); }
+
+  .btn {
+    margin-top: 16px; padding: 11px 22px; border-radius: 999px;
+    background: var(--purple); color: var(--white); border: none; font-weight: 700; font-size: 14px;
+    cursor: pointer; transition: background 0.2s ease;
+  }
+  .btn:hover { background: var(--purple-dark); }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+
+  .form-status { margin-top: 12px; font-size: 13px; display: none; }
+  .form-status.is-visible { display: block; }
+  .form-status.err { color: var(--err); }
+  .form-status.ok { color: var(--teal-dark); }
 
   .coming-list { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
   .coming-item {
@@ -100,28 +140,40 @@
     <h1 class="card-title" data-greeting>You're in</h1>
     <p class="card-body" data-body>Your employer account is set up. We're still building the search and hiring tools — you'll see them appear here as they ship.</p>
 
-    <div class="status-row">
-      <span class="status-dot"></span>
-      <span>Verification: pending — we'll review your organisation shortly</span>
+    <p class="loading-note" data-verify-loading>Checking your verification status…</p>
+
+    <div data-verify-block style="display:none;">
+      <div class="status-row" data-verify-status-row>
+        <span class="status-dot"></span>
+        <span data-verify-status-text>Verification status</span>
+      </div>
+      <p class="reviewer-note" data-verify-reviewer-note style="display:none;"></p>
+
+      <form class="verify-form" id="verify-form" data-verify-form>
+        <div class="field">
+          <label for="cqc-id">CQC provider ID</label>
+          <input id="cqc-id" type="text" placeholder="e.g. 1-000000000" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="ch-no">Companies House number</label>
+          <input id="ch-no" type="text" placeholder="e.g. 12345678" autocomplete="off" />
+        </div>
+        <p class="field-hint">Provide at least one — a CQC provider ID is the strongest signal we can check.</p>
+        <button type="submit" class="btn" data-verify-submit>Submit for verification</button>
+      </form>
+      <p class="form-status" data-verify-form-status></p>
     </div>
 
     <div class="coming-list">
       <div class="coming-item">
         <span class="coming-item-num">01</span>
         <div>
-          <div class="coming-item-label">Organisation verification</div>
-          <div class="coming-item-sub">Confirm your CQC provider ID or Companies House number to unlock search.</div>
-        </div>
-      </div>
-      <div class="coming-item">
-        <span class="coming-item-num">02</span>
-        <div>
           <div class="coming-item-label">Chat-based candidate search</div>
           <div class="coming-item-sub">Describe the role you're hiring for in plain language — no forms or filters.</div>
         </div>
       </div>
       <div class="coming-item">
-        <span class="coming-item-num">03</span>
+        <span class="coming-item-num">02</span>
         <div>
           <div class="coming-item-label">Shortlisting &amp; pipeline</div>
           <div class="coming-item-sub">Move candidates through Shortlisted → Interview → Offer → Hired, all from chat.</div>
@@ -170,6 +222,70 @@ function icareRequireAuth(signInPath) {
   var session = icareRequireAuth("/employer/sign-in");
   if (!session) return;
 
+  var STATUS_COPY = {
+    submitted: "Submitted — we'll review your organisation shortly",
+    under_review: "Under review — we'll be in touch shortly",
+    accepted: "Accepted",
+    rejected: "Not verified — see the note below and resubmit",
+    expired: "Expired — please resubmit",
+  };
+
+  function renderVerification(employer, latestRequest) {
+    document.querySelector("[data-verify-loading]").style.display = "none";
+    document.querySelector("[data-verify-block]").style.display = "block";
+
+    var statusRow = document.querySelector("[data-verify-status-row]");
+    var statusText = document.querySelector("[data-verify-status-text]");
+    var reviewerNote = document.querySelector("[data-verify-reviewer-note]");
+    var form = document.querySelector("[data-verify-form]");
+
+    statusRow.className = "status-row";
+    reviewerNote.style.display = "none";
+
+    var hasIdentifier = latestRequest && (latestRequest.cqc_provider_id || latestRequest.companies_house_no);
+
+    if (employer.is_verified) {
+      statusText.textContent = "Verified — your organisation is confirmed";
+      form.style.display = "none";
+    } else if (!hasIdentifier) {
+      statusRow.classList.add("status-row-pending");
+      statusText.textContent = "Add your CQC provider ID or Companies House number to start verification";
+      form.style.display = "block";
+    } else if (latestRequest.status === "rejected" || latestRequest.status === "expired") {
+      statusRow.classList.add("status-row-rejected");
+      statusText.textContent = STATUS_COPY[latestRequest.status] || "Verification needs another look";
+      if (latestRequest.reviewer_note) {
+        reviewerNote.innerHTML = "<strong>Reviewer note:</strong> " + latestRequest.reviewer_note;
+        reviewerNote.style.display = "block";
+      }
+      form.style.display = "block";
+    } else {
+      statusRow.classList.add("status-row-pending");
+      statusText.textContent = STATUS_COPY[latestRequest.status] || "Submitted — awaiting review";
+      form.style.display = "block";
+    }
+
+    if (!employer.is_verified) {
+      document.getElementById("cqc-id").value = employer.cqc_provider_id || "";
+      document.getElementById("ch-no").value = (latestRequest && latestRequest.companies_house_no) || "";
+    }
+  }
+
+  function loadVerification() {
+    icareAuthFetch("/employers/me")
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        if (!result.ok || !result.body.employer) {
+          document.querySelector("[data-verify-loading]").textContent = "Couldn't load your verification status — refresh to try again.";
+          return;
+        }
+        renderVerification(result.body.employer, result.body.latest_verification_request);
+      })
+      .catch(function () {
+        document.querySelector("[data-verify-loading]").textContent = "Couldn't load your verification status — refresh to try again.";
+      });
+  }
+
   icareAuthFetch("/auth/me")
     .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
     .then(function (result) {
@@ -183,10 +299,54 @@ function icareRequireAuth(signInPath) {
       if (account.full_name) {
         document.querySelector("[data-greeting]").textContent = "Welcome, " + account.full_name;
       }
+      loadVerification();
     })
     .catch(function () {
       // Non-fatal — the generic greeting still reads fine without a name.
     });
+
+  document.querySelector("[data-verify-form]").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var cqcId = document.getElementById("cqc-id").value.trim();
+    var chNo = document.getElementById("ch-no").value.trim();
+    var statusEl = document.querySelector("[data-verify-form-status]");
+    var submitBtn = document.querySelector("[data-verify-submit]");
+
+    if (!cqcId && !chNo) {
+      statusEl.textContent = "Provide a CQC provider ID or Companies House number.";
+      statusEl.className = "form-status is-visible err";
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitting…";
+    statusEl.className = "form-status";
+
+    icareAuthFetch("/employers/me/verification-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cqc_provider_id: cqcId, companies_house_no: chNo }),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit for verification";
+        if (!result.ok) {
+          statusEl.textContent = result.body.error || "Something went wrong. Please try again.";
+          statusEl.className = "form-status is-visible err";
+          return;
+        }
+        statusEl.textContent = "Submitted — we'll review your organisation shortly.";
+        statusEl.className = "form-status is-visible ok";
+        loadVerification();
+      })
+      .catch(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit for verification";
+        statusEl.textContent = "Network error — please try again.";
+        statusEl.className = "form-status is-visible err";
+      });
+  });
 
   document.querySelector("[data-sign-out]").addEventListener("click", function () {
     icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
