@@ -568,14 +568,22 @@ rather than duplicating every form a second time. Badges render with a
 genuinely distinct visual treatment per grade per non-negotiable #2.
 Account closure wraps the existing `close_my_account()` RPC behind a
 two-step in-page confirm. See PROGRESS.md's "Done" section for full
-detail. Not yet merged.
+detail.
 
-**Next priorities**: the candidate track is done — Sprint 6 starts the
-employer track (per the revised Sprints 6-11 plan; iCompliance/Sprint 12
-stays explicitly unscheduled). Sprint 8 (chat infrastructure, employer
-track) will need an `ANTHROPIC_API_KEY` secret added via
-`wrangler secret put` when it starts — not yet provisioned. Don't
-restart the domain/Sender.net work unless the user brings it back up.
+All of the above (Sprint 5) shipped on **PR #14**, which the user
+approved merging — `mergeable_state` confirmed `clean`, squash-merged
+into `main`, deploy run #15
+(https://github.com/genesysc/icare/actions/runs/32966651915) succeeded.
+Live. Branch restarted from `main` per convention (§10). **The
+candidate track is complete end to end, in production**: sign up →
+verify → 11-step wizard → publish → real dashboard.
+
+**Next priorities**: Sprint 6 starts the employer track (per the
+revised Sprints 6-11 plan; iCompliance/Sprint 12 stays explicitly
+unscheduled). Sprint 8 (chat infrastructure, employer track) will need
+an `ANTHROPIC_API_KEY` secret added via `wrangler secret put` when it
+starts — not yet provisioned. Don't restart the domain/Sender.net work
+unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.

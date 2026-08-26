@@ -9,13 +9,13 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: Sprint 5 shipped — candidate track complete, not yet merged
+## Status: Candidate track complete, merged and deployed; employer track next
 
-PR #9, #10, #11, #12, and now #13 all merged and deployed (waitlist
-landing pages, candidate + employer, employer landing page v2, and
-Sprints 0-3 of the candidate onboarding journey). `main` is deployed
-and live, wired to the real Supabase backend — CI run #14
-(https://github.com/genesysc/icare/actions/runs/32941646689) succeeded.
+PR #9, #10, #11, #12, #13, and now #14 all merged and deployed
+(waitlist landing pages, candidate + employer, employer landing page
+v2, and Sprints 0-5 of the candidate onboarding journey). `main` is
+deployed and live, wired to the real Supabase backend — CI run #15
+(https://github.com/genesysc/icare/actions/runs/32966651915) succeeded.
 Branch restarted from `main` after the merge per this repo's convention
 (see "Conventions" — HANDOVER.md §10).
 
@@ -123,6 +123,12 @@ different colors each — per non-negotiable #2. Account closure is a
 new route wrapping the existing `close_my_account()` RPC, behind a
 two-step in-page confirm rather than a native `confirm()` dialog. See
 "Done" below for full detail.
+
+PR #14 (https://github.com/genesysc/icare/pull/14) was opened,
+`mergeable_state` confirmed `clean`, squash-merged into `main`, and CI
+run #15 confirmed `success`. Branch restarted from `main` per
+convention. **The candidate track is done.** Next: Sprint 6 starts the
+employer track.
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -1101,6 +1107,12 @@ they aren't lost:
     audit on both the review step and the dashboard (populated with
     real-shaped data, including the DBS badge's long label) — zero
     horizontal overflow at any tested size.
+- **PR #14 opened, merged, and deployed** (squash-merged into `main`,
+  `mergeable_state` confirmed `clean` before merging): Sprint 5 (photo,
+  review, publish, candidate dashboard) now live on `main`. CI run #15
+  (https://github.com/genesysc/icare/actions/runs/32966651915)
+  confirmed `success`. Branch restarted from `main` per convention.
+  **Candidate track complete end to end, live in production.**
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
