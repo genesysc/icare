@@ -489,4 +489,172 @@ candidates.delete("/me/registrations/:id", async (c) => {
   return c.body(null, 204);
 });
 
+// --- DBS status + consent (SPRINTS.md Sprint 4) ---
+// One row per candidate (candidate_id is the primary key), so this is an
+// upsert, not list CRUD. consent_given_at is server-owned: it's stamped
+// the moment consent_to_check first flips true, and cleared if consent is
+// withdrawn — never client-supplied, so it's an honest record of when
+// consent was actually given, not just claimed.
+
+const DBS_FIELDS = ["level", "issued_on", "certificate_number", "workforce"] as const;
+
+candidates.get("/me/dbs", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("dbs_records")
+    .select("*")
+    .eq("candidate_id", c.get("userId"))
+    .maybeSingle();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ dbs: data });
+});
+
+candidates.put("/me/dbs", async (c) => {
+  const body = await c.req.json();
+  const userId = c.get("userId");
+  const supabase = c.get("supabase");
+
+  const { data: current, error: readError } = await supabase
+    .from("dbs_records")
+    .select("consent_to_check, consent_given_at")
+    .eq("candidate_id", userId)
+    .maybeSingle();
+  if (readError) return c.json({ error: readError.message }, 400);
+
+  const consentRequested = body.consent_to_check === true;
+  const update: Record<string, unknown> = { candidate_id: userId, consent_to_check: consentRequested };
+  for (const field of DBS_FIELDS) {
+    if (field in body) update[field] = body[field];
+  }
+  if (consentRequested) {
+    update.consent_given_at = current?.consent_to_check ? current.consent_given_at : new Date().toISOString();
+  } else {
+    update.consent_given_at = null;
+  }
+
+  const { data, error } = await supabase
+    .from("dbs_records")
+    .upsert(update, { onConflict: "candidate_id" })
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ dbs: data });
+});
+
+// --- References (SPRINTS.md Sprint 4) ---
+// Collects referee details only. Reg 22 (non-negotiable #7) requires two
+// references confirmed *before a placement*, not before publish — the
+// actual referee-response flow (token, outbound email) is deferred to a
+// later sprint since it needs real outbound email, blocked on the parked
+// domain/Sender.net work.
+
+const REFERENCE_FIELDS = ["referee_name", "referee_org", "referee_email", "relationship"] as const;
+
+candidates.get("/me/references", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidate_references")
+    .select("*")
+    .eq("candidate_id", c.get("userId"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ references: data });
+});
+
+candidates.post("/me/references", async (c) => {
+  const body = await c.req.json();
+  const insert: Record<string, unknown> = { candidate_id: c.get("userId") };
+  for (const field of REFERENCE_FIELDS) {
+    if (field in body) insert[field] = body[field];
+  }
+
+  const { data, error } = await c.get("supabase").from("candidate_references").insert(insert).select().single();
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ reference: data }, 201);
+});
+
+candidates.patch("/me/references/:id", async (c) => {
+  const body = await c.req.json();
+  const update: Record<string, unknown> = {};
+  for (const field of REFERENCE_FIELDS) {
+    if (field in body) update[field] = body[field];
+  }
+  if (Object.keys(update).length === 0) {
+    return c.json({ error: "no writable fields in body" }, 400);
+  }
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidate_references")
+    .update(update)
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"))
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ reference: data });
+});
+
+candidates.delete("/me/references/:id", async (c) => {
+  const { error } = await c
+    .get("supabase")
+    .from("candidate_references")
+    .delete()
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+});
+
+// --- Self-expression prompts (SPRINTS.md Sprint 4) ---
+// One row per (candidate_id, prompt_id) — answering a prompt is an
+// upsert, clearing it is a delete. Answering any given prompt is
+// optional; there's no "must answer N of them" requirement.
+
+candidates.get("/me/prompts", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidate_prompts")
+    .select("prompt_id, answer, updated_at")
+    .eq("candidate_id", c.get("userId"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ prompts: data });
+});
+
+candidates.put("/me/prompts/:promptId", async (c) => {
+  const body = await c.req.json();
+  const answer = typeof body.answer === "string" ? body.answer.trim() : "";
+  if (!answer) return c.json({ error: "answer must not be empty" }, 400);
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidate_prompts")
+    .upsert(
+      { candidate_id: c.get("userId"), prompt_id: c.req.param("promptId"), answer, updated_at: new Date().toISOString() },
+      { onConflict: "candidate_id,prompt_id" },
+    )
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ prompt: data });
+});
+
+candidates.delete("/me/prompts/:promptId", async (c) => {
+  const { error } = await c
+    .get("supabase")
+    .from("candidate_prompts")
+    .delete()
+    .eq("candidate_id", c.get("userId"))
+    .eq("prompt_id", c.req.param("promptId"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+});
+
 export default candidates;

@@ -138,10 +138,10 @@ stop and ask the user — do not resolve it yourself.**
 | File | What |
 |---|---|
 | `wrangler.jsonc` | Worker config — account id, vars (Supabase URL/key), R2 binding, the `Text` import rule for `.html` |
-| `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/qualification-types`, `/media-check` |
+| `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo upload, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, onboarding advance/complete |
+| `src/candidates.ts` | Candidate profile CRUD, photo upload, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, onboarding advance/complete |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
 | `src/emails/waitlist-welcome.ts` | The actual welcome email subject/HTML, unused until `email.ts` is wired up |
@@ -151,7 +151,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
 | `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
 | `src/verify.html` | OTP code entry, `/verify?email=...` |
-| `src/onboarding.html` | The real onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations) — spans Sprints 2–5, not done after this |
+| `src/onboarding.html` | The real onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts) — spans Sprints 2–5, not done after this |
 | `src/dashboard.html` | Stub post-onboarding landing, real dashboard is Sprint 5 |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
@@ -517,18 +517,30 @@ All of the above (Sprint 3) shipped on **PR #13**, which the user
 approved merging — `mergeable_state` confirmed `clean`, squash-merged
 into `main`, deploy run #14
 (https://github.com/genesysc/icare/actions/runs/32941646689) succeeded.
-Live. Branch restarted from `main` per convention (§10). The user then
-said "We will continue later" — no further work requested this session.
+Live. Branch restarted from `main` per convention (§10).
 
-**Next priorities**: Sprint 4 (DBS status/consent, references,
-self-expression prompts) continues the wizard — the DBS step needs
-careful copy per non-negotiable #3, and the reference step's actual
-referee-response flow needs real outbound email, which is still blocked
-on the parked domain/Sender.net work (collecting referee details is not
-blocked, just the email send). Sprint 8 (chat infrastructure, employer
-track) will need an `ANTHROPIC_API_KEY` secret added via
-`wrangler secret put` when it starts — not yet provisioned. Don't
-restart the domain/Sender.net work unless the user brings it back up.
+Sprint 4 (DBS status/consent, references, self-expression prompts) is
+also now shipped: the wizard grew from 6 real steps + a holding screen
+to 9 + holding. DBS is a true upsert (`dbs_records.candidate_id` is the
+primary key, checked directly against the schema) with
+`consent_given_at` stamped server-side only on the first `true` — never
+client-supplied. References reuse the Sprint 3 record-card CRUD
+pattern; the referee-response flow itself stays deferred, still blocked
+on the parked domain/Sender.net work. Prompts are a new
+`(candidate_id, prompt_id)` upsert/delete against the 6 real prompts
+already seeded in the DB. All RLS-checked directly against
+`pg_policies` first. The per-step label row (patched once already in
+Sprint 3) was replaced outright with a single dynamic "Step X of 9 ·
+Label" line, since it would have needed a third patch at 9 labels —
+this removes that whole bug class instead of re-fixing it. See
+PROGRESS.md's "Done" section for full detail. Not yet merged.
+
+**Next priorities**: Sprint 5 (photo, review, publish, real candidate
+dashboard) finishes the wizard and is the first point `onboarding_done`
+should flip true. Sprint 8 (chat infrastructure, employer track) will
+need an `ANTHROPIC_API_KEY` secret added via `wrangler secret put` when
+it starts — not yet provisioned. Don't restart the domain/Sender.net
+work unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.

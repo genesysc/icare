@@ -179,26 +179,48 @@ The evidence that actually backs a profile.
   didn't fit on one row (fixed with `flex-wrap: wrap` so actions drop
   to their own line instead of squeezing the title into a sliver).
 
-### Sprint 4 — DBS, references, self-expression prompts
+### Sprint 4 — DBS, references, self-expression prompts ✅ Shipped
 
 The compliance-sensitive steps — written carefully, not fast.
 
-- **Step — DBS status + consent:** **new routes needed** for
-  `dbs_records` (level, `on_update_service`, `consent_to_check` +
-  `consent_given_at`). Copy must say *"Enhanced DBS · on Update
-  Service"* — never "verified/certified/checked" (non-negotiable #3).
-  `certificate_number` is captured but never exposed pre-shortlist.
-- **Step — References:** **new routes needed** for `candidate_references`
-  (referee name/org/email/relationship). Reg 22 (non-negotiable #7)
-  requires two references confirmed *before a placement*, not
-  necessarily before publish — this sprint collects referee details;
-  the actual referee-response flow (`candidate_references.token`,
-  outbound email to the referee) is deferred to a later sprint since it
-  needs real outbound email, which is blocked on the same parked
-  domain/Sender.net work. Flag this dependency when it's picked up.
-- **Step — Prompts:** **new routes needed** for `candidate_prompts`
-  (short free-text answers to the `prompts` reference table) — this is
-  the "your own voice" positioning from the landing page copy, made real.
+- **Step — DBS status + consent:** **new routes shipped** —
+  `GET/PUT /candidates/me/dbs`. `dbs_records` is a singleton per
+  candidate (`candidate_id` is the primary key, checked directly
+  against the schema), so this is an upsert, not list CRUD.
+  `consent_given_at` is server-stamped the moment `consent_to_check`
+  first flips true, and cleared if consent is withdrawn — never
+  client-supplied, so it's an honest record of when consent was
+  actually given. Copy says *"Enhanced DBS"* / *"I'm registered on the
+  DBS Update Service"* — never "verified/certified/checked"
+  (non-negotiable #3). `certificate_number` is captured but marked
+  "kept private" on the form; never exposed pre-shortlist once
+  employer search exists. Skipping this step (no DBS yet) doesn't
+  create a row — `level` is `NOT NULL` with no default, so an empty
+  form correctly just advances without writing anything.
+- **Step — References:** **new routes shipped** — full CRUD on
+  `candidate_references` (referee name/org/email/relationship), same
+  record-card pattern as employment/qualifications/registrations. Reg
+  22 (non-negotiable #7) requires two references confirmed *before a
+  placement*, not necessarily before publish — this sprint collects
+  referee details; the actual referee-response flow
+  (`candidate_references.token`, outbound email to the referee) is
+  still deferred to a later sprint since it needs real outbound email,
+  blocked on the same parked domain/Sender.net work.
+- **Step — Prompts:** **new routes shipped** — `GET /candidates/me/
+  prompts`, `PUT/DELETE /candidates/me/prompts/:promptId` (upsert per
+  `(candidate_id, prompt_id)`, the real primary key). New public
+  `GET /prompts` reference route serves the 6 real prompts already
+  seeded in the DB (`good_at_not_cv`, `work_best_with`, `why_care`,
+  `proud_moment`, `need_from_employer`, `difficult_day`) — this is the
+  "your own voice" positioning from the landing page copy, made real.
+  Answering any prompt is optional.
+- **Progress-indicator redesign**: the wizard grew to 9 real steps +
+  a holding screen. The per-step label row (already patched once in
+  Sprint 3 for 6 labels) would not have scaled to 9 without shrinking
+  to illegibility, so it's replaced with a single dynamic line ("Step
+  7 of 9 · DBS & consent") above the dots instead of one label per
+  dot. More scalable for the remaining Sprint 5 steps, and removes a
+  whole class of "N labels don't fit in the row" bugs going forward.
 
 ### Sprint 5 — Photo, review, publish, candidate home
 

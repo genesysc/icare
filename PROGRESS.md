@@ -9,7 +9,7 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: Sprints 0-3 merged and deployed; Sprint 4 next
+## Status: Sprint 4 shipped, not yet merged
 
 PR #9, #10, #11, #12, and now #13 all merged and deployed (waitlist
 landing pages, candidate + employer, employer landing page v2, and
@@ -78,8 +78,23 @@ CSS. See "Done" below for full detail.
 PR #13 (https://github.com/genesysc/icare/pull/13) was opened,
 `mergeable_state` confirmed `clean`, squash-merged into `main`, and CI
 run #14 confirmed `success`. Branch restarted from `main` per
-convention. Next: Sprint 4 (DBS status/consent, references,
-self-expression prompts).
+convention.
+
+**Sprint 4 is now shipped too** — DBS status/consent, references, and
+self-expression prompts, continuing the same wizard (now 9 real steps +
+a holding screen, was 6 + holding). DBS is a singleton upsert
+(`dbs_records.candidate_id` is the primary key), with
+`consent_given_at` stamped server-side the moment consent first flips
+true — never client-supplied. References reuse the same record-card
+CRUD pattern as Sprint 3. Prompts are a new per-`(candidate_id,
+prompt_id)` upsert/delete against the 6 real prompts already seeded in
+the DB. All RLS-checked directly against `pg_policies` before writing
+routes. **Also redesigned the step progress indicator**: the per-step
+label row (already patched once in Sprint 3 for 6 labels) wouldn't have
+scaled to 9, so it's replaced with a single dynamic "Step X of 9 ·
+Label" line above the dots — removes a whole recurring class of
+overflow bugs rather than patching it a third time. See "Done" below
+for full detail.
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -897,6 +912,83 @@ they aren't lost:
   history, qualifications, registrations) now live on `main`. CI run
   #14 (https://github.com/genesysc/icare/actions/runs/32941646689)
   confirmed `success`. Branch restarted from `main` per convention.
+- **Sprint 4: DBS status/consent, references, self-expression prompts**
+  — the wizard's steps 7-9, replacing the Sprint 3 holding screen (now
+  step 10).
+  - **DBS status + consent (step 7)**: **new routes** —
+    `GET/PUT /candidates/me/dbs`. Checked the schema before assuming
+    anything: `dbs_records`' primary key is `candidate_id` itself (one
+    row per candidate), so the route is a true upsert
+    (`.upsert(update, { onConflict: "candidate_id" })`), not list CRUD
+    like the Sprint 3 tables. `level` is `NOT NULL` with no DB default,
+    so the route only writes a row when the candidate actually picks a
+    level — leaving the picker on "I don't have one yet" and hitting
+    Continue advances the wizard without touching the table at all
+    (verified: `dbsRow` stayed `null` in the mocked test after a
+    skip-continue). `consent_given_at` is entirely server-owned: the
+    route reads the existing row first, and only stamps a fresh
+    `new Date().toISOString()` when `consent_to_check` is arriving as
+    `true` for the *first* time (i.e. it was previously false/absent);
+    if consent is unchecked, `consent_given_at` is cleared to `null`.
+    This means the timestamp is an honest record of when consent was
+    actually given, never something the client could backdate or fake.
+    UI copy uses exactly the non-negotiable #3 wording ("Enhanced DBS",
+    "I'm registered on the DBS Update Service") and never
+    "verified/certified/checked"; the certificate-number field carries
+    an explicit "kept private, never shown pre-shortlist" hint.
+  - **References (step 8)**: **new routes**, full CRUD
+    (`GET/POST /candidates/me/references`, `PATCH/DELETE .../:id`),
+    same record-card add/edit/delete UI pattern as Sprint 3's
+    qualifications/registrations. RLS checked directly against
+    `pg_policies` (`candidate_references_self`, `candidate_id =
+    auth.uid()`, `ALL`) before writing them. Only referee details are
+    collected this sprint — the actual referee-response flow
+    (`candidate_references.token`, an email to the referee) is still
+    deferred, since it needs real outbound email and that's blocked on
+    the parked domain/Sender.net work (documented as a flagged
+    dependency in `SPRINTS.md`, not silently dropped).
+  - **Self-expression prompts (step 9)**: **new routes** —
+    `GET /candidates/me/prompts`, `PUT/DELETE
+    /candidates/me/prompts/:promptId`. Schema check here mattered too:
+    `candidate_prompts`' primary key is the composite
+    `(candidate_id, prompt_id)`, so `PUT` is an upsert scoped to that
+    pair (`onConflict: "candidate_id,prompt_id"`), and clearing an
+    answer calls `DELETE` rather than storing an empty string. New
+    public `GET /prompts` reference route (same pattern as
+    `/professions`/`/skills`/`/qualification-types`) serves the 6 real
+    prompts already seeded in the DB — genuine content
+    ("Something I'm good at that isn't on my CV", "Why I went into
+    care", etc.), not placeholders invented for this sprint. Answering
+    any given prompt is optional; the wizard step doesn't require a
+    minimum count. On Continue, the step diffs each textarea against
+    its loaded value and only fires the network calls for prompts that
+    actually changed (unchanged textareas are skipped, not
+    re-submitted).
+  - **Progress-indicator redesign**: the per-step label row (patched
+    once already in Sprint 3, when it grew from 3 labels to 6 and
+    started overflowing at narrow widths) was heading toward the same
+    failure again at 9 labels. Rather than patch it a third time,
+    replaced the whole row with a single dynamic line above the dots —
+    `"Step 7 of 9 · DBS & consent"` — computed from a
+    step-number-to-label lookup in `showStep()`. The dots themselves
+    (no text, just background color) don't have the shrinking-text
+    problem the labels did, so they stayed as-is, just extended from 6
+    to 9. This removes the recurring bug class outright rather than
+    re-fixing it, and scales cleanly for Sprint 5's remaining steps.
+  - **Verification**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly, RLS for all three new/changed tables checked
+    directly against `pg_policies` before writing routes, and the full
+    step 7→8→9→10 flow exercised with headless Chromium + mocked API
+    responses — confirmed: skipping DBS writes nothing, filling DBS
+    persists exactly the fields sent plus the correct
+    server-stamped consent timestamp, adding/editing a reference
+    round-trips correctly, answering one prompt and leaving another
+    blank results in exactly one row server-side, and resume lands
+    directly on step 7 for an account that finished Sprint 3. No
+    uncaught page errors. 6-viewport overflow audit (with every new
+    step populated with real-shaped data, including a filled reference
+    card and an answered prompt) — zero horizontal overflow at any
+    tested size.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
