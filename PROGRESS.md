@@ -9,7 +9,7 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: sprint plan written, starting the real platform build
+## Status: employer landing page v2 built — reveals much bigger employer scope than SPRINTS.md assumed
 
 PR #9, #10, and #11 all merged and deployed (waitlist landing pages,
 candidate + employer). `main` is deployed and live, wired to the real
@@ -18,12 +18,20 @@ repo's convention (see "Conventions" — HANDOVER.md §10).
 
 User asked to move past the waitlist and start building the actual
 platform, candidate journey first then employer, and asked for sprints
-to tackle the scope one by one. `SPRINTS.md` now holds the full ordered
-plan (Sprint 0 foundations → 5 candidate sprints → 5 employer sprints),
-grounded in the real DB schema already in place (`candidates
-.onboarding_step`/`onboarding_done` + `onboarding_events` show a stepped
-wizard was the original design intent) and in `HANDOVER.md` §1's
-non-negotiables. Not started yet — see `SPRINTS.md` for what's next.
+to tackle the scope one by one — `SPRINTS.md` was written for that (Sprint
+0 foundations → 5 candidate sprints → 5 employer sprints). Before starting
+any sprint, the user uploaded a real design draft + copy brief for a v2
+employer landing page, and **it describes a materially bigger employer
+product than SPRINTS.md's employer track assumed**: a chat-first AI
+search interface (not structured filters), a built-in ATS/pipeline
+("iRecruit"), a compliance-tracking module ("iCompliance"), an AI "Who is
+[name]" candidate summary drawing on consented candidate posts, and
+AI-parsed async video interviews. None of this exists in the schema or
+API today, and it's explicitly bigger than SPRINTS.md Sprint 8's "compliant
+structured search." **`SPRINTS.md`'s employer track (Sprints 6–10) needs a
+revision pass before any of those sprints start** — flagged, not yet done.
+See "Done" below for the landing page build itself and the full list of
+compliance/accuracy fixes made against the user's draft.
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -500,6 +508,90 @@ they aren't lost:
   review for now), self-expression posts + employer AI search (§9,
   phase 2), anything needing real outbound email (still blocked on the
   parked domain), employer 2FA. Not started — no code written yet.
+- **Employer landing page v2** (`src/employers.html`), rebuilt against
+  the user's actual uploaded design draft + copy brief
+  (`employerlandingpage.html` + `EMPLOYER_LANDING_PAGE_COPY.md`) —
+  same relationship as the candidate page's v1→v2 rebuild earlier: v1 was
+  our own reasonable guess, v2 is the real brief, so v2 wins outright
+  rather than being merged/reconciled with v1. New sections: sticky nav,
+  hero with a "search → pipeline" mockup panel, "What is iCare", a
+  dedicated AI-callout section with a chat-interface mockup, a 5-step
+  "How it works", a 5-card feature grid, a trust/compliance strip, and
+  the waitlist CTA. New palette/type system (purple/lavender/teal/gold,
+  Fraunces + Public Sans + IBM Plex Mono) kept as designed — deliberately
+  not forced to match the candidate page's plum/teal/amber system, since
+  this is the user's own considered design pass, not something to
+  override for consistency's sake.
+  - **Backend**: migration `0011_waitlist_hiring_for` adds a nullable
+    `hiring_for` column (`temp`/`permanent`/`both`, check-constrained) to
+    `waitlist` — the copy brief calls for capturing it, the form only
+    had email before. `POST /waitlist` accepts it now (employer-only,
+    silently ignored for candidate submissions).
+  - **Fixes made against the uploaded draft** (all grounded in
+    conventions already established this session, not new opinions):
+    - The draft's waitlist counter showed hardcoded fake numbers ("62
+      employers on the waitlist / 18 regions represented so far") —
+      directly against this project's rule since the very first waitlist
+      build, restated explicitly in the candidate v2 rebuild: real
+      counts only, starting at 0, no fabricated social proof. Wired to
+      the real `GET /waitlist/count?role=employer`; dropped "regions
+      represented" entirely since nothing tracks that.
+    - The draft's form only collected email + a "hiring for" select —
+      insufficient for the backend (`full_name` required always,
+      `org_name` required for employer role). Added "Organisation name"
+      and "Your name" fields.
+    - The AI chat mock had the assistant offer to "shortlist the top
+      matches" — the copy brief's OWN compliance note two paragraphs
+      above explicitly forbids exactly this ("avoid words like...
+      'top candidates'" — evaluative language against non-negotiable
+      #5). Reworded to "shortlist all of them, or show the full list
+      first" — descriptive, not evaluative. Worth flagging to the user:
+      this slipped past their own stated rule in the source material.
+    - Nav's "How it works" link pointed at `#features` (the features
+      grid) instead of the how-it-works section, which had no `id` at
+      all — real bug in the draft, fixed.
+    - Added an "Illustrative — not real candidates or data" caption on
+      the hero mockup panel, matching the candidate page's convention
+      for its illustrative profile card — the mockup shows named,
+      specific-looking pipeline data ("Grace T., hired") that could
+      otherwise read as real.
+    - Dropped the draft's hotlinked Unsplash hero photo (an external
+      CDN image URL of an identifiable person). Same category of
+      concern the candidate page's real photo replaced a placeholder
+      for — unconfirmed licensing, fragile external dependency, breaks
+      the self-contained-file convention this project uses throughout.
+      Can add a real, cleared photo the same way (crop + embed as base64)
+      if the user supplies one, same as before.
+    - Reconciled the features grid to the `.md`'s 5 cards (Trust,
+      Pipeline, Character, Flexible, Visibility) rather than the HTML
+      draft's differing 4 (draft was missing Pipeline/Character, had an
+      extra Interviews card not in the brief) — the `.md` is the more
+      recent, more complete source and says so explicitly.
+    - Added the same GSAP+ScrollTrigger motion (word-by-word headline,
+      section reveals, reduced-motion/no-js fallbacks) and a post-submit
+      share panel (X/LinkedIn/Facebook/WhatsApp/copy-link) as the other
+      two pages — the draft had neither, for visual/UX parity.
+    - Kept the "For candidates" nav/footer cross-link (draft didn't have
+      one — it's a static mockup unaware of the other live page).
+  - **Bug found and fixed during responsive audit**: at 360px width, the
+    nav's "for employers" tag pill + waitlist button didn't fit
+    alongside the logo — added a `max-width: 400px` breakpoint shrinking
+    nav padding/font sizes. Confirmed zero horizontal overflow at all 6
+    tested viewport sizes after the fix.
+  - Verified: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+    cleanly (884 KiB / 190 KiB gzip), the new `hiring_for` column and its
+    check constraint verified directly against the real Supabase schema
+    (valid value inserted successfully, invalid value correctly
+    rejected, test row deleted, counts confirmed back at 0).
+  - **Flagged, not yet acted on**: the copy brief describes chat-first AI
+    search + a full ATS + an "iCompliance" module + AI interview parsing
+    as the real employer product — none of this is in `SPRINTS.md`'s
+    employer track (Sprints 6–10), which assumed simple structured-field
+    search. The brief's own text acknowledges this ("a new major
+    workstream... not yet reflected in HANDOVER.md's technical scope...
+    needing its own scoping session") — SPRINTS.md needs a revision pass
+    before Sprint 6 starts, not a silent reconciliation.
+  - Not yet pushed to a PR — validated and ready, see Status above.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

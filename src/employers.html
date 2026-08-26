@@ -1,77 +1,114 @@
 <!--
-  iCare employer landing page — companion to src/landing.html (candidate-
-  primary). Separate piece of work per HANDOVER.md §8 item 10.
+  iCare employer landing page — v2, rebuilt against the user's actual
+  design draft (employerlandingpage.html) + copy brief
+  (EMPLOYER_LANDING_PAGE_COPY.md), which describe a much larger product
+  than v1: a chat-first AI search + built-in ATS ("iRecruit"/"iCompliance"
+  modules), not the simple structured-filter search v1/SPRINTS.md assumed.
+  None of that back-end exists yet — this is marketing/waitlist copy for
+  the vision, same as the candidate page markets features tagged "Coming
+  soon". Deliberate fixes made vs. the uploaded draft, all grounded in
+  this project's established conventions (see PROGRESS.md/HANDOVER.md):
 
-  Same design system as the candidate page (tokens, fonts, motion
-  techniques, GSAP+ScrollTrigger reveal) for brand consistency, reused
-  directly rather than re-derived. Copy is grounded in what's actually
-  built: nothing about employer search/shortlisting exists yet (no
-  employer API, no verification flow — see HANDOVER.md §8 item 4), so
-  every specific capability is tagged "Coming soon" except the waitlist
-  mechanism itself, which is real. No pricing is stated or implied —
-  employer pricing hasn't been decided.
+  - Waitlist form/counter wired to the REAL backend (POST /waitlist,
+    GET /waitlist/count?role=employer) instead of the draft's fabricated
+    "62 employers / 18 regions" numbers — this project's hard rule since
+    the very first waitlist build is "no fabricated social-proof numbers".
+    Added Organisation name + Your name fields (backend requires both;
+    the draft's form only had email + a "hiring for" select).
+  - New `hiring_for` column/param (temp/permanent/both) — the copy doc
+    calls for capturing it, backend didn't have anywhere to put it.
+  - Fixed "shortlist the top matches" in the AI chat mock — the copy
+    doc's OWN compliance note two paragraphs earlier says never use "top
+    candidates" language (evaluative, against non-negotiable #5); this
+    slipped past that rule in the draft. Reworded to stay descriptive.
+  - Fixed the nav's "How it works" link (pointed at #features, the
+    features grid, instead of the how-it-works section, which had no id).
+  - Added an "Illustrative — not real data" caption on the hero
+    pipeline mockup, matching the candidate page's convention for its
+    illustrative profile card.
+  - Dropped the hotlinked Unsplash hero photo: an unverified external
+    hotlink (fragile, unconfirmed licensing, breaks the site's
+    self-contained-file convention) of an identifiable stock photo of a
+    person, the same category of thing the candidate page's real photo
+    replaced a placeholder for deliberately. Add a real, cleared photo
+    the same way if wanted.
+  - Reconciled the features grid to the copy doc's 5 cards (Trust,
+    Pipeline, Character, Flexible, Visibility) rather than the HTML
+    draft's differing 4 — the .md is the more recent, more complete
+    source and says so explicitly ("AI search deliberately excluded
+    here, already owned by section 3").
+  - Added the same motion treatment (GSAP+ScrollTrigger reveal,
+    word-by-word headline, reduced-motion/no-js fallbacks) and a
+    post-submit share panel as the other two pages, for consistency.
+  - Cross-links "For candidates" in nav/footer, matching landing.html.
 
-  Waitlist submissions from this page post role: "employer" + org_name
-  to the same POST /waitlist used by the candidate page (migration
-  0009_waitlist_employer_role added the columns; waitlist_count(p_role)
-  keeps the two pools' counts and "early supporter" positions separate).
+  Palette/type system (purple/lavender/teal/gold, Fraunces + Public Sans
+  + IBM Plex Mono) is kept as designed — a deliberate, more developed
+  visual direction than the plainer v1, not overridden to match the
+  candidate page's system.
 -->
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>iCare for Employers — Hire who they really are</title>
-<meta name="description" content="iCare helps health and social care employers hire from real, evidenced candidate profiles — with written shortlisting before anything visual, and honest handling of DBS and verification status." />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iCare for Employers — Find. Hire. All in one place.</title>
+<meta name="description" content="iCare is the AI-powered recruitment platform built for health and social care employers. Describe who you need and find real, evidenced candidates — then shortlist, interview, and hire without leaving the platform.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --plum-950: #241533;
-    --plum-800: #382349;
-    --ink-soft: #5b5670;
-    --ink-faint: #8a8599;
-    --teal-700: #0e8c7f;
-    --teal-500: #16b8a6;
-    --teal-100: #e3faf6;
-    --amber-600: #b8791f;
-    --amber-100: #faedd4;
-    --paper: #fefefc;
-    --paper-dim: #f8f6f1;
-    --line: #e7e3da;
-    --white: #ffffff;
-    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
-    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  :root{
+    --purple-dark:#2E0B4D;
+    --purple:#330072;
+    --purple-mid:#5B3A87;
+    --lavender:#F1ECF7;
+    --paper:#FBF9F6;
+    --ink:#1B1420;
+    --ink-soft:#5B5566;
+    --teal:#00A499;
+    --teal-dark:#00807A;
+    --line:rgba(27,20,32,0.10);
+    --gold:#C9A24B;
+    --err:#B23A24;
+    --ease:cubic-bezier(0.16, 1, 0.3, 1);
   }
-
-  * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    margin: 0;
-    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: var(--paper);
-    color: var(--ink-soft);
-    -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Public Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
   }
-  h1, h2, h3 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; }
-  p { margin: 0; }
-  a { color: inherit; }
-  button { font-family: inherit; }
-  em { font-style: italic; color: var(--teal-700); }
-
-  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
-  .divider { border: none; border-top: 1px solid var(--line); margin: 0; }
-
-  .label {
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--teal-700);
+  h1,h2,h3{
+    font-family:'Fraunces', serif;
+    margin:0;
+    font-weight:600;
+    letter-spacing:-0.01em;
   }
+  p{margin:0;}
+  button{font-family:inherit;}
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--teal-dark);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .eyebrow::before{
+    content:'';
+    width:6px;height:6px;border-radius:50%;
+    background:var(--teal);
+    display:inline-block;
+  }
+  .wrap{max-width:1160px;margin:0 auto;padding:0 32px;}
+  a{color:inherit;}
 
   /* ---------- Accessibility & performance ---------- */
   @media (prefers-reduced-motion: reduce) {
@@ -85,281 +122,868 @@
   .reveal { opacity: 0; transform: translateY(24px); }
   .reveal.is-visible { opacity: 1; transform: translateY(0); transition: opacity 0.85s var(--ease), transform 0.85s var(--ease); }
   .no-js .reveal, .reduced-motion .reveal { opacity: 1; transform: none; }
-
-  /* ---------- Nav ---------- */
-  .nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 24px; max-width: 760px; margin: 0 auto; }
-  .logo { display: flex; align-items: baseline; gap: 1px; font-family: "Fraunces", serif; font-weight: 600; font-size: 21px; color: var(--plum-950); text-decoration: none; }
-  .logo em { font-style: normal; color: var(--teal-500); }
-  .nav-links { display: flex; align-items: center; gap: 20px; }
-  .nav-link { font-size: 14.5px; font-weight: 600; color: var(--ink-faint); text-decoration: none; }
-  .nav-link:hover { color: var(--teal-700); }
-  .nav-cta { font-size: 14.5px; font-weight: 600; color: var(--ink-faint); text-decoration: none; background: none; border: none; cursor: pointer; padding: 8px 4px; }
-  .nav-cta:hover { color: var(--teal-700); }
-
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; padding: 13px 24px; font-weight: 700; font-size: 15px; cursor: pointer; text-decoration: none; transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), background 0.25s var(--ease), border-color 0.25s var(--ease); white-space: nowrap; }
-  .btn:active { transform: translateY(1px); }
-  .btn-ghost { background: transparent; color: var(--plum-950); border: 1.5px solid var(--plum-950); }
-  .btn-ghost:hover { background: var(--plum-950); color: var(--white); }
-  .btn-teal { background: var(--teal-500); color: var(--white); border: none; box-shadow: 0 14px 30px -14px rgba(22, 184, 166, 0.55); }
-  .btn-teal:hover { background: var(--teal-700); }
-  .btn:disabled { opacity: 0.6; cursor: default; }
-
-  /* ---------- Hero ---------- */
-  .hero { padding: 40px 0 60px; }
-  .eyebrow { display: inline-block; }
-  .hero-title { font-size: clamp(30px, 5vw, 44px); line-height: 1.16; font-weight: 600; letter-spacing: -0.02em; margin-top: 18px; }
-  .hero-title em { font-family: "Fraunces", serif; font-style: italic; font-weight: 500; }
   .word { display: inline-block; opacity: 0; transform: translateY(0.35em); }
   .word.is-visible { opacity: 1; transform: translateY(0); transition: opacity 0.65s var(--ease), transform 0.65s var(--ease); }
 
-  .hero-sub { margin-top: 22px; font-size: 17px; line-height: 1.7; color: var(--ink-soft); max-width: 58ch; }
-  .hero-actions { margin-top: 30px; }
-  .hero-note { margin-top: 18px; font-size: 14px; color: var(--ink-faint); }
-  .hero-note strong { color: var(--plum-950); }
-
-  .hero-visual { position: relative; margin-top: 48px; }
-  .float-loop { animation: floaty 10s ease-in-out infinite; }
-  @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-
-  .visual-glow { position: absolute; width: 300px; height: 300px; border-radius: 50%; top: -50px; left: -40px; background: radial-gradient(circle, var(--teal-100), transparent 70%); filter: blur(6px); z-index: 0; }
-
-  .profile-card { position: relative; z-index: 1; width: 100%; max-width: 340px; background: var(--white); border-radius: 20px; box-shadow: var(--shadow-soft); border: 1px solid var(--line); padding: 24px; }
-  .verify-name { font-family: "Fraunces", serif; font-weight: 600; font-size: 18px; color: var(--plum-950); }
-  .verify-role { font-size: 13px; color: var(--ink-faint); margin-top: 2px; }
-  .verify-tags { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; }
-  .verify-tag { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; font-weight: 600; }
-  .verify-tag.t-verified { color: var(--teal-700); }
-  .verify-tag.t-evidenced { color: var(--plum-800); }
-  .verify-tag.t-derived { color: var(--amber-600); }
-  .verify-tag.t-declared { color: var(--ink-faint); }
-
-  .profile-card-head { display: flex; align-items: center; gap: 14px; }
-  .profile-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--line); }
-
-  .profile-card-stats { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; gap: 20px; }
-  .stat-num { font-family: "Fraunces", serif; font-weight: 600; font-size: 18px; color: var(--plum-950); }
-  .stat-label { font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
-
-  .visual-caption { margin-top: 14px; font-size: 12px; color: var(--ink-faint); font-style: italic; }
-
-  /* ---------- Section shells ---------- */
-  .section { padding: 64px 0; }
-  .section-label-block { margin-bottom: 18px; }
-  .section-title { margin-top: 10px; font-size: clamp(24px, 3.4vw, 32px); font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; }
-  .body-text { margin-top: 18px; font-size: 16.5px; line-height: 1.75; color: var(--ink-soft); }
-  .body-text strong { color: var(--plum-950); font-weight: 700; }
-
-  /* ---------- Feature cards ---------- */
-  .feature-list { margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; align-items: start; }
-  .feature-card { border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; background: var(--white); }
-  .feature-title { margin-top: 8px; font-size: 19px; font-weight: 600; }
-  .feature-text { margin-top: 10px; font-size: 15px; line-height: 1.65; color: var(--ink-soft); }
-  .soon-tag { display: inline-flex; margin-top: 16px; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--amber-600); background: var(--amber-100); padding: 5px 10px; border-radius: 999px; }
-
-  /* ---------- Pull quote ---------- */
-  .quote-wrap { padding: 76px 0; }
-  .quote-mark { font-family: "Fraunces", serif; font-size: 48px; color: var(--teal-500); line-height: 0.5; }
-  blockquote { margin: 18px 0 0; border-left: 2px solid var(--teal-100); padding-left: 24px; }
-  .quote-text { font-family: "Fraunces", serif; font-style: italic; font-weight: 500; font-size: clamp(19px, 2.6vw, 25px); line-height: 1.5; color: var(--plum-950); }
-
-  /* ---------- Waitlist CTA ---------- */
-  .join-headline { margin-top: 10px; }
-  .join-form { margin-top: 30px; display: grid; gap: 12px; max-width: 420px; }
-  .join-form input {
-    width: 100%; padding: 13px 16px; border-radius: 12px; border: 1.5px solid var(--line);
-    font-size: 15px; font-family: inherit; background: var(--white); color: var(--plum-950);
+  /* ---------- NAV ---------- */
+  header{
+    position:sticky;top:0;z-index:50;
+    background:rgba(251,249,246,0.85);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
   }
-  .join-form input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
-  .join-form-optional { font-size: 12px; color: var(--ink-faint); }
-  .join-note { margin-top: 16px; font-size: 14px; color: var(--ink-faint); }
-  .join-note strong { color: var(--plum-950); font-weight: 700; }
-  .join-status { margin-top: 14px; font-size: 14px; display: none; }
-  .join-status.is-visible { display: block; }
-  .join-status.ok { color: var(--teal-700); }
-  .join-status.err { color: #b23a24; }
-
-  .join-success { display: none; max-width: 460px; }
-  .join-success.is-visible { display: block; }
-  .join-success-title { font-family: "Fraunces", serif; font-weight: 600; font-size: 22px; color: var(--plum-950); }
-  .join-success-text { margin-top: 10px; font-size: 15px; line-height: 1.6; color: var(--ink-soft); }
-  .share-row { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; }
-  .share-btn {
-    display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: 999px;
-    background: var(--plum-950); color: var(--white); font-size: 13.5px; font-weight: 700;
-    text-decoration: none; border: none; cursor: pointer; font-family: inherit;
+  nav{
+    max-width:1160px;margin:0 auto;padding:18px 32px;
+    display:flex;align-items:center;justify-content:space-between;
+    gap: 16px;
   }
-  .share-btn:hover { background: var(--teal-700); }
+  .logo{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:20px;
+    display:flex;align-items:center;gap:8px;
+    text-decoration: none;
+    color: var(--ink);
+    flex-shrink: 0;
+  }
+  .logo .dot{color:var(--teal);}
+  .logo .for-tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:#fff;
+    background:var(--purple);
+    padding:3px 8px;
+    border-radius:5px;
+  }
+  .nav-links{
+    display:flex; align-items:center; gap:24px;
+    font-size:14px; font-weight:600;
+  }
+  .nav-links a{
+    color:var(--ink-soft);
+    text-decoration:none;
+    white-space: nowrap;
+  }
+  .nav-links a:hover{color:var(--purple);}
+  .nav-right { display: flex; align-items: center; gap: 20px; }
+  .nav-cta{
+    background:var(--purple);
+    color:#fff;
+    border:none;
+    padding:10px 20px;
+    border-radius:999px;
+    font-weight:600;
+    font-size:14px;
+    cursor:pointer;
+    transition:background .2s ease, transform .2s ease;
+    white-space: nowrap;
+  }
+  .nav-cta:hover{background:var(--purple-dark); transform:translateY(-1px);}
 
-  .counter-row { margin-top: 40px; display: flex; gap: 40px; }
-  .counter-num { font-family: "Fraunces", serif; font-weight: 600; font-size: 30px; color: var(--plum-950); }
-  .counter-label { font-size: 13px; color: var(--ink-faint); margin-top: 4px; }
+  /* ---------- HERO ---------- */
+  .hero{
+    padding:96px 0 88px;
+    position:relative;
+    overflow:hidden;
+  }
+  .hero::before{
+    content:'';
+    position:absolute;
+    top:-180px; right:-220px;
+    width:560px;height:560px;
+    border-radius:50%;
+    background:radial-gradient(circle, var(--lavender) 0%, rgba(241,236,247,0) 70%);
+    z-index:0;
+  }
+  .hero-grid{
+    display:grid;
+    grid-template-columns:1fr 1.1fr;
+    gap:56px;
+    align-items:center;
+    position:relative;
+    z-index:1;
+  }
+  .hero h1{
+    font-size:clamp(32px, 4.2vw, 54px);
+    line-height:1.08;
+  }
+  .hero h1 em{
+    font-style:italic;
+    color:var(--teal-dark);
+  }
+  .hero-sub{
+    margin-top:22px;
+    font-size:17.5px;
+    line-height:1.65;
+    color:var(--ink-soft);
+    max-width:50ch;
+  }
+  .hero-sub strong{color:var(--purple-dark);}
+  .hero-actions{
+    margin-top:32px;
+    display:flex;
+    align-items:center;
+    gap:18px;
+    flex-wrap:wrap;
+  }
+  .btn-primary{
+    background:var(--purple);
+    color:#fff;
+    border:none;
+    padding:15px 28px;
+    border-radius:999px;
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+    transition:background .2s ease, transform .2s ease;
+  }
+  .btn-primary:hover{background:var(--purple-dark); transform:translateY(-1px);}
+  .hero-note{
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+  .hero-note strong{color:var(--ink);}
 
-  /* ---------- Footer ---------- */
-  .footer { padding: 40px 0 56px; }
-  .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
-  .footer-tag { font-size: 13px; color: var(--ink-faint); }
+  .stage-panel-wrap{ position:relative; }
+  .stage-panel{
+    position:relative;
+    z-index:1;
+    background:#fff;
+    border-radius:20px;
+    border:1px solid var(--line);
+    box-shadow:0 30px 60px -20px rgba(46,11,77,0.28), 0 2px 6px rgba(46,11,77,0.06);
+    padding:22px;
+  }
+  .search-bar{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    background:var(--lavender);
+    border-radius:12px;
+    padding:13px 16px;
+    font-size:13.5px;
+    color:var(--purple-dark);
+    font-weight:500;
+  }
+  .search-bar .cursor-dot{
+    width:6px;height:6px;border-radius:50%;background:var(--teal);
+    animation:blink 1.4s infinite;
+    flex-shrink:0;
+  }
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:0.2;}}
+  .pipeline{
+    margin-top:20px;
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:10px;
+  }
+  .pipe-col{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:10px;
+  }
+  .pipe-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:9.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:8px;
+    display:flex; justify-content:space-between;
+  }
+  .pipe-card{
+    background:#fff;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:8px 9px;
+    margin-bottom:7px;
+    font-size:11.5px;
+    font-weight:600;
+    color:var(--ink);
+    box-shadow:0 4px 10px -6px rgba(27,20,32,0.2);
+  }
+  .pipe-card small{
+    display:block;
+    font-weight:400;
+    color:var(--ink-soft);
+    font-size:10px;
+    margin-top:2px;
+  }
+  .pipe-card.hired{
+    border-color:var(--teal);
+    background:#E3F5F3;
+    color:var(--teal-dark);
+  }
+  .stage-foot{
+    margin-top:18px;
+    display:flex;
+    gap:22px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+  }
+  .stage-foot div span{
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:500;
+    font-size:17px;
+    color:var(--purple-dark);
+  }
+  .stage-foot div small{
+    font-size:11px;
+    color:var(--ink-soft);
+  }
+  .stage-caption{
+    margin-top:12px;
+    font-size:12px;
+    color:var(--ink-soft);
+    font-style:italic;
+  }
 
-  @media (max-width: 480px) {
-    .visual-glow { width: 220px; height: 220px; top: -30px; left: -20px; }
+  /* ---------- WHAT WE DO ---------- */
+  .about{
+    padding:64px 0;
+    border-top:1px solid var(--line);
+  }
+  .about-inner{
+    display:grid;
+    grid-template-columns:220px 1fr;
+    gap:48px;
+  }
+  .about p{
+    font-size:19px;
+    line-height:1.75;
+    color:var(--ink);
+    max-width:66ch;
+  }
+  .about p strong{color:var(--purple-dark);}
+
+  /* ---------- AI CALLOUT ---------- */
+  .ai-callout{
+    background:var(--purple-dark);
+    padding:76px 0;
+    position:relative;
+    overflow:hidden;
+  }
+  .ai-callout::before{
+    content:'';
+    position:absolute;
+    top:-140px; right:-160px;
+    width:420px;height:420px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(0,164,153,0.28) 0%, rgba(0,164,153,0) 70%);
+  }
+  .ai-callout-inner{position:relative; z-index:1;}
+  .ai-callout .eyebrow{color:#8FE3DC;}
+  .ai-callout .eyebrow::before{background:#8FE3DC;}
+  .ai-callout h2{
+    font-size:clamp(26px,3.4vw,42px);
+    color:#fff;
+    margin-top:12px;
+    max-width:16ch;
+  }
+  .ai-callout-lead{
+    margin-top:14px;
+    font-size:17px;
+    color:rgba(255,255,255,0.75);
+    max-width:56ch;
+  }
+  .chat-mock{
+    margin-top:36px;
+    max-width:640px;
+    background:#1F0A38;
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,0.12);
+    box-shadow:0 30px 60px -20px rgba(0,0,0,0.4);
+    overflow:hidden;
+  }
+  .chat-mock-bar{
+    display:flex; align-items:center; gap:8px;
+    padding:14px 18px;
+    border-bottom:1px solid rgba(255,255,255,0.1);
+  }
+  .chat-dot{
+    width:9px;height:9px;border-radius:50%;
+    background:rgba(255,255,255,0.2);
+  }
+  .chat-mock-title{
+    margin-left:10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    color:rgba(255,255,255,0.5);
+  }
+  .chat-mock-body{
+    padding:22px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .chat-bubble{
+    max-width:80%;
+    padding:12px 16px;
+    border-radius:14px;
+    font-size:14.5px;
+    line-height:1.5;
+  }
+  .chat-bubble.you{
+    align-self:flex-end;
+    background:var(--teal);
+    color:#06201E;
+    border-bottom-right-radius:4px;
+  }
+  .chat-bubble.ai{
+    align-self:flex-start;
+    background:rgba(255,255,255,0.08);
+    color:#fff;
+    border:1px solid rgba(255,255,255,0.12);
+    border-bottom-left-radius:4px;
+  }
+  .ai-callout-note{
+    margin-top:30px;
+    font-size:16px;
+    line-height:1.7;
+    color:rgba(255,255,255,0.7);
+    max-width:70ch;
+  }
+
+  /* ---------- HOW IT WORKS ---------- */
+  .how-it-works{
+    padding:88px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .how-it-works h2{
+    font-size:clamp(26px,3vw,36px);
+    color:var(--purple-dark);
+    margin-top:12px;
+    margin-bottom:44px;
+    max-width:24ch;
+  }
+  .hiw-grid{
+    display:grid;
+    grid-template-columns:repeat(5, 1fr);
+    gap:20px;
+  }
+  @media (max-width: 1080px){
+    .hiw-grid{grid-template-columns:repeat(3, 1fr);}
+  }
+  @media (max-width: 700px){
+    .hiw-grid{grid-template-columns:1fr;}
+  }
+  .hiw-step{
+    background:var(--lavender);
+    border-radius:16px;
+    padding:24px 20px;
+  }
+  .hiw-num{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px;
+    color:var(--teal-dark);
+    font-weight:500;
+  }
+  .hiw-step h3{
+    font-size:17px;
+    color:var(--purple-dark);
+    margin-top:10px;
+  }
+  .hiw-step p{
+    font-size:14px;
+    line-height:1.6;
+    color:var(--ink-soft);
+    margin-top:8px;
+  }
+
+  /* ---------- FEATURES ---------- */
+  .features{
+    padding:88px 0;
+    background:var(--lavender);
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .features-head{
+    max-width:640px;
+    margin-bottom:52px;
+  }
+  .features-head h2{
+    font-size:clamp(26px,3vw,38px);
+    color:var(--purple-dark);
+    margin-top:14px;
+  }
+  .feature-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap:22px;
+  }
+  .feature-card{
+    background:#fff;
+    border-radius:16px;
+    padding:30px;
+    border:1px solid var(--line);
+    transition:transform .2s ease, box-shadow .2s ease;
+  }
+  .feature-card:hover{
+    transform:translateY(-3px);
+    box-shadow:0 20px 40px -24px rgba(46,11,77,0.35);
+  }
+  .feature-mark{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--teal-dark);
+    letter-spacing:0.08em;
+  }
+  .feature-card h3{
+    font-size:20px;
+    margin-top:12px;
+    color:var(--purple-dark);
+  }
+  .feature-card p{
+    font-size:15px;
+    line-height:1.65;
+    color:var(--ink-soft);
+    margin-top:10px;
+  }
+  .soon-tag{
+    display:inline-block;
+    margin-top:14px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--gold);
+    background:#FBF3E3;
+    padding:4px 9px;
+    border-radius:6px;
+  }
+
+  /* ---------- TRUST STRIP ---------- */
+  .trust-strip{
+    padding:52px 0;
+    text-align:center;
+  }
+  .trust-strip .eyebrow{justify-content:center;}
+  .trust-strip p{
+    font-family:'Fraunces', serif;
+    font-weight:500;
+    font-size:clamp(20px,2.4vw,27px);
+    line-height:1.55;
+    color:var(--purple-dark);
+    max-width:760px;
+    margin:18px auto 0;
+  }
+  .trust-marks{
+    margin-top:26px;
+    display:flex;
+    justify-content:center;
+    gap:28px;
+    flex-wrap:wrap;
+  }
+  .trust-mark{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    display:flex; align-items:center; gap:7px;
+  }
+  .trust-mark::before{
+    content:'';
+    width:6px;height:6px;border-radius:50%;
+    background:var(--teal);
+  }
+
+  /* ---------- CTA / WAITLIST ---------- */
+  .cta-section{
+    background:var(--purple-dark);
+    color:#fff;
+    padding:96px 0 80px;
+    position:relative;
+    overflow:hidden;
+  }
+  .cta-section::after{
+    content:'';
+    position:absolute;
+    bottom:-160px; left:-140px;
+    width:420px;height:420px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(0,164,153,0.25) 0%, rgba(0,164,153,0) 70%);
+  }
+  .cta-inner{
+    position:relative; z-index:1;
+    max-width:640px;
+  }
+  .cta-section .eyebrow{color:#8FE3DC;}
+  .cta-section .eyebrow::before{background:#8FE3DC;}
+  .cta-section h2{
+    font-size:clamp(28px,4vw,44px);
+    margin-top:14px;
+    color:#fff;
+  }
+  .cta-section p{
+    font-size:17px;
+    line-height:1.7;
+    color:rgba(255,255,255,0.75);
+    margin-top:18px;
+    max-width:54ch;
+  }
+  .waitlist-form{
+    margin-top:32px;
+    display:grid;
+    gap:10px;
+    max-width:520px;
+  }
+  .waitlist-form-row{
+    display:flex; gap:10px; flex-wrap:wrap; width:100%;
+  }
+  .waitlist-form input, .waitlist-form select{
+    flex:1;
+    min-width:200px;
+    padding:15px 18px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,0.25);
+    background:rgba(255,255,255,0.08);
+    color:#fff;
+    font-family:'Public Sans',sans-serif;
+    font-size:15px;
+    outline:none;
+  }
+  .waitlist-form select{
+    appearance:none;
+    -webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='white' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 18px center;
+    padding-right:36px;
+  }
+  .waitlist-form select option{color:#1B1420;}
+  .waitlist-form input::placeholder{color:rgba(255,255,255,0.5);}
+  .waitlist-form input:focus, .waitlist-form select:focus{border-color:var(--teal);}
+  .btn-teal{
+    background:var(--teal);
+    color:#06201E;
+    border:none;
+    padding:15px 26px;
+    border-radius:999px;
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+    transition:background .2s ease, transform .2s ease;
+    white-space:nowrap;
+  }
+  .btn-teal:hover{background:#22C4B8; transform:translateY(-1px);}
+  .btn-teal:disabled{opacity:0.6; cursor:default;}
+  .cta-fine{
+    margin-top:16px;
+    font-size:13px;
+    color:rgba(255,255,255,0.55);
+  }
+  .cta-fine strong{color:#8FE3DC;}
+  .form-status{
+    margin-top:14px;
+    font-size:14px;
+    display:none;
+  }
+  .form-status.is-visible{display:block;}
+  .form-status.err{color:#FF9B85;}
+
+  .waitlist-success{ display:none; max-width:520px; }
+  .waitlist-success.is-visible{ display:block; }
+  .waitlist-success-title{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:24px;
+    color:#fff;
+  }
+  .waitlist-success-text{
+    margin-top:10px;
+    font-size:15.5px;
+    line-height:1.6;
+    color:rgba(255,255,255,0.75);
+  }
+  .share-row{
+    margin-top:22px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .share-btn{
+    display:inline-flex; align-items:center; gap:7px;
+    padding:10px 16px; border-radius:999px;
+    background:rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.25);
+    color:#fff; font-size:13.5px; font-weight:700;
+    text-decoration:none; cursor:pointer; font-family:inherit;
+  }
+  .share-btn:hover{background:var(--teal); color:#06201E; border-color:var(--teal);}
+
+  .counter-strip{
+    margin-top:44px;
+    display:flex;
+    gap:34px;
+    flex-wrap:wrap;
+    border-top:1px solid rgba(255,255,255,0.15);
+    padding-top:26px;
+  }
+  .counter-strip div span{
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:24px;
+    color:#8FE3DC;
+    font-variant-numeric: tabular-nums;
+  }
+  .counter-strip div small{
+    font-size:12px;
+    color:rgba(255,255,255,0.55);
+  }
+
+  /* ---------- FOOTER ---------- */
+  footer{
+    padding:28px 0;
+    background:var(--purple-dark);
+    border-top:1px solid rgba(255,255,255,0.1);
+  }
+  footer .wrap{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  footer .foot-note{
+    font-size:12.5px;
+    color:rgba(255,255,255,0.45);
+  }
+  footer .foot-note a{ color:#8FE3DC; font-weight:600; text-decoration:none; }
+  footer .logo{ color:#fff; font-size:16px; }
+
+  @media (max-width: 860px){
+    .hero-grid{grid-template-columns:1fr;}
+    .about-inner{grid-template-columns:1fr; gap:20px;}
+    .pipeline{grid-template-columns:repeat(2, 1fr);}
+    .nav-links{display:none;}
+  }
+  @media (max-width: 400px){
+    nav{padding:16px 20px;}
+    .logo{font-size:17px; gap:6px;}
+    .logo .for-tag{font-size:9.5px; padding:2px 6px;}
+    .nav-cta{padding:9px 14px; font-size:13px;}
   }
 </style>
 </head>
 <body class="no-js">
 
-<header class="nav" aria-label="Primary">
-  <a href="#top" class="logo">i<em>Care</em></a>
-  <div class="nav-links">
-    <a class="nav-link" href="/">For candidates</a>
-    <button class="nav-cta" data-scroll-to="#join">Join the waitlist</button>
-  </div>
+<header>
+  <nav aria-label="Primary">
+    <a href="#top" class="logo">i<span class="dot">Care</span> <span class="for-tag">for employers</span></a>
+    <div class="nav-right">
+      <div class="nav-links">
+        <a href="#how-it-works">How it works</a>
+        <a href="#trust">Trust &amp; compliance</a>
+        <a href="/">For candidates</a>
+      </div>
+      <button class="nav-cta" data-scroll-to="#join">Join the waitlist</button>
+    </div>
+  </nav>
 </header>
-
-<hr class="divider" />
 
 <main id="top">
 
-  <!-- HERO -->
-  <section class="hero wrap">
-    <span class="label eyebrow">Now building — United Kingdom · For employers</span>
-    <h1 class="hero-title" id="hero-title">They're not a stack of CVs. They're <em>who</em> your patients will trust.</h1>
-    <p class="hero-sub reveal">
-      iCare is a new kind of platform for health and social care employers. Every candidate profile is
-      built around real, evidenced experience — not just what fits on a page. When you're ready to hire,
-      shortlisting starts with the written case, before you ever see a photo, so every decision is about
-      the work, not who looks the part.
-    </p>
-    <div class="hero-actions reveal">
-      <button class="btn btn-ghost" data-scroll-to="#join">Join the Waitlist</button>
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">AI-powered care recruitment — United Kingdom</div>
+      <h1 id="hero-title">Stop scrolling CVs.<br><em>Start</em> hiring people.</h1>
+      <p class="hero-sub reveal"><strong>iCare is the AI-powered recruitment platform built for care employers.</strong> Type what you need — "senior carer, dementia experience, weekend locum, Sussex" — and our AI finds real, evidenced candidates in seconds. Then shortlist, interview, and hire, all without leaving the platform.</p>
+      <div class="hero-actions reveal">
+        <button class="btn-primary" data-scroll-to="#join">Join the employer waitlist</button>
+        <div class="hero-note"><strong>Built for care recruiters.</strong> Search, shortlist, and hire — all in one place.</div>
+      </div>
     </div>
-    <p class="hero-note reveal"><strong>Free to join the waitlist.</strong>&nbsp;No cost, no commitment — we'll share access details before you commit to anything.</p>
 
-    <div class="hero-visual reveal" aria-hidden="true">
-      <div class="visual-glow"></div>
-      <div class="profile-card float-loop">
-        <div class="profile-card-head">
-          <img class="profile-avatar" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAYFBQUGBgYHCQ4JCQgICRINDQoOFRIWFhUSFBQXGiEcFxgfGRQUHScdHyIjJSUlFhwpLCgkKyEkJST/2wBDAQYGBgkICREJCREkGBQYJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCT/wAARCADwAPADASIAAhEBAxEB/8QAHAAAAAcBAQAAAAAAAAAAAAAAAAEDBAUGBwII/8QAQBAAAgEDAgQCCAUCBAQHAQAAAQIDAAQRBSEGEjFBE1EHImFxgZGhsRQyQsHRI1IVYuHwJDNyghYlNENTovGS/8QAGwEAAgMBAQEAAAAAAAAAAAAAAAQBAgMFBgf/xAAuEQACAgICAgEDAgUFAQAAAAAAAQIRAyEEMRJBIgUTMlFxFEJhsdEjM0NEgZH/2gAMAwEAAhEDEQA/ANgxQo6LFBICKPGaGKFAAoYo6FABYo8UdDpQAQo8UeKb3t9Bp1s9xcSJHGgJLMcACgBZmVRlmAFUji70qaPw2Wt0lNxdDbw4sHB8iaoXHHpVutXeS00h2trPJUz49eX2L3ArOnKwc00zcrHqWOW+J7e4Vm5/oaKH6lo4g9JvEutu6xzjT4D0RDhj+5qm3F65kL3F1LLITuXbc1G6hxEoYxW0fMfdjP8Av21Hl76feV0iU78oXJPwFRsta9E//iyR4wSf+tM/Wn1prqxzrLAxjckZCt6r++qj4aoc805PtbH0paOXlOQzAjs2/wBetRYGuWfpn1PR7hJWtEnhYcoRic4znr8/hVw0H096DfusV+s9lK22XXMYPvH8V56t9Tl/ELFKOeEkkZ+1OdRhIjWT8vN0B2qybKNI9jWOo2+pQJPazRzRsMgoc5pzjyrydwF6StU4MvI0cyT2JIDW7t0Gf0HsfZXpzh3iaw4m06K/sJ1likHXoQfIjsaunZVqiU99ERXeKIipIOMUKM0VABUCK6xRECgDk9KLFdUWCBQARFERR/WgaAF8UKOhQAVCjo6ACoUeN6PFAHIFHjNHjFAkKpYnYUAJXNxFaQPPM6xxxqWZmOwArAuP+O5+Kr57e2LJpsZwkYO8xHc+yrF6X+M2lkOgWcmEXBumU9T2T+ay92FpbmaT8zbAD6AfGsZz9I3xw9sQu51tV5iOaVthj7DyHtqs3t3LfS8iNkdMKdlHffyp9eSS3HMmcknDY+ij/fWhFapZxeIwDMxwgPRiO59g/wB9qOv3B/L9hgLeGwUO4zI3TzP8femdzdTNn1SgPYEL/qacXMryTFYyTIfzPjLE/tUlpHBGoakwdom5T3bcmhyUdsFFy1FFbQPKcYY+zORTmGzujsFYrnG9apofozdfWKZHm67GrdFwBbrEA8QY/I1hLlQQxDhzZhUtnLa2kfiBkLPnrg1IGFJLRWxgAdDWk8U8DCS3IjABXfPLWaX1tfaVN4c65iGw5V6fCr48yn0Z5cEodkZMAhPKDjup6GrV6OOPrjgzVhIWeTT5iFuIc9B/cPaPPvVblkRl5sjlJ/Mu3zFNZU8Jgw2J6MOhrUxPbOk6jBqtjDd20qyxSoHR16MD3p0etef/AEE8eNZ3P/h+8kxDKea3LH8jd09x6ivQCsJFDCtE7RnJUwjRY2o8ChjapIC6UXtroiioA5oUZFAjFAHOKHSusZrnFADjFDFHQoAGKGKGKMCgAqPFHR4oAIDNV7jbiROGdCuL7KmRRyxKf1SHp/PwqwSeqp8/OsP9LOuHV+IU0pHxa2ABf2yEZPyFUyS8UXxx8nRSUD3tzJc3LsxJLsx6kncn/f7VBajdtf3wjTKxoeRAOx7n4dPfnyqW1O6/CWfJHhWcZA9mcAfuag9OjxEZzklzypvufb9z8axxr2b5H/KhxDZrLMIk25fVB7DzNMdRnMrAxfq9SIeS9B89zU1NH4FgeT1ZblvCXHZT1PypXgvRBxBr6Ny5hRvVGOw2H2+tVnPxTky2PG5NRXsm+APRubpEu7iP8xyMjpWwaZwhb2qhWUt7D0+VTeh6ElpbRooxgbYFTH4IINh8aQflPbOpHwxrxRBDTkiHqoMAY91Iz2XIAVAqfktwoz3plNFjbFYzhRvCdlcvbESqSRsazfi/hdZFd40yMEkCtduo/UNVnVLYMCSM+VVhJwdonJBTVM856rpzaezYB2OCp7io+FUc/h3IMcn5Cex/1+la1xfwml/aNJF6jgZBrHJY5bS7e1nHI4O2fOuvhyrJH+pxM+F45f0HNtLcaXeK6OyTQsGDDY7bg+8V6z9G/FsfF3DsF5kLcAckyDs46n3HY15TuAbq0S6X86YDg/v9viKv3oT4u/wLiFLGV8Wl+QuCfySdv4+VaxkYSjo9NYoGhGQ6g0eN62MTmhRkChigg5NEa660VBJzQoz0oUAL0BR4ojtQAYFHiiBo6AAKPFFXXagCP1rUE0zT7m8cjlgjZ9/YK8zajdSXF07u58e6kMjt8ck/78q2j0r6v+E0NrVT6104GM/pG5+ZwPnXn7Ub45dgfWnYxJ7I1/MfjSuV3JRGcKqPkNdWuTdyty7Kx5U9mdh/9fvT21ty1zHAoPLEAuAe+2f2+VRtviS/QNuiEyN8P/yrLwxEGnkupOiEsSfMb/v9Ks34xCK8pDTX5PCvZAmeWzt2I/6sY++avfoX0YJCk7jes3vJTeXFwRk+M4X4DH8mt79G2mfg9HhHLglaS5EqionQ4kbk5GkWTBYwO9Lu5I2FNbRcY606ZPVOTRBui01sbOC2RmmU6dafkgkjoaRnVQvtNUlGy8HRCXIJBG9Q13CHyBVkuIge1Rd1HBHvI6J/1GlnBjKmir6paKbcjlrD/SPovJKLqJMMNzivQV8YJ4HMEscuOvKc4rMuM9O/GWM6qvr7kVtx5uEti3Kh5xMn0S9V8o+6SjlYf5sfuPtS6pJp96pQkEMHRx5jcGoPnNpeFfyqx3HkRVkjI1G25c4mjGQf7h/v710pad+jlR2v6nqv0fcSLxPw1aXhOZeQCQf5hsfrVmIrAvQPxI1nqE2kTN/Tm/qR57MNmH2Nb7kEZFbwlaMJqmc4oHejoVYoc4oYo6KgkLFDFCjoAW70KPGKKgA6FCj7UAACikOEowDSN9OltC0zsFSNSzE9hjrQBh3pl1gyaslnEwzDGEHsc/wN6yJ7gXF3PKP/AE9rF4ae7ufecfWrFx9rX4y+ub7JzMSyg+R6fT71UWR4dLit1/597IfltSkdybG3qKQ709+RWlbrICfh1q1WzfgeHfW2klUZ/wC9sfYE1WreITTLCm6lxEntA/3/APapXXbzNq8SHbDFflyL+5om70TjVbEdHjN7q1jCo/Phj8ST/FejtG1rSdKso4nuUHIuDy7isB4Q0iTVOJYbZH8OJNnkHUKABgfWt9j0Xh2ys1Wa0tztvJMcn50rlpy2PYfJQ0SEfpH4ahJU3b5/6KlLHiaw1bezuUkGM7bbVneq6Hww78ggEZY5zGrinWiaVbadKlzY3DSRg9jnbyqJSSWi0YNvZoXjbEj500ubtUVnZtlBJ91HZFrmLK77VXOJ79tPhbJzzbAVi5OjZJWVTiHjnWL26e002No03HMg3PvNNbDhHU9UKz6pqM4XqVUkn5mn9w8VjEnKMyvguyrzEE9FUd2J2Aqj8Rca65C4is5IIGklkgEElwXuF8M7swGygnb4VvBSkviL5JRg/ky+ScLWVtGTa3d3FMOj+Jneq3qMVwBJBdcrSj9ajAcefsNV1eM+I9He0l1QCe0uVDo6kkYPmOoPzFW8yf4pamZdxjmU47VScJQ/ItCcZr4nn/jKyNhqsgUYDN4i+yhot+QU5TiRd1HmO4/32zVu9JukB4EuUXfcZ+v81m1pI0coAYqcgqR2PnXQx/PGjl5F9vIzSdH1FtK1O11e0zyq4Mijt5/MZr1bomoR6ppltdxsGWaNXBHfIrxto2oBgTgA/llj7e8ez7V6L9Cuufi9Ek05pCzWbYXPXkbdT88j5VGJ1LxYZVcfJGmYoiK6ojTIuFRUdCgDkUDR0XWgBxQxmgRQ7UEAFCjoCgA6q/H934OjG15/DN2wgLeSkFnPwRW+dWkVlfpw1R7GysoYmAknSdFBP6mCr9iarN1EvBXI8/a7P/iWqMVGIVfPKPt7hsKZiQ3Gps0Yz4C+FHj+47Z+/wAqV1EiwlmxkchO7bEkbff7V1otlJFbq+D48x9UeRP8D70tHSsZlt0S+kW4Ry64Phjw0PYue/w3PwFI3BW7uQR/y2kHKP8AIvT50sW8OP8ADwEesCiN7P1P+wpKBQ8ckqdG/oxfz9zWUpezaMfRZ+AC8N7+JAOWJJPvOalIr7WeNdcuLUXh022j5uSQnlZiBsqk/lz3PepX0ecPC4gLOv8ATO3wrR4dAtrfJFtG4btyg/el45Up20OSxScKTMIGgag91YhbTURJGpFxcPMzCR+fywOQAbdT51rWhaRLbXjQW8009mWwJHGHX3n9Q+tT3+Cczf0reGFfPGT8qk7LSFsk52bLDpmrzyeRXHi8PY50si1JXtVS42j/ABEkajpmrZGcSjsDVf4nhzJECOhOaXb0bqOyPtNJjkuIb9HlEkKhY0CqQnmd+586iNa4S0rUr2W7nQLcSks5KsOYnqcAgb1ZdJmMThTuD3qdFvFOAcYq8ZuqREsabtozSThK1uwqRRtLygAO42UDoAKko9Hi0+Hk5FwR78VdprZIUPKMVXNTPITtkGqSk32XjjSVoyb0hWanT59to2DfDP8ArWFyoY5mXoQfV/ivQXpBjY6XcY/UvL9awa/5ecdyGK5FdHiP40cnmx+VjizuGjdZl2K7N7R/vate9D/EqaXxHb88mLe6Hgvn+1iMH4Nisft0yqsD19U5HnVl4Ru1tNQgE2fBDg+3lzhx8v2rTIqdoxxu14s9oIxZASN+9ddahuEr977Swkz89xbOYJT/AHEdG/7l5T8amzW6di71o4xREV0dqKpIOaFHRdKCRxQos0YoIBRihmgKAAdhtWJelK9GocYRMwaSz0iNgMDIe4AVivyI+RrbJX8ONn68oLY929YZ6QoIrf0Y2F87ZvL25N2W7ln5ix9wBH0rPJ0aY+zEL931XVXiVifFlJZvJR1P3qdaWOBRGikuV5VUdVXy957/ACqM0+2/CI87byy7ICNlXPX4/tTu1Zp2/wCHHNk4aT+4+QPl50rJ3obivYo6SvJ+Fj3nmwr4/Qv9o+5NOvHt4723tI2BVMgY7tj+P2plf38HD8EiK6yXjj+o3ZAeg/071C6JNPc3aXpbmVWycncHP75NR4WrZbzqVLs9R8FWi2ul26qP0g1eLSDxh0FUzhWVXsbcgj8gwPhVytblYVFIwry2deW46Fzbch2GKRuZIkHKzZbyFNtU1sQxs3MBio3TzNdQm7kPrNuqHuK0k10jKMXVyJOPMsg5Rv2pnrlqWjZ5F37ZqNXieZb4qtjPCkZwZDjHy6014i4mZrWREclubHtNVSVFtpkdayS2Qe5D84RjlD0Iq16fqcF1GGUgE4PsrM4b7U545IX8EK23qA7fPrU/p0r28SAHDKNvbVHovHZdJ5Ayk9qrurYKtnalo9VWaI74ddiPKobVL31Tvk0XbLdIpfG459OZCM5YCsQ4qtEtLyKOJcLyge8jvW18XXlvaaW91eNywow5iR0ycVh+v6rFrGqB7cEQR+qhI3bzNP8AFTu/RyOa117FLCMPBjuQfmBn9qkLVSLxRjHPhh7/AP8ADTDSmzMM/l5unzqWVGWS3cAZAA+pH8UxkehTGj0p6L9Z/HQ2kobe6tAkg8pYvVOfbykfKtFrF/RiH0ni+bRif6RX8bb+xXjGR9q2g71pjdozyKpHJoqM0VXMwUXejodTQSK4oUeKPFBAQo6LFdCgAiARgjI7j2VgnpJlMWjW+iSH+rpxe1wwz/74w3/8BT8a3ztmsV9Ommxw31rqS7fiI/CfzJU+qfiDj4Vlm/GzXD+VGNTxJdTOWbltUPJzNsHx2ApK/wBZFpGbXT15JSuGmYY8NfYO1d38h/EkA4jiHKqjoO5P0quszGXmbdpXy3sHlS0I32NTlXRH6hK87uMkgZOT1J8z7amuCXhlla3kkVDnOGOOYVHy2pWT1h165qLniMDsrZ2+hplx8o+IspOEvI9acIXudItJo2505AvMpznG1WpdTHh5zjFZP6AtXj1DhM2DuDJZytHjvyn1h9z8q1NLISqY22NcbLFwm0d/BkUsaZF/iJNcv/Dj/wDTxN67E4BPlVsgwI1Tbp0FVaXR76ztGh00xi4TnZBLnkZicjOKjuG7jiLU7+40/W71NPuY29SOKPCyrjOzZ3Oxq2OLl0Tkml+ReprSGVv6nKu3UnFQN9oFihMtw8Yyc5JH0qai4GlYOy6rK3rqFJUZKHGfjStz6OLV7xUk1G5ktwhY7KG5tttu38Vv9hmP8RhXciiPNptoTmQDHflOMUwu+JtLtd2vYUAPVthVu1PhnhrRkaS9lEjJOpAkfmYLkYXHXG/lWf69ottxHqa2yQi3s4ZmduVQDLhjj/t3qHhS7LLMp/7aJrTrr/HPDuLMhkDBfEXowJxS2qWhhlCE5JbFT+gWtvYwxwxRrHHEmQoGMVD30nj3bynoucUo+9G3rZmXpilWHhOZNgZZo0Hzz+1YhbrvnsN60/01aus09npMbAkMZ5PZ2X96ziGL1CcbHYV1uMqxnD5b8sroktJi5nj7czfsas2jWxu9SsYiM+K8e3vcH7ZqJ0y2yEAG4RyfZk8v7GrbwkkKcSaWZiBEkqMx8lyN/hmonK2EI0jUbOHwPSzZrbqB+BtJI5cdOTxSij5EVrysCoIOxrNOA7Y6lfapxLIMtqt8sNvn/wCGMkk/EjNaUowoHltTGPoXydhk0XWjrnpWhmA0VA5oUAL0dF3ozQAO9GKKhnFAHMkgRSWOFAyST2rz76SuIjxTqd28B/4K09SJs7OwI6fEmtM9J+tzWWnxaVayiO71EsnP/wDFEozI/wAth7TWGardpLKYbWMi0sQCBn8zdh7STuaXzy9DOCPsrkyFpZ9/z8wX3co/k1D6ZZG4SRSPWXLD3gZqwLHyW0c7jPJ1FL22npYzPIR/SxzKR+peo+Yz8QRWEXWjdxvZXdTgWOI7eum+PMdv4qLvrLxYRIN2GxB7jsamtWCJePFzgqMgN2ZTuP2ppaxm4sXQ4LIOT5dP3reEtGM47odeini7/wAH8TobklLS7xDNnohz6rfA/Q16vtrmOeFZozk4ztXiq+tyvrkYDd/I1unoQ43ubrSDp9/IXNq/hJIx35cbA+7pmluZitfcQzwc1P7bNwR1leOUYx0NN9a0yO7HOmBJjAOOo8qTs50WXr6r1JKOYFT16ikYSo6d07RB2N3PZzGOe6urdSVJYFip5RgfDYU4u9auHfLarcON/wAgC5z7qkHhLAqVBHtphNpvUrEPPpTKyuqJ/wBNu3H+xWb3mu5WMEbNI2zTSbsfj1orWxjgbAyX/UasD2TKvQAeymxtlhDO2KynNvRaUr66EVuPw9vPISc8vKKrOu6zBpGmTXVxIERFLufIU+1K+z/T5ts8xrE/S5xM98I9Ot3PgB8uR+sjt7hRhxec0hbPm8ItlK1LUpuIdYuNQmzzTNkL/ao6D4DFdoowgXbem1svhQEj8xAFSNnB4ox1I6fb966j0tHHim3sm9PUQ2xPTMSr8x/r9ac29wYZIJD1JPN7F7/emQ9TSC/YoFJ+n8VJ6XCLxoA5C+LIqE4yBzEA/UfWsGMI9I+jwwXOjWfhY8OzgESAHqW3LfH+at4OQffWG8A61ecGaudF1P8ApK0pSMsdub+3PdW6g+dbdbzJcQrKnRhnBprG7VCeWNOzs4FFnFGa5rQzBQoUDQAvQoDrR7UAAUfTeioMQoyaAMa9LGoNbcUsSd49KJTzLNKRt7sD5Cs8hhhtdDPOA2WyScgs2+evy+Htq7enC4tU1ixmbJljiKeHnHMvNkZ+IqjXFlffgDc3SKniJ+ITm25YxvzY7A7ADqcik57k0O49RTIETMJpY5NonQeID0RmwEHv7+409m1JbfTRDMGIgbkYD8yg9CPMdQR7BTDTIZb+VVVWaGJzM3MM87+Z89zSV7aSSSsmTzSYyOpCKe/t3+1UlVl432R1wpnuuUYZVTBYdCAMimmi3JW5DHo5Ice/p9qktRi/B28rEYdh4Y9mdz9Kg9JcNexnosjYHsHatMe4spk1JIWvUVJ7iA7xZLxnyz293Wrb6HpfB1G8gYgqxU+/qKrN4g8YK22XKKT0znapn0csbLiGRcEcwG3u/wB4qMu8bJxKsqZv9rfy2QCS5aE9HHVatGmamtxg84LAfMedV3T0S7tQMZyKbG2udNn54WOAc4rlJnXZoyYJDLjBoXOAo86q1jxQoULMfDbuG6Gnc+uQyYIkXB9tbqeivjbHV0uxINV7Wr9YISmRt1rvUuJ4IlIWQEjsKo2tarLeZG6p9TVXss5UiJ1/WZJOeOJiCw9Zh2HlWP8AGLZuoh2Gdq026X+m7msu4uPNfLjtmmuN+RzuX+AhbJzQI/XLD7VIaXILe5xKcI7hQT5mmmlDxYEjHUb/AC3+1PLu1LwpjbnTIPtB3pl90xWPVotVvpqOklrJ6qSBip8s9R8NqQ00TWA8Nk/r2z5Iz1AII+oz8aS0fWDNaKsmBPFtufzAdPiPqKfG9ivZkY4ScDAJ/WPI1i7XZuqfRrl9pVl6UODINU0ps6jbJhkBwWYblD5HO4Pu9tSXok43bWbaXSr9sX9phX5tjIvQPjscjDDsRWZ6Vd6zwDfw8RaUj3Gl3YVbqHoObfKMM7EEEhv5qdtb+wm42bijRXIt5ZbaSZCMECc+HJG3tDANW8ZdMXlHTRvJFc4okPMu/bajNMCwXShmgetFQA4o6KjoAArmTPLt1OwrvFER6w+lAHmbiGG8499IGqxQyKsluHitEY4DGP8AQMjHMdz76iRqcuqwNo92GSWCJofW9VvVYFi39o2wScn31d/SHwjf8McTy67YI/8Ah9xOs7SRjJt5QSQxHlkke0HBqL4yutP1iccRWSw2l5cFY7yJdyxG+R2GTjfvt5UpPV/qOQ3X6EMtsltbLBaRlEx6zFcEj+4jrv0Vep6mlZdNi0q28ZgrXcw5gG6RqO59g395pqL0QmO5kX+ipzFGf/cfzPfA+tVvifimW4E0KP6zHlZh5/6Dt2zS6i5uhjyUFZC8S6ktzL4cLHw0BVc9Wz1Y+85+lR2nqR4LqPyuuPnTOd5DOXOcZKgVM2NsQExuqkN8sU5SjGkJ25Stj3X7Qf4W8gO6Sk59+P4pTh26ZdWtrgn1pEUk+Z6ZpfV2Q6HL32R/eCSB9qi9PDxXVmVO/h8oP/cay7hRstTTPTPDE4ktonzswG3lVhltFlQnAOfpVH4DvhdafCw6EYYeTd60C39eMEGuU1ujrp6sg7jTFfPqg1E3WlbnGRVwkgVyexO9NJ7VsEbN8arsnRSZdO5KhtSj5fVHervqFqyqcACqpcW5luDtkLVosiSKzqqiG3PurKuJE8S45vI4rVuJfUjKDcms04hg5BjG7Zp7jOnZz+SrVEVo0/h3IYflJGAfh/OKt8Nh+KsJGhHM8B8VAe69/wBqplknISp9uKtWhas9vGrjBaNhkHow6EfEU1kXtCmN+mMPD8G8MsPrQzKWx/ae4+lLLMswUkgq3Q5xv7+xrvUYhp96s0OWtpjzxk/b3io8/wBCdomz+GkOx8vI+8VV72WWtF20Ti++0W0uNLvVN3p9ymHRwCyeTDzwe4qz8A2cWoa2LKzkLWFxeR3LIBsqJ6ynPvyMewVmtrdlI206/wAhkw9vL7Pf5Ed/h7r96HxfJqxvLMh2gPr2p/8AdXByR5MPkfZmoiqaCTVM9JjHKMURNJWdwt3axzJnDqGGetKGnBMHei3o6GN6AHAoxRUYoAOikkCLzY37UNx5H31W+NLma10ySdWkcRhikMSFvEcghQcdsmobolKypekfj1DbXGk6Rm4umYQSSouY4i5wVLHYt7B0xWNTxwrc+NM6iGPC+Eu/M2PPz+2avXER1rUuHYLGz0lrCyjCvzSr/UeXqXPkST9az2OznMk7xkNJHGeYMejHb+aWyQk5bQzjyQUdMjr3UnvLiW4zgDKxp2QDPb5VU7hHlVnIORIST7anYg0Ts4TxCr5ZV3yD1/and5pEU8Dz2TGWMj+qi4MkZ6glf3FRH4MtL5orqwrcNtjmT7dc08s5hyiNRklSo+f7jFR0niwS8obIAwGHQjt8tqktLgeJjqEv5sYjX/N5+4fxVpaRWO2P9TIMdxbq3qqI7fPbK7t9SaZ2Q8aWWUZEcRXl/wCnGM/c0nKWMfICTsQSe5PU/wC/M1PaFpYNtOGBB5SCPLb+azfxibR+UjSOArkwXDR5wGwxHmfP9/nWs2UoaMb/AArF+C3ZhYyjZniGfgR+xrYNNysShjsK5uRbOlj/ABJBlBGelIy55e1Ls2F/imsjDB3rMuiJ1EFlOxzUDJaCNHkbqaslwnik4qM1iLwrRsDG1SiWZlrINzdsvZapHEFrzyTOB6qeoP3rRIrUyySykZ32qn8TWxisZQoOXkb7mm8TpiWWNooELD8SFHTm9WpQN+E9cg+FJsQPI0zFqY5FbH5G392dqd3B57HwsbjOM+w10Ozn9DyG7WWJ7W49ZOp/y+TCuJrZhC8TYZhggj9Q/wB71FWc5aRVbJZDgZ6lTt9Mipm8zBaJ4gLDCHK/mQ47fSs5KmXi7QnM73lnbRxoGliZgB+rGc/ua3z0V6Bb2/8A5pFlVs7ZUGRgySlSX+G4H/5WCWCs90PWG2SHBxvWicFaLJBqKXN5qtzFHkARxs3hnzzg+fsq+OLb0jPJOMVt0ejrSMx20cZI5lUA0qaZaRLFLZp4M8c6j9aOWz78nNPTmmBe7Bmi70VCgB2KFFnl3JxTO5vjukPuJq8IOT0Z5MsYK2L3NzDbj1jlvKoe5nkum3HKo6A9qMhmbLEk+2hyHmwacx4VHZzcvJlPXSI27s45Y2R1OGGMnfFYjxjoFzoOpT30MMj2FyxD9QVBOd/rv7a3+aFTE3c47VVeLfw1lpsst2fVC+qB3ONh9qM2NSjb1RXj5XCVJXfowfV7m1mt44NOtSiKp53YAfD21UpmvIZv6LNGw9Ulc5Ps9oq0ajeC5Li3jAj5iMgbZ9nn/vamlpiwInmVWuXBEUZ3VPJm8z3rjym27Z6KGOMV4o60/h9pVa81IxLyjLHoV9mfP7fSozUtUjaUR2qAqPVV8YUD/Lnc0Wu6lPL/AMIjssCDLHqW33J9pJpto1p+MXw3JWQZaN235vMGqKP8zLuX8qJvS9GaeLLgkuAMn31aY7M2uj3N6i+tgxhf7tgBj25pK1IGmokePFkHIoz0z1/en8vPdSQaTZf1HUjnK7qh75Pcj7+6n5YouNHMjmnGfl1X9iR4DjDPHv6sCiMe05yT9q13TwGjGcZqlaRwodKiiKE8pwGPk3n8attoksSgZrg8nHLFNxkj0nEywz41ODJfwj4ZqMlbDlc9Kfx3DIuW3GKib2XE/Ohzmlm0NKLHUNvzAHrUZxXD4WmuRsSMVNafKpUHrTbiK2/Fxog/LmrerK07ooFrYeHCCRsRmqnxJppa4EXL6rczgee24+9aW1oYwVA2FQ+taJ+MgyPUlT1o3A/Kf4q8J0yssVoxm/0Z2DGIevCpLADcrUMYzKphkJWU/kY9Ce38Vq66aiCRr+M2s0Y5Y5gpMbdyCQNuneqTxHp1uW/pMgByfUOeX5dq7OGF4lM4OfIlneMreiae99qQGCqxKTIT2GKktRniuXlLMEQI0aHsXJwB9PpSEup/hbR4oDiWX/mOBhj7aj1JuyiSDEaD1Qn6SO9Z1btmt+KpElotm80kcTRsxLZfHUCtK0TR5IQjLqF2F/s5gRjy6ZFUvQdE1S3VJ7O4ilXAwrjGR760zRIp2gQzoqv0wKe4+JXbRy+XndVFlh02aW2KvDI8bj9SnB/1q3abxS/qx3q8w6eIowfiO9Va0i26U9WLPSnZYlJbOdjzyg9MvsM0dxGJIZFdT3Bro1SrO8m0+cSxMQP1L2Ye2rhaXcd7Asyd9iPI+VJ5MTgdPDnWT9xy0niZ7DtTKaPB58e8Dyp2cAe6k3+lOQVdHMyScnbGzoeXIpKOQSEg7MO1OYiMmM9unupreQlD48fVeoHetDGzpXG6NVY420F9S0a9SPJmeIhD1x3AHl0qd8YTYcdafRATxYYdsVEopqmWhNxdo8t6HYiSK4WVCrQFiynqNqYNo95eFtR8N2TlOMfpXpW28V8DQW99JqNrHyeMOWULsCPMij0bhmGG08JArRnz8vKk/wCDb0zoP6go/JdswaXTzJCzcuZGBBHfPQgfIGuNMmtLSBknblkU80e3UjsRWw6/6N1lnee1IRWOWQ9P9Ko1xwVN/iRiurdvCJwsoG9Kvj5MbodXLw5Vd7GWl6dfX8wNpzpG+AQp3+Fa5wfwrHYQq3hhGO+ep+dMOCeGW0wqkx8RequNvpWj21qqKABt2ro4MKgr9nI5XJlkdLo6itU8LwyoKkYI86SjQwuYX3IGVY/qH81IJGAOlJXlv48fqnlkXdG8jWXO4qzw12ujf6bzXxsm/wAX3/kQZfU8qi7mLmY486fQSmZSCCrqcMvkaTmTm6HevJTjTpnusck1aG9pM8ZwfninryiRMmmfJy7/ADrtW5R7aqi7QzuUGSRTKcYTp8qkZsEnfApjMGOy9WOB76suyJOlY3SxWSxAdNpWL/sPtVU17heJ/wDlW4QE5L46+wVoQjETiI7xgBR8KTurVCjRkYyMqa9rhwqOKMH6R84z8hzzSyL2zz1xFwZdWk34mBC+csVA39uKb6Xo0Oo4iMLxTf3Y2Purf7rRoJ7U88YyB5VEQ8NW6N4iRgZOelYy4icrQxDnyUafZUOG+G57A4aRmjPQHsau1lZkAbU8g00RkYWpK3ssHptTGPGoKkJ5czyO2ILD4UOcdacwxAgUeoJ4cSjzIpxbR5QVf2UGl0nJv51IaDe+Be+Axwk2wHk3amOrN4fhL/c2KQuZDGwlQ4ZCGB9xrPJDyi0bYcnhNMvhpLnWTKjqK6ZsU3zhwwqUQ2cSP4ZDn9J393elkKnKHvSE+OdlPSuLVjgEndfVPwq3ozumMb6FrSbmX8p3p5YTBgN6Wv4fHg6dqi7JzFJyNtihEvTJi8tkuoWRlBBFVZIm0y6MZ/5ZO3sq3RtzLUbqtiJ0JA37UJhJWNljSZRkAiuH0WCbdkFI2kzRt4bdRUvC+RUsqhtHpccSjlXGKcRjHqGna9KbXClTzAdDUFhQb++ixtXMb8wDDrXZIIzUkEbqMBhJu4wdh/UUdx5+8fakeYOoII371LEg7Y2qEmi/AXJj3EEm8Z/tPdf4rg/VeH/zQ/8Af8np/on1D/r5H+3+ASKQMn70mRzKfZ5UswySc70mVwfWGRXBPT2N5lOD5jYUnbRh7hSeieufh0+tLSA+Vd2aiOJpGGfEbHwH+tPfT8P3M8V6Wzm/VuR9njSft6/+ihUAc3Ve9csnNiP8wJyD5UsqsgLKOZfKuYlXxOZT6p3A8q9gfP6BJEGgb3Go+1TMY26HFTLJ6jYHWouyAJdfJjVS9DhYRgH206jjHYVwg7U7iXapsiiI1n1RGP8ANTu0GYx7qaa3vNEvtp/aL6gqESyI4ibw5bP2yY+lIynxLaVvIUpxefDitJAPyzj6gikyR+AfH9pofQL8kf/Z" alt="" width="52" height="52" />
-          <div class="profile-card-name">
-            <div class="verify-name">Emily R.</div>
-            <div class="verify-role">Healthcare Assistant · Belfast</div>
+    <div class="stage-panel-wrap reveal">
+      <div class="stage-panel">
+        <div class="search-bar">
+          <span>"Senior carer, dementia experience, weekend locum, Sussex"</span>
+          <span class="cursor-dot"></span>
+        </div>
+        <div class="pipeline">
+          <div class="pipe-col">
+            <div class="pipe-label"><span>Shortlisted</span><span>3</span></div>
+            <div class="pipe-card">Aoife M.<small>Senior Care Assistant</small></div>
+            <div class="pipe-card">Daniel O.<small>Support Worker</small></div>
+          </div>
+          <div class="pipe-col">
+            <div class="pipe-label"><span>Interview</span><span>2</span></div>
+            <div class="pipe-card">Priya S.<small>Registered Nurse</small></div>
+          </div>
+          <div class="pipe-col">
+            <div class="pipe-label"><span>Offer</span><span>1</span></div>
+            <div class="pipe-card">Marek K.<small>Senior Carer</small></div>
+          </div>
+          <div class="pipe-col">
+            <div class="pipe-label"><span>Hired</span><span>1</span></div>
+            <div class="pipe-card hired">Grace T.<small>Care Coordinator</small></div>
           </div>
         </div>
-        <div class="verify-tags">
-          <span class="verify-tag t-verified">verified</span>
-          <span class="verify-tag t-evidenced">evidenced</span>
-          <span class="verify-tag t-derived">derived</span>
-          <span class="verify-tag t-declared">declared</span>
-        </div>
-        <div class="profile-card-stats">
-          <div><div class="stat-num">248</div><div class="stat-label">profile views</div></div>
-          <div><div class="stat-num">6</div><div class="stat-label">years experience</div></div>
-          <div><div class="stat-num">3</div><div class="stat-label">shortlists</div></div>
+        <div class="stage-foot">
+          <div><span>18</span><small>candidates matched</small></div>
+          <div><span>4</span><small>in active pipeline</small></div>
+          <div><span>6 days</span><small>avg. time to shortlist</small></div>
         </div>
       </div>
-      <p class="visual-caption">Illustrative example of what you'll see — not a real person</p>
+      <p class="stage-caption">Illustrative example of how a search resolves — not real candidates or data</p>
     </div>
-  </section>
+  </div>
+</section>
 
-  <hr class="divider" />
+<hr style="border:none;border-top:1px solid var(--line);margin:0;" />
 
-  <!-- WHAT WE'RE BUILDING -->
-  <section class="section wrap">
-    <div class="section-label-block reveal">
-      <span class="label">What we're building</span>
+<section class="about" id="what-is-icare">
+  <div class="wrap about-inner">
+    <div class="eyebrow reveal">What is iCare?</div>
+    <p class="reveal"><strong>iCare is a recruitment platform built specifically for health and social care — and it's the first in the UK to let you find candidates by just describing them.</strong> No filters, no checkboxes, no scrolling job boards. Tell our AI who you need, and it searches a growing pool of evidenced carers, nurses, and support workers to find real matches. Then run the whole hire — shortlisting, interviews, offers — right inside iCare. One platform, start to finish.</p>
+  </div>
+</section>
+
+<section class="ai-callout">
+  <div class="wrap ai-callout-inner">
+    <div class="eyebrow reveal">What sets us apart</div>
+    <h2 class="reveal">The AI does the searching. You do the hiring.</h2>
+    <p class="ai-callout-lead reveal">No dashboards to learn. No forms to fill in. iCare opens to a single chat — type what you need, and it happens.</p>
+
+    <div class="chat-mock reveal">
+      <div class="chat-mock-bar">
+        <span class="chat-dot"></span><span class="chat-dot"></span><span class="chat-dot"></span>
+        <span class="chat-mock-title">iCare Chat</span>
+      </div>
+      <div class="chat-mock-body">
+        <div class="chat-bubble you">Carer with a driving licence, based in Essex, five years' hospital experience</div>
+        <div class="chat-bubble ai">Found 6 candidates matching that. Want me to shortlist all of them, or show the full list first?</div>
+        <div class="chat-bubble you">Shortlist them</div>
+        <div class="chat-bubble ai">Done — 6 candidates added to your shortlist. Want a "Who is…" summary on any of them before you decide who to interview?</div>
+      </div>
     </div>
-    <p class="body-text reveal">
-      Most hiring platforms show you a CV and a photo, and ask you to decide from there. We think that's
-      backwards — and increasingly, it's a compliance risk too. <strong>iCare shows you real, evidenced
-      experience first</strong> — qualifications, clinical skills, work history, verified where it can be
-      — enough to build a genuine shortlist before you ever see a face. When you're ready to hire health
-      and social care staff, you'll be searching real people, not guessing from a stack of PDFs.
-    </p>
-  </section>
 
-  <hr class="divider" />
+    <p class="ai-callout-note reveal">Search, shortlist, ask questions, send offers, check your pipeline — all from the same chat. iCare's AI understands what you're actually asking for, whether that's finding people or moving your process forward. It matches what you searched for — it never scores, ranks, or judges candidates for you. Every shortlist and hiring decision stays yours.</p>
+  </div>
+</section>
 
-  <!-- WHY JOIN -->
-  <section class="section wrap">
-    <div class="section-label-block reveal">
-      <span class="label">Why join</span>
-      <h2 class="section-title">Hire for who they are — and stay on the right side of the law doing it.</h2>
+<section class="how-it-works" id="how-it-works">
+  <div class="wrap">
+    <div class="eyebrow reveal">How it works</div>
+    <h2 class="reveal">From search to hired, without leaving the chat.</h2>
+    <div class="hiw-grid">
+      <div class="hiw-step reveal">
+        <div class="hiw-num">01</div>
+        <h3>Ask, in plain English</h3>
+        <p>Describe who you need — skills, certifications, experience, location. iCare's AI searches evidenced profiles and shows you real matches, headline info first: name, role, badges, location.</p>
+      </div>
+      <div class="hiw-step reveal">
+        <div class="hiw-num">02</div>
+        <h3>Shortlist with one click</h3>
+        <p>See someone promising? Shortlist them straight from their card. No exporting, no separate tracker.</p>
+      </div>
+      <div class="hiw-step reveal">
+        <div class="hiw-num">03</div>
+        <h3>Ask "Who is…"</h3>
+        <p>Get an AI-built summary of any shortlisted candidate — their experience, skills, training, and (where they've chosen to share it) who they are as a person, drawn from their own platform activity.</p>
+      </div>
+      <div class="hiw-step reveal">
+        <div class="hiw-num">04</div>
+        <h3>Interview without the repeat questions</h3>
+        <p>Send your interview questions once. Candidates answer on video, in their own time. iCare's AI transcribes each response before it reaches you — so you review answers, not raw footage, and never ask the same question twice.</p>
+      </div>
+      <div class="hiw-step reveal">
+        <div class="hiw-num">05</div>
+        <h3>Progress and hire</h3>
+        <p>Move candidates through offer and hire, or manage it all by chat: "send an offer to everyone successful in the last two weeks." Your call, your pace.</p>
+      </div>
     </div>
+  </div>
+</section>
 
-    <div class="feature-list">
+<section class="features" id="features">
+  <div class="wrap">
+    <div class="features-head">
+      <div class="eyebrow reveal">What you get</div>
+      <h2 class="reveal">Everything else that makes hiring faster.</h2>
+    </div>
+    <div class="feature-grid">
       <div class="feature-card reveal">
-        <span class="label">Identity</span>
-        <h3 class="feature-title">Verified, not just claimed</h3>
-        <p class="feature-text">Every profile carries a clear grade on each claim — verified against a register, evidenced by a reviewed document, derived from platform data, or simply declared. You'll always know which is which.</p>
+        <div class="feature-mark">01 · TRUST</div>
+        <h3>Know who you're actually hiring</h3>
+        <p>Every profile carries a trust rating — verified, evidenced, derived, or declared — so you always know how much confidence to place in a claim before you shortlist someone.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-mark">02 · PIPELINE</div>
+        <h3>No more spreadsheets</h3>
+        <p>Shortlisted, interviewing, offer, hired — track every candidate's stage inside iCare. No exports, no lost threads, no "wait, where did we leave off with them?"</p>
         <span class="soon-tag">Coming soon</span>
       </div>
       <div class="feature-card reveal">
-        <span class="label">Compliance</span>
-        <h3 class="feature-title">Written shortlisting, by design</h3>
-        <p class="feature-text">Shortlisting starts with the written case — skills, experience, qualifications — before a photo or video ever enters the picture. Built to help you hire fairly under the Equality Act, not just document that you tried to.</p>
+        <div class="feature-mark">03 · CHARACTER</div>
+        <h3>Beyond the CV</h3>
+        <p>When candidates choose to share it, see who they actually are — their approach, what drives them — alongside their qualifications. Real signal, not guesswork.</p>
         <span class="soon-tag">Coming soon</span>
       </div>
       <div class="feature-card reveal">
-        <span class="label">DBS</span>
-        <h3 class="feature-title">DBS status, handled honestly</h3>
-        <p class="feature-text">We'll show you a candidate's DBS status plainly — "Enhanced DBS · on Update Service" — without ever claiming we verified it ourselves. Only you can do that, via the Update Service, and we won't pretend otherwise.</p>
-        <span class="soon-tag">Coming soon</span>
+        <div class="feature-mark">04 · FLEXIBLE</div>
+        <h3>Urgent or ongoing, we don't mind</h3>
+        <p>Need cover for this weekend? Building a permanent team? iCare handles a single urgent hire and a rolling pipeline equally well.</p>
       </div>
       <div class="feature-card reveal">
-        <span class="label">Search</span>
-        <h3 class="feature-title">Search in plain English</h3>
-        <p class="feature-text">Describe who you need — "an experienced carer, great with dementia patients, based near Reading" — and search what candidates have actually chosen to share. Descriptive, never a "fit score."</p>
-        <span class="soon-tag">Coming soon</span>
-      </div>
-      <div class="feature-card reveal">
-        <span class="label">Pool</span>
-        <h3 class="feature-title">A real, growing pool</h3>
-        <p class="feature-text">Carers, nurses and healthcare professionals are already joining iCare's waitlist today, so when employer access opens, you won't be starting from zero.</p>
+        <div class="feature-mark">05 · VISIBILITY</div>
+        <h3>Nothing falls through the cracks</h3>
+        <p>One clear timeline from first search to final offer. See exactly where every candidate stands, at a glance.</p>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <hr class="divider" />
-
-  <!-- PULL QUOTE -->
-  <section class="quote-wrap wrap">
-    <div class="reveal">
-      <span class="quote-mark" aria-hidden="true">&rdquo;</span>
-      <blockquote>
-        <p class="quote-text">Hiring shouldn't start with a photo. It should start with whether someone can do the job — and do it well.</p>
-      </blockquote>
+<section class="trust-strip" id="trust">
+  <div class="wrap">
+    <div class="eyebrow reveal">Built to be trusted</div>
+    <p class="reveal">No unverified DBS claims. No algorithmic scoring of people. Data minimisation by default. We built the compliance in — so you don't have to think about it.</p>
+    <div class="trust-marks reveal">
+      <div class="trust-mark">Data minimisation on every profile</div>
+      <div class="trust-mark">No unverified DBS claims</div>
+      <div class="trust-mark">No algorithmic scoring of candidates</div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <hr class="divider" />
+<section class="cta-section" id="join">
+  <div class="wrap">
+    <div class="cta-inner reveal">
+      <div class="eyebrow">Early access</div>
+      <h2>Your next hire is one search away.</h2>
+      <p>Join the employer waitlist for early access when we launch, plus priority visibility into our first wave of candidate profiles. Tell us what roles you're hiring for, so the right candidates are ready for you on day one.</p>
 
-  <!-- WAITLIST CTA -->
-  <section class="section wrap" id="join">
-    <div class="reveal">
-      <span class="label">Early access</span>
-      <h2 class="section-title join-headline">Be one of the first to search.</h2>
-      <p class="body-text">
-        Join the iCare employer waitlist. We'll email you the moment organisations can start searching —
-        and early waitlist members get priority access when we open the doors.
-      </p>
-
-      <form class="join-form" id="waitlist-form" novalidate>
-        <label for="wl-org" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Organisation name</label>
-        <input id="wl-org" name="org_name" type="text" placeholder="Organisation name" autocomplete="organization" required />
-        <label for="wl-name" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Your name</label>
-        <input id="wl-name" name="full_name" type="text" placeholder="Your name" autocomplete="name" required />
-        <label for="wl-email" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Work email</label>
-        <input id="wl-email" name="email" type="email" placeholder="you@yourorganisation.com" autocomplete="email" required />
-        <label for="wl-phone" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Phone number (optional)</label>
-        <input id="wl-phone" name="phone" type="tel" placeholder="Phone (optional)" autocomplete="tel" />
-        <span class="join-form-optional">We'll only use these to let you know when employer access opens.</span>
-        <button type="submit" class="btn btn-teal">Join the waitlist</button>
+      <form class="waitlist-form" id="waitlist-form" novalidate>
+        <div class="waitlist-form-row">
+          <label for="wl-org" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Organisation name</label>
+          <input id="wl-org" name="org_name" type="text" placeholder="Organisation name" autocomplete="organization" required>
+          <label for="wl-name" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Your name</label>
+          <input id="wl-name" name="full_name" type="text" placeholder="Your name" autocomplete="name" required>
+        </div>
+        <div class="waitlist-form-row">
+          <label for="wl-email" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Work email</label>
+          <input id="wl-email" name="email" type="email" placeholder="you@organisation.com" autocomplete="email" required>
+          <label for="wl-hiring" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Hiring for</label>
+          <select id="wl-hiring" name="hiring_for">
+            <option value="">Hiring for…</option>
+            <option value="temp">Temporary / locum</option>
+            <option value="permanent">Permanent</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-teal">Join the employer waitlist</button>
       </form>
-      <p class="join-status" data-status></p>
+      <p class="form-status" data-status></p>
+      <div class="cta-fine"><strong>Built for how care employers actually hire.</strong> Join the early access list.</div>
 
-      <p class="join-note"><strong>Free to join.</strong>&nbsp;No cost, no commitment — pricing and access details come later, before you commit to anything.</p>
-
-      <div class="join-success" id="waitlist-success" aria-live="polite">
-        <h3 class="join-success-title" data-success-title>You're on the list.</h3>
-        <p class="join-success-text" data-success-text>We'll email you the moment employer access opens.</p>
+      <div class="waitlist-success" id="waitlist-success" aria-live="polite">
+        <h3 class="waitlist-success-title" data-success-title>You're on the list.</h3>
+        <p class="waitlist-success-text" data-success-text>We'll email you the moment employer access opens.</p>
         <div class="share-row">
           <a class="share-btn" data-share="twitter" href="#" target="_blank" rel="noopener">Share on X</a>
           <a class="share-btn" data-share="linkedin" href="#" target="_blank" rel="noopener">Share on LinkedIn</a>
@@ -369,23 +993,19 @@
         </div>
       </div>
 
-      <div class="counter-row">
-        <div>
-          <div class="counter-num" data-waitlist-count>—</div>
-          <div class="counter-label">organisations on the waitlist</div>
-        </div>
+      <div class="counter-strip">
+        <div><span data-waitlist-count>—</span><small>organisations on the waitlist</small></div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
 </main>
 
-<hr class="divider" />
-
-<footer class="footer wrap">
-  <div class="footer-inner">
-    <a href="#top" class="logo">i<em>Care</em></a>
-    <p class="footer-tag">Looking for work instead? <a href="/" style="color:var(--teal-700);font-weight:600;">See the candidate page</a> · &copy; 2026 iCare</p>
+<footer>
+  <div class="wrap">
+    <a href="#top" class="logo">i<span class="dot">Care</span></a>
+    <div class="foot-note">Looking for work instead? <a href="/">See the candidate page</a> · &copy; 2026 iCare</div>
   </div>
 </footer>
 
@@ -408,13 +1028,11 @@
   var titleEl = document.getElementById("hero-title");
   if (titleEl) {
     var html = titleEl.innerHTML;
-    var wrapped = html.replace(/(<em>.*?<\/em>|[^\s<]+)/g, function (match) {
-      if (match.indexOf("<em>") === 0) return '<span class="word">' + match + "</span>";
+    var wrapped = html.replace(/(<em>.*?<\/em>|<br>|[^\s<]+)/g, function (match) {
+      if (match === "<br>") return match;
       return '<span class="word">' + match + "</span>";
     });
-    titleEl.innerHTML = wrapped.split(/(\s+)/).map(function (part) {
-      return part;
-    }).join(" ");
+    titleEl.innerHTML = wrapped.split(/(\s+)/).map(function (part) { return part; }).join(" ");
     var words = titleEl.querySelectorAll(".word");
     if (canAnimate) {
       gsap.to(words, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.045, delay: 0.1 });
@@ -432,17 +1050,6 @@
         start: "top 88%",
         once: true,
         onEnter: function () { el.classList.add("is-visible"); },
-      });
-    });
-
-    gsap.utils.toArray(".feature-card").forEach(function (card, i) {
-      ScrollTrigger.create({
-        trigger: card,
-        start: "top 90%",
-        once: true,
-        onEnter: function () {
-          gsap.fromTo(card, { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", delay: i * 0.06 });
-        },
       });
     });
   } else {
@@ -474,12 +1081,12 @@
   var successPanel = document.getElementById("waitlist-success");
   function setStatus(kind, message) {
     statusEl.textContent = message;
-    statusEl.className = "join-status is-visible " + kind;
+    statusEl.className = "form-status is-visible " + kind;
   }
 
-  function wireShareLinks(orgName) {
+  function wireShareLinks() {
     var pageUrl = window.location.href.split("#")[0];
-    var text = "We just joined the iCare employer waitlist — a new way to find verified health and social care staff. Worth a look:";
+    var text = "We just joined the iCare employer waitlist — a new way to find evidenced health and social care staff. Worth a look:";
     var encodedUrl = encodeURIComponent(pageUrl);
     var encodedText = encodeURIComponent(text);
     var urls = {
@@ -511,7 +1118,7 @@
     var orgName = document.getElementById("wl-org").value.trim();
     var fullName = document.getElementById("wl-name").value.trim();
     var email = document.getElementById("wl-email").value.trim();
-    var phone = document.getElementById("wl-phone").value.trim();
+    var hiringFor = document.getElementById("wl-hiring").value;
     if (!orgName || !fullName || !email) return;
 
     submitBtn.disabled = true;
@@ -525,13 +1132,13 @@
         org_name: orgName,
         full_name: fullName,
         email: email,
-        phone: phone || undefined,
+        hiring_for: hiringFor || undefined,
       }),
     })
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
       .then(function (result) {
         submitBtn.disabled = false;
-        submitBtn.textContent = "Join the waitlist";
+        submitBtn.textContent = "Join the employer waitlist";
         if (!result.ok) {
           setStatus("err", result.body.error || "Something went wrong. Please try again.");
           return;
@@ -540,7 +1147,7 @@
           setStatus("ok", "You're already on the list — we'll be in touch.");
         } else {
           form.style.display = "none";
-          wireShareLinks(orgName);
+          wireShareLinks();
         }
         form.reset();
         if (counterEl && !result.body.already_joined) {
@@ -550,7 +1157,7 @@
       })
       .catch(function () {
         submitBtn.disabled = false;
-        submitBtn.textContent = "Join the waitlist";
+        submitBtn.textContent = "Join the employer waitlist";
         setStatus("err", "Network error — please try again.");
       });
   });

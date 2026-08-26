@@ -152,6 +152,16 @@ real onboarding wizard, and have a published, evidenced profile.
 
 ## Employer track (after the candidate track ships)
 
+> **⚠️ Stale as of the employer landing page v2 revision.** The user's
+> uploaded design/copy brief for that page (see `PROGRESS.md`'s "Done"
+> section) describes the real employer product as chat-first AI search +
+> a built-in ATS ("iRecruit") + a compliance module ("iCompliance") + an
+> AI "Who is [name]" candidate summary + AI-parsed async video
+> interviews — none of which exist yet, and all bigger than Sprint 8's
+> "compliant structured search" below. **Revise this track against that
+> brief before starting Sprint 6** — don't build Sprints 6–10 as written
+> without that pass. The candidate track above is unaffected.
+
 ### Sprint 6 — Employer sign-up / sign-in UI
 
 Mirrors Sprint 1 for `role: "employer"`, collecting `org_name` at

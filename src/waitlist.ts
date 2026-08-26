@@ -20,15 +20,22 @@ waitlist.post("/", async (c) => {
   const phone = typeof body?.phone === "string" ? body.phone.trim() : null;
   const role = body?.role === "employer" ? "employer" : "candidate";
   const orgName = typeof body?.org_name === "string" ? body.org_name.trim() : "";
+  const hiringFor =
+    role === "employer" && ["temp", "permanent", "both"].includes(body?.hiring_for) ? body.hiring_for : null;
 
   if (!email) return c.json({ error: "email is required" }, 400);
   if (!fullName) return c.json({ error: "full_name is required" }, 400);
   if (role === "employer" && !orgName) return c.json({ error: "org_name is required" }, 400);
 
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
-  const { error } = await supabase
-    .from("waitlist")
-    .insert({ email, full_name: fullName, phone, role, org_name: role === "employer" ? orgName : null });
+  const { error } = await supabase.from("waitlist").insert({
+    email,
+    full_name: fullName,
+    phone,
+    role,
+    org_name: role === "employer" ? orgName : null,
+    hiring_for: hiringFor,
+  });
 
   if (error) {
     // Unique violation — they're already on the list, treat as success.

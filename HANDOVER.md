@@ -285,7 +285,14 @@ deploy confirmation yet.
 9. A real signed-in app UI (dashboard, profile editor) — nothing exists
    yet for a user to land on after authenticating via `/auth/*`.
 10. ~~Employer-facing landing page~~ — built and merged (`GET /employers`,
-    PR #11, deploy run #12), see PROGRESS.md's "Done" section.
+    PR #11, deploy run #12); then rebuilt as v2 against the user's actual
+    design/copy brief (much richer than v1 — see PROGRESS.md's "Done"
+    section for detail and the fixes made against the draft). **That
+    brief reveals the real employer product is chat-first AI search + a
+    built-in ATS + an "iCompliance" module + AI interview parsing — not
+    the simple structured-field search assumed elsewhere in this doc and
+    in `SPRINTS.md`.** Treat `SPRINTS.md`'s employer track as stale until
+    it's revised against this.
 
 ---
 
@@ -400,12 +407,24 @@ See PROGRESS.md's "Done" section for full detail. Shipped on PR #11,
 which the user approved merging — squash-merged to `main`, deploy run
 #12 succeeded. Live.
 
-**Next priorities**: the user asked to move from waitlist-only to the
-actual platform, candidate journey first then employer. `SPRINTS.md` now
-has the full ordered sprint plan — read it before picking up work here;
-it supersedes the unprioritized list this section used to have. Start at
-whichever sprint is next un-shipped in that file. Don't restart the
-domain/Sender.net work unless the user brings it back up.
+The user asked to move from waitlist-only to the actual platform,
+candidate journey first then employer, and `SPRINTS.md` was written for
+that. **Before Sprint 0 started**, the user uploaded a real design +
+copy brief for a v2 employer landing page — built, see PROGRESS.md's
+"Done" section for the fixes made against the draft (a fake-stats
+counter, an evaluative-language slip against the brief's own compliance
+note, a missing-id nav bug, an unvetted hotlinked photo, feature-list
+drift between the two uploaded files). More importantly, that brief
+reveals the real employer product is chat-first AI search + a built-in
+ATS + an "iCompliance" module + AI-parsed video interviews —**not** the
+simple structured-field search `SPRINTS.md`'s employer track (Sprints
+6–10) was written against.
+
+**Next priorities**: `SPRINTS.md`'s employer track needs a revision pass
+against this before Sprint 6 starts — flagged to the user, not yet done.
+The candidate track (Sprints 0–5) is unaffected and can proceed as
+written. Don't restart the domain/Sender.net work unless the user brings
+it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.
