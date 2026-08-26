@@ -690,6 +690,82 @@ candidates.delete("/me/prompts/:promptId", async (c) => {
   return c.body(null, 204);
 });
 
+// --- Posts (candidate's own professional stories/opinions/experiences) ---
+// No topic restriction and no pre-publish review, by design (founder,
+// 2026-08-26 chat) — candidates are trusted the same way a LinkedIn author
+// is. Moderation is report-then-manual, matching this codebase's existing
+// pattern of manual review via the Supabase dashboard (see employer
+// verification): an employer can call flag_candidate_post() (src/employers.ts),
+// which just sets is_flagged — nothing here polices content up front.
+
+const POST_FIELDS = ["title", "body"] as const;
+
+candidates.get("/me/posts", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidate_posts")
+    .select("*")
+    .eq("candidate_id", c.get("userId"))
+    .order("created_at", { ascending: false });
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ posts: data });
+});
+
+candidates.post("/me/posts", async (c) => {
+  const body = await c.req.json();
+  const text = typeof body.body === "string" ? body.body.trim() : "";
+  if (!text) return c.json({ error: "body is required" }, 400);
+  if (text.length > 8000) return c.json({ error: "Post is too long — 8000 characters maximum" }, 400);
+
+  const insert: Record<string, unknown> = { candidate_id: c.get("userId"), body: text };
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (title) insert.title = title;
+
+  const { data, error } = await c.get("supabase").from("candidate_posts").insert(insert).select().single();
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ post: data }, 201);
+});
+
+candidates.patch("/me/posts/:id", async (c) => {
+  const body = await c.req.json();
+  const update: Record<string, unknown> = {};
+  for (const field of POST_FIELDS) {
+    if (field in body) update[field] = typeof body[field] === "string" ? body[field].trim() : body[field];
+  }
+  if (typeof update.body === "string" && (!update.body || update.body.length > 8000)) {
+    return c.json({ error: "body must be 1-8000 characters" }, 400);
+  }
+  if (Object.keys(update).length === 0) {
+    return c.json({ error: "no writable fields in body" }, 400);
+  }
+  update.updated_at = new Date().toISOString();
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidate_posts")
+    .update(update)
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"))
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ post: data });
+});
+
+candidates.delete("/me/posts/:id", async (c) => {
+  const { error } = await c
+    .get("supabase")
+    .from("candidate_posts")
+    .delete()
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+});
+
 // --- Badges (SPRINTS.md Sprint 5) ---
 // Read-only, always — non-negotiable #2 forbids any client write path to
 // candidate_badges. publish_my_profile() and refresh_experience_badges()

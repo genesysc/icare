@@ -579,11 +579,14 @@ user asking for it first; it's captured here so the scope isn't lost.
   `under_review` assumes manual review via the Supabase dashboard until
   volume justifies building this. Worth a dedicated sprint once real
   users exist.
-- **Candidate self-expression posts** — §9, explicitly phase 2 per the
-  product brief. Needs the per-post consent model designed properly, not
-  bolted on. (Employer conversational search itself is now scheduled —
-  Sprint 8 — but Sprint 10's "Who is X" summary deliberately doesn't
-  depend on posts existing; see that sprint's note.)
+- ~~Candidate self-expression posts~~ — shipped 2026-08-26 (same day as
+  Sprint 8), on direct founder instruction, open-by-default consent model
+  (superseding §9's original per-post-consent brief — see PROGRESS.md's
+  "⚠️ Correction" note). Search integration lives in Sprint 8's
+  `employer-chat.ts` (`post_topic` field + isolated per-candidate AI
+  summarization), not a separate sprint. Not built: a peer-facing feed —
+  no surface exists for "visible to other candidates only," and none was
+  asked for.
 - **AI-parsed async video interviews** — a separate, later initiative
   per the scope discussion above, not part of the employer track's
   Sprints 6–11. New infrastructure (video capture, storage,

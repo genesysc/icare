@@ -179,6 +179,10 @@
   .result-badge.grade-evidenced { background: var(--purple-dark); color: var(--white); }
   .result-badge.grade-derived { background: transparent; color: var(--teal-dark); border: 1.5px solid var(--teal); }
   .result-badge.grade-declared { background: transparent; color: var(--amber-700); border: 1.5px solid var(--amber-700); }
+  .result-post { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--paper); font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; font-style: italic; }
+  .result-post-report { margin-top: 6px; background: none; border: none; padding: 0; font-size: 11.5px; font-weight: 600; color: var(--ink-faint); cursor: pointer; text-decoration: underline; }
+  .result-post-report:hover { color: var(--purple-dark); }
+  .result-post-report[disabled] { cursor: default; text-decoration: none; }
 
   .chat-form { display: flex; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--paper); }
   .chat-form input {
@@ -358,6 +362,12 @@ function icareRequireAuth(signInPath) {
     if (exp) metaParts.push(exp);
     if (skillLabels.length) metaParts.push(skillLabels.join(", "));
 
+    var postHtml = r.post_excerpt
+      ? '<div class="result-post">"' + escapeHtml(r.post_excerpt) + '"' +
+        (r.post_id ? '<div><button type="button" class="result-post-report" data-report-post="' + escapeHtml(r.post_id) + '">Report this post</button></div>' : "") +
+        "</div>"
+      : "";
+
     return (
       '<div class="result-card">' +
         '<div class="result-card-head">' +
@@ -367,8 +377,28 @@ function icareRequireAuth(signInPath) {
         (roleLine ? '<div class="result-role">' + escapeHtml(roleLine) + "</div>" : "") +
         (metaParts.length ? '<div class="result-meta">' + escapeHtml(metaParts.join(" · ")) + "</div>" : "") +
         (badgesHtml ? '<div class="result-badges">' + badgesHtml + "</div>" : "") +
+        postHtml +
       "</div>"
     );
+  }
+
+  function reportPost(postId, btn) {
+    btn.disabled = true;
+    btn.textContent = "Reporting…";
+    icareAuthFetch("/employers/posts/" + postId + "/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Reported from search results" }),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        btn.textContent = result.ok ? "Reported — thank you" : (result.body.error || "Couldn't report this post");
+        if (!result.ok) btn.disabled = false;
+      })
+      .catch(function () {
+        btn.textContent = "Couldn't report this post";
+        btn.disabled = false;
+      });
   }
 
   function appendChatMessage(role, content, results) {
@@ -584,6 +614,12 @@ function icareRequireAuth(signInPath) {
       sendBtn.disabled = false;
       input.focus();
     });
+  });
+
+  document.querySelector("[data-chat-thread]").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-report-post]");
+    if (!btn || btn.disabled) return;
+    reportPost(btn.getAttribute("data-report-post"), btn);
   });
 
   document.querySelector("[data-sign-out]").addEventListener("click", function () {

@@ -430,13 +430,22 @@ which is where the v2 landing page above came from. That doc also contains
 product-wide decisions that go beyond the landing page — recorded here so
 they aren't lost:
 
-- **Candidate self-expression posts (phase 2, not built)**: candidates
-  will be able to post freely (not just structured CV fields). Consent is
-  **per-post and revocable**: each post is (a) visible to other candidates
-  only, (b) included in the employer-facing AI summary/search pool, or
-  (c) private. Default must be the most restrictive; inclusion in
-  employer-facing AI search is opt-in, never opt-out. Candidates must be
-  able to see their current AI summary and retract consent at any time.
+- **Candidate self-expression posts — ⚠️ Correction, 2026-08-26 (later same
+  day)**: this brief originally called for **per-post, revocable consent**
+  (private / candidates-only / employer-AI-searchable, default private,
+  employer-search inclusion opt-in never opt-out). A same-day founder chat
+  (after this doc was written) explicitly superseded that: posts are now
+  open by default — publish = immediately visible to verified employers in
+  chat search, no separate opt-in step. Founder's framing: a LinkedIn-style
+  professional voice, "an avenue for voices to be heard," explicitly
+  choosing openness over gatekeeping when asked to confirm this overrode
+  the brief above. Moderation is report-then-manual (a verified employer
+  can flag a post; a human unpublishes via the existing manual-review
+  pattern already used for qualifications/registrations/employer
+  verification) rather than pre-publish review or a consent gate. Built —
+  see "Done" below. Same supersession pattern as the CQC→multi-regulator
+  correction elsewhere in this doc: explicit founder confirmation
+  overriding an earlier written spec, not a silent judgment call.
 - **Employer conversational AI search (phase 2, not built)**: natural-
   language search, not form filters. Two hard constraints from the brief:
   1. **Descriptive, not evaluative** — the AI may say things like
@@ -1699,6 +1708,64 @@ they aren't lost:
     candidate name, a long job title/employer, and a long user message
     — zero horizontal overflow anywhere.
   - Committed and pushed to the branch. Not yet its own PR.
+- **Candidate self-expression posts (same day, 2026-08-26, following a
+  founder question about how "the totality of a candidate's identity" —
+  opinions, stories, experiences — would be searchable).** See the
+  "⚠️ Correction" note under "Product direction" above for the consent-model
+  decision (open by default, superseding the original per-post-consent
+  brief — explicit founder confirmation, not assumed).
+  - Migration `0015`: `candidate_posts` (candidate-owned, RLS self-manage
+    via `candidate_posts_self`), `candidate_post_search` view (same
+    bypass-RLS-via-view pattern as `candidate_search`: published, not
+    flagged, candidate published, `is_verified_employer()`), and
+    `flag_candidate_post()` — a security-definer RPC so a verified
+    employer can report a post without any direct UPDATE grant on the
+    table (RLS blocks that entirely; only the owning candidate can write
+    their own row).
+  - `src/candidates.ts`: `GET/POST/PATCH/DELETE /me/posts`, matching the
+    existing CRUD field-list convention. `src/employers.ts`:
+    `POST /posts/:id/report` — thin pass-through to the RPC.
+  - `src/employer-chat.ts`: `search_candidates` gained an optional
+    `post_topic` field. Post matching runs as its own deterministic
+    `ilike` query against `candidate_post_search` **before** the
+    candidate_search query, then intersects via `.in("id", ...)` — doing
+    it the other way round (filtering only within whatever 25 candidates
+    candidate_search happened to return first) would silently miss
+    relevant candidates whenever `post_topic` was the only real filter
+    given. A new stage 3 was added after the existing two: for up to 5
+    matched candidates, one **isolated** Workers AI call per candidate
+    (that candidate's post text only, never another candidate's data, no
+    comparison across candidates) produces a short factual, non-evaluative
+    summary — falls back to a deterministic truncated excerpt if the call
+    errors. This keeps non-negotiable #5 ("descriptive, not evaluative")
+    true by the same structural argument as the rest of Sprint 8: the
+    model that ever sees a post is never shown more than one candidate at
+    a time, so there is nothing for it to rank or compare even if
+    instructed to. `checkProtectedCharacteristics()` needed no change —
+    it runs on the employer's raw message before any tool argument exists,
+    so "find someone who posted about being pregnant" is already blocked
+    exactly like the structured-field version of the same request.
+  - `src/dashboard.html`: new "Your posts" card — compose form (optional
+    title, body up to 8000 chars, live character count), a one-line
+    confidentiality reminder shown at compose time ("don't name or make
+    identifiable any patient, service user, colleague, or employer" —
+    care workers are independently bound by their own professional
+    conduct rules here; this is a nudge, not a filter, matching the
+    founder's "no topic restriction" instruction), and a list of the
+    candidate's own posts with delete, showing a "Reported — under
+    review" state instead of delete once flagged.
+  - `src/employer-home.html`: result cards now show a `post_excerpt` block
+    (quoted, italic) with a "Report this post" action wired to the new
+    RPC-backed route.
+  - Tested: `tsc --noEmit` + `wrangler deploy --dry-run` clean. Headless
+    Chromium smoke tests for both new UI surfaces (posting, deleting, a
+    flagged post rendering its review state on the candidate side;
+    post-excerpt + report action on the employer side, including the
+    button's disabled/confirmed state after a successful report) — all
+    passed on the first pass, no bugs found this time. 2-viewport
+    (375/1920) overflow check on the new posts card with a long title and
+    a long body — zero overflow.
+  - Committed and pushed to the branch. Not yet its own PR.
 
 ## Not started yet
 - ~~Employer-side API (profile, verification-request flow, browsing
@@ -1709,10 +1776,11 @@ they aren't lost:
   search/shortlist view must exclude photo/video/CV per non-negotiable
   #4 (name, current job title, and location are the founder's dated
   override — already shown in Sprint 8's chat results, not excluded).
-- Candidate self-expression posts + per-post consent model, employer
-  conversational AI search + its protected-characteristics guardrail —
-  see "Product direction" above. Explicitly phase 2; the guardrail design
-  needs care before any of this is built.
+- ~~Candidate self-expression posts~~ — shipped this session (see "Done"
+  below and the "⚠️ Correction" note under "Product direction" above).
+  Not built: a peer-facing feed (posts are only ever candidate-authored/
+  employer-searchable right now, no "visible to other candidates" surface
+  exists) — not asked for, not started.
 - **Supabase email template fix** — the "Magic Link" template needs to
   reference `{{ .Token }}` for `verify-code` to work at all. Manual
   Dashboard step, not yet done (see Stack section). Untested end-to-end

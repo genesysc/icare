@@ -147,9 +147,9 @@ stop and ask the user — do not resolve it yourself.**
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/badges`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
-| `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review |
-| `src/employer-chat.ts` | Employer chat + candidate search (Sprint 8): `POST /employers/chat` (guardrail → Workers AI tool call → deterministic search → persist), `GET /employers/chat` (replay thread) |
+| `src/candidates.ts` | Candidate profile CRUD, photo upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
+| `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post (thin pass-through to `flag_candidate_post()`) |
+| `src/employer-chat.ts` | Employer chat + candidate search (Sprint 8, extended same day for posts): `POST /employers/chat` (guardrail → Workers AI tool call → deterministic search, now including an optional `post_topic` field + isolated per-candidate post summarization → persist), `GET /employers/chat` (replay thread) |
 | `src/employer-chat-guardrail.ts` | Protected-characteristics keyword/proximity guardrail — the deterministic layer behind the chat's non-negotiable #5 compliance, see §7 |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
@@ -163,7 +163,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me` |
 | `src/employer-home.html` | Employer home, `/employer/home` — verification card (Sprint 7) + chat-based candidate search (Sprint 8, shown once verified) |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
-| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, account closure |
+| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete, added same day as Sprint 8), account closure |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -171,8 +171,8 @@ stop and ask the user — do not resolve it yourself.**
 | `AGENTS.md` / `CLAUDE.md` | Pointer files: read `PROGRESS.md` (and now this file) first, update before ending a session |
 
 **`supabase/migrations/*.sql` now mirrors the live database**
-(2026-08-26) — all 14 migrations to date (`0001_init` through
-`0014_employer_chat_results_snapshot`) are committed as files,
+(2026-08-26) — all 15 migrations to date (`0001_init` through
+`0015_candidate_posts`) are committed as files,
 fetched verbatim from `supabase_migrations.schema_migrations`
 (its `statements` column holds the exact SQL each migration ran). This
 is a point-in-time backup/version-control mirror, not a live sync —
@@ -215,9 +215,19 @@ all before) and extended with `full_name` (never email/phone),
 current job title/employer (via a `LATERAL` join to
 `employment_history`), and full `profession_ids`/`skill_ids` arrays.
 
+**`candidate_posts`** (migration `0015`, same day as Sprint 8, RLS
+self-only) — a candidate's own free-form posts, open by default (see §5
+below for the consent-model correction). **`candidate_post_search`** (a
+view, same bypass-RLS pattern as `candidate_search`) is the employer
+query surface: published + not flagged + candidate published +
+`is_verified_employer()`.
+
 Useful existing RPCs: `current_role_is(role)`, `is_verified_employer()`,
 `close_my_account(reason)`, `publish_my_profile()`,
-`total_experience_months(candidate_id)` (used by `candidate_search`).
+`total_experience_months(candidate_id)` (used by `candidate_search`),
+`flag_candidate_post(post_id, reason)` (security definer — lets a
+verified employer report a post without any direct write grant on
+`candidate_posts`).
 
 ---
 
@@ -858,6 +868,28 @@ latent only because no employer search UI existed yet to exploit it.
 See PROGRESS.md's "Done" section for full detail, including a third
 real bug (`loadChatHistory()` missing a `.catch()`) caught by re-running
 the Sprint 7 test suite after this sprint's layout changes.
+
+Same day, following a founder question about how a candidate's
+self-authored posts (opinions, stories, experiences — "the totality of
+their identity") would factor into employer search, **candidate posts
+shipped** too — migration `0015`, `src/candidates.ts` (`/me/posts`
+CRUD), `src/employers.ts` (`/posts/:id/report`), and an extension to
+Sprint 8's `employer-chat.ts` (`post_topic` field + a new stage 3:
+one isolated Workers AI call per matched candidate, that candidate's
+post text only, never another's, never a comparison — same
+"descriptive not evaluative" argument as the rest of Sprint 8, just
+applied to free text instead of structured fields). **This explicitly
+supersedes** the original per-post-consent brief in PROGRESS.md
+("Product direction" — private/candidates-only/employer-searchable,
+default private, opt-in): posts are now open by default, immediately
+employer-searchable on publish, no consent gate. Confirmed directly
+with the founder before building (asked via AskUserQuestion, given the
+conflict with an already-documented spec) — not a silent judgment
+call, same as the CQC→multi-regulator correction earlier this day.
+Moderation is report-then-manual (`flag_candidate_post()` RPC +
+existing manual-review-via-dashboard pattern), matching how
+qualifications/registrations/employer verification already work here —
+no new admin tooling built for it.
 
 **Next priorities**: Sprint 9 (shortlist + fixed pipeline, via chat —
 an employer can find candidates now but can't act on a result yet).

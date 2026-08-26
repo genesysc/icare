@@ -39,13 +39,27 @@ employerChat.use("*", requireAuth);
 // name, current job title, and location pre-shortlist. Photo, video, and
 // CV file stay excluded — candidate_search (migration 0013) only ever
 // selects the fields this override actually covers.
+//
+// Candidate posts (migration 0015, added 2026-08-26 same session): a
+// candidate's own free-form stories/opinions are now full-text searchable
+// and AI-summarizable in chat, per founder decision. This does NOT relax
+// the guardrail above — the employer's raw message still goes through
+// checkProtectedCharacteristics() before the model is ever called,
+// regardless of which tool argument ends up encoding the request, so
+// "find someone who posted about X protected characteristic" is blocked
+// exactly like a structured-field version of the same request. What's new
+// is stage 3 below: an ISOLATED per-candidate summarization call — one
+// candidate's post text only, no other candidate's data in context, no
+// comparison across candidates — kept structurally incapable of the kind
+// of comparative/evaluative language a single combined-results call could
+// produce. It is asked to describe, never to judge.
 
 const AVAILABILITY_STATES = ["available_now", "available_from", "open_to_offers", "not_looking"] as const;
 
 const SEARCH_TOOL = {
   name: "search_candidates",
   description:
-    "Search published, verified candidates by job-relevant criteria only: profession, clinical skills, location, travel radius, and availability. " +
+    "Search published, verified candidates by job-relevant criteria only: profession, clinical skills, location, travel radius, availability, and — optionally — a topic to look for in candidates' own posts/stories. " +
     "There is no field for age, sex, race, religion, disability, sexual orientation, or any other personal characteristic — never attempt to encode one here.",
   parameters: {
     type: "object",
@@ -56,9 +70,20 @@ const SEARCH_TOOL = {
       town: { type: "string", description: "Town or city to search near, if the employer named a location." },
       max_travel_radius_miles: { type: "number", description: "Maximum travel radius in miles, only if explicitly mentioned." },
       availability: { type: "string", description: "One of available_now, available_from, open_to_offers, not_looking — only if explicitly mentioned." },
+      post_topic: { type: "string", description: "A short keyword or topic to look for in candidates' own posts/stories, only if the employer explicitly asked to read about a specific experience, opinion, or story — never a personal characteristic." },
     },
   },
 };
+
+const POST_SUMMARY_SYSTEM_PROMPT =
+  "You are shown one care worker's own post from their professional profile, in isolation — you have no other information about them or any other candidate. " +
+  "Write one short, factual, neutral sentence (max 30 words) describing what the post is about. Quote or paraphrase the content itself; do not add opinion. " +
+  "Never evaluate, rate, rank, or comment on whether this person would be a good hire, and never comment on any personal characteristic. Respond with only that one sentence, no other text.";
+
+function truncateExcerpt(text: string, max = 160): string {
+  const trimmed = text.trim();
+  return trimmed.length > max ? trimmed.slice(0, max).trim() + "…" : trimmed;
+}
 
 async function saveAssistantMessage(
   supabase: SupabaseClient,
@@ -123,7 +148,8 @@ employerChat.post("/", async (c) => {
     "You never see or judge candidate data yourself — you only translate the employer's request into search filters; the platform runs the actual query. " +
     "Only use profession_id/skill_ids from the allowed lists below — never invent one. " +
     "If the employer's message doesn't describe what kind of candidate they want (a greeting, a question about how this works), reply conversationally and briefly instead of calling the tool — never claim to know about specific candidates without calling the tool. " +
-    "Never ask for, accept, or act on age, sex, race, religion, disability, sexual orientation, nationality, or any other personal characteristic — if a request implies one, decline that part and search only on what's left (profession, skills, location, availability).\n\n" +
+    "post_topic searches candidates' own posts/stories — use it only when the employer explicitly asks to read about a specific experience, opinion, or story, never to look for a personal characteristic. " +
+    "Never ask for, accept, or act on age, sex, race, religion, disability, sexual orientation, nationality, or any other personal characteristic — if a request implies one, decline that part and search only on what's left (profession, skills, location, availability, post topic).\n\n" +
     "Allowed professions (id: name (family)):\n" + professionCatalogue + "\n\n" +
     "Allowed clinical skills (id: label (family)):\n" + skillCatalogue;
 
@@ -168,25 +194,79 @@ employerChat.post("/", async (c) => {
     typeof args.availability === "string" && (AVAILABILITY_STATES as readonly string[]).includes(args.availability)
       ? args.availability
       : null;
+  const postTopic = typeof args.post_topic === "string" && args.post_topic.trim() ? args.post_topic.trim().slice(0, 200) : null;
 
-  let query = supabase.from("candidate_search").select("*");
-  if (professionId) query = query.contains("profession_ids", [professionId]);
-  if (requestedSkillIds.length) query = query.contains("skill_ids", requestedSkillIds);
-  if (town) query = query.ilike("town", `%${town}%`);
-  if (maxRadius) query = query.lte("travel_radius_miles", maxRadius);
-  if (availability) query = query.eq("availability", availability);
+  // Post matching runs first (not just as a post-filter on candidate_search's
+  // results) so a post_topic search isn't silently limited to whichever
+  // arbitrary 25 candidates candidate_search happened to return first when
+  // no other filter was given.
+  const postByCandidateId = new Map<string, { id: number; title: string | null; body: string }>();
+  if (postTopic) {
+    const { data: postMatches } = await supabase
+      .from("candidate_post_search")
+      .select("id, candidate_id, title, body")
+      .ilike("body", `%${postTopic}%`)
+      .limit(50);
+    for (const p of postMatches || []) {
+      if (!postByCandidateId.has(p.candidate_id)) postByCandidateId.set(p.candidate_id, { id: p.id, title: p.title, body: p.body });
+    }
+  }
 
-  const { data: results, error: searchError } = await query.limit(25);
-  if (searchError) return c.json({ error: searchError.message }, 400);
+  let results: Record<string, unknown>[] = [];
+  if (!postTopic || postByCandidateId.size > 0) {
+    let query = supabase.from("candidate_search").select("*");
+    if (professionId) query = query.contains("profession_ids", [professionId]);
+    if (requestedSkillIds.length) query = query.contains("skill_ids", requestedSkillIds);
+    if (town) query = query.ilike("town", `%${town}%`);
+    if (maxRadius) query = query.lte("travel_radius_miles", maxRadius);
+    if (availability) query = query.eq("availability", availability);
+    if (postTopic) query = query.in("id", Array.from(postByCandidateId.keys()));
 
-  const count = results?.length || 0;
+    const { data, error: searchError } = await query.limit(25);
+    if (searchError) return c.json({ error: searchError.message }, 400);
+    results = data || [];
+  }
+
+  // Stage 3: isolated per-candidate summarization, capped at 5 calls. Each
+  // call sees only that one candidate's post text — never another
+  // candidate's data, never a comparison — see the comment block above
+  // SEARCH_TOOL for why that isolation is the point, not an optimization.
+  if (postTopic && results.length) {
+    const toSummarize = results.filter((r) => postByCandidateId.has(r.id as string)).slice(0, 5);
+    await Promise.all(
+      toSummarize.map(async (r) => {
+        const post = postByCandidateId.get(r.id as string)!;
+        let summary = truncateExcerpt(post.body);
+        try {
+          const summaryResult = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+            messages: [
+              { role: "system", content: POST_SUMMARY_SYSTEM_PROMPT },
+              { role: "user", content: post.body.slice(0, 4000) },
+            ],
+            max_tokens: 80,
+          });
+          const text =
+            typeof summaryResult === "object" && summaryResult !== null && "response" in summaryResult
+              ? (summaryResult as { response?: string }).response
+              : undefined;
+          if (text && text.trim()) summary = text.trim();
+        } catch {
+          // Fall back to the deterministic truncated excerpt already assigned above.
+        }
+        r.post_excerpt = summary;
+        r.post_id = post.id;
+      }),
+    );
+  }
+
+  const count = results.length;
   const reply =
     count === 0
-      ? "No candidates matched that search — try widening the location, skills, or profession."
+      ? "No candidates matched that search — try widening the location, skills, profession, or post topic."
       : `Found ${count} candidate${count === 1 ? "" : "s"} matching your search.`;
 
   const assistantRow = await saveAssistantMessage(supabase, userId, reply, {
-    tool_call: { profession_id: professionId, skill_ids: requestedSkillIds, town, max_travel_radius_miles: maxRadius, availability },
+    tool_call: { profession_id: professionId, skill_ids: requestedSkillIds, town, max_travel_radius_miles: maxRadius, availability, post_topic: postTopic },
     result_count: count,
     results_snapshot: results,
   });

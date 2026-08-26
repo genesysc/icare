@@ -142,4 +142,20 @@ employers.post("/me/verification-requests", async (c) => {
   return c.json({ verification_request: data });
 });
 
+// --- Report a candidate post (Sprint 8 follow-up: candidate posts) ---
+// Posts have no pre-publish review by design — this is the only moderation
+// hook. flag_candidate_post() is security definer (checks is_verified_employer()
+// itself, sets is_flagged), so this route is a thin pass-through; the RPC is
+// the actual authority.
+employers.post("/posts/:id/report", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
+  const postId = Number(c.req.param("id"));
+  if (!Number.isInteger(postId)) return c.json({ error: "invalid post id" }, 400);
+
+  const { error } = await c.get("supabase").rpc("flag_candidate_post", { p_post_id: postId, p_reason: reason || null });
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ reported: true });
+});
+
 export default employers;
