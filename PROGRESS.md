@@ -1155,17 +1155,111 @@ they aren't lost:
   - Not yet pushed as a PR — this is a fix within the review pause, not
     a new sprint; will fold into whichever sprint's PR comes next unless
     the user asks to ship it separately.
+- **CV import (upload → parse → review → apply)** — the user's original
+  request from the very start of onboarding planning, picked up during
+  the review pause rather than deferred to the employer track. The
+  `cv_imports` table was already fully modeled in the schema (`status`
+  lifecycle `uploaded→parsing→parsed→review_complete/failed/unreadable`,
+  `confidence`, `sensitive_found` columns) — confirms this was designed
+  intent, not new scope invented mid-session.
+  - **Backend** (`src/candidates.ts`): `POST /candidates/me/cv` (body:
+    raw PDF, `Content-Type: application/pdf`, max 8MB) inserts a
+    `cv_imports` row (`status: "parsing"`), stores the file in R2
+    (`candidates/{id}/cv/{importId}.pdf`), then calls the Claude API
+    (`@anthropic-ai/sdk`, model `claude-opus-5`) with the PDF as a
+    `document` content block and a single forced tool call
+    (`tool_choice: {type:"tool", name:"extract_cv_data"}`, `strict:
+    true`) to extract headline/about/town, profession/skill ids,
+    employment history, qualifications, registration, and which
+    sensitive categories were noticed. **Architectural enforcement of
+    non-negotiable #5** (never auto-apply an AI parse): this route only
+    ever writes to `cv_imports` — it never touches `candidates`,
+    `employment_history`, `candidate_professions`, or any other profile
+    table. Those are only written later, by the candidate's own "Apply"
+    click on the review screen, which calls the exact same
+    already-built, already-RLS-scoped routes a manual-entry candidate
+    uses (`PATCH /candidates/me`, `PUT .../professions`, `PUT
+    .../skills`, `POST .../employment-history`, `POST
+    .../qualifications`, `POST .../registrations`), one call per item
+    the candidate left checked.
+  - **Non-negotiable #6 (data minimisation) enforced two ways**: (1) the
+    system prompt explicitly forbids extracting DOB, nationality,
+    immigration/visa status, marital status, gender, religion,
+    ethnicity, health info, NI number, or photo — anywhere, including
+    inside free-text fields — and instead instructs the model to flag
+    the category in `sensitive_categories_noticed`; (2) the tool's JSON
+    Schema has no field that could carry those values at all, so even a
+    model mistake has nowhere structurally to put them. The review
+    screen surfaces `sensitive_found` as an explicit notice ("We noticed
+    but didn't extract: date of birth, nationality — add them yourself
+    only where the platform actually asks").
+  - **No fuzzy-matching step needed, by construction**: `profession_ids`/
+    `skill_ids`/`qualification type_id`/`registration.regulator` are
+    constrained as JSON Schema `enum`s built from the live
+    `professions`/`clinical_skills`/`qualification_types` tables (plus a
+    fixed 7-regulator list) at request time, so the model can only ever
+    return ids that already exist in our system — no separate
+    reconciliation pass between "what the model guessed" and "what's
+    actually in the DB".
+  - `GET /candidates/me/cv/latest` and
+    `POST /candidates/me/cv/:id/mark-applied` round out the lifecycle
+    (the latter stamps `status: "review_complete"` + `applied_at` once
+    the candidate confirms).
+  - **Frontend** (`src/onboarding.html`): restructured the page's DOM
+    into three top-level screens — a CV intro (choose "Upload my CV" vs.
+    "Fill it in myself"), an upload zone + parsing spinner, and a review
+    screen — shown only on a genuine first visit (`onboarding_step === 1`
+    and no `?step=` override); returning via an explicit step link still
+    goes straight to the wizard. The review screen is fully editable
+    before anything is written: text inputs for headline/about/town,
+    removable-style checkbox chips for professions/skills (default
+    checked), and a checkbox-per-entry card list for employment history/
+    qualifications/registrations (default checked, uncheck to drop an
+    item) — "Looks good — continue" only submits what's still checked.
+    After a successful apply, the page reloads to `/onboarding?step=1`
+    (not a bare `/onboarding`) specifically so the candidate lands on
+    their now-pre-filled Step 1 form instead of seeing the CV-choice
+    screen again — `onboarding_step` itself doesn't advance until the
+    candidate clicks Continue on step 1 for real.
+  - **Config**: added `"compatibility_flags": ["nodejs_compat"]` to
+    `wrangler.jsonc` — required because `@anthropic-ai/sdk`'s
+    credential-chain module has static top-level imports of `node:fs`/
+    `node:path` (used for `ant auth login` profile auth, unused here
+    since this route passes `apiKey` explicitly, but the import still
+    executes at module load). Confirmed via `wrangler deploy --dry-run`:
+    warned before the flag, clean after.
+  - **Verified**: `tsc --noEmit` clean against the real installed SDK
+    types; `wrangler deploy --dry-run` bundles cleanly (~1.49MB / 311KB
+    gzip). Exercised end-to-end with headless Chromium and a mocked
+    upload response shaped exactly like the real endpoint's real output:
+    intro screen shows on first load, choosing upload reveals the file
+    picker, submitting shows the parsing spinner then the review screen
+    with every field/chip/card correctly pre-filled from the mock,
+    unchecking one of two employment entries before applying results in
+    exactly 1 (not 2) `employment-history` POST firing and `mark-applied`
+    being called — confirms partial-apply (keep some entries, drop
+    others) actually works, not just full-apply. 5-viewport overflow
+    audit (375/430/768/1280/1920px) across the intro, upload-zone, and
+    review screens — zero horizontal overflow at any size.
+  - **⚠️ Blocked on provisioning `ANTHROPIC_API_KEY`**: this route needs
+    an `ANTHROPIC_API_KEY` secret (`wrangler secret put
+    ANTHROPIC_API_KEY`) to actually call Claude in production. This
+    session's local `wrangler` has no live Cloudflare authentication
+    (`wrangler whoami` → "You are not authenticated") — checked directly
+    rather than assumed — so the secret can't be provisioned from here
+    even with a key value supplied. The user (or CI, or an authenticated
+    session) needs to run `wrangler secret put ANTHROPIC_API_KEY`
+    against the real `icare` Worker before this feature works live; the
+    route is otherwise complete and deployable as-is (it'll just 500 on
+    the Claude call until the secret exists).
+  - Not yet pushed as a PR — same review-pause status as the professions/
+    DBS fixes above.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
   shortlisting published candidates) — deliberately deferred in favor of
   candidate API first. Any employer search view must exclude photo/name/
   video/CV per non-negotiable #4 above.
-- CV import — the one item from the original "not covered" list still
-  actually not covered (qualifications/registrations landed in Sprint
-  3; DBS/references/prompts/badges landed in Sprints 4-5). A future CV
-  parser must still follow non-negotiable #6's data-minimisation rules
-  and #5's "never auto-apply" rule when built.
 - Candidate self-expression posts + per-post consent model, employer
   conversational AI search + its protected-characteristics guardrail —
   see "Product direction" above. Explicitly phase 2; the guardrail design

@@ -1,11 +1,13 @@
 import { Hono } from "hono";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "./middleware";
 
 type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
   MEDIA: R2Bucket;
+  ANTHROPIC_API_KEY: string;
 };
 
 type Variables = {
@@ -697,6 +699,252 @@ candidates.post("/me/close-account", async (c) => {
   const { error } = await c.get("supabase").rpc("close_my_account", { p_reason: reason });
   if (error) return c.json({ error: error.message }, 400);
   return c.json({ closed: true });
+});
+
+// --- CV import (upload a PDF, parse it into a draft, candidate reviews and
+// confirms before anything is saved to their profile) ---
+//
+// Non-negotiable #5: AI never auto-applies a parse — this route only ever
+// writes to cv_imports. The candidate's own review screen calls the SAME
+// existing routes above (PATCH /me, PUT /me/professions, POST /me/
+// employment-history, etc.) to actually save anything, exactly as if they'd
+// typed it in by hand. mark-applied below is just a record of that having
+// happened, not a write path of its own.
+//
+// Non-negotiable #6: the model is explicitly told never to extract DOB,
+// nationality, immigration status, marital status, gender, religion,
+// ethnicity, health info, or NI numbers — only to note that a category was
+// present (sensitive_found), never the value.
+//
+// profession_ids/skill_ids/qualification type_id are constrained by the
+// tool schema's enum to the real reference-table ids (fetched fresh on
+// every parse), so the model can only pick from what actually exists —
+// no separate fuzzy-matching step needed on the way back in.
+
+const SENSITIVE_CATEGORIES = [
+  "date_of_birth",
+  "nationality",
+  "immigration_status",
+  "marital_status",
+  "gender",
+  "religion",
+  "ethnicity",
+  "health_information",
+  "ni_number",
+  "photo",
+] as const;
+
+const REGULATORS = ["nmc", "hcpc", "gdc", "gmc", "gphc", "swe", "goc"] as const;
+
+candidates.post("/me/cv", async (c) => {
+  const contentType = c.req.header("Content-Type");
+  if (contentType !== "application/pdf") {
+    return c.json({ error: "Content-Type must be application/pdf — CVs must be uploaded as a PDF" }, 400);
+  }
+
+  const body = await c.req.arrayBuffer();
+  if (body.byteLength === 0) return c.json({ error: "Empty file" }, 400);
+  if (body.byteLength > 8 * 1024 * 1024) return c.json({ error: "File too large — 8MB maximum" }, 400);
+
+  const userId = c.get("userId");
+  const supabase = c.get("supabase");
+  const originalName = c.req.header("X-File-Name") || null;
+
+  const { data: importRow, error: insertError } = await supabase
+    .from("cv_imports")
+    .insert({
+      candidate_id: userId,
+      storage_path: "",
+      original_name: originalName,
+      mime_type: "application/pdf",
+      byte_size: body.byteLength,
+      status: "parsing",
+    })
+    .select()
+    .single();
+  if (insertError) return c.json({ error: insertError.message }, 400);
+
+  const key = `candidates/${userId}/cv/${importRow.id}.pdf`;
+  await c.env.MEDIA.put(key, body, { httpMetadata: { contentType: "application/pdf" } });
+  await supabase.from("cv_imports").update({ storage_path: key }).eq("id", importRow.id);
+
+  const [professionsResult, skillsResult, qualTypesResult] = await Promise.all([
+    supabase.from("professions").select("id, name"),
+    supabase.from("clinical_skills").select("id, label"),
+    supabase.from("qualification_types").select("id, label"),
+  ]);
+  const professionIds = (professionsResult.data || []).map((p) => p.id);
+  const skillIds = (skillsResult.data || []).map((s) => s.id);
+  const qualTypeIds = (qualTypesResult.data || []).map((q) => q.id);
+
+  const professionCatalogue = (professionsResult.data || []).map((p) => `${p.id}: ${p.name}`).join("\n");
+  const skillCatalogue = (skillsResult.data || []).map((s) => `${s.id}: ${s.label}`).join("\n");
+  const qualTypeCatalogue = (qualTypesResult.data || []).map((q) => `${q.id}: ${q.label}`).join("\n");
+
+  const extractTool: Anthropic.Tool = {
+    name: "extract_cv_data",
+    description: "Extract structured profile data from a healthcare/social-care candidate's CV.",
+    strict: true,
+    input_schema: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "headline",
+        "about",
+        "town",
+        "profession_ids",
+        "skill_ids",
+        "employment_history",
+        "qualifications",
+        "registration",
+        "sensitive_categories_noticed",
+        "overall_confidence",
+      ],
+      properties: {
+        headline: { type: ["string", "null"], description: "A short professional headline, e.g. their most recent job title + years of experience. Null if not inferable." },
+        about: { type: ["string", "null"], description: "A short first-person-style summary, only if the CV has a personal statement/summary section to draw from. Null otherwise — never invent one." },
+        town: { type: ["string", "null"], description: "Town/city only, from any address on the CV. Never the full address or postcode." },
+        profession_ids: { type: "array", items: { type: "string", enum: professionIds.length ? professionIds : ["__none__"] }, description: "0-3 closest-matching profession ids from the allowed list, most senior/recent first. Empty array if nothing matches reasonably." },
+        skill_ids: { type: "array", items: { type: "string", enum: skillIds.length ? skillIds : ["__none__"] }, description: "Clinical skill ids from the allowed list that the CV clearly evidences. Empty array if none." },
+        employment_history: {
+          type: "array",
+          description: "Every distinct role found, most recent first.",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["employer", "job_title", "setting", "started_on", "ended_on", "is_current", "description"],
+            properties: {
+              employer: { type: "string" },
+              job_title: { type: "string" },
+              setting: { type: ["string", "null"], description: "e.g. 'Nursing home', 'Hospital ward' — only if inferable." },
+              started_on: { type: ["string", "null"], description: "YYYY-MM-DD. Use the 1st of the month if only month/year is given. Null if unknown." },
+              ended_on: { type: ["string", "null"], description: "YYYY-MM-DD, or null if this is their current role or the end date isn't stated." },
+              is_current: { type: "boolean" },
+              description: { type: ["string", "null"] },
+            },
+          },
+        },
+        qualifications: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["type_id", "title", "awarding_body", "awarded_on"],
+            properties: {
+              type_id: { type: ["string", "null"], enum: qualTypeIds.length ? [...qualTypeIds, null] : [null] },
+              title: { type: "string" },
+              awarding_body: { type: ["string", "null"] },
+              awarded_on: { type: ["string", "null"], description: "YYYY-MM-DD, null if unknown." },
+            },
+          },
+        },
+        registration: {
+          type: ["object", "null"],
+          description: "Only if the CV explicitly states a professional registration number (e.g. NMC PIN, HCPC number). Null otherwise — never guess a number.",
+          additionalProperties: false,
+          required: ["regulator", "reg_number", "register_name"],
+          properties: {
+            regulator: { type: "string", enum: REGULATORS as unknown as string[] },
+            reg_number: { type: "string" },
+            register_name: { type: ["string", "null"] },
+          },
+        },
+        sensitive_categories_noticed: {
+          type: "array",
+          items: { type: "string", enum: SENSITIVE_CATEGORIES as unknown as string[] },
+          description: "Which of these categories appear ANYWHERE on the CV — list the category only, never the actual value, and never let a spotted value influence any other field above.",
+        },
+        overall_confidence: { type: "string", enum: ["high", "medium", "low"] },
+      },
+    },
+  };
+
+  const systemPrompt =
+    "You extract structured data from a healthcare/social-care candidate's CV for a draft the candidate will review and edit themselves before anything is saved — never treat this as final. " +
+    "Extract only what the document actually states; leave a field null or an array empty rather than guessing or inferring beyond what's written. " +
+    "Never fill in, estimate, or infer: date of birth, nationality, immigration/visa status, marital status, gender, religion, ethnicity, health information, National Insurance number, or a photo — if any of these appear on the CV, add the matching category to sensitive_categories_noticed and do not transcribe the value anywhere in your output, including inside free-text fields like about or description.\n\n" +
+    "Allowed professions (id: name):\n" + professionCatalogue + "\n\n" +
+    "Allowed clinical skills (id: label):\n" + skillCatalogue + "\n\n" +
+    "Allowed qualification types (id: label):\n" + qualTypeCatalogue;
+
+  try {
+    const anthropic = new Anthropic({ apiKey: c.env.ANTHROPIC_API_KEY });
+    const base64Pdf = btoa(String.fromCharCode(...new Uint8Array(body)));
+
+    const response = await anthropic.messages.create({
+      model: "claude-opus-5",
+      max_tokens: 8000,
+      system: systemPrompt,
+      tools: [extractTool],
+      tool_choice: { type: "tool", name: "extract_cv_data" },
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64Pdf } },
+            { type: "text", text: "Extract this CV into the extract_cv_data tool." },
+          ],
+        },
+      ],
+    });
+
+    const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
+    if (!toolUse) {
+      await supabase.from("cv_imports").update({ status: "unreadable", error_detail: "Model did not return structured data" }).eq("id", importRow.id);
+      return c.json({ cv_import: { ...importRow, status: "unreadable" } });
+    }
+
+    const parsed = toolUse.input as Record<string, unknown>;
+    const sensitiveFound = Array.isArray(parsed.sensitive_categories_noticed) ? parsed.sensitive_categories_noticed : [];
+
+    const { data: updated, error: updateError } = await supabase
+      .from("cv_imports")
+      .update({
+        status: "parsed",
+        parsed,
+        confidence: { overall: parsed.overall_confidence || null },
+        sensitive_found: sensitiveFound,
+        parsed_at: new Date().toISOString(),
+      })
+      .eq("id", importRow.id)
+      .select()
+      .single();
+    if (updateError) return c.json({ error: updateError.message }, 400);
+
+    return c.json({ cv_import: updated });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "CV parsing failed";
+    await supabase.from("cv_imports").update({ status: "failed", error_detail: message }).eq("id", importRow.id);
+    return c.json({ cv_import: { ...importRow, status: "failed", error_detail: message } });
+  }
+});
+
+candidates.get("/me/cv/latest", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("cv_imports")
+    .select("*")
+    .eq("candidate_id", c.get("userId"))
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ cv_import: data });
+});
+
+candidates.post("/me/cv/:id/mark-applied", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("cv_imports")
+    .update({ status: "review_complete", applied_at: new Date().toISOString() })
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"))
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ cv_import: data });
 });
 
 export default candidates;
