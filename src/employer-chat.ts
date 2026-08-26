@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
-import { checkProtectedCharacteristics, GUARDRAIL_REDIRECT_MESSAGE } from "./employer-chat-guardrail";
+import { checkProtectedCharacteristics, containsEvaluativeLanguage, GUARDRAIL_REDIRECT_MESSAGE } from "./employer-chat-guardrail";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -119,6 +119,55 @@ const PIPELINE_STATUS_TOOL = {
   parameters: { type: "object", required: [], properties: {} },
 };
 
+// SPRINTS.md Sprint 10 — "Who is [name]" AI summary. Deliberately v1-scoped
+// to structured profile data only (experience, skills, qualifications,
+// employment history, self-expression prompts) — candidate posts are
+// intentionally NOT included here even though they now exist (added same
+// day as Sprint 8), since synthesizing a candidate's own narrative posts
+// into a combined "who is this person" summary is a materially different,
+// more evaluative-shaped framing than the isolated single-post excerpt
+// search already does, and deserves its own compliance look before it's
+// folded in — not a decision to make silently inside an unrelated sprint.
+const WHO_IS_TOOL = {
+  name: "who_is_summary",
+  description:
+    "Give a factual, descriptive summary of one shortlisted-and-consented candidate's profile (experience, skills, qualifications, employment history, their own prompt answers). " +
+    "Only use a candidate_id from the employer's current pipeline list in the system prompt, and only for a candidate marked consented there — never invent one, never use it for a candidate who hasn't consented.",
+  parameters: {
+    type: "object",
+    required: ["candidate_id"],
+    properties: {
+      candidate_id: { type: "string", description: "The candidate's id, copied exactly from the pipeline list in the system prompt." },
+    },
+  },
+};
+
+// SPRINTS.md Sprint 11 — bulk chat commands. Same non-evaluative-selection
+// principle as shortlist_candidates: a compound command like "send an
+// offer to everyone successful in the last two weeks" selects by stage +
+// how recently they reached it, never by the model judging who's "ready" —
+// the actual filter is a deterministic SQL condition, not a model opinion.
+const BULK_MOVE_STAGE_TOOL = {
+  name: "bulk_move_stage",
+  description:
+    "Move every candidate currently at one pipeline stage to another, all at once. Use for compound commands like 'move everyone in interview to offer' or 'send an offer to everyone successful in the last two weeks' (successful/interview here means the from_stage). " +
+    "Selection is always by stage (and optionally how recently they reached it) — never by picking specific individuals.",
+  parameters: {
+    type: "object",
+    required: ["from_stage", "to_stage"],
+    properties: {
+      from_stage: { type: "string", enum: PIPELINE_STAGES as unknown as string[], description: "The stage candidates are currently at." },
+      to_stage: { type: "string", enum: PIPELINE_STAGES as unknown as string[], description: "The stage to move them to." },
+      since_days: { type: "number", description: "Only include candidates who reached from_stage within this many days (e.g. 14 for 'in the last two weeks'). Omit to include everyone at that stage regardless of when." },
+    },
+  },
+};
+
+const WHO_IS_SUMMARY_SYSTEM_PROMPT =
+  "You are given one candidate's structured profile data, in isolation — no other candidate's data, no comparison. Write a short, factual, descriptive summary (3-5 sentences) of their experience, skills, qualifications, and what they've said about themselves. " +
+  "Quote or paraphrase what's actually there. Never evaluate, rate, rank, or recommend — never say or imply they are a 'strong candidate', a 'good fit', 'ideal', 'impressive', or similar, and never comment on whether they'd be a good hire. Describe, don't judge. " +
+  "Never comment on any personal characteristic not directly job-relevant. Respond with only the summary, no other text.";
+
 const POST_SUMMARY_SYSTEM_PROMPT =
   "You are shown one care worker's own post from their professional profile, in isolation — you have no other information about them or any other candidate. " +
   "Write one short, factual, neutral sentence (max 30 words) describing what the post is about. Quote or paraphrase the content itself; do not add opinion. " +
@@ -127,6 +176,23 @@ const POST_SUMMARY_SYSTEM_PROMPT =
 function truncateExcerpt(text: string, max = 160): string {
   const trimmed = text.trim();
   return trimmed.length > max ? trimmed.slice(0, max).trim() + "…" : trimmed;
+}
+
+// Deterministic fallback for who_is_summary — used whenever the model
+// errors out AND whenever containsEvaluativeLanguage() flags its output,
+// so an evaluative response never reaches the employer just because the
+// model didn't follow the system prompt this one time.
+function buildFallbackSummary(name: string, dossier: unknown): string {
+  const d = (dossier || {}) as Record<string, unknown>;
+  const professions = Array.isArray(d.professions) ? (d.professions as string[]) : [];
+  const skills = Array.isArray(d.skills) ? (d.skills as string[]) : [];
+  const months = typeof d.experience_months === "number" ? d.experience_months : 0;
+  const years = Math.floor(months / 12);
+
+  const parts: string[] = [`${name}${professions.length ? " — " + professions.join(", ") : ""}.`];
+  if (years > 0) parts.push(`${years} year${years === 1 ? "" : "s"} of experience.`);
+  if (skills.length) parts.push(`Skills: ${skills.join(", ")}.`);
+  return parts.length > 1 ? parts.join(" ") : `${name}'s profile is on file but has limited detail entered.`;
 }
 
 async function saveAssistantMessage(
@@ -182,7 +248,7 @@ employerChat.post("/", async (c) => {
     supabase.from("professions").select("id, name, family"),
     supabase.from("clinical_skills").select("id, label, family"),
     supabase.from("qualification_types").select("id, label"),
-    supabase.from("shortlists").select("candidate_id, stage").eq("employer_id", userId),
+    supabase.from("shortlists").select("candidate_id, stage, candidate_consented_at").eq("employer_id", userId),
   ]);
   const professionIds = new Set((professionsResult.data || []).map((p) => p.id));
   const skillIds = new Set((skillsResult.data || []).map((s) => s.id));
@@ -201,31 +267,36 @@ employerChat.post("/", async (c) => {
       .in("id", Array.from(pipelineCandidateIdSet));
     for (const pc of pipelineCandidates || []) pipelineNameById.set(pc.id, pc.full_name);
   }
+  const pipelineConsentedById = new Map<string, boolean>();
+  for (const r of pipelineRows) pipelineConsentedById.set(r.candidate_id as string, !!r.candidate_consented_at);
   const pipelineCatalogue =
-    pipelineRows.map((r) => `${r.candidate_id}: ${pipelineNameById.get(r.candidate_id as string) || "Candidate"} (${r.stage})`).join("\n") ||
-    "(empty — nobody shortlisted yet)";
+    pipelineRows
+      .map((r) => `${r.candidate_id}: ${pipelineNameById.get(r.candidate_id as string) || "Candidate"} (${r.stage}${r.candidate_consented_at ? ", consented" : ""})`)
+      .join("\n") || "(empty — nobody shortlisted yet)";
 
   const systemPrompt =
-    "You help a verified UK healthcare/social-care employer search for and manage candidates on iCare, entirely by calling one of four tools: search_candidates, shortlist_candidates, move_candidate_stage, get_pipeline_status. " +
+    "You help a verified UK healthcare/social-care employer search for and manage candidates on iCare, entirely by calling one of six tools: search_candidates, shortlist_candidates, move_candidate_stage, bulk_move_stage, get_pipeline_status, who_is_summary. " +
     "You never see or judge candidate data yourself — you only translate the employer's request into the right tool call; the platform runs the actual query or update. " +
     "Only use profession_id/skill_ids/qualification_type_id from the allowed lists below — never invent one. " +
     "If the employer's message doesn't match any of these actions (a greeting, a question about how this works), reply conversationally and briefly instead of calling a tool — never claim to know about specific candidates or their pipeline without calling the right tool. " +
     "post_topic searches candidates' own posts/stories — use it only when the employer explicitly asks to read about a specific experience, opinion, or story, never to look for a personal characteristic. " +
     "shortlist_candidates always takes from the MOST RECENT search results in this conversation, in the order returned — never pick specific individuals by judgment. " +
-    "move_candidate_stage and get_pipeline_status act on the employer's current pipeline, listed below — only ever describe or move candidates neutrally, never add opinion about any of them (no \"strong candidate\", \"good fit\", or similar, ever). " +
+    "move_candidate_stage, bulk_move_stage, and get_pipeline_status act on the employer's current pipeline, listed below — only ever describe or move candidates neutrally, never add opinion about any of them (no \"strong candidate\", \"good fit\", or similar, ever). " +
+    "bulk_move_stage selects candidates by stage (and optionally how long they've been there) only — never by name or by judging who's ready. " +
+    "who_is_summary gives a descriptive profile summary — only for a candidate marked \"consented\" in the pipeline list below; if the employer asks about someone not marked consented, explain they haven't consented to share more detail yet, don't call the tool. " +
     "Never ask for, accept, or act on age, sex, race, religion, disability, sexual orientation, nationality, or any other personal characteristic — if a request implies one, decline that part and search only on what's left (profession, skills, location, availability, experience, qualification, post topic).\n\n" +
     "Allowed professions (id: name (family)):\n" + professionCatalogue + "\n\n" +
     "Allowed clinical skills (id: label (family)):\n" + skillCatalogue + "\n\n" +
     "Allowed qualification types (id: label):\n" + qualTypeCatalogue + "\n\n" +
     "Pipeline stages, in order: " + PIPELINE_STAGES.join(", ") + "\n\n" +
-    "Employer's current pipeline (candidate_id: name (stage)):\n" + pipelineCatalogue;
+    "Employer's current pipeline (candidate_id: name (stage[, consented])):\n" + pipelineCatalogue;
 
   let toolCall: { name?: string; arguments?: Record<string, unknown> } | undefined;
   let modelReply = "";
   try {
     const result = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
       messages: [{ role: "system", content: systemPrompt }, ...recentMessages],
-      tools: [SEARCH_TOOL, SHORTLIST_TOOL, MOVE_STAGE_TOOL, PIPELINE_STATUS_TOOL],
+      tools: [SEARCH_TOOL, SHORTLIST_TOOL, MOVE_STAGE_TOOL, BULK_MOVE_STAGE_TOOL, PIPELINE_STATUS_TOOL, WHO_IS_TOOL],
       max_tokens: 600,
     });
     if (typeof result === "object" && result !== null) {
@@ -319,6 +390,44 @@ employerChat.post("/", async (c) => {
     return c.json({ reply, results: null, message_id: assistantRow?.id });
   }
 
+  if (toolCall.name === "bulk_move_stage") {
+    const bulkArgs = toolCall.arguments || {};
+    const fromStage = typeof bulkArgs.from_stage === "string" && (PIPELINE_STAGES as readonly string[]).includes(bulkArgs.from_stage) ? bulkArgs.from_stage : null;
+    const toStage = typeof bulkArgs.to_stage === "string" && (PIPELINE_STAGES as readonly string[]).includes(bulkArgs.to_stage) ? bulkArgs.to_stage : null;
+    const sinceDays = typeof bulkArgs.since_days === "number" && bulkArgs.since_days > 0 ? bulkArgs.since_days : null;
+
+    if (!fromStage || !toStage) {
+      const reply = "I need both a valid 'from' and 'to' stage to move a group of candidates — try again naming both.";
+      const assistantRow = await saveAssistantMessage(supabase, userId, reply);
+      return c.json({ reply, results: null, message_id: assistantRow?.id });
+    }
+
+    let bulkQuery = supabase
+      .from("shortlists")
+      .update({ stage: toStage, stage_updated_at: new Date().toISOString() })
+      .eq("employer_id", userId)
+      .eq("stage", fromStage);
+    if (sinceDays) {
+      const cutoff = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString();
+      bulkQuery = bulkQuery.gte("stage_updated_at", cutoff);
+    }
+
+    const { data: moved, error: bulkError } = await bulkQuery.select("candidate_id");
+    if (bulkError) return c.json({ error: bulkError.message }, 400);
+
+    const movedCount = moved?.length || 0;
+    const reply =
+      movedCount === 0
+        ? `Nobody at "${fromStage}"${sinceDays ? ` in the last ${sinceDays} days` : ""} to move.`
+        : `Moved ${movedCount} candidate${movedCount === 1 ? "" : "s"} from ${fromStage} to ${toStage}.`;
+
+    const assistantRow = await saveAssistantMessage(supabase, userId, reply, {
+      tool_call: { from_stage: fromStage, to_stage: toStage, since_days: sinceDays },
+      result_count: movedCount,
+    });
+    return c.json({ reply, results: null, message_id: assistantRow?.id });
+  }
+
   if (toolCall.name === "get_pipeline_status") {
     const counts: Record<string, number> = { shortlisted: 0, interview: 0, offer: 0, hired: 0, rejected: 0 };
     for (const r of pipelineRows) {
@@ -333,6 +442,44 @@ employerChat.post("/", async (c) => {
 
     const assistantRow = await saveAssistantMessage(supabase, userId, reply, { result_count: total });
     return c.json({ reply, results: null, message_id: assistantRow?.id });
+  }
+
+  if (toolCall.name === "who_is_summary") {
+    const whoArgs = toolCall.arguments || {};
+    const candidateId = typeof whoArgs.candidate_id === "string" ? whoArgs.candidate_id : null;
+
+    if (!candidateId || !pipelineCandidateIdSet.has(candidateId) || !pipelineConsentedById.get(candidateId)) {
+      const reply = "I can only summarize a candidate's profile once they've consented to share more detail — check your pipeline, or ask them to consent first.";
+      const assistantRow = await saveAssistantMessage(supabase, userId, reply);
+      return c.json({ reply, results: null, message_id: assistantRow?.id });
+    }
+
+    const { data: dossier, error: dossierError } = await supabase.rpc("get_candidate_dossier", { p_candidate_id: candidateId });
+    if (dossierError) return c.json({ error: dossierError.message }, 400);
+
+    const candidateName = pipelineNameById.get(candidateId) || "This candidate";
+    let summary = buildFallbackSummary(candidateName, dossier);
+    try {
+      const summaryResult = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+        messages: [
+          { role: "system", content: WHO_IS_SUMMARY_SYSTEM_PROMPT },
+          { role: "user", content: JSON.stringify(dossier) },
+        ],
+        max_tokens: 400,
+      });
+      const text =
+        typeof summaryResult === "object" && summaryResult !== null && "response" in summaryResult
+          ? (summaryResult as { response?: string }).response
+          : undefined;
+      if (text && text.trim() && !containsEvaluativeLanguage(text)) {
+        summary = text.trim();
+      }
+    } catch {
+      // Fall back to the deterministic summary already assigned above.
+    }
+
+    const assistantRow = await saveAssistantMessage(supabase, userId, summary, { tool_call: { candidate_id: candidateId } });
+    return c.json({ reply: summary, results: null, message_id: assistantRow?.id });
   }
 
   if (toolCall.name !== "search_candidates") {

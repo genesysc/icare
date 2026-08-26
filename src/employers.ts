@@ -9,6 +9,7 @@ type Bindings = {
   SUPABASE_PUBLISHABLE_KEY: string;
   SENDER_API_KEY?: string;
   SENDER_FROM_EMAIL?: string;
+  MEDIA: R2Bucket;
 };
 
 type Variables = {
@@ -142,6 +143,62 @@ employers.post("/me/verification-requests", async (c) => {
   return c.json({ verification_request: data });
 });
 
+// --- Photo/video/CV — Sprint 9 remainder, consent-gated ---
+// R2 has no RLS of its own, so the explicit shortlistConsented() check
+// below is the actual gate for photo/video; CV additionally goes through
+// cv_imports' existing cv_read_shortlisted RLS policy (0004_cv_import) as
+// a second, independent check on the same condition — belt and braces,
+// not redundancy for its own sake, since a Worker route bug in the
+// explicit check wouldn't be caught by anything else for photo/video.
+async function shortlistConsented(supabase: SupabaseClient, employerId: string, candidateId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("shortlists")
+    .select("candidate_consented_at")
+    .eq("employer_id", employerId)
+    .eq("candidate_id", candidateId)
+    .maybeSingle();
+  return !!data?.candidate_consented_at;
+}
+
+employers.get("/candidates/:id/photo", async (c) => {
+  const consented = await shortlistConsented(c.get("supabase"), c.get("userId"), c.req.param("id"));
+  if (!consented) return c.json({ error: "Not consented to view this candidate's photo" }, 403);
+
+  const object = await c.env.MEDIA.get(`candidates/${c.req.param("id")}/photo`);
+  if (!object) return c.json({ error: "No photo uploaded" }, 404);
+  return new Response(object.body, { headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream" } });
+});
+
+employers.get("/candidates/:id/video", async (c) => {
+  const consented = await shortlistConsented(c.get("supabase"), c.get("userId"), c.req.param("id"));
+  if (!consented) return c.json({ error: "Not consented to view this candidate's video" }, 403);
+
+  const object = await c.env.MEDIA.get(`candidates/${c.req.param("id")}/video`);
+  if (!object) return c.json({ error: "No video uploaded" }, 404);
+  return new Response(object.body, { headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream" } });
+});
+
+employers.get("/candidates/:id/cv", async (c) => {
+  const supabase = c.get("supabase");
+  const candidateId = c.req.param("id");
+  const consented = await shortlistConsented(supabase, c.get("userId"), candidateId);
+  if (!consented) return c.json({ error: "Not consented to view this candidate's CV" }, 403);
+
+  const { data: cv, error } = await supabase
+    .from("cv_imports")
+    .select("storage_path, mime_type")
+    .eq("candidate_id", candidateId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return c.json({ error: error.message }, 400);
+  if (!cv?.storage_path) return c.json({ error: "No CV on file" }, 404);
+
+  const object = await c.env.MEDIA.get(cv.storage_path);
+  if (!object) return c.json({ error: "CV file not found" }, 404);
+  return new Response(object.body, { headers: { "Content-Type": cv.mime_type || "application/pdf" } });
+});
+
 // --- Pipeline (iRecruit) read view — Sprint 9 (partial) ---
 // Chat is the primary interface for shortlisting/moving stages (see
 // employer-chat.ts); this is a read-only supporting view so the employer
@@ -154,7 +211,7 @@ employers.get("/pipeline", async (c) => {
 
   const { data: shortlistRows, error } = await supabase
     .from("shortlists")
-    .select("candidate_id, stage, created_at, stage_updated_at")
+    .select("candidate_id, stage, created_at, stage_updated_at, candidate_consented_at")
     .eq("employer_id", userId)
     .order("stage_updated_at", { ascending: false });
   if (error) return c.json({ error: error.message }, 400);
@@ -175,6 +232,7 @@ employers.get("/pipeline", async (c) => {
     stage: r.stage,
     created_at: r.created_at,
     stage_updated_at: r.stage_updated_at,
+    consented: !!r.candidate_consented_at,
     candidate: candidatesById[r.candidate_id as string] || null,
   }));
 

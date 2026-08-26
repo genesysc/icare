@@ -147,9 +147,9 @@ stop and ask the user — do not resolve it yourself.**
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/badges`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
-| `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post (thin pass-through to `flag_candidate_post()`); `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9) |
-| `src/employer-chat.ts` | Employer chat: search (Sprint 8, extended for posts and for `min_experience_years`/`qualification_type_id`), plus Sprint 9's `shortlist_candidates`/`move_candidate_stage`/`get_pipeline_status` tools — `POST /employers/chat` (guardrail → Workers AI tool call, one of four tools → deterministic DB action → persist), `GET /employers/chat` (replay thread) |
+| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5), incoming shortlists + consent (`/me/shortlists*`, Sprint 9), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
+| `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post; `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9); `GET /candidates/:id/{photo,video,cv}` — consent-gated media (Sprint 9) |
+| `src/employer-chat.ts` | Employer chat — six tools behind `POST /employers/chat` (guardrail → Workers AI tool call → deterministic DB action → persist), `GET /employers/chat` (replay thread): `search_candidates` (Sprint 8, extended for posts, `min_experience_years`, `qualification_type_id`), `shortlist_candidates`/`move_candidate_stage`/`get_pipeline_status` (Sprint 9), `bulk_move_stage` (Sprint 11), `who_is_summary` (Sprint 10) |
 | `src/employer-chat-guardrail.ts` | Protected-characteristics keyword/proximity guardrail — the deterministic layer behind the chat's non-negotiable #5 compliance, see §7 |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
@@ -161,9 +161,9 @@ stop and ask the user — do not resolve it yourself.**
 | `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
 | `src/employer-sign-in.html` | Employer sign-up/sign-in (Sprint 6), mounted at both `/employer/sign-up` and `/employer/sign-in`, own purple/teal design system |
 | `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me` |
-| `src/employer-home.html` | Employer home, `/employer/home` — verification card (Sprint 7) + chat-based candidate search (Sprint 8) + iRecruit pipeline card (Sprint 9), the latter two shown once verified |
+| `src/employer-home.html` | Employer home, `/employer/home` — verification card (Sprint 7, now including a read-only org profile summary once verified — Sprint 11) + chat-based candidate search (Sprint 8) + iRecruit pipeline card (Sprint 9, now showing consent-gated photo/video/CV buttons) |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
-| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete, added same day as Sprint 8), account closure |
+| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -171,8 +171,8 @@ stop and ask the user — do not resolve it yourself.**
 | `AGENTS.md` / `CLAUDE.md` | Pointer files: read `PROGRESS.md` (and now this file) first, update before ending a session |
 
 **`supabase/migrations/*.sql` now mirrors the live database**
-(2026-08-26) — all 16 migrations to date (`0001_init` through
-`0016_shortlist_pipeline_and_search_filters`) are committed as files,
+(2026-08-26) — all 19 migrations to date (`0001_init` through
+`0019_candidate_dossier_rpc`) are committed as files,
 fetched verbatim from `supabase_migrations.schema_migrations`
 (its `statements` column holds the exact SQL each migration ran). This
 is a point-in-time backup/version-control mirror, not a live sync —
@@ -235,7 +235,13 @@ Useful existing RPCs: `current_role_is(role)`, `is_verified_employer()`,
 `total_experience_months(candidate_id)` (used by `candidate_search`),
 `flag_candidate_post(post_id, reason)` (security definer — lets a
 verified employer report a post without any direct write grant on
-`candidate_posts`).
+`candidate_posts`), `set_shortlist_consent(employer_id, consent)`
+(security definer, revocable — the candidate-side consent gate for
+photo/video/CV), `get_candidate_dossier(candidate_id)` (security
+definer — the structured-data source for Sprint 10's `who_is_summary`;
+`employment_history`/`qualifications` have no employer-facing RLS at
+all, so this one RPC is the actual gate, checked once rather than
+bolted onto five tables).
 
 ---
 
@@ -908,16 +914,39 @@ chat tools (migration `0016` adds `shortlists.stage`), plus a read-only
 takes the first 10 from the most recent search results, in the order
 returned — confirmed directly with the founder that this must be a
 neutral, non-evaluative rule (not "the AI's best 10"), same non-negotiable
-#5 discipline as the rest of the employer chat. Not built in this pass:
-the candidate-side consent-to-unlock flow (photo/video/CV after
-shortlist) — `shortlists.candidate_consented_at` exists in the schema
-but nothing sets it yet.
+#5 discipline as the rest of the employer chat.
 
-**Next priorities**: the candidate-side shortlist-consent flow (see
-above) is the one piece of Sprint 9 still open. Don't restart the
-domain/Sender.net work unless the user brings it back up — though
-reconnecting the Sender MCP connector would unblock the Sender.net API
-integration (§8 item 3) without touching the domain question at all.
+Same day, on direct founder instruction ("run the remaining sprints"),
+**Sprint 9's remainder, Sprint 10, and Sprint 11 all shipped too** —
+closing out the employer track in `SPRINTS.md` short of only Sprint 12
+(iCompliance, explicitly not scheduled) and video interviews (a separate
+later initiative). The candidate-side consent flow (`set_shortlist_
+consent()` RPC + `/me/shortlists*` routes + a new "Employer interest"
+card on `dashboard.html`) unlocks consent-gated employer routes for
+photo/video/CV (`GET /employers/candidates/:id/{photo,video,cv}`), wired
+into the iRecruit card. Sprint 10's `who_is_summary` — flagged in
+`SPRINTS.md` as "the sharpest edge of non-negotiable #5" — got two
+independent controls, not one: the system prompt, and a new deterministic
+`containsEvaluativeLanguage()` output-side scan that falls back to a
+template-built summary if the model's own output trips it. Sprint 11
+added `bulk_move_stage` (deterministic stage + optional recency filter,
+same non-evaluative-selection principle as `shortlist_candidates`) and a
+small read-only org-profile block on `employer-home.html` — the only
+genuinely missing "dashboard" piece, since pipeline/shortlists were
+already the same thing Sprint 9's iRecruit card already covered.
+
+**Next priorities**: the employer track is now feature-complete per
+`SPRINTS.md` short of Sprint 12/video interviews, both deliberately
+unscheduled — don't start either without the user asking. Also still
+open: the live OTP sign-in flow was being debugged with the founder when
+this work started (Supabase's default "Magic Link" email template has no
+`{{ .Token }}`, and template editing may be gated behind having custom
+SMTP configured — the founder was mid-setup with a Brevo relay borrowed
+from an unrelated existing account, "Right at Home Enfield," pending a
+dedicated iCare sender). Don't restart the domain/Sender.net work unless
+the user brings it back up — though reconnecting the Sender MCP connector
+would unblock the Sender.net API integration (§8 item 3) without touching
+the domain question at all.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.

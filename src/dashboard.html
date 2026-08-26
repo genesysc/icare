@@ -141,6 +141,17 @@
   .post-item-delete { background: none; border: none; padding: 0; font-size: 12px; font-weight: 600; color: var(--ink-faint); cursor: pointer; text-decoration: underline; }
   .post-item-delete:hover { color: var(--err); }
 
+  /* Shortlists */
+  .shortlist-item { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-top: 12px; }
+  .shortlist-item:first-child { margin-top: 0; }
+  .shortlist-org { font-size: 14px; font-weight: 700; color: var(--plum-950); }
+  .shortlist-stage { margin-top: 2px; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); }
+  .shortlist-consent-row { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+  .shortlist-consent-note { font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; }
+  .btn-outline { background: transparent; color: var(--teal-700); border: 1.5px solid var(--teal-500); }
+  .btn-outline:hover { background: var(--teal-100); }
+  .btn-outline.is-consented { color: var(--ink-faint); border-color: var(--line); }
+
   /* Account settings */
   .danger-zone { border-color: #f0dcd6; }
   .btn { padding: 11px 20px; border-radius: 999px; font-weight: 700; font-size: 14px; cursor: pointer; border: none; }
@@ -217,6 +228,15 @@
       </form>
       <div class="post-list" data-post-list></div>
       <p class="empty-note" data-posts-empty style="display:none;">You haven't posted anything yet.</p>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Employer interest</h2>
+      <p class="card-sub">Employers who've shortlisted you. Your name, current job title, and location are already
+        visible to them from search — consenting here additionally unlocks your photo, video, and CV for that
+        specific employer. You can withdraw consent at any time.</p>
+      <div data-shortlist-list></div>
+      <p class="empty-note" data-shortlists-empty style="display:none;">No employer has shortlisted you yet.</p>
     </div>
 
     <div class="card danger-zone">
@@ -350,6 +370,42 @@ function icareRequireAuth(signInPath) {
     });
   }
 
+  var STAGE_LABELS = { shortlisted: "Shortlisted", interview: "Interview", offer: "Offer", hired: "Hired", rejected: "Rejected" };
+
+  function renderShortlists(rows) {
+    var list = document.querySelector("[data-shortlist-list]");
+    var empty = document.querySelector("[data-shortlists-empty]");
+    list.innerHTML = "";
+    if (!rows || rows.length === 0) {
+      empty.style.display = "block";
+      return;
+    }
+    empty.style.display = "none";
+
+    rows.forEach(function (row) {
+      var consented = !!row.candidate_consented_at;
+      var item = document.createElement("div");
+      item.className = "shortlist-item";
+      item.innerHTML =
+        '<div class="shortlist-org"></div>' +
+        '<div class="shortlist-stage"></div>' +
+        '<div class="shortlist-consent-row">' +
+          '<button type="button" class="btn ' + (consented ? "btn-outline is-consented" : "btn-outline") + '" data-consent-toggle="' + row.employer_id + '" data-consented="' + consented + '"></button>' +
+        "</div>" +
+        '<p class="shortlist-consent-note">' + (consented ? "They can now see your photo, video, and CV." : "Unlock your photo, video, and CV for this employer.") + "</p>";
+      item.querySelector(".shortlist-org").textContent = (row.employers && row.employers.org_name) || "An employer";
+      item.querySelector(".shortlist-stage").textContent = STAGE_LABELS[row.stage] || row.stage;
+      item.querySelector("[data-consent-toggle]").textContent = consented ? "Withdraw consent" : "Consent to unlock";
+      list.appendChild(item);
+    });
+  }
+
+  function loadShortlists() {
+    jget("/candidates/me/shortlists").then(function (result) {
+      if (result.ok) renderShortlists(result.body.shortlists);
+    });
+  }
+
   function addSectionRow(list, label, value, editStep) {
     var row = document.createElement("div");
     row.className = "section-row";
@@ -419,6 +475,7 @@ function icareRequireAuth(signInPath) {
     addSectionRow(list, "Your own words", promptRows.length + (promptRows.length === 1 ? " prompt answered" : " prompts answered"), 9);
 
     loadPosts();
+    loadShortlists();
   }).catch(function () {
     document.querySelector("[data-loading]").textContent = "Couldn't load your profile. Try refreshing the page.";
   });
@@ -488,6 +545,19 @@ function icareRequireAuth(signInPath) {
         statusEl.textContent = "Network error — please try again.";
         statusEl.className = "status is-visible err";
       });
+  });
+
+  document.querySelector("[data-shortlist-list]").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-consent-toggle]");
+    if (!btn || btn.disabled) return;
+    var nextConsent = btn.getAttribute("data-consented") !== "true";
+    btn.disabled = true;
+    icareAuthFetch("/candidates/me/shortlists/" + btn.getAttribute("data-consent-toggle") + "/consent", {
+      method: "POST",
+      body: JSON.stringify({ consent: nextConsent }),
+    })
+      .then(function () { loadShortlists(); })
+      .catch(function () { btn.disabled = false; });
   });
 
   document.querySelector("[data-post-list]").addEventListener("click", function (e) {

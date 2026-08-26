@@ -112,3 +112,21 @@ export function checkProtectedCharacteristics(message: string): GuardrailResult 
 export const GUARDRAIL_REDIRECT_MESSAGE =
   "I can't filter candidates by personal characteristics like age, sex, race, religion, disability, or similar — that's not something iCare search does, for legal and ethical reasons (Equality Act 2010). " +
   "I can help with profession, skills, location, travel radius, and availability instead — try rephrasing around what the role actually needs.";
+
+// SPRINTS.md Sprint 10 — "Who is [name]" AI summary. Unlike search (where
+// the model never sees candidate data at all), this tool deliberately
+// generates prose from real profile data — SPRINTS.md itself calls this
+// "the sharpest edge of non-negotiable #5 in the whole employer product."
+// The system prompt is the primary control (see employer-chat.ts), but per
+// this codebase's "a real check, not just a prompt instruction" standard
+// applied everywhere else, this is a second, independent output-side net:
+// a deterministic scan for evaluative/recommending language in whatever
+// the model actually produced. If it fires, the caller falls back to a
+// template built only from structured fields — never ships evaluative
+// prose just because the prompt was supposed to prevent it.
+const EVALUATIVE_LANGUAGE_PATTERN =
+  /\b(strong|great|good|ideal|perfect|excellent|outstanding|impressive|top|best)\s+(candidate|fit|hire|choice|match)\b|\b(highly|strongly)\s+recommend|\bstands?\s+out\b|\bwould\s+(be\s+)?(a\s+)?(great|good|excellent|perfect)\b|\bnot\s+suitable\b|\bpoor\s+fit\b/i;
+
+export function containsEvaluativeLanguage(text: string): boolean {
+  return EVALUATIVE_LANGUAGE_PATTERN.test(text);
+}

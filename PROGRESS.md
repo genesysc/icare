@@ -1830,18 +1830,92 @@ they aren't lost:
     (375/1920) overflow check with a long name/role/employer combination
     — zero overflow.
   - Committed and pushed to the branch. Not yet its own PR.
+- **Sprints 9 (remainder), 10, and 11 (same day, 2026-08-26)** — on direct
+  founder instruction to "run the remaining sprints." Closes out the
+  employer track's roadmap in `SPRINTS.md` short of Sprint 12
+  (iCompliance, explicitly not scheduled, deliberately left alone) and
+  video interviews (a separate later initiative).
+  - **Sprint 9 remainder — candidate consent flow.** Migration `0017`:
+    `set_shortlist_consent(employer_id, consent)` — security-definer RPC,
+    same "one narrow audited action" pattern as `flag_candidate_post`,
+    since RLS can't restrict to a single column and a broad UPDATE policy
+    would've also let a candidate rewrite `employer_id`/`created_at` on
+    their own row. Revocable, matching `dbs_records.consent_to_check`'s
+    philosophy. Migration `0018`: candidates had no read access to
+    `employers` at all (`employers_self` was the only policy) — added a
+    narrow policy scoped to only employers who've actually shortlisted
+    that candidate, so `dashboard.html`'s new "Employer interest" card can
+    show who to consider consenting to. `src/candidates.ts`:
+    `GET /me/shortlists`, `POST /me/shortlists/:employerId/consent`.
+    Video upload didn't exist at all before this (`candidates.
+    intro_video_path` sat unused since `0001_init`) — added
+    `POST/GET/DELETE /me/video`, mirroring the existing photo routes
+    exactly. Employer side: `GET /employers/candidates/:id/{photo,video,
+    cv}`, gated by an explicit `shortlistConsented()` check (R2 has no RLS
+    of its own) — CV additionally goes through `cv_imports`' pre-existing
+    `cv_read_shortlisted` RLS policy as a second, independent check on the
+    same condition. Frontend: buttons, not plain `<a href>` links — this
+    app's auth is Bearer-token-in-header via `icareAuthFetch`, so a plain
+    anchor navigation would send no Authorization header and 401. Opens a
+    blank window synchronously inside the click handler, then navigates it
+    once the authenticated fetch resolves a blob — doing the `window.open`
+    only inside the `.then()` gets silently blocked by stricter popup
+    blockers since it's no longer a direct result of the user gesture.
+  - **Sprint 10 — `who_is_summary`.** Checked `pg_policy` directly before
+    designing anything: `employment_history` and `qualifications` had **no
+    employer-facing RLS policy at all** (candidate-self only) — unlike
+    `candidate_professions`/`candidate_skills` (published-gated) or
+    `registrations`/`dbs_records`/`candidate_contact` (shortlist+consent-
+    gated). Rather than bolt RLS onto five different tables for one
+    feature, migration `0019` adds a single security-definer
+    `get_candidate_dossier()` RPC, gated at shortlist+consent (the richer-
+    data gate, matching photo/video/CV, not the looser published-only
+    gate). Deliberately excludes candidate posts from the dossier even
+    though they now exist — noted in `SPRINTS.md` as a scope decision, not
+    an oversight. `SPRINTS.md` calls this tool "the sharpest edge of
+    non-negotiable #5 in the whole employer product," so it got two
+    independent controls instead of one: the system prompt (descriptive
+    only, explicit banned phrasing), and a new
+    `containsEvaluativeLanguage()` deterministic output-side scan in
+    `employer-chat-guardrail.ts` — if the model's output trips it anyway,
+    the reply falls back to `buildFallbackSummary()`, built only from
+    structured fields, rather than shipping evaluative prose on trust
+    alone. Tested standalone: 8 evaluative phrasings ("strong candidate,"
+    "great fit," "highly recommend," "stands out," "not suitable," etc.)
+    all correctly flagged; 6 legitimate factual candidate summaries
+    (experience, quals, employment history, a verbatim self-expression
+    prompt answer) all correctly passed through — zero false positives on
+    the first pass.
+  - **Sprint 11 — `bulk_move_stage` + a minimal dashboard piece.** The
+    bulk tool takes `from_stage`/`to_stage`/optional `since_days` — a
+    deterministic SQL filter (stage + how long they've been there), same
+    non-evaluative-selection principle as `shortlist_candidates` — never
+    the model picking who's "ready." Realized pipeline and shortlists
+    were already the same concept covered by Sprint 9's iRecruit card, so
+    the only genuinely missing "dashboard" piece was org profile, which
+    disappeared entirely once verified (the verification form hides on
+    `is_verified`, per Sprint 7). Added a small read-only "Organisation"
+    summary block in its place instead of a new page — keeps the chat-
+    first decision intact.
+  - Tested throughout: `tsc --noEmit` + `wrangler deploy --dry-run` clean
+    after every step. Headless Chromium: candidate shortlist card renders
+    the shortlisting employer's name and toggles consent correctly (RPC
+    call payload confirmed both directions); employer org profile shows
+    once verified with correct regulator label; iRecruit pipeline media
+    buttons render only for consented candidates and correctly fetch/open
+    a blob. 2-viewport (375/1920) overflow checks on the shortlist card
+    (long org name) and the org profile + pipeline media (long org name,
+    long regulator label, long candidate/job-title/employer combination)
+    — zero overflow everywhere.
+  - Committed and pushed to the branch. Not yet its own PR.
 
 ## Not started yet
 - ~~Employer-side API (profile, verification-request flow, browsing
-  published candidates)~~ — Sprints 6-8 shipped sign-up/sign-in,
-  verification, and chat-based search; Sprint 9 (shortlist + pipeline via
-  chat) shipped same day as this doc's last update — see "Done" above.
-  **Still not built**: the candidate-side consent-to-unlock flow (photo/
-  video/CV after shortlist) — `shortlists.candidate_consented_at` exists
-  in the schema but nothing sets it yet. Any employer search/shortlist
-  view must exclude photo/video/CV per non-negotiable #4 (name, current
-  job title, and location are the founder's dated override — already
-  shown in Sprint 8's chat results, not excluded).
+  published candidates, shortlisting, pipeline, consent-gated media, "who
+  is X" summaries, bulk pipeline actions)~~ — Sprints 6-11 all shipped
+  2026-08-26, closing the employer track short of Sprint 12 (iCompliance,
+  not scheduled) and video interviews (separate later initiative). See
+  "Done" above for Sprints 9's remainder/10/11.
 - ~~Candidate self-expression posts~~ — shipped this session (see "Done"
   below and the "⚠️ Correction" note under "Product direction" above).
   Not built: a peer-facing feed (posts are only ever candidate-authored/

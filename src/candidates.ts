@@ -197,6 +197,60 @@ candidates.get("/me/photo", async (c) => {
   });
 });
 
+// --- Intro video (Sprint 9 remainder) — same pattern as photo above.
+// candidates.intro_video_path has existed since 0001_init but nothing ever
+// wrote or served it; needed now so shortlist consent (Sprint 9) has an
+// actual video to unlock for employers, not just an empty column.
+candidates.post("/me/video", async (c) => {
+  const contentType = c.req.header("Content-Type");
+  if (!contentType?.startsWith("video/")) {
+    return c.json({ error: "Content-Type must be a video/* type" }, 400);
+  }
+
+  const userId = c.get("userId");
+  const key = `candidates/${userId}/video`;
+  const body = await c.req.arrayBuffer();
+  if (body.byteLength > 100 * 1024 * 1024) return c.json({ error: "File too large — 100MB maximum" }, 400);
+  await c.env.MEDIA.put(key, body, { httpMetadata: { contentType } });
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidates")
+    .update({ intro_video_path: key })
+    .eq("id", userId)
+    .select("intro_video_path")
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ candidate: data });
+});
+
+candidates.get("/me/video", async (c) => {
+  const userId = c.get("userId");
+  const object = await c.env.MEDIA.get(`candidates/${userId}/video`);
+  if (!object) return c.json({ error: "No video uploaded" }, 404);
+
+  return new Response(object.body, {
+    headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream" },
+  });
+});
+
+candidates.delete("/me/video", async (c) => {
+  const userId = c.get("userId");
+  await c.env.MEDIA.delete(`candidates/${userId}/video`);
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidates")
+    .update({ intro_video_path: null })
+    .eq("id", userId)
+    .select("intro_video_path")
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ candidate: data });
+});
+
 // --- Professions (candidate's own set, replace-whole-set semantics) ---
 
 candidates.get("/me/professions", async (c) => {
@@ -764,6 +818,39 @@ candidates.delete("/me/posts/:id", async (c) => {
 
   if (error) return c.json({ error: error.message }, 400);
   return c.body(null, 204);
+});
+
+// --- Incoming shortlists + consent (SPRINTS.md Sprint 9 remainder) ---
+// Consent unlocks photo/video/CV specifically for that employer — name/
+// job title/location are already visible pre-shortlist per non-negotiable
+// #4's dated override, so this consent is scoped narrower than the
+// original design. Full contact details and the DBS certificate number
+// are deliberately NOT exposed by anything in this file — non-negotiable
+// #7 wants those confirmed before an actual placement, not just on
+// shortlist, and that placement-confirmation flow doesn't exist yet.
+
+candidates.get("/me/shortlists", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("shortlists")
+    .select("employer_id, stage, created_at, candidate_consented_at, employers(org_name)")
+    .eq("candidate_id", c.get("userId"))
+    .order("created_at", { ascending: false });
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ shortlists: data });
+});
+
+candidates.post("/me/shortlists/:employerId/consent", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const consent = body?.consent !== false;
+
+  const { error } = await c.get("supabase").rpc("set_shortlist_consent", {
+    p_employer_id: c.req.param("employerId"),
+    p_consent: consent,
+  });
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ consented: consent });
 });
 
 // --- Badges (SPRINTS.md Sprint 5) ---
