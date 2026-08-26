@@ -101,6 +101,21 @@
   .skill-family { margin-top: 18px; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal-700); }
   .skill-family:first-of-type { margin-top: 4px; }
 
+  .profession-chips { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .profession-chip {
+    display: inline-flex; align-items: center; gap: 4px; padding: 6px 6px 6px 12px; border-radius: 999px;
+    background: var(--teal-100); color: var(--teal-700); font-size: 13px; font-weight: 600;
+  }
+  .profession-chip .primary-tag {
+    font-family: "IBM Plex Mono", monospace; font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--teal-700); opacity: 0.75; margin-left: 2px;
+  }
+  .profession-chip button {
+    background: none; border: none; cursor: pointer; color: var(--teal-700); font-size: 16px; line-height: 1;
+    padding: 3px 6px; border-radius: 999px;
+  }
+  .profession-chip button:hover { background: rgba(36, 21, 51, 0.08); color: var(--err); }
+
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 480px) { .two-col { grid-template-columns: 1fr; } }
 
@@ -247,7 +262,9 @@
       </div>
       <div class="field">
         <label>Your profession(s)</label>
-        <div class="check-grid" data-professions-list></div>
+        <span class="field-hint" style="display:block;margin:0 0 6px;">From care roles to nursing, allied health, dentistry, and pharmacy — pick everything that applies.</span>
+        <select data-profession-picker></select>
+        <div class="profession-chips" data-profession-chips></div>
       </div>
       <div class="field" data-primary-profession-field style="display:none;">
         <label for="primary-profession">Primary profession</label>
@@ -526,6 +543,7 @@
         <div class="field">
           <div class="check-row"><input type="checkbox" id="dbs-on-update-service" /><label for="dbs-on-update-service">I'm registered on the DBS Update Service</label></div>
         </div>
+        <p class="field-hint" data-dbs-preview style="display:none;"></p>
         <div class="field">
           <div class="check-row"><input type="checkbox" id="dbs-consent" /><label for="dbs-consent">I consent to a DBS status check via the Update Service once I'm shortlisted for a role</label></div>
         </div>
@@ -737,42 +755,71 @@ function icareRequireAuth(signInPath) {
   }
 
   function renderProfessions(selectedIds, primaryId) {
-    var list = document.querySelector("[data-professions-list]");
-    list.innerHTML = "";
-    professions.forEach(function (p) {
-      var row = document.createElement("div");
-      row.className = "check-row";
-      var checked = selectedIds.indexOf(p.id) !== -1 ? "checked" : "";
-      row.innerHTML = '<input type="checkbox" id="prof-' + p.id + '" value="' + p.id + '" ' + checked + ' />' +
-        '<label for="prof-' + p.id + '">' + p.name + "</label>";
-      list.appendChild(row);
+    myProfessionIds = selectedIds.slice();
+    renderProfessionPicker(primaryId);
+  }
+
+  function renderProfessionPicker(preferredPrimaryId) {
+    var picker = document.querySelector("[data-profession-picker]");
+    var chips = document.querySelector("[data-profession-chips]");
+
+    picker.innerHTML = '<option value="">+ Add a profession…</option>';
+    var families = [];
+    professions.forEach(function (p) { if (families.indexOf(p.family) === -1) families.push(p.family); });
+    families.forEach(function (family) {
+      var available = professions.filter(function (p) { return p.family === family && myProfessionIds.indexOf(p.id) === -1; });
+      if (available.length === 0) return;
+      var group = document.createElement("optgroup");
+      group.label = family;
+      available.forEach(function (p) {
+        var opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name;
+        group.appendChild(opt);
+      });
+      picker.appendChild(group);
     });
-    list.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
-      cb.addEventListener("change", function () { updatePrimaryProfessionOptions(primaryId); });
+
+    updatePrimaryProfessionOptions(preferredPrimaryId);
+
+    var primarySelect = document.getElementById("primary-profession");
+    var currentPrimary = myProfessionIds.length > 1 ? primarySelect.value : myProfessionIds[0];
+
+    chips.innerHTML = "";
+    myProfessionIds.forEach(function (id) {
+      var p = professions.filter(function (x) { return x.id === id; })[0];
+      var chip = document.createElement("span");
+      chip.className = "profession-chip";
+      chip.innerHTML = '<span></span><span class="primary-tag" style="display:none;">Primary</span><button type="button" aria-label="Remove">×</button>';
+      chip.children[0].textContent = p ? p.name : id;
+      if (myProfessionIds.length > 1 && id === currentPrimary) chip.children[1].style.display = "inline";
+      chip.querySelector("button").addEventListener("click", function () {
+        myProfessionIds = myProfessionIds.filter(function (x) { return x !== id; });
+        renderProfessionPicker(preferredPrimaryId);
+      });
+      chips.appendChild(chip);
     });
-    updatePrimaryProfessionOptions(primaryId);
   }
 
   function updatePrimaryProfessionOptions(preferredPrimaryId) {
-    var checked = Array.prototype.slice.call(document.querySelectorAll('[data-professions-list] input:checked')).map(function (cb) { return cb.value; });
     var field = document.querySelector("[data-primary-profession-field]");
     var select = document.getElementById("primary-profession");
-    if (checked.length <= 1) {
+    if (myProfessionIds.length <= 1) {
       field.style.display = "none";
       return;
     }
     field.style.display = "block";
     var prevValue = select.value;
     select.innerHTML = "";
-    checked.forEach(function (id) {
+    myProfessionIds.forEach(function (id) {
       var prof = professions.filter(function (p) { return p.id === id; })[0];
       var opt = document.createElement("option");
       opt.value = id;
       opt.textContent = prof ? prof.name : id;
       select.appendChild(opt);
     });
-    if (checked.indexOf(preferredPrimaryId) !== -1) select.value = preferredPrimaryId;
-    else if (checked.indexOf(prevValue) !== -1) select.value = prevValue;
+    if (myProfessionIds.indexOf(preferredPrimaryId) !== -1) select.value = preferredPrimaryId;
+    else if (myProfessionIds.indexOf(prevValue) !== -1) select.value = prevValue;
   }
 
   function renderSkills(selectedIds) {
@@ -1016,8 +1063,23 @@ function icareRequireAuth(signInPath) {
   }
 
   // ---- DBS status (singleton, no record list) ----
+  var DBS_LEVEL_LABELS = { basic: "Basic DBS", standard: "Standard DBS", enhanced: "Enhanced DBS", enhanced_barred: "Enhanced DBS, with barred list check" };
   function syncDbsFields() {
-    document.querySelector("[data-dbs-fields]").style.display = document.getElementById("dbs-level").value ? "block" : "none";
+    var level = document.getElementById("dbs-level").value;
+    document.querySelector("[data-dbs-fields]").style.display = level ? "block" : "none";
+    syncDbsPreview();
+  }
+  function syncDbsPreview() {
+    var level = document.getElementById("dbs-level").value;
+    var preview = document.querySelector("[data-dbs-preview]");
+    if (!level) {
+      preview.style.display = "none";
+      return;
+    }
+    var onUpdateService = document.getElementById("dbs-on-update-service").checked;
+    var text = DBS_LEVEL_LABELS[level] + (onUpdateService ? " · on Update Service" : "");
+    preview.textContent = "This is how it will read on your profile: “" + text + "” — we never say “verified” or “certified”; only the Update Service can confirm that, so we leave it to employers to check.";
+    preview.style.display = "block";
   }
 
   // ---- References (record list, new CRUD) ----
@@ -1170,11 +1232,19 @@ function icareRequireAuth(signInPath) {
   }
 
   // ---- Step 1: Basics ----
+  document.querySelector("[data-profession-picker]").addEventListener("change", function () {
+    var id = this.value;
+    if (!id) return;
+    if (myProfessionIds.indexOf(id) === -1) myProfessionIds.push(id);
+    renderProfessionPicker(null);
+  });
+  document.getElementById("primary-profession").addEventListener("change", function () {
+    renderProfessionPicker(this.value);
+  });
   document.querySelector('[data-next="1"]').addEventListener("click", function () {
     var btn = this;
-    var checkedProfessions = Array.prototype.slice.call(document.querySelectorAll('[data-professions-list] input:checked')).map(function (cb) { return cb.value; });
     var primarySelect = document.getElementById("primary-profession");
-    var primaryId = checkedProfessions.length > 1 ? primarySelect.value : checkedProfessions[0];
+    var primaryId = myProfessionIds.length > 1 ? primarySelect.value : myProfessionIds[0];
 
     btn.disabled = true;
     clearStatus(1);
@@ -1187,7 +1257,7 @@ function icareRequireAuth(signInPath) {
     })
       .then(function (result) {
         if (!result.ok) throw new Error(result.body.error || "Couldn't save your details.");
-        return jsend("PUT", "/candidates/me/professions", { profession_ids: checkedProfessions, primary_id: primaryId || null });
+        return jsend("PUT", "/candidates/me/professions", { profession_ids: myProfessionIds, primary_id: primaryId || null });
       })
       .then(function (result) {
         if (!result.ok) throw new Error(result.body.error || "Couldn't save your profession.");
@@ -1438,6 +1508,7 @@ function icareRequireAuth(signInPath) {
 
   // ---- Step 7: DBS status + consent ----
   document.getElementById("dbs-level").addEventListener("change", syncDbsFields);
+  document.getElementById("dbs-on-update-service").addEventListener("change", syncDbsPreview);
   document.querySelector('[data-next="7"]').addEventListener("click", function () {
     var btn = this;
     var level = document.getElementById("dbs-level").value;

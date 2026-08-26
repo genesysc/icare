@@ -1113,6 +1113,48 @@ they aren't lost:
   (https://github.com/genesysc/icare/actions/runs/32966651915)
   confirmed `success`. Branch restarted from `main` per convention.
   **Candidate track complete end to end, live in production.**
+- **Candidate-side UI/copy review pass** — the user asked to pause sprint
+  work and review every candidate screen visually. Rendered all 16
+  screens (landing → sign-up/sign-in → verify → all 11 wizard steps →
+  dashboard) with headless Chromium against one consistent realistic
+  test profile (Registered Nurse, 8 years' experience, fully populated
+  across employment/qualifications/registrations/DBS/references/
+  prompts) and published them as an artifact for review, with exact
+  on-screen copy quoted for the compliance-sensitive screens. Two fixes
+  came out of that review:
+  - **Professions picker (step 1)**: was a flat checkbox grid, which
+    read as carer/nurse-dominated even though the real `professions`
+    table already has 28 professions across 6 families (Social care,
+    Nursing, Allied health, Dental, Pharmacy, Support) — the gap was
+    presentation, not data. Rewritten as a grouped `<select>` dropdown
+    (optgroups by family, matching the qualification-type picker's
+    existing convention) + removable chips for what's picked, with a
+    "Primary" tag on whichever chip matches the primary-profession
+    selection. Field hint copy now states the breadth explicitly
+    ("From care roles to nursing, allied health, dentistry, and
+    pharmacy..."). A real ordering bug was caught and fixed while
+    building this: the primary-tag logic read the primary `<select>`'s
+    value *before* its options were rebuilt for the new pick, so it
+    lagged a render behind — fixed by rebuilding the select first, then
+    reading its settled value for the chip tags.
+  - **DBS status wording (step 7)**: the non-negotiable #3 phrase
+    ("Enhanced DBS · on Update Service") was never actually shown
+    together as one line during data entry — only as two separate
+    inputs (a level dropdown, a separate Update Service checkbox), with
+    the combined phrase only appearing later as a badge label. Added a
+    live preview line under the Update Service checkbox that composes
+    the exact phrase from the current level + checkbox state and states
+    the "never verified/certified, only the Update Service can confirm"
+    rule in plain language, updating live as either input changes.
+  - Verified: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+    cleanly, both flows exercised with headless Chromium (multi-pick,
+    remove-by-chip, primary-reassignment for professions; all 4 DBS
+    level/update-service combinations for the preview text), zero
+    horizontal overflow at 3 viewport widths including the longest DBS
+    label case.
+  - Not yet pushed as a PR — this is a fix within the review pause, not
+    a new sprint; will fold into whichever sprint's PR comes next unless
+    the user asks to ship it separately.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
