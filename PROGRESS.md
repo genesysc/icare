@@ -9,7 +9,7 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: Sprint 1 shipped, real candidate sign-up/sign-in now exists
+## Status: Sprints 0-2 shipped, opening a PR and merging next
 
 PR #9, #10, and #11 all merged and deployed (waitlist landing pages,
 candidate + employer). `main` is deployed and live, wired to the real
@@ -37,9 +37,21 @@ calling the existing (unmodified) `/auth/request-code` and
 `/dashboard` pages until Sprints 2 and 5 build the real thing. One real
 bug found and fixed during testing (a `history.replaceState` throw that
 silently broke the entire sign-up/sign-in mode toggle) — see "Done"
-below for detail on both sprints. Neither is pushed to a PR yet.
+below for detail on both sprints.
 
-Next: Sprint 2 (onboarding wizard shell + core profile).
+**Sprint 2 is now shipped too** — the real onboarding wizard (basics,
+skills, availability), replacing the Sprint 1 stub outright, plus two
+new backend routes (`onboarding/advance`, `onboarding/complete`) whose
+RLS compatibility was checked directly against the schema before writing
+them. Deliberately does *not* call `complete` — the wizard spans Sprints
+2–5, and `onboarding_done` only means something once all of it exists.
+Exercised the actual wizard JS with headless Chromium and mocked API
+responses (this sandbox still can't reach Supabase) — confirmed the
+full step flow, a conditional field, and resume-from-step-3 all work
+correctly, no page errors. See "Done" below for all three sprints' full
+detail.
+
+User asked to open a PR and merge after this sprint — doing that next.
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -738,6 +750,49 @@ they aren't lost:
     6-viewport headless-Chromium audit across all 4 new pages (zero
     horizontal overflow).
   - Not yet pushed to a PR.
+- **Sprint 2 shipped** (`SPRINTS.md`): the real onboarding wizard.
+  - **New routes** (`src/candidates.ts`): `POST /candidates/me/
+    onboarding/advance` (`{ step, event }`, bumps `onboarding_step` to
+    `max(current, step)`, always inserts an `onboarding_events` row) and
+    `POST /candidates/me/onboarding/complete` (sets `onboarding_done =
+    true`, logs a `completed` event) — built but deliberately **not
+    called by this sprint's UI**, since the wizard spans Sprints 2–5 and
+    calling `complete` after just 3 of the eventual ~10+ steps would
+    misrepresent what `onboarding_done` means to anything that checks it
+    (Sprint 1's verify.html redirect logic, for one).
+  - Checked RLS directly against the schema before writing either route,
+    not assumed: `candidates`' `candidate_self` policy (`id =
+    auth.uid()`, all commands) covers the read+update; `onboarding_
+    events`' `onboarding_events_self` policy (INSERT only, `candidate_id
+    = auth.uid()`) covers the insert.
+  - `src/onboarding.html` replaced outright (was the Sprint 1 stub): 3
+    steps in one page — Basics (headline/about/town/postcode_district +
+    a profession picker with a primary-profession dropdown that only
+    appears once 2+ professions are checked), Skills (clinical skills
+    grouped by family), Availability & logistics (availability state
+    with a conditional date field, shift prefs, travel radius, min rate,
+    right-to-work with a conditional visa-expiry field, driving licence/
+    vehicle). Progress dots + labels, back/next, and — genuinely
+    resumes from `candidates.onboarding_step` on load rather than
+    restarting, by fetching the candidate's existing profile/
+    professions/skills and pre-filling/pre-checking everything.
+  - After step 3: an honest "rest of the wizard — coming soon" holding
+    screen, not a redirect anywhere and not `onboarding_done = true`.
+  - **Verification approach, given this sandbox still can't reach
+    Supabase**: rather than stop at typecheck/bundle/overflow-audit
+    (which don't prove the JS actually works), exercised the real
+    wizard with headless Chromium, mocking `fetch` responses shaped
+    exactly like the real endpoints' real shapes (read from the actual
+    route handlers, not guessed) via Playwright's request interception.
+    Confirmed: the full step 1→2→3→4 click-through advances correctly
+    with no uncaught page errors; the conditional visa-expiry field
+    shows/hides correctly when `right_to_work` changes to/from a visa-
+    related value; and, separately, mocking `onboarding_step: 3` on load
+    lands the wizard on step 3 directly rather than restarting at step
+    1 — the resume behavior actually works, not just plausible-looking
+    code. Also: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+    cleanly, 6-viewport headless-Chromium overflow audit (zero overflow).
+  - Not yet pushed to a PR — opening one next per the user's request.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

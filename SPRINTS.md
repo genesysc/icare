@@ -91,28 +91,56 @@ A real candidate can create an account and land somewhere.
   overflow), and the sign-up/sign-in mode toggle visually confirmed
   correct after the fix above.
 
-### Sprint 2 — Onboarding wizard shell + core profile
+### Sprint 2 — Onboarding wizard shell + core profile ✅ Shipped
 
-The wizard framework itself, plus the first real steps.
+The wizard framework itself, plus the first real steps. Replaces the
+Sprint 1 stub `src/onboarding.html` outright.
 
-- **New routes needed:** `POST /candidates/me/onboarding/advance`
-  (bumps `candidates.onboarding_step`, inserts a row into
-  `onboarding_events`), `POST /candidates/me/onboarding/complete` (sets
-  `onboarding_done = true`).
-- Wizard UI shell: step indicator, back/next, resumes from
-  `candidates.onboarding_step` on reload (not a fresh start every visit).
+- **New routes** (`src/candidates.ts`): `POST /candidates/me/onboarding/
+  advance` (`{ step, event }` — bumps `candidates.onboarding_step` to
+  `max(current, step)`, always inserts a row into `onboarding_events`),
+  `POST /candidates/me/onboarding/complete` (sets `onboarding_done =
+  true`, logs a `completed` event). **Not called by this sprint's UI**
+  — `complete` is Sprint 5's job, once the whole wizard (Sprints 2–5)
+  actually finishes; calling it early would be dishonest about what
+  `onboarding_done` means. RLS confirmed compatible before writing the
+  routes (`candidate_self` on `candidates`, `onboarding_events_self` —
+  INSERT only, `candidate_id = auth.uid()` — on `onboarding_events`).
+- Wizard UI shell (`src/onboarding.html`): 3 client-side steps in one
+  page (progress dots + labels, back/next), resumes from
+  `candidates.onboarding_step` on load rather than restarting — fetches
+  `GET /candidates/me` + `/candidates/me/professions` +
+  `/candidates/me/skills` to pre-fill everything, including which
+  professions/skills were already picked.
 - **Step — Basics:** headline, about, town, postcode_district
-  (outward-district only, per non-negotiable #6), primary + additional
-  professions. Uses the **existing** `PATCH /candidates/me` and
-  `PUT /candidates/me/professions`.
-- **Step — Skills:** clinical skills picker. Uses the **existing**
-  `PUT /candidates/me/skills`.
-- **Step — Availability & logistics:** availability state, shift
-  preferences, travel radius, right-to-work status, driving
-  licence/vehicle. Uses the **existing** `PATCH /candidates/me`. Copy
-  care: no sponsorship implication for *care worker*/*senior care
-  worker* roles specifically (non-negotiable #8 — overseas recruitment
-  for those two closed 22 Jul 2025).
+  (uppercased client-side, outward-district only per non-negotiable
+  #6), profession picker (checkboxes from `GET /professions`, a primary-
+  profession dropdown that only appears once 2+ are checked). Uses the
+  **existing** `PATCH /candidates/me` and `PUT /candidates/me/
+  professions`.
+- **Step — Skills:** clinical skills picker, grouped by family. Uses the
+  **existing** `PUT /candidates/me/skills`.
+- **Step — Availability & logistics:** availability state (with a
+  conditional "available from" date field), shift preferences, travel
+  radius, minimum rate, right-to-work status (with a conditional visa-
+  expiry field for the two visa-related options), driving licence/
+  vehicle. Uses the **existing** `PATCH /candidates/me`. No sponsorship
+  language anywhere — this is a self-declared status field, not an offer
+  (non-negotiable #8 still respected in spirit).
+- **After step 3**: an honest holding screen ("rest of the wizard —
+  coming soon"), not a redirect to `/dashboard` and not
+  `onboarding_done = true` — Sprints 3–5 add the remaining steps to this
+  same wizard before it's actually complete.
+- **Verified**: RLS checked directly against the schema before writing
+  the routes (not assumed). `tsc --noEmit` clean, `wrangler deploy
+  --dry-run` bundles cleanly, 6-viewport responsive audit (zero
+  overflow). Since this sandbox can't reach Supabase, the wizard's JS
+  was exercised directly with headless Chromium and mocked API
+  responses shaped exactly like the real endpoints: confirmed the full
+  step 1→2→3→4 flow advances correctly, the conditional visa-expiry
+  field shows/hides on the right `right_to_work` values, and — with a
+  mocked `onboarding_step: 3` — the wizard resumes on step 3 rather than
+  restarting at step 1. No uncaught page errors during any of it.
 
 ### Sprint 3 — Work history, qualifications, registrations
 

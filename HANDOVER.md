@@ -141,7 +141,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo upload, publish, professions/skills, employment history |
+| `src/candidates.ts` | Candidate profile CRUD, photo upload, publish, professions/skills, employment history, onboarding advance/complete |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
 | `src/emails/waitlist-welcome.ts` | The actual welcome email subject/HTML, unused until `email.ts` is wired up |
@@ -149,6 +149,10 @@ stop and ask the user — do not resolve it yourself.**
 | `src/employers.html` | Employer waitlist landing page — separate design system, same self-contained pattern |
 | `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
+| `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
+| `src/verify.html` | OTP code entry, `/verify?email=...` |
+| `src/onboarding.html` | The real onboarding wizard (Sprint 2: basics/skills/availability) — spans Sprints 2–5, not done after this |
+| `src/dashboard.html` | Stub post-onboarding landing, real dashboard is Sprint 5 |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -474,11 +478,23 @@ round-trip still isn't testable from this sandbox — confirmed again via
 a direct `curl` to `*.supabase.co`, not just `wrangler dev` — same
 pre-existing limitation, not new).
 
-**Next priorities**: Sprint 2 (onboarding wizard shell + core profile)
-is next. Sprint 8 (chat infrastructure, employer track) will need an
-`ANTHROPIC_API_KEY` secret added via `wrangler secret put` when it
-starts — not yet provisioned. Don't restart the domain/Sender.net work
-unless the user brings it back up.
+Sprint 2 (onboarding wizard shell + core profile) is also now shipped:
+`src/onboarding.html` replaced the Sprint 1 stub with a real 3-step
+wizard (basics, skills, availability), backed by two new routes in
+`src/candidates.ts` (`onboarding/advance`, `onboarding/complete` — the
+latter deliberately not called yet, since the wizard continues through
+Sprints 3–5 and `onboarding_done` shouldn't flip true until all of it
+exists). Since this sandbox can't reach Supabase, verification here went
+beyond typecheck/bundle/audit: exercised the actual wizard JS with
+headless Chromium and mocked API responses to confirm the step flow, a
+conditional field, and resume-from-a-later-step all genuinely work, not
+just look plausible. See PROGRESS.md's "Done" section for full detail.
+
+**Next priorities**: Sprint 3 (work history, qualifications,
+registrations) continues the wizard. Sprint 8 (chat infrastructure,
+employer track) will need an `ANTHROPIC_API_KEY` secret added via
+`wrangler secret put` when it starts — not yet provisioned. Don't
+restart the domain/Sender.net work unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.
