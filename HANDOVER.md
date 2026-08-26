@@ -51,6 +51,17 @@ stop and ask the user — do not resolve it yourself.**
    name, video, and CV file — those unlock only after shortlist +
    consent. Not built on this side yet (no employer search exists), but
    binding on whatever gets built.
+   **⚠️ Partially overridden 2026-08-26, founder instruction:** search
+   results now show name, current job title, and location up front —
+   "i command you to not let it interfere with planning for now... When
+   the employer searches the AI should generate the names, current job
+   title and location of the candidate." Photo, video, and CV file are
+   **still excluded** pre-shortlist — the override is scoped to name/
+   title/location only, nothing else here changed. See `SPRINTS.md`
+   Sprint 8 for where this is implemented. The reasoning above (a name
+   signals gender/ethnicity — indirect-discrimination exposure) still
+   stands as the rationale the rule existed for; this is a deliberate,
+   informed departure from it, not a correction to the reasoning.
 5. **AI never scores, ranks, or filters a candidate.** AI may summarise,
    extract, transcribe, draft — a human decides. A future CV parser must
    propose a draft the candidate confirms; never auto-apply a parse.
@@ -130,14 +141,22 @@ stop and ask the user — do not resolve it yourself.**
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo upload, publish, professions/skills, employment history |
+| `src/candidates.ts` | Candidate profile CRUD, photo upload, publish, professions/skills, employment history, onboarding advance/complete |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
 | `src/emails/waitlist-welcome.ts` | The actual welcome email subject/HTML, unused until `email.ts` is wired up |
-| `src/landing.html` | The waitlist landing page — single file, inline CSS/JS, GSAP via CDN |
+| `src/landing.html` | Candidate waitlist landing page — single file, inline CSS/JS, GSAP via CDN |
+| `src/employers.html` | Employer waitlist landing page — separate design system, same self-contained pattern |
+| `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
+| `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
+| `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
+| `src/verify.html` | OTP code entry, `/verify?email=...` |
+| `src/onboarding.html` | The real onboarding wizard (Sprint 2: basics/skills/availability) — spans Sprints 2–5, not done after this |
+| `src/dashboard.html` | Stub post-onboarding landing, real dashboard is Sprint 5 |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
+| `SPRINTS.md` | Forward-looking roadmap — candidate journey sprints, then employer journey sprints. Check here before picking "what's next" |
 | `AGENTS.md` / `CLAUDE.md` | Pointer files: read `PROGRESS.md` (and now this file) first, update before ending a session |
 
 No `supabase/migrations/*.sql` files exist in this repo — all Postgres
@@ -283,8 +302,15 @@ deploy confirmation yet.
    flow (not just waitlist) ships.
 9. A real signed-in app UI (dashboard, profile editor) — nothing exists
    yet for a user to land on after authenticating via `/auth/*`.
-10. ~~Employer-facing landing page~~ — built (`GET /employers`), see
-    PROGRESS.md's "Done" section. Not yet pushed/PR'd as of this note.
+10. ~~Employer-facing landing page~~ — built and merged (`GET /employers`,
+    PR #11, deploy run #12); then rebuilt as v2 against the user's actual
+    design/copy brief (much richer than v1 — see PROGRESS.md's "Done"
+    section for detail and the fixes made against the draft). **That
+    brief reveals the real employer product is chat-first AI search + a
+    built-in ATS + an "iCompliance" module + AI interview parsing — not
+    the simple structured-field search assumed elsewhere in this doc and
+    in `SPRINTS.md`.** Treat `SPRINTS.md`'s employer track as stale until
+    it's revised against this.
 
 ---
 
@@ -395,17 +421,80 @@ buy the domain in a few days time so let's park this for now") and asked
 for the employer-facing landing page instead (§8 item 10). That's now
 built — `GET /employers`, same design system as the candidate page,
 separate employer waitlist pool (migration `0009_waitlist_employer_role`).
-See PROGRESS.md's "Done" section for full detail. Not yet pushed/PR'd —
-check current branch/PR state before assuming it's live.
+See PROGRESS.md's "Done" section for full detail. Shipped on PR #11,
+which the user approved merging — squash-merged to `main`, deploy run
+#12 succeeded. Live.
 
-**Next priorities**: with the domain parked and the employer page done,
-pick from §8's remaining "next, no particular blocker" list — candidate
-qualifications/DBS/references/badges/prompts/CV import, `/privacy`+
-`/terms` pages, a real signed-in app UI, or the employer-side API proper
-(search/shortlisting — distinct from the employer landing page, which is
-just a waitlist capture, not built) — unprioritized, ask the user which
-matters most rather than guessing. Don't restart the domain/Sender.net
-work unless the user brings it back up.
+The user asked to move from waitlist-only to the actual platform,
+candidate journey first then employer, and `SPRINTS.md` was written for
+that. **Before Sprint 0 started**, the user uploaded a real design +
+copy brief for a v2 employer landing page — built, see PROGRESS.md's
+"Done" section for the fixes made against the draft (a fake-stats
+counter, an evaluative-language slip against the brief's own compliance
+note, a missing-id nav bug, an unvetted hotlinked photo, feature-list
+drift between the two uploaded files). More importantly, that brief
+reveals the real employer product is chat-first AI search + a built-in
+ATS + an "iCompliance" module + AI-parsed video interviews —**not** the
+simple structured-field search `SPRINTS.md`'s employer track (Sprints
+6–10) was written against.
+
+That revision pass happened next — the user chose, explicitly: **chat is
+the primary employer interface from day one** (not a fast-follow layer),
+**pipeline stages are fixed** (Shortlisted/Interview/Offer/Hired) not
+per-employer configurable, **AI-parsed video interviews are a separate,
+later initiative** (not in this track), and **iCompliance is real and
+scoped** (an employer's own compliance checklist/workflow per hire) **but
+explicitly not urgent** — captured as Sprint 12, don't start it
+unprompted. `SPRINTS.md`'s employer track (now Sprints 6–11, plus 12
+unscheduled) reflects all of this.
+
+**⚠️ Correction, stale as of 2026-08-26**: this paragraph used to say
+pre-shortlist search results "must stay fully anonymous." That's no
+longer accurate — see §1 non-negotiable #4's dated annotation. The user
+explicitly instructed candidate name, current job title, and location to
+be shown pre-shortlist; only photo/video/CV stay gated. Don't rely on
+this paragraph's history for current behavior — §1 is the source of
+truth.
+
+Sprint 0 is now shipped: `/privacy` + `/terms` pages (self-contained,
+explicitly marked DRAFT, grounded in real system behavior including the
+#4 override rather than idealised boilerplate) and the shared
+`src/auth-client.js` reference helper. The Magic Link template fix is
+confirmed still-manual (checked the actual Supabase MCP tool list, no
+tool touches Auth email config). See PROGRESS.md's "Done" section.
+
+Sprint 1 (candidate sign-up/sign-in UI) is also now shipped:
+`src/sign-in.html` (one file, mounted at `/sign-up` and `/sign-in`),
+`src/verify.html`, and two new stub pages (`src/onboarding.html`,
+`src/dashboard.html`) as non-broken redirect targets until Sprints 2 and
+5 build the real thing. All call the existing, unmodified `/auth/*` and
+`/candidates/me` routes — no backend changes. A real bug was found and
+fixed during testing: `history.replaceState` threw uncaught inside the
+sign-up/sign-in mode toggle, silently aborting the rest of the page's
+init script (so the toggle's click handlers never attached, no visible
+error) — now wrapped in try/catch. See PROGRESS.md's "Done" section for
+full detail, including what could and couldn't be tested (a live OTP
+round-trip still isn't testable from this sandbox — confirmed again via
+a direct `curl` to `*.supabase.co`, not just `wrangler dev` — same
+pre-existing limitation, not new).
+
+Sprint 2 (onboarding wizard shell + core profile) is also now shipped:
+`src/onboarding.html` replaced the Sprint 1 stub with a real 3-step
+wizard (basics, skills, availability), backed by two new routes in
+`src/candidates.ts` (`onboarding/advance`, `onboarding/complete` — the
+latter deliberately not called yet, since the wizard continues through
+Sprints 3–5 and `onboarding_done` shouldn't flip true until all of it
+exists). Since this sandbox can't reach Supabase, verification here went
+beyond typecheck/bundle/audit: exercised the actual wizard JS with
+headless Chromium and mocked API responses to confirm the step flow, a
+conditional field, and resume-from-a-later-step all genuinely work, not
+just look plausible. See PROGRESS.md's "Done" section for full detail.
+
+**Next priorities**: Sprint 3 (work history, qualifications,
+registrations) continues the wizard. Sprint 8 (chat infrastructure,
+employer track) will need an `ANTHROPIC_API_KEY` secret added via
+`wrangler secret put` when it starts — not yet provisioned. Don't
+restart the domain/Sender.net work unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.

@@ -1,0 +1,223 @@
+<!--
+  iCare Terms of Service — SPRINTS.md Sprint 0.
+
+  DRAFT — see the same notice as privacy.html; not legal advice, not
+  reviewed by a lawyer yet. Written to describe the real, current
+  system design (including the Sprint 8 search-result field override
+  recorded in HANDOVER.md §1 non-negotiable #4 / PROGRESS.md) rather
+  than an idealised version — terms should describe what the product
+  actually does, not what it used to do or might do later.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Terms of Service — iCare</title>
+<meta name="description" content="The terms that govern your use of iCare." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533;
+    --plum-800: #382349;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --amber-600: #b8791f;
+    --amber-100: #faedd4;
+    --paper: #fefefc;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper);
+    color: var(--ink-soft);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; }
+  p, li { margin: 0; }
+  a { color: var(--teal-700); }
+
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 0; }
+
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 24px; max-width: 720px; margin: 0 auto; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 21px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+  .nav-links { display: flex; gap: 20px; font-size: 14px; font-weight: 600; }
+  .nav-links a { color: var(--ink-faint); text-decoration: none; }
+  .nav-links a:hover { color: var(--teal-700); }
+
+  .doc-header { padding: 48px 0 8px; }
+  .doc-title { font-size: clamp(28px, 4vw, 38px); font-weight: 600; letter-spacing: -0.015em; }
+  .doc-meta { margin-top: 12px; font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--ink-faint); }
+  .draft-notice {
+    margin-top: 24px; padding: 16px 18px; border-radius: 12px;
+    background: var(--amber-100); border: 1px solid #f0dcb0;
+    font-size: 14px; line-height: 1.6; color: #6b4f14;
+  }
+  .draft-notice strong { color: #4a3609; }
+
+  .content { padding: 40px 0 72px; font-size: 16px; line-height: 1.75; }
+  .content h2 { font-size: 21px; margin-top: 40px; margin-bottom: 12px; }
+  .content h2:first-child { margin-top: 0; }
+  .content p { margin-top: 14px; }
+  .content ul { margin: 14px 0 0; padding-left: 22px; }
+  .content li { margin-top: 8px; }
+  .content li::marker { color: var(--teal-500); }
+  .bracket { color: var(--amber-600); font-style: italic; }
+
+  .footer { padding: 32px 0 48px; }
+  .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+  .footer-tag { font-size: 13px; color: var(--ink-faint); }
+
+  @media (max-width: 600px) {
+    .nav { flex-direction: column; gap: 10px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header class="nav" aria-label="Primary">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <div class="nav-links">
+    <a href="/">For candidates</a>
+    <a href="/employers">For employers</a>
+    <a href="/privacy">Privacy</a>
+  </div>
+</header>
+
+<hr class="divider" />
+
+<main>
+  <div class="wrap">
+    <div class="doc-header">
+      <h1 class="doc-title">Terms of Service</h1>
+      <p class="doc-meta">DRAFT · last updated 2026-08-26</p>
+      <div class="draft-notice">
+        <strong>This is a working draft.</strong> It describes iCare's actual current design, but has not yet
+        been reviewed by a lawyer, and details marked <span class="bracket">[like this]</span> are
+        placeholders. Don't treat it as final ahead of a real signup flow going live.
+      </div>
+    </div>
+
+    <div class="content">
+      <h2>Who this applies to</h2>
+      <p>
+        These terms apply to anyone using iCare — candidates (carers, nurses, and other health and social care
+        professionals building a profile) and employers (organisations searching for and hiring candidates).
+        You must be 18 or older to create an account. By creating an account, you agree to these terms and our
+        Privacy Policy.
+      </p>
+
+      <h2>Candidates: free, always</h2>
+      <p>
+        <strong>iCare never charges candidates for anything.</strong> No fee to sign up, build a profile, get
+        found by employers, or use any feature of the platform. There is no premium profile, no paid boost, and
+        no way to pay for better visibility — this isn't a pricing decision we might change, it's how the
+        platform is built to work, in line with UK regulation governing recruitment services.
+      </p>
+
+      <h2>What we verify — and what we don't</h2>
+      <p>
+        Every claim on a candidate profile carries one of four trust grades, shown plainly wherever it appears:
+      </p>
+      <ul>
+        <li><strong>Verified</strong> — checked directly against a public register or identity provider.</li>
+        <li><strong>Evidenced</strong> — you uploaded a document and a person reviewed it.</li>
+        <li><strong>Derived</strong> — computed from other information already on the platform.</li>
+        <li><strong>Declared</strong> — you told us, and we haven't independently checked it.</li>
+      </ul>
+      <p>
+        On DBS checks specifically: we do not verify DBS certificates ourselves, and we never describe one as
+        "verified" or "certified" by iCare. Where you've told us your certificate is on the DBS Update Service,
+        we show that status honestly — but only an employer using the official Update Service can confirm it.
+      </p>
+
+      <h2>How employer search works</h2>
+      <p>
+        We're deliberate about what employers can see, and when, because we want hiring decisions made on
+        merit. When a verified employer searches for candidates:
+      </p>
+      <ul>
+        <li>Search results show your name, current job title, and location, alongside your role, trust badges,
+          skills, and experience summary.</li>
+        <li>Your photo, any introduction video, and your CV file are not shown until you've been shortlisted
+          and you've explicitly consented to share them.</li>
+        <li>Your full contact details and DBS certificate number are held back further still, and only released
+          after shortlisting, your consent, and — where a placement is actually being arranged — the reference
+          and identity checks required by law.</li>
+      </ul>
+      <p>
+        Our search and any AI assistance we build into it works from the criteria an employer describes — it
+        matches candidates against skills, experience, and logistics. It does not score, rank, or rate
+        candidates as people, and it will not act on search criteria based on protected characteristics such as
+        age, sex, race, religion, or disability.
+      </p>
+
+      <h2>Employer verification</h2>
+      <p>
+        We ask every employer to verify their organisation before they can search — for example via a CQC
+        provider ID or Companies House number. We reserve the right to decline or revoke verification at our
+        discretion.
+      </p>
+
+      <h2>Your content</h2>
+      <p>
+        You own what you post on iCare. By publishing a profile, you give us permission to show it to verified
+        employers as described above. You can unpublish or delete your profile at any time.
+      </p>
+
+      <h2>Acceptable use</h2>
+      <p>You agree not to:</p>
+      <ul>
+        <li>Provide false information about your identity, qualifications, or experience.</li>
+        <li>Use the platform to discriminate against candidates on the basis of a protected characteristic.</li>
+        <li>Attempt to bypass the consent-gated information flow described above.</li>
+        <li>Use the platform for any unlawful purpose.</li>
+      </ul>
+
+      <h2>Ending your account</h2>
+      <p>
+        You can close your account at any time. We may suspend or close an account that breaches these terms.
+        See our Privacy Policy for how long we keep data after an account closes.
+      </p>
+
+      <h2>Liability</h2>
+      <p>
+        iCare is provided as-is, and we make no guarantee that using the platform will result in a hire or a
+        job offer. <span class="bracket">[Standard liability limitation language to be added after legal
+        review.]</span>
+      </p>
+
+      <h2>Governing law</h2>
+      <p>These terms are governed by the law of <span class="bracket">[England and Wales / jurisdiction to be confirmed]</span>.</p>
+
+      <h2>Changes to these terms</h2>
+      <p>
+        We'll update this page as the product changes, and update the "last updated" date above when we do.
+        Material changes will be communicated by email where we have one on file for you.
+      </p>
+    </div>
+  </div>
+</main>
+
+<hr class="divider" />
+
+<footer class="footer wrap">
+  <div class="footer-inner">
+    <a href="/" class="logo">i<em>Care</em></a>
+    <p class="footer-tag">&copy; 2026 iCare</p>
+  </div>
+</footer>
+
+</body>
+</html>

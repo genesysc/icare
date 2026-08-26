@@ -5,6 +5,12 @@ import candidates from "./candidates";
 import waitlist from "./waitlist";
 import landingPage from "./landing.html";
 import employerLandingPage from "./employers.html";
+import privacyPage from "./privacy.html";
+import termsPage from "./terms.html";
+import signInPage from "./sign-in.html";
+import verifyPage from "./verify.html";
+import onboardingPage from "./onboarding.html";
+import dashboardPage from "./dashboard.html";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -20,6 +26,13 @@ app.route("/waitlist", waitlist);
 
 app.get("/", (c) => c.html(landingPage));
 app.get("/employers", (c) => c.html(employerLandingPage));
+app.get("/privacy", (c) => c.html(privacyPage));
+app.get("/terms", (c) => c.html(termsPage));
+app.get("/sign-in", (c) => c.html(signInPage));
+app.get("/sign-up", (c) => c.html(signInPage));
+app.get("/verify", (c) => c.html(verifyPage));
+app.get("/onboarding", (c) => c.html(onboardingPage));
+app.get("/dashboard", (c) => c.html(dashboardPage));
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 

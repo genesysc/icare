@@ -1,0 +1,215 @@
+<!--
+  iCare sign-in code verification — SPRINTS.md Sprint 1.
+
+  Reads ?email= from the query string (set by sign-in.html's redirect).
+  Posts to the EXISTING POST /auth/verify-code, stores the returned
+  session via the Sprint 0 auth-client.js helper (copied inline per this
+  repo's no-build-step convention), then checks candidates.onboarding_done
+  via the EXISTING GET /candidates/me to decide where to land the user —
+  /onboarding (stub until Sprint 2 builds the real wizard) or /dashboard
+  (stub until Sprint 5).
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Enter your code — iCare</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --err: #b23a24;
+    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper-dim);
+    color: var(--ink-soft);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  p { margin: 0; }
+  a { color: var(--teal-700); }
+  button { font-family: inherit; }
+
+  .nav { padding: 22px 24px; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+
+  .center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card {
+    width: 100%; max-width: 400px; background: var(--white);
+    border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft);
+    padding: 36px 32px;
+  }
+  .card-title { font-size: 25px; }
+  .card-sub { margin-top: 8px; font-size: 14.5px; color: var(--ink-faint); }
+  .card-sub strong { color: var(--plum-950); }
+
+  .field { margin-top: 22px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--plum-950); margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--line);
+    font-size: 22px; font-family: "IBM Plex Mono", monospace; letter-spacing: 0.3em; text-align: center;
+    background: var(--white); color: var(--plum-950);
+  }
+  .field input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
+
+  .btn {
+    margin-top: 22px; width: 100%; padding: 13px 20px; border-radius: 999px;
+    background: var(--teal-500); color: var(--white); border: none; font-weight: 700; font-size: 15px;
+    cursor: pointer; transition: background 0.2s ease;
+  }
+  .btn:hover { background: var(--teal-700); }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+
+  .status { margin-top: 14px; font-size: 13.5px; display: none; }
+  .status.is-visible { display: block; }
+  .status.err { color: var(--err); }
+  .status.ok { color: var(--teal-700); }
+
+  .links { margin-top: 22px; text-align: center; font-size: 14px; }
+  .links button { background: none; border: none; color: var(--teal-700); font-weight: 600; cursor: pointer; padding: 0; font-size: inherit; }
+  .links button:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+</header>
+
+<div class="center">
+  <div class="card">
+    <h1 class="card-title">Enter your code</h1>
+    <p class="card-sub">We sent a 6-digit code to <strong data-email>your email</strong>.</p>
+
+    <form id="verify-form" novalidate>
+      <div class="field">
+        <label for="code" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Verification code</label>
+        <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000" required />
+      </div>
+      <button type="submit" class="btn" data-submit>Verify</button>
+    </form>
+    <p class="status" data-status></p>
+
+    <div class="links">
+      <button type="button" data-resend>Resend code</button>
+      &nbsp;·&nbsp;
+      <a href="/sign-in">Use a different email</a>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Shared auth helper (src/auth-client.js, copied per this repo's no-build-step convention) ----
+var ICARE_SESSION_KEY = "icare_session";
+function icareSetSession(session) {
+  try { localStorage.setItem(ICARE_SESSION_KEY, JSON.stringify(session)); } catch (e) {}
+}
+function icareAuthFetch(url, options) {
+  var raw = null;
+  try { raw = localStorage.getItem(ICARE_SESSION_KEY); } catch (e) {}
+  var session = raw ? JSON.parse(raw) : null;
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+// ---- End shared auth helper ----
+
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var email = params.get("email") || "";
+  if (!email) {
+    window.location.href = "/sign-in";
+    return;
+  }
+  document.querySelector("[data-email]").textContent = email;
+
+  var form = document.getElementById("verify-form");
+  var statusEl = document.querySelector("[data-status]");
+  var submitBtn = document.querySelector("[data-submit]");
+  function setStatus(kind, message) {
+    statusEl.textContent = message;
+    statusEl.className = "status is-visible " + kind;
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var code = document.getElementById("code").value.trim();
+    if (!code) return;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Verifying…";
+
+    fetch("/auth/verify-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, token: code }),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        if (!result.ok) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Verify";
+          setStatus("err", result.body.error || "That code didn't work — check it and try again.");
+          return;
+        }
+        icareSetSession(result.body.session);
+        setStatus("ok", "You're in — taking you to your account…");
+        return icareAuthFetch("/candidates/me")
+          .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+          .then(function (candidateResult) {
+            var onboardingDone = candidateResult.ok && candidateResult.body.candidate && candidateResult.body.candidate.onboarding_done;
+            window.location.href = onboardingDone ? "/dashboard" : "/onboarding";
+          })
+          .catch(function () {
+            // Couldn't confirm onboarding state — land on onboarding, it's the safe default.
+            window.location.href = "/onboarding";
+          });
+      })
+      .catch(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Verify";
+        setStatus("err", "Network error — please try again.");
+      });
+  });
+
+  document.querySelector("[data-resend]").addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    fetch("/auth/request-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email, create: false }),
+    })
+      .then(function () {
+        setStatus("ok", "Sent — check your inbox.");
+        setTimeout(function () { btn.disabled = false; }, 10000);
+      })
+      .catch(function () {
+        setStatus("err", "Couldn't resend — please try again.");
+        btn.disabled = false;
+      });
+  });
+})();
+</script>
+</body>
+</html>

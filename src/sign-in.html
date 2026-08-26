@@ -1,0 +1,219 @@
+<!--
+  iCare candidate sign-up / sign-in — SPRINTS.md Sprint 1.
+
+  One page serves both /sign-up and /sign-in (same file, mounted at both
+  routes in index.ts) — default mode is read from window.location.pathname,
+  and a toggle link switches it client-side. Avoids maintaining two near-
+  identical files for what's really one form with a name field that shows
+  or hides.
+
+  Posts to the EXISTING POST /auth/request-code (no backend changes this
+  sprint). On success, redirects to /verify?email=... — the verify step
+  itself doesn't need to know sign-up vs sign-in, since role/full_name/
+  terms_version are already staged server-side by request-code's `data`
+  payload on signInWithOtp.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sign in — iCare</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --paper: #fefefc;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --err: #b23a24;
+    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper-dim);
+    color: var(--ink-soft);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  p { margin: 0; }
+  a { color: var(--teal-700); }
+  button { font-family: inherit; }
+
+  .nav { padding: 22px 24px; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+
+  .center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card {
+    width: 100%; max-width: 400px; background: var(--white);
+    border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft);
+    padding: 36px 32px;
+  }
+  .card-title { font-size: 25px; }
+  .card-sub { margin-top: 8px; font-size: 14.5px; color: var(--ink-faint); }
+
+  .field { margin-top: 20px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--plum-950); margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--line);
+    font-size: 15px; font-family: inherit; background: var(--white); color: var(--plum-950);
+  }
+  .field input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
+  .field-name { display: none; }
+  body.mode-signup .field-name { display: block; }
+
+  .terms-row { margin-top: 18px; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--ink-faint); }
+  body:not(.mode-signup) .terms-row { display: none; }
+  .terms-row input { margin-top: 3px; }
+
+  .btn {
+    margin-top: 22px; width: 100%; padding: 13px 20px; border-radius: 999px;
+    background: var(--teal-500); color: var(--white); border: none; font-weight: 700; font-size: 15px;
+    cursor: pointer; transition: background 0.2s ease;
+  }
+  .btn:hover { background: var(--teal-700); }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+
+  .status { margin-top: 14px; font-size: 13.5px; display: none; }
+  .status.is-visible { display: block; }
+  .status.err { color: var(--err); }
+
+  .toggle { margin-top: 22px; text-align: center; font-size: 14px; }
+  .toggle button { background: none; border: none; color: var(--teal-700); font-weight: 600; cursor: pointer; padding: 0; font-size: inherit; }
+  .toggle button:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+</header>
+
+<div class="center">
+  <div class="card">
+    <h1 class="card-title" data-title>Welcome back</h1>
+    <p class="card-sub" data-sub>Sign in with your email — we'll send you a one-time code, no password needed.</p>
+
+    <form id="auth-form" novalidate>
+      <div class="field field-name">
+        <label for="full-name">Full name</label>
+        <input id="full-name" name="full_name" type="text" autocomplete="name" />
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required />
+      </div>
+      <div class="terms-row">
+        <input id="terms" name="terms" type="checkbox" />
+        <label for="terms">I agree to iCare's <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</label>
+      </div>
+      <button type="submit" class="btn" data-submit>Send me a code</button>
+    </form>
+    <p class="status" data-status></p>
+
+    <div class="toggle">
+      <span data-toggle-signin>New to iCare? <button type="button" data-switch="signup">Create an account</button></span>
+      <span data-toggle-signup style="display:none;">Already have an account? <button type="button" data-switch="signin">Sign in</button></span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var TERMS_VERSION = "2026-08-26-draft";
+
+  function setMode(mode) {
+    document.body.classList.toggle("mode-signup", mode === "signup");
+    document.querySelector("[data-title]").textContent = mode === "signup" ? "Join iCare" : "Welcome back";
+    document.querySelector("[data-sub]").textContent =
+      mode === "signup"
+        ? "Create your candidate account — we'll send you a one-time code, no password needed."
+        : "Sign in with your email — we'll send you a one-time code, no password needed.";
+    document.querySelector("[data-toggle-signin]").style.display = mode === "signup" ? "none" : "inline";
+    document.querySelector("[data-toggle-signup]").style.display = mode === "signup" ? "inline" : "none";
+    document.getElementById("full-name").required = mode === "signup";
+    document.getElementById("terms").required = mode === "signup";
+    try {
+      history.replaceState(null, "", mode === "signup" ? "/sign-up" : "/sign-in");
+    } catch (e) {
+      // Some contexts (e.g. file:// during local testing) disallow replaceState —
+      // the mode toggle still works via body class, just without updating the URL bar.
+    }
+  }
+
+  var initialMode = window.location.pathname === "/sign-up" ? "signup" : "signin";
+  setMode(initialMode);
+
+  document.querySelectorAll("[data-switch]").forEach(function (btn) {
+    btn.addEventListener("click", function () { setMode(btn.getAttribute("data-switch")); });
+  });
+
+  var form = document.getElementById("auth-form");
+  var statusEl = document.querySelector("[data-status]");
+  var submitBtn = document.querySelector("[data-submit]");
+  function setStatus(kind, message) {
+    statusEl.textContent = message;
+    statusEl.className = "status is-visible " + kind;
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var isSignup = document.body.classList.contains("mode-signup");
+    var email = document.getElementById("email").value.trim();
+    var fullName = document.getElementById("full-name").value.trim();
+    var termsAccepted = document.getElementById("terms").checked;
+    if (!email) return;
+    if (isSignup && (!fullName || !termsAccepted)) {
+      setStatus("err", "Please enter your name and accept the Terms to continue.");
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Sending…";
+
+    var payload = { email: email, create: isSignup };
+    if (isSignup) {
+      payload.role = "candidate";
+      payload.full_name = fullName;
+      payload.terms_version = TERMS_VERSION;
+    }
+
+    fetch("/auth/request-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send me a code";
+        if (!result.ok) {
+          setStatus("err", result.body.error || "Something went wrong. Please try again.");
+          return;
+        }
+        window.location.href = "/verify?email=" + encodeURIComponent(email);
+      })
+      .catch(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send me a code";
+        setStatus("err", "Network error — please try again.");
+      });
+  });
+})();
+</script>
+</body>
+</html>

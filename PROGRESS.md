@@ -9,20 +9,55 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: employer landing page built, not yet merged
+## Status: Sprints 0-2 shipped, opening a PR and merging next
 
-PR #9 and PR #10 both merged and deployed (candidate landing page, its
-responsive cleanup, and the hero photo). `main` is deployed and live,
-wired to the real Supabase backend.
+PR #9, #10, and #11 all merged and deployed (waitlist landing pages,
+candidate + employer). `main` is deployed and live, wired to the real
+Supabase backend. Branch restarted from `main` after each merge per this
+repo's convention (see "Conventions" — HANDOVER.md §10). Employer landing
+page v2 is pushed to the branch, not yet merged.
 
-User decided to park the custom-domain/Sender.net work for a few days
-("will buy the domain in a few days time so let's park this for now")
-and asked for the employer-facing landing page next instead — the item
-flagged in HANDOVER.md §8 as "next, no particular blocker." That's now
-built on this branch (see "Done" below): `GET /employers`, same design
-system as the candidate page, employer waitlist with its own DB columns
-and a separate count/early-supporter pool. Not yet pushed/PR'd — do that
-next, then ask the user whether to merge (same pattern as PR #10).
+`SPRINTS.md` was written, then its employer track revised after a scope
+conversation (chat-first from day one, fixed pipeline stages, video
+interviews split out as a separate initiative, iCompliance scoped but
+deliberately unscheduled), then non-negotiable #4 partially overridden
+per explicit founder instruction (search results now show name/current
+job title/location pre-shortlist — see the dated annotation in §1 and
+the "Done" entries below for both). All of that was planning; the user
+then said to start building.
+
+**Sprint 0 is now shipped** — `/privacy` and `/terms` pages, a shared
+client-side auth helper, and the Magic Link email template confirmed as
+still-manual (no Supabase MCP tool touches Auth email config — checked,
+not assumed).
+
+**Sprint 1 is now shipped too** — real sign-up/sign-in/verify pages,
+calling the existing (unmodified) `/auth/request-code` and
+`/auth/verify-code` routes, landing on new stub `/onboarding` and
+`/dashboard` pages until Sprints 2 and 5 build the real thing. One real
+bug found and fixed during testing (a `history.replaceState` throw that
+silently broke the entire sign-up/sign-in mode toggle) — see "Done"
+below for detail on both sprints.
+
+**Sprint 2 is now shipped too** — the real onboarding wizard (basics,
+skills, availability), replacing the Sprint 1 stub outright, plus two
+new backend routes (`onboarding/advance`, `onboarding/complete`) whose
+RLS compatibility was checked directly against the schema before writing
+them. Deliberately does *not* call `complete` — the wizard spans Sprints
+2–5, and `onboarding_done` only means something once all of it exists.
+Exercised the actual wizard JS with headless Chromium and mocked API
+responses (this sandbox still can't reach Supabase) — confirmed the
+full step flow, a conditional field, and resume-from-step-3 all work
+correctly, no page errors. See "Done" below for all three sprints' full
+detail.
+
+User asked to open a PR and merge after this sprint — doing that next.
+
+Custom-domain/Sender.net work remains explicitly parked per the user's
+earlier request ("will buy the domain in a few days time") — don't
+restart it unless the user brings it back up. One exception carved out
+in `SPRINTS.md` Sprint 0: the Supabase Magic Link email template fix
+doesn't need the domain and is worth doing regardless.
 
 ## ⚠️ Non-negotiables (from HANDOVER.md, "care·register" — uploaded 2026-08-25)
 
@@ -469,7 +504,295 @@ they aren't lost:
     test employer row inserted successfully, an employer row without
     `org_name` correctly rejected by the constraint, then the test row
     deleted and both waitlist counts confirmed back at 0.
-  - Not yet pushed or opened as a PR — do that next.
+  - Opened as PR #11 (https://github.com/genesysc/icare/pull/11),
+    squash-merged to `main`. Deploy run #12 succeeded.
+- **`SPRINTS.md` written.** User wants to move past the waitlist and
+  build the real platform: candidate onboarding journey first, then
+  employer. Queried the full real Supabase schema (`list_tables`,
+  verbose) rather than guessing at column names, and found
+  `candidates.onboarding_step`/`onboarding_done` plus an
+  `onboarding_events` table already exist — confirms a stepped wizard
+  was the original design intent, not new scope being invented. Plan:
+  Sprint 0 (privacy/terms pages, the Magic Link template fix, an explicit
+  UI-approach default of continuing server-rendered HTML + vanilla JS
+  with no new framework, a shared client-side auth-token helper), then
+  5 candidate sprints (auth UI → onboarding wizard shell + basics/skills/
+  availability → employment history/qualifications/registrations → DBS
+  consent/references/prompts → photo/review/publish/candidate home), then
+  5 employer sprints (auth UI → verification flow → compliant written-
+  first search per non-negotiable #4 → shortlisting + consent unlock →
+  employer dashboard). Each sprint lists which routes already exist vs.
+  need building, so nothing gets rebuilt by accident. Explicitly flagged
+  as deferred, not forgotten: admin review tooling for
+  qualifications/registrations/employer-verification (manual Supabase
+  review for now), self-expression posts + employer AI search (§9,
+  phase 2), anything needing real outbound email (still blocked on the
+  parked domain), employer 2FA. Not started — no code written yet.
+- **Employer landing page v2** (`src/employers.html`), rebuilt against
+  the user's actual uploaded design draft + copy brief
+  (`employerlandingpage.html` + `EMPLOYER_LANDING_PAGE_COPY.md`) —
+  same relationship as the candidate page's v1→v2 rebuild earlier: v1 was
+  our own reasonable guess, v2 is the real brief, so v2 wins outright
+  rather than being merged/reconciled with v1. New sections: sticky nav,
+  hero with a "search → pipeline" mockup panel, "What is iCare", a
+  dedicated AI-callout section with a chat-interface mockup, a 5-step
+  "How it works", a 5-card feature grid, a trust/compliance strip, and
+  the waitlist CTA. New palette/type system (purple/lavender/teal/gold,
+  Fraunces + Public Sans + IBM Plex Mono) kept as designed — deliberately
+  not forced to match the candidate page's plum/teal/amber system, since
+  this is the user's own considered design pass, not something to
+  override for consistency's sake.
+  - **Backend**: migration `0011_waitlist_hiring_for` adds a nullable
+    `hiring_for` column (`temp`/`permanent`/`both`, check-constrained) to
+    `waitlist` — the copy brief calls for capturing it, the form only
+    had email before. `POST /waitlist` accepts it now (employer-only,
+    silently ignored for candidate submissions).
+  - **Fixes made against the uploaded draft** (all grounded in
+    conventions already established this session, not new opinions):
+    - The draft's waitlist counter showed hardcoded fake numbers ("62
+      employers on the waitlist / 18 regions represented so far") —
+      directly against this project's rule since the very first waitlist
+      build, restated explicitly in the candidate v2 rebuild: real
+      counts only, starting at 0, no fabricated social proof. Wired to
+      the real `GET /waitlist/count?role=employer`; dropped "regions
+      represented" entirely since nothing tracks that.
+    - The draft's form only collected email + a "hiring for" select —
+      insufficient for the backend (`full_name` required always,
+      `org_name` required for employer role). Added "Organisation name"
+      and "Your name" fields.
+    - The AI chat mock had the assistant offer to "shortlist the top
+      matches" — the copy brief's OWN compliance note two paragraphs
+      above explicitly forbids exactly this ("avoid words like...
+      'top candidates'" — evaluative language against non-negotiable
+      #5). Reworded to "shortlist all of them, or show the full list
+      first" — descriptive, not evaluative. Worth flagging to the user:
+      this slipped past their own stated rule in the source material.
+    - Nav's "How it works" link pointed at `#features` (the features
+      grid) instead of the how-it-works section, which had no `id` at
+      all — real bug in the draft, fixed.
+    - Added an "Illustrative — not real candidates or data" caption on
+      the hero mockup panel, matching the candidate page's convention
+      for its illustrative profile card — the mockup shows named,
+      specific-looking pipeline data ("Grace T., hired") that could
+      otherwise read as real.
+    - Dropped the draft's hotlinked Unsplash hero photo (an external
+      CDN image URL of an identifiable person). Same category of
+      concern the candidate page's real photo replaced a placeholder
+      for — unconfirmed licensing, fragile external dependency, breaks
+      the self-contained-file convention this project uses throughout.
+      Can add a real, cleared photo the same way (crop + embed as base64)
+      if the user supplies one, same as before.
+    - Reconciled the features grid to the `.md`'s 5 cards (Trust,
+      Pipeline, Character, Flexible, Visibility) rather than the HTML
+      draft's differing 4 (draft was missing Pipeline/Character, had an
+      extra Interviews card not in the brief) — the `.md` is the more
+      recent, more complete source and says so explicitly.
+    - Added the same GSAP+ScrollTrigger motion (word-by-word headline,
+      section reveals, reduced-motion/no-js fallbacks) and a post-submit
+      share panel (X/LinkedIn/Facebook/WhatsApp/copy-link) as the other
+      two pages — the draft had neither, for visual/UX parity.
+    - Kept the "For candidates" nav/footer cross-link (draft didn't have
+      one — it's a static mockup unaware of the other live page).
+  - **Bug found and fixed during responsive audit**: at 360px width, the
+    nav's "for employers" tag pill + waitlist button didn't fit
+    alongside the logo — added a `max-width: 400px` breakpoint shrinking
+    nav padding/font sizes. Confirmed zero horizontal overflow at all 6
+    tested viewport sizes after the fix.
+  - Verified: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+    cleanly (884 KiB / 190 KiB gzip), the new `hiring_for` column and its
+    check constraint verified directly against the real Supabase schema
+    (valid value inserted successfully, invalid value correctly
+    rejected, test row deleted, counts confirmed back at 0).
+  - **Flagged, not yet acted on**: the copy brief describes chat-first AI
+    search + a full ATS + an "iCompliance" module + AI interview parsing
+    as the real employer product — none of this is in `SPRINTS.md`'s
+    employer track (Sprints 6–10), which assumed simple structured-field
+    search. The brief's own text acknowledges this ("a new major
+    workstream... not yet reflected in HANDOVER.md's technical scope...
+    needing its own scoping session") — SPRINTS.md needs a revision pass
+    before Sprint 6 starts, not a silent reconciliation.
+  - Not yet pushed to a PR — validated and ready, see Status above.
+- **Employer product scope conversation**, before writing any employer
+  sprint code. Walked through what the landing page brief actually
+  implied technically, then used `AskUserQuestion` on the four decisions
+  that would materially change sprint shape (rather than guessing):
+  1. **Chat scope** — user chose *chat-first from day one* over my
+     recommended default (build structured UI first, add chat as a
+     layer later). Means the employer track builds the LLM tool-calling
+     loop and chat UI together with each backend action, not deferred.
+  2. **Video interviews** — user chose *separate, later initiative*,
+     matching my recommendation and the brief's own admission it needs
+     its own scoping session. Not in the employer track at all.
+  3. **iCompliance** — user chose *employer's own compliance
+     checklist/workflow* (the bigger of the three options I offered, not
+     just a read-only view of existing candidate data), but interrupted
+     the tool result to add: **not urgent, mention in the docs, don't
+     schedule it**. Captured as an explicitly unscheduled Sprint 12.
+  4. **Pipeline stages** — user chose *fixed stages to start*, matching
+     my recommendation.
+  - Caught one more compliance issue while designing the search sprint:
+    the brief's mockups show partial names ("Aoife M.") in pre-shortlist
+    results, which violates non-negotiable #4 (name must be excluded
+    pre-shortlist — a first name signals gender/ethnicity, the exact
+    Equality Act exposure the rule prevents). This wasn't a question for
+    the user — it's enforcing an existing non-negotiable against a
+    conflicting mockup, so it went straight into `SPRINTS.md` as a hard
+    constraint on Sprint 8, flagged clearly in the chat response rather
+    than silently fixed.
+  - Rewrote `SPRINTS.md`'s employer track (was Sprints 6–10, now 6–11
+    plus an unscheduled Sprint 12) to reflect all four decisions: Sprint
+    8 is now "chat infrastructure + compliant candidate search" (LLM
+    tool-calling loop, protected-characteristics guardrail, a narrow
+    `search_candidates` tool that only produces filter parameters — the
+    model never sees or judges candidate data directly, which keeps
+    non-negotiable #5 enforceable by construction); Sprint 9 adds the
+    `stage` column to `shortlists` (schema doesn't exist yet) plus
+    shortlist/pipeline-move/status chat tools; Sprint 10 is the "Who is
+    X" summary, deliberately v1-scoped to structured data only so it
+    doesn't have to wait on self-expression posts (still phase 2);
+    Sprint 11 is bulk chat commands + a minimal dashboard. Updated the
+    "explicitly not scheduled" list to match (self-expression posts
+    narrowed to just that, since conversational search is now
+    scheduled; added video interviews and iCompliance as their own
+    entries there too). No code written yet — this was planning only.
+- **Non-negotiable #4 partially overridden — explicit founder
+  instruction, 2026-08-26.** User: *"Regarding non-negotiables, i
+  command you to not let it interfere with planning for now. When the
+  employer searches the ai should generate the names, current job title
+  and location of the candidate."* This directly reverses the
+  identity-blind pre-shortlist search design #4 required (photo/name/
+  video/CV excluded until shortlist+consent) — the original rule came
+  from real legal-compliance handover material (Equality Act 2010
+  indirect-discrimination exposure: a name signals gender/ethnicity),
+  not something invented mid-session, so this wasn't treated as a routine
+  planning tweak. Flagged the risk clearly once — not repeatedly, since
+  the instruction was explicit and directed — then implemented as asked
+  rather than blocking on it. Scoped the override narrowly to exactly
+  what was requested: **name, current job title, and location** are now
+  shown pre-shortlist; **photo, video, and CV file stay excluded** —
+  those three weren't mentioned in the instruction, so non-negotiable #4
+  still applies to them. Recorded as a dated, attributed annotation in
+  `HANDOVER.md` §1 non-negotiable #4 (original compliance reasoning kept
+  intact, not deleted, so it's there if this ever gets revisited) and
+  reflected in `SPRINTS.md`: Sprint 8's result fields now include
+  `accounts.full_name` (joined via `candidates.id = accounts.id`) and
+  current job title (`employment_history` row where `is_current = true`);
+  Sprint 9's candidate-consent unlock now covers photo/video/CV only,
+  since name/title/location are already visible from search rather than
+  gated behind consent.
+- **Sprint 0 shipped** (`SPRINTS.md`): the foundations candidate Sprint 1
+  onward depends on.
+  - `src/privacy.html` and `src/terms.html` — self-contained pages
+    matching the landing pages' pattern, linked from both landing
+    pages' footers. Explicitly marked DRAFT with an on-page notice, not
+    just in the source comments — grounded in real system behavior
+    (including the Sprint 8 name/title/location override, described
+    honestly rather than as an idealised identity-blind design) rather
+    than generic boilerplate, but not lawyer-reviewed. Placeholders
+    (company registration details, contact email, retention period,
+    governing law) are bracketed and colored distinctly on the page,
+    not invented as if settled.
+  - Checked whether the Supabase Magic Link email template fix could be
+    done from here (queried the actual list of available Supabase MCP
+    tools rather than assuming) — confirmed no tool exposes Auth email
+    template config. Still a manual Dashboard step for the user.
+  - `src/auth-client.js` — the shared client-side auth helper, written
+    as a canonical reference file (not imported — this repo has no
+    build step, so every signed-in page copies it into its own
+    `<script>` tag verbatim, matching how the landing pages already
+    duplicate their reveal/share-panel JS rather than importing it).
+    `icareGetSession`/`icareSetSession`/`icareClearSession`
+    (localStorage), `icareAuthFetch` (attaches the bearer token),
+    `icareRequireAuth` (redirect-to-sign-in with `?next=` if no valid
+    session).
+  - Verified: `tsc --noEmit` clean (confirmed `auth-client.js` isn't
+    picked up by `tsconfig.json`'s default `allowJs: false`, so it's
+    inert until copied into a page — checked the config rather than
+    assuming), `wrangler deploy --dry-run` bundles cleanly, 6-viewport
+    headless-Chromium audit on both new pages — zero horizontal overflow.
+  - Not yet pushed to a PR.
+- **Sprint 1 shipped** (`SPRINTS.md`): real candidate sign-up/sign-in.
+  - `src/sign-in.html` — one file mounted at both `/sign-up` and
+    `/sign-in`, client-side mode toggle (name field + terms checkbox
+    only show in sign-up mode). Posts to the existing, unmodified
+    `POST /auth/request-code` — no backend changes this sprint.
+  - `src/verify.html` — 6-digit code entry, posts to the existing,
+    unmodified `POST /auth/verify-code`, stores the session via the
+    Sprint 0 auth helper (copied inline). On success, calls the
+    existing `GET /candidates/me` to check `onboarding_done` and
+    redirects to `/onboarding` or `/dashboard` accordingly.
+  - `src/onboarding.html`, `src/dashboard.html` — new stub pages, both
+    just enough to be real, working, auth-guarded destinations (confirm
+    the account, show the signed-in email, offer sign-out) since Sprints
+    2 and 5 don't exist yet and Sprint 1 needs non-broken redirect
+    targets either way. Both reuse the same `icareRequireAuth` guard
+    the real pages will keep using.
+  - **Bug found and fixed during testing, not just a lucky catch**:
+    tested the sign-up/sign-in mode toggle with a headless-Chromium
+    click (not just visual inspection) and found `history.replaceState`
+    throwing uncaught in the tested context — which silently aborted
+    the rest of the page's init script, meaning the toggle's click
+    handlers never got attached at all, with zero visible error. Wrapped
+    in try/catch; re-tested and confirmed the toggle switches correctly
+    (name field + terms checkbox appear, copy updates, body class
+    updates) after the fix.
+  - **Explicitly not testable from this sandbox**: a live OTP round-trip
+    (send code → real inbox → verify). Confirmed — again, more directly
+    this time — that this sandbox can't reach `*.supabase.co` at all:
+    tried a plain `curl` directly (not just `wrangler dev`), got no
+    response (`000`). This is the same limitation `HANDOVER.md` §6
+    already flagged (OTP flow deployed but unconfirmed against a real
+    inbox, pending the Magic Link template fix), not something new or
+    worse introduced by this sprint. What's actually verified instead:
+    the request/response shapes used match the real, unmodified
+    `src/auth.ts`/`src/candidates.ts` exactly (read the source, not
+    assumed), plus `tsc --noEmit`, `wrangler deploy --dry-run`, and a
+    6-viewport headless-Chromium audit across all 4 new pages (zero
+    horizontal overflow).
+  - Not yet pushed to a PR.
+- **Sprint 2 shipped** (`SPRINTS.md`): the real onboarding wizard.
+  - **New routes** (`src/candidates.ts`): `POST /candidates/me/
+    onboarding/advance` (`{ step, event }`, bumps `onboarding_step` to
+    `max(current, step)`, always inserts an `onboarding_events` row) and
+    `POST /candidates/me/onboarding/complete` (sets `onboarding_done =
+    true`, logs a `completed` event) — built but deliberately **not
+    called by this sprint's UI**, since the wizard spans Sprints 2–5 and
+    calling `complete` after just 3 of the eventual ~10+ steps would
+    misrepresent what `onboarding_done` means to anything that checks it
+    (Sprint 1's verify.html redirect logic, for one).
+  - Checked RLS directly against the schema before writing either route,
+    not assumed: `candidates`' `candidate_self` policy (`id =
+    auth.uid()`, all commands) covers the read+update; `onboarding_
+    events`' `onboarding_events_self` policy (INSERT only, `candidate_id
+    = auth.uid()`) covers the insert.
+  - `src/onboarding.html` replaced outright (was the Sprint 1 stub): 3
+    steps in one page — Basics (headline/about/town/postcode_district +
+    a profession picker with a primary-profession dropdown that only
+    appears once 2+ professions are checked), Skills (clinical skills
+    grouped by family), Availability & logistics (availability state
+    with a conditional date field, shift prefs, travel radius, min rate,
+    right-to-work with a conditional visa-expiry field, driving licence/
+    vehicle). Progress dots + labels, back/next, and — genuinely
+    resumes from `candidates.onboarding_step` on load rather than
+    restarting, by fetching the candidate's existing profile/
+    professions/skills and pre-filling/pre-checking everything.
+  - After step 3: an honest "rest of the wizard — coming soon" holding
+    screen, not a redirect anywhere and not `onboarding_done = true`.
+  - **Verification approach, given this sandbox still can't reach
+    Supabase**: rather than stop at typecheck/bundle/overflow-audit
+    (which don't prove the JS actually works), exercised the real
+    wizard with headless Chromium, mocking `fetch` responses shaped
+    exactly like the real endpoints' real shapes (read from the actual
+    route handlers, not guessed) via Playwright's request interception.
+    Confirmed: the full step 1→2→3→4 click-through advances correctly
+    with no uncaught page errors; the conditional visa-expiry field
+    shows/hides correctly when `right_to_work` changes to/from a visa-
+    related value; and, separately, mocking `onboarding_step: 3` on load
+    lands the wizard on step 3 directly rather than restarting at step
+    1 — the resume behavior actually works, not just plausible-looking
+    code. Also: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+    cleanly, 6-viewport headless-Chromium overflow audit (zero overflow).
+  - Not yet pushed to a PR — opening one next per the user's request.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

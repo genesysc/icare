@@ -72,6 +72,69 @@ candidates.patch("/me", async (c) => {
   return c.json({ candidate: data });
 });
 
+// --- Onboarding progress (SPRINTS.md Sprint 2) ---
+// The wizard spans several sprints (Sprint 2: basics/skills/availability,
+// Sprint 3: work history/quals/registrations, Sprint 4: DBS/refs/prompts,
+// Sprint 5: photo/review/publish) — onboarding_step is a single monotonic
+// counter across all of it, onboarding_done only flips true at the very
+// end (Sprint 5), not after any individual sprint's steps.
+
+candidates.post("/me/onboarding/advance", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const step = typeof body?.step === "number" ? body.step : null;
+  const event = typeof body?.event === "string" ? body.event : "advanced";
+  if (step === null || !Number.isInteger(step) || step < 1) {
+    return c.json({ error: "step must be a positive integer" }, 400);
+  }
+
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+
+  const { data: current, error: readError } = await supabase
+    .from("candidates")
+    .select("onboarding_step")
+    .eq("id", userId)
+    .single();
+  if (readError) return c.json({ error: readError.message }, 400);
+
+  const nextStep = Math.max(current.onboarding_step, step);
+  const { data, error } = await supabase
+    .from("candidates")
+    .update({ onboarding_step: nextStep })
+    .eq("id", userId)
+    .select("onboarding_step")
+    .single();
+  if (error) return c.json({ error: error.message }, 400);
+
+  const { error: eventError } = await supabase
+    .from("onboarding_events")
+    .insert({ candidate_id: userId, step, event });
+  if (eventError) return c.json({ error: eventError.message }, 400);
+
+  return c.json({ onboarding_step: data.onboarding_step });
+});
+
+candidates.post("/me/onboarding/complete", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+
+  const { data, error } = await supabase
+    .from("candidates")
+    .update({ onboarding_done: true })
+    .eq("id", userId)
+    .select("onboarding_done, onboarding_step")
+    .single();
+  if (error) return c.json({ error: error.message }, 400);
+
+  await supabase.from("onboarding_events").insert({
+    candidate_id: userId,
+    step: data.onboarding_step,
+    event: "completed",
+  });
+
+  return c.json({ onboarding_done: data.onboarding_done });
+});
+
 candidates.post("/me/publish", async (c) => {
   const { data, error } = await c.get("supabase").rpc("publish_my_profile");
   if (error) return c.json({ error: error.message }, 400);
