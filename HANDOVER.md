@@ -138,10 +138,10 @@ stop and ask the user — do not resolve it yourself.**
 | File | What |
 |---|---|
 | `wrangler.jsonc` | Worker config — account id, vars (Supabase URL/key), R2 binding, the `Text` import rule for `.html` |
-| `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/media-check` |
+| `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/qualification-types`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo upload, publish, professions/skills, employment history, onboarding advance/complete |
+| `src/candidates.ts` | Candidate profile CRUD, photo upload, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, onboarding advance/complete |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
 | `src/emails/waitlist-welcome.ts` | The actual welcome email subject/HTML, unused until `email.ts` is wired up |
@@ -151,7 +151,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
 | `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
 | `src/verify.html` | OTP code entry, `/verify?email=...` |
-| `src/onboarding.html` | The real onboarding wizard (Sprint 2: basics/skills/availability) — spans Sprints 2–5, not done after this |
+| `src/onboarding.html` | The real onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations) — spans Sprints 2–5, not done after this |
 | `src/dashboard.html` | Stub post-onboarding landing, real dashboard is Sprint 5 |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
@@ -497,9 +497,29 @@ non-negotiable #4 override annotation, and Sprints 0-2) shipped on
 (https://github.com/genesysc/icare/actions/runs/32938882643) succeeded.
 Live. Branch restarted from `main` per convention (§10).
 
-**Next priorities**: Sprint 3 (work history, qualifications,
-registrations) continues the wizard. Sprint 8 (chat infrastructure,
-employer track) will need an `ANTHROPIC_API_KEY` secret added via
+Sprint 3 (work history, qualifications, registrations) is also now
+shipped: the wizard grew from 3 real steps + a holding screen to 6 +
+holding. Employment history reused the existing full-CRUD API outright
+with a new add/edit/delete UI; qualifications and registrations got
+brand-new CRUD routes in `src/candidates.ts` (plus an evidence-upload
+route to R2 for qualifications) and a new public
+`GET /qualification-types` reference route, all RLS-checked directly
+against `pg_policies` first. One correction worth knowing: a new
+qualification's `status` actually defaults to `none` in the real
+schema, not `submitted` as `SPRINTS.md` originally assumed — it only
+becomes `submitted` once evidence is genuinely uploaded (now corrected
+in `SPRINTS.md`). Two real responsive-layout bugs were found and fixed
+during testing (a step-label overflow at narrow widths, and a
+record-card action/title overlap) — see PROGRESS.md's "Done" section
+for full detail on both.
+
+**Next priorities**: Sprint 4 (DBS status/consent, references,
+self-expression prompts) continues the wizard — the DBS step needs
+careful copy per non-negotiable #3, and the reference step's actual
+referee-response flow needs real outbound email, which is still blocked
+on the parked domain/Sender.net work (collecting referee details is not
+blocked, just the email send). Sprint 8 (chat infrastructure, employer
+track) will need an `ANTHROPIC_API_KEY` secret added via
 `wrangler secret put` when it starts — not yet provisioned. Don't
 restart the domain/Sender.net work unless the user brings it back up.
 

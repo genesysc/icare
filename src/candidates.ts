@@ -322,4 +322,171 @@ candidates.delete("/me/employment-history/:id", async (c) => {
   return c.body(null, 204);
 });
 
+// --- Qualifications (SPRINTS.md Sprint 3) ---
+// status is server-owned: starts "none" (DB default) until evidence is
+// uploaded, then moves to "submitted" — review happens manually via the
+// Supabase dashboard for now (no reviewer UI yet).
+
+const QUALIFICATION_FIELDS = ["type_id", "title", "awarding_body", "awarded_on", "expires_on"] as const;
+
+candidates.get("/me/qualifications", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("qualifications")
+    .select("*")
+    .eq("candidate_id", c.get("userId"))
+    .order("awarded_on", { ascending: false });
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ qualifications: data });
+});
+
+candidates.post("/me/qualifications", async (c) => {
+  const body = await c.req.json();
+  const insert: Record<string, unknown> = { candidate_id: c.get("userId") };
+  for (const field of QUALIFICATION_FIELDS) {
+    if (field in body) insert[field] = body[field];
+  }
+
+  const { data, error } = await c.get("supabase").from("qualifications").insert(insert).select().single();
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ qualification: data }, 201);
+});
+
+candidates.patch("/me/qualifications/:id", async (c) => {
+  const body = await c.req.json();
+  const update: Record<string, unknown> = {};
+  for (const field of QUALIFICATION_FIELDS) {
+    if (field in body) update[field] = body[field];
+  }
+  if (Object.keys(update).length === 0) {
+    return c.json({ error: "no writable fields in body" }, 400);
+  }
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("qualifications")
+    .update(update)
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"))
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ qualification: data });
+});
+
+candidates.delete("/me/qualifications/:id", async (c) => {
+  const { error } = await c
+    .get("supabase")
+    .from("qualifications")
+    .delete()
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+});
+
+candidates.post("/me/qualifications/:id/evidence", async (c) => {
+  const contentType = c.req.header("Content-Type");
+  if (!contentType || !(contentType.startsWith("image/") || contentType === "application/pdf")) {
+    return c.json({ error: "Content-Type must be an image/* type or application/pdf" }, 400);
+  }
+
+  const userId = c.get("userId");
+  const qualificationId = c.req.param("id");
+  const supabase = c.get("supabase");
+
+  const { data: current, error: readError } = await supabase
+    .from("qualifications")
+    .select("status")
+    .eq("id", qualificationId)
+    .eq("candidate_id", userId)
+    .single();
+  if (readError) return c.json({ error: readError.message }, 404);
+
+  const key = `candidates/${userId}/qualifications/${qualificationId}/evidence`;
+  const body = await c.req.arrayBuffer();
+  await c.env.MEDIA.put(key, body, { httpMetadata: { contentType } });
+
+  const nextStatus = current.status === "none" ? "submitted" : current.status;
+  const { data, error } = await supabase
+    .from("qualifications")
+    .update({ evidence_path: key, status: nextStatus })
+    .eq("id", qualificationId)
+    .eq("candidate_id", userId)
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ qualification: data });
+});
+
+// --- Registrations (SPRINTS.md Sprint 3) ---
+// status defaults to "submitted" (DB default) — a registration is a
+// factual claim (regulator + reg number) the candidate is making up
+// front, unlike a qualification which starts unevidenced. Review still
+// happens manually via the Supabase dashboard for now.
+
+const REGISTRATION_FIELDS = ["regulator", "reg_number", "register_name", "expires_on"] as const;
+
+candidates.get("/me/registrations", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("registrations")
+    .select("*")
+    .eq("candidate_id", c.get("userId"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ registrations: data });
+});
+
+candidates.post("/me/registrations", async (c) => {
+  const body = await c.req.json();
+  const insert: Record<string, unknown> = { candidate_id: c.get("userId") };
+  for (const field of REGISTRATION_FIELDS) {
+    if (field in body) insert[field] = body[field];
+  }
+
+  const { data, error } = await c.get("supabase").from("registrations").insert(insert).select().single();
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ registration: data }, 201);
+});
+
+candidates.patch("/me/registrations/:id", async (c) => {
+  const body = await c.req.json();
+  const update: Record<string, unknown> = {};
+  for (const field of REGISTRATION_FIELDS) {
+    if (field in body) update[field] = body[field];
+  }
+  if (Object.keys(update).length === 0) {
+    return c.json({ error: "no writable fields in body" }, 400);
+  }
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("registrations")
+    .update(update)
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"))
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ registration: data });
+});
+
+candidates.delete("/me/registrations/:id", async (c) => {
+  const { error } = await c
+    .get("supabase")
+    .from("registrations")
+    .delete()
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+});
+
 export default candidates;

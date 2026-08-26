@@ -1,24 +1,25 @@
 <!--
-  iCare candidate onboarding wizard — SPRINTS.md Sprint 2.
+  iCare candidate onboarding wizard — SPRINTS.md Sprint 2 + Sprint 3.
 
-  Replaces the Sprint 1 stub. This is the FIRST slice of a wizard that
-  spans several sprints — onboarding_step is one monotonic counter
-  across all of them (Sprint 2: basics/skills/availability, Sprint 3:
-  work history/quals/registrations, Sprint 4: DBS/refs/prompts, Sprint 5:
-  photo/review/publish). Completing this sprint's 3 steps does NOT set
-  onboarding_done — that's Sprint 5's job. After step 3 this shows an
-  honest "more coming" holding state rather than pretending the wizard
-  is finished or redirecting to the dashboard prematurely.
+  This is a wizard that spans several sprints — onboarding_step is one
+  monotonic counter across all of them (Sprint 2: basics/skills/
+  availability, Sprint 3: work history/quals/registrations, Sprint 4:
+  DBS/refs/prompts, Sprint 5: photo/review/publish). Completing this
+  sprint's steps does NOT set onboarding_done — that's Sprint 5's job.
+  After step 6 this shows an honest "more coming" holding state rather
+  than pretending the wizard is finished or redirecting to the
+  dashboard prematurely.
 
   Resumes from candidates.onboarding_step on load (not a fresh start
-  every visit) — reads existing profile/professions/skills data to
-  pre-fill the form.
+  every visit) — reads existing profile/professions/skills/employment/
+  qualifications/registrations data to pre-fill the form.
 
-  Single self-contained page, all 3 steps client-side show/hide (no
+  Single self-contained page, all steps client-side show/hide (no
   build step, matching this repo's convention) — calls the EXISTING
   PATCH /candidates/me, PUT /candidates/me/professions, PUT
-  /candidates/me/skills, plus the NEW POST /candidates/me/onboarding/
-  advance built alongside this page.
+  /candidates/me/skills, /candidates/me/employment-history CRUD, plus
+  the NEW /candidates/me/qualifications and /candidates/me/registrations
+  CRUD (+ qualification evidence upload) built alongside this page.
 -->
 <!doctype html>
 <html lang="en">
@@ -72,7 +73,8 @@
   .step-dot { flex: 1; height: 4px; border-radius: 999px; background: var(--line); }
   .step-dot.is-done { background: var(--teal-500); }
   .step-dot.is-current { background: var(--plum-800); }
-  .step-labels { display: flex; justify-content: space-between; margin-top: 8px; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: 0.04em; color: var(--ink-faint); text-transform: uppercase; }
+  .step-labels { display: flex; gap: 8px; margin-top: 8px; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: 0.03em; color: var(--ink-faint); text-transform: uppercase; }
+  .step-labels span { flex: 1; min-width: 0; text-align: center; line-height: 1.3; overflow-wrap: break-word; }
   .step-labels span.is-current { color: var(--plum-950); font-weight: 600; }
 
   .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 36px 32px; }
@@ -120,6 +122,52 @@
     font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber-600);
     background: var(--amber-100); padding: 5px 10px; border-radius: 999px;
   }
+
+  /* Record lists (employment/qualifications/registrations): add/edit/delete cards */
+  .record-list { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .record-card {
+    border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px;
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 12px;
+  }
+  .record-main { flex: 1 1 180px; min-width: 0; }
+  .record-title { font-size: 14.5px; font-weight: 700; color: var(--plum-950); }
+  .record-sub { margin-top: 3px; font-size: 13px; color: var(--ink-faint); }
+  .record-tag {
+    display: inline-flex; margin-top: 6px; font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px;
+  }
+  .record-tag.status-none, .record-tag.status-submitted { color: var(--amber-600); background: var(--amber-100); }
+  .record-tag.status-under_review { color: var(--teal-700); background: var(--teal-100); }
+  .record-tag.status-accepted { color: var(--teal-700); background: var(--teal-100); }
+  .record-tag.status-rejected, .record-tag.status-expired { color: var(--err); background: #fbe9e5; }
+  .record-actions { flex: none; display: flex; gap: 6px; }
+  .record-actions button {
+    background: none; border: none; cursor: pointer; font-size: 12.5px; font-weight: 600;
+    color: var(--ink-faint); padding: 4px 6px;
+  }
+  .record-actions button:hover { color: var(--plum-950); }
+  .record-actions .danger:hover { color: var(--err); }
+
+  .add-record-btn {
+    margin-top: 14px; background: none; border: 1.5px dashed var(--line); border-radius: 12px;
+    padding: 12px; width: 100%; text-align: center; font-weight: 600; font-size: 14px;
+    color: var(--teal-700); cursor: pointer;
+  }
+  .add-record-btn:hover { border-color: var(--teal-500); background: var(--teal-100); }
+
+  .record-form { display: none; margin-top: 16px; padding: 16px; border-radius: 12px; background: var(--paper-dim); }
+  .record-form.is-open { display: block; }
+  .record-form-actions { margin-top: 16px; display: flex; gap: 10px; }
+  .btn-small { padding: 9px 18px; border-radius: 999px; font-weight: 700; font-size: 13.5px; cursor: pointer; border: none; }
+  .btn-small.btn-primary { background: var(--teal-500); color: var(--white); }
+  .btn-small.btn-primary:hover { background: var(--teal-700); }
+  .btn-small.btn-primary:disabled { opacity: 0.6; cursor: default; }
+  .btn-small.btn-ghost { background: transparent; color: var(--ink-faint); }
+  .btn-small.btn-ghost:hover { color: var(--plum-950); }
+  .form-err { margin-top: 10px; font-size: 13px; color: var(--err); display: none; }
+  .form-err.is-visible { display: block; }
+  .file-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .file-row input[type="file"] { font-size: 13px; }
 </style>
 </head>
 <body>
@@ -134,11 +182,17 @@
     <div class="step-dot" data-dot="1"></div>
     <div class="step-dot" data-dot="2"></div>
     <div class="step-dot" data-dot="3"></div>
+    <div class="step-dot" data-dot="4"></div>
+    <div class="step-dot" data-dot="5"></div>
+    <div class="step-dot" data-dot="6"></div>
   </div>
   <div class="step-labels">
     <span data-label="1">Basics</span>
     <span data-label="2">Skills</span>
     <span data-label="3">Availability</span>
+    <span data-label="4">Experience</span>
+    <span data-label="5">Quals</span>
+    <span data-label="6">Registration</span>
   </div>
 
   <div class="card" style="margin-top:20px;">
@@ -263,11 +317,161 @@
       </div>
     </div>
 
-    <!-- Step 4: holding screen (Sprints 3-5 not built yet) -->
-    <div class="panel holding" data-panel="4">
+    <!-- Step 4: Employment history -->
+    <div class="panel" data-panel="4">
+      <h1 class="card-title">Your work history</h1>
+      <p class="card-sub">Add the roles that show what you can do. You can add, edit, or remove these any time.</p>
+
+      <div class="record-list" data-employment-list></div>
+      <button type="button" class="add-record-btn" data-add-employment>+ Add a role</button>
+
+      <div class="record-form" data-employment-form>
+        <div class="field" style="margin-top:0;">
+          <label for="emp-employer">Employer</label>
+          <input id="emp-employer" type="text" placeholder="e.g. Willow House Care Home" />
+        </div>
+        <div class="field">
+          <label for="emp-job-title">Job title</label>
+          <input id="emp-job-title" type="text" placeholder="e.g. Senior Care Assistant" />
+        </div>
+        <div class="field">
+          <label for="emp-setting">Setting</label>
+          <input id="emp-setting" type="text" placeholder="e.g. Residential care home" />
+        </div>
+        <div class="field two-col">
+          <div>
+            <label for="emp-started">Started</label>
+            <input id="emp-started" type="date" />
+          </div>
+          <div data-emp-ended-field>
+            <label for="emp-ended">Ended</label>
+            <input id="emp-ended" type="date" />
+          </div>
+        </div>
+        <div class="field">
+          <div class="check-row"><input type="checkbox" id="emp-current" /><label for="emp-current">I still work here</label></div>
+        </div>
+        <div class="field">
+          <label for="emp-description">What did the role involve? (optional)</label>
+          <textarea id="emp-description" placeholder="A few lines on your day-to-day responsibilities."></textarea>
+        </div>
+        <p class="form-err" data-employment-form-err></p>
+        <div class="record-form-actions">
+          <button type="button" class="btn-small btn-primary" data-employment-save>Save role</button>
+          <button type="button" class="btn-small btn-ghost" data-employment-cancel>Cancel</button>
+        </div>
+      </div>
+
+      <p class="status" data-status="4"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" data-back="4">Back</button>
+        <button type="button" class="btn btn-primary" data-next="4">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 5: Qualifications -->
+    <div class="panel" data-panel="5">
+      <h1 class="card-title">Your qualifications</h1>
+      <p class="card-sub">Mandatory training, vocational quals, degrees — add what you have. Evidence is optional
+        for now but speeds up review later.</p>
+
+      <div class="record-list" data-qualifications-list></div>
+      <button type="button" class="add-record-btn" data-add-qualification>+ Add a qualification</button>
+
+      <div class="record-form" data-qualification-form>
+        <div class="field" style="margin-top:0;">
+          <label for="qual-type">Qualification type</label>
+          <select id="qual-type"><option value="">Other / not listed</option></select>
+        </div>
+        <div class="field">
+          <label for="qual-title">Title</label>
+          <input id="qual-title" type="text" placeholder="e.g. NVQ Level 3 Health & Social Care" />
+        </div>
+        <div class="field two-col">
+          <div>
+            <label for="qual-awarding-body">Awarding body (optional)</label>
+            <input id="qual-awarding-body" type="text" placeholder="e.g. City & Guilds" />
+          </div>
+          <div>
+            <label for="qual-awarded-on">Date awarded (optional)</label>
+            <input id="qual-awarded-on" type="date" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="qual-expires-on">Expiry date (optional, if it renews)</label>
+          <input id="qual-expires-on" type="date" />
+        </div>
+        <div class="field">
+          <label for="qual-evidence">Evidence (optional — certificate photo or PDF)</label>
+          <div class="file-row"><input id="qual-evidence" type="file" accept="image/*,application/pdf" /></div>
+        </div>
+        <p class="form-err" data-qualification-form-err></p>
+        <div class="record-form-actions">
+          <button type="button" class="btn-small btn-primary" data-qualification-save>Save qualification</button>
+          <button type="button" class="btn-small btn-ghost" data-qualification-cancel>Cancel</button>
+        </div>
+      </div>
+
+      <p class="status" data-status="5"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" data-back="5">Back</button>
+        <button type="button" class="btn btn-primary" data-next="5">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 6: Registrations -->
+    <div class="panel" data-panel="6">
+      <h1 class="card-title">Professional registrations</h1>
+      <p class="card-sub">If your profession requires one (NMC, HCPC, GMC, and similar), add your registration
+        details. Skip this if it doesn't apply to you.</p>
+
+      <div class="record-list" data-registrations-list></div>
+      <button type="button" class="add-record-btn" data-add-registration>+ Add a registration</button>
+
+      <div class="record-form" data-registration-form>
+        <div class="field" style="margin-top:0;">
+          <label for="reg-regulator">Regulator</label>
+          <select id="reg-regulator">
+            <option value="nmc">NMC — Nursing and Midwifery Council</option>
+            <option value="hcpc">HCPC — Health and Care Professions Council</option>
+            <option value="gmc">GMC — General Medical Council</option>
+            <option value="gdc">GDC — General Dental Council</option>
+            <option value="gphc">GPhC — General Pharmaceutical Council</option>
+            <option value="swe">Social Work England</option>
+            <option value="goc">GOC — General Optical Council</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="reg-number">Registration number</label>
+          <input id="reg-number" type="text" placeholder="e.g. 12A3456B" />
+        </div>
+        <div class="field">
+          <label for="reg-register-name">Register name (optional)</label>
+          <input id="reg-register-name" type="text" placeholder="e.g. Registered Nurse — Adult" />
+        </div>
+        <div class="field">
+          <label for="reg-expires-on">Expiry / renewal date (optional)</label>
+          <input id="reg-expires-on" type="date" />
+        </div>
+        <p class="form-err" data-registration-form-err></p>
+        <div class="record-form-actions">
+          <button type="button" class="btn-small btn-primary" data-registration-save>Save registration</button>
+          <button type="button" class="btn-small btn-ghost" data-registration-cancel>Cancel</button>
+        </div>
+      </div>
+
+      <p class="status" data-status="6"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" data-back="6">Back</button>
+        <button type="button" class="btn btn-primary" data-next="6">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 7: holding screen (Sprints 4-5 not built yet) -->
+    <div class="panel holding" data-panel="7">
       <h1 class="card-title">Nice progress.</h1>
-      <p class="card-sub">We've saved everything so far. Work history, qualifications, and the rest of your
-        profile are being built next — come back soon to keep going.</p>
+      <p class="card-sub">We've saved everything so far. DBS status, references, your own words, a photo, and
+        publishing your profile are being built next — come back soon to keep going.</p>
       <span class="soon-tag">Rest of the wizard — coming soon</span>
     </div>
   </div>
@@ -313,6 +517,13 @@ function icareRequireAuth(signInPath) {
   var currentStep = 1;
   var professions = [];
   var skills = [];
+  var qualificationTypes = [];
+  var employmentHistory = [];
+  var qualifications = [];
+  var registrations = [];
+  var editingEmploymentId = null;
+  var editingQualificationId = null;
+  var editingRegistrationId = null;
 
   function jget(url) {
     return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
@@ -412,6 +623,218 @@ function icareRequireAuth(signInPath) {
 
   function advanceOnboarding(step, event) {
     return jsend("POST", "/candidates/me/onboarding/advance", { step: step, event: event });
+  }
+
+  function formatMonthYear(dateStr) {
+    if (!dateStr) return "";
+    var d = new Date(dateStr + "T00:00:00");
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  }
+  function statusLabel(status) {
+    var labels = { none: "Not submitted", submitted: "Submitted", under_review: "Under review", accepted: "Accepted", rejected: "Rejected", expired: "Expired" };
+    return labels[status] || status;
+  }
+  function showFormErr(prefix, message) {
+    var el = document.querySelector("[data-" + prefix + "-form-err]");
+    el.textContent = message;
+    el.className = "form-err is-visible";
+  }
+  function clearFormErr(prefix) {
+    var el = document.querySelector("[data-" + prefix + "-form-err]");
+    el.className = "form-err";
+  }
+
+  // ---- Employment history (record list: existing full-CRUD API) ----
+  function formatDateRange(startedOn, endedOn, isCurrent) {
+    var start = formatMonthYear(startedOn);
+    var end = isCurrent ? "Present" : formatMonthYear(endedOn);
+    if (!start && !end) return "";
+    return start + " – " + (end || "?");
+  }
+  function renderEmploymentList() {
+    var list = document.querySelector("[data-employment-list]");
+    list.innerHTML = "";
+    employmentHistory.forEach(function (job) {
+      var card = document.createElement("div");
+      card.className = "record-card";
+      card.innerHTML =
+        '<div class="record-main"><div class="record-title"></div><div class="record-sub"></div></div>' +
+        '<div class="record-actions"><button type="button" data-edit>Edit</button><button type="button" class="danger" data-delete>Delete</button></div>';
+      card.querySelector(".record-title").textContent = job.job_title + " · " + job.employer;
+      card.querySelector(".record-sub").textContent = [job.setting, formatDateRange(job.started_on, job.ended_on, job.is_current)].filter(Boolean).join(" — ");
+      card.querySelector("[data-edit]").addEventListener("click", function () { openEmploymentForm(job); });
+      card.querySelector("[data-delete]").addEventListener("click", function () { deleteEmployment(job.id); });
+      list.appendChild(card);
+    });
+  }
+  function syncEmploymentEndedField() {
+    document.querySelector("[data-emp-ended-field]").style.display = document.getElementById("emp-current").checked ? "none" : "block";
+  }
+  function openEmploymentForm(job) {
+    editingEmploymentId = job ? job.id : null;
+    document.getElementById("emp-employer").value = job ? job.employer : "";
+    document.getElementById("emp-job-title").value = job ? job.job_title : "";
+    document.getElementById("emp-setting").value = (job && job.setting) || "";
+    document.getElementById("emp-started").value = job ? job.started_on : "";
+    document.getElementById("emp-ended").value = (job && job.ended_on) || "";
+    document.getElementById("emp-current").checked = job ? !!job.is_current : false;
+    document.getElementById("emp-description").value = (job && job.description) || "";
+    syncEmploymentEndedField();
+    clearFormErr("employment");
+    document.querySelector("[data-employment-form]").classList.add("is-open");
+  }
+  function closeEmploymentForm() {
+    editingEmploymentId = null;
+    document.querySelector("[data-employment-form]").classList.remove("is-open");
+  }
+  function deleteEmployment(id) {
+    icareAuthFetch("/candidates/me/employment-history/" + id, { method: "DELETE" }).then(function (res) {
+      if (res.ok) {
+        employmentHistory = employmentHistory.filter(function (j) { return j.id !== id; });
+        renderEmploymentList();
+      }
+    });
+  }
+
+  // ---- Qualifications (record list, new CRUD + evidence upload) ----
+  function qualificationTypeLabel(typeId) {
+    var t = qualificationTypes.filter(function (x) { return x.id === typeId; })[0];
+    return t ? t.label : null;
+  }
+  function renderQualificationTypeOptions() {
+    var select = document.getElementById("qual-type");
+    select.innerHTML = '<option value="">Other / not listed</option>';
+    var families = [];
+    qualificationTypes.forEach(function (t) { if (families.indexOf(t.family) === -1) families.push(t.family); });
+    families.forEach(function (family) {
+      var group = document.createElement("optgroup");
+      group.label = family;
+      qualificationTypes.filter(function (t) { return t.family === family; }).forEach(function (t) {
+        var opt = document.createElement("option");
+        opt.value = t.id;
+        opt.textContent = t.label;
+        group.appendChild(opt);
+      });
+      select.appendChild(group);
+    });
+  }
+  function renderQualificationsList() {
+    var list = document.querySelector("[data-qualifications-list]");
+    list.innerHTML = "";
+    qualifications.forEach(function (q) {
+      var card = document.createElement("div");
+      card.className = "record-card";
+      var subParts = [];
+      if (q.awarding_body) subParts.push(q.awarding_body);
+      if (q.awarded_on) subParts.push(formatMonthYear(q.awarded_on));
+      if (q.expires_on) subParts.push("Expires " + formatMonthYear(q.expires_on));
+      card.innerHTML =
+        '<div class="record-main"><div class="record-title"></div><div class="record-sub"></div><span class="record-tag status-' + q.status + '"></span></div>' +
+        '<div class="record-actions">' +
+          (q.evidence_path ? "" : '<button type="button" data-add-evidence>Add evidence</button>') +
+          '<button type="button" data-edit>Edit</button><button type="button" class="danger" data-delete>Delete</button></div>';
+      card.querySelector(".record-title").textContent = q.title || qualificationTypeLabel(q.type_id) || "Qualification";
+      card.querySelector(".record-sub").textContent = subParts.join(" — ");
+      card.querySelector(".record-tag").textContent = statusLabel(q.status);
+      card.querySelector("[data-edit]").addEventListener("click", function () { openQualificationForm(q); });
+      card.querySelector("[data-delete]").addEventListener("click", function () { deleteQualification(q.id); });
+      var evidenceBtn = card.querySelector("[data-add-evidence]");
+      if (evidenceBtn) evidenceBtn.addEventListener("click", function () { promptQualificationEvidence(q.id); });
+      list.appendChild(card);
+    });
+  }
+  function openQualificationForm(q) {
+    editingQualificationId = q ? q.id : null;
+    document.getElementById("qual-type").value = (q && q.type_id) || "";
+    document.getElementById("qual-title").value = (q && q.title) || "";
+    document.getElementById("qual-awarding-body").value = (q && q.awarding_body) || "";
+    document.getElementById("qual-awarded-on").value = (q && q.awarded_on) || "";
+    document.getElementById("qual-expires-on").value = (q && q.expires_on) || "";
+    document.getElementById("qual-evidence").value = "";
+    clearFormErr("qualification");
+    document.querySelector("[data-qualification-form]").classList.add("is-open");
+  }
+  function closeQualificationForm() {
+    editingQualificationId = null;
+    document.querySelector("[data-qualification-form]").classList.remove("is-open");
+  }
+  function deleteQualification(id) {
+    icareAuthFetch("/candidates/me/qualifications/" + id, { method: "DELETE" }).then(function (res) {
+      if (res.ok) {
+        qualifications = qualifications.filter(function (q) { return q.id !== id; });
+        renderQualificationsList();
+      }
+    });
+  }
+  function uploadQualificationEvidence(id, file) {
+    return icareAuthFetch("/candidates/me/qualifications/" + id + "/evidence", {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    }).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); });
+  }
+  function promptQualificationEvidence(id) {
+    var input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*,application/pdf";
+    input.addEventListener("change", function () {
+      var file = input.files[0];
+      if (!file) return;
+      uploadQualificationEvidence(id, file).then(function (result) {
+        if (!result.ok) { setStatus(5, "err", result.body.error || "Couldn't upload evidence."); return; }
+        qualifications = qualifications.map(function (q) { return q.id === id ? result.body.qualification : q; });
+        renderQualificationsList();
+      });
+    });
+    input.click();
+  }
+
+  // ---- Registrations (record list, new CRUD) ----
+  function regulatorLabel(code) {
+    var labels = { nmc: "NMC", hcpc: "HCPC", gmc: "GMC", gdc: "GDC", gphc: "GPhC", swe: "Social Work England", goc: "GOC" };
+    return labels[code] || code;
+  }
+  function renderRegistrationsList() {
+    var list = document.querySelector("[data-registrations-list]");
+    list.innerHTML = "";
+    registrations.forEach(function (r) {
+      var card = document.createElement("div");
+      card.className = "record-card";
+      var subParts = [r.reg_number];
+      if (r.register_name) subParts.push(r.register_name);
+      if (r.expires_on) subParts.push("Expires " + formatMonthYear(r.expires_on));
+      card.innerHTML =
+        '<div class="record-main"><div class="record-title"></div><div class="record-sub"></div><span class="record-tag status-' + r.status + '"></span></div>' +
+        '<div class="record-actions"><button type="button" data-edit>Edit</button><button type="button" class="danger" data-delete>Delete</button></div>';
+      card.querySelector(".record-title").textContent = regulatorLabel(r.regulator);
+      card.querySelector(".record-sub").textContent = subParts.join(" — ");
+      card.querySelector(".record-tag").textContent = statusLabel(r.status);
+      card.querySelector("[data-edit]").addEventListener("click", function () { openRegistrationForm(r); });
+      card.querySelector("[data-delete]").addEventListener("click", function () { deleteRegistration(r.id); });
+      list.appendChild(card);
+    });
+  }
+  function openRegistrationForm(r) {
+    editingRegistrationId = r ? r.id : null;
+    document.getElementById("reg-regulator").value = r ? r.regulator : "nmc";
+    document.getElementById("reg-number").value = r ? r.reg_number : "";
+    document.getElementById("reg-register-name").value = (r && r.register_name) || "";
+    document.getElementById("reg-expires-on").value = (r && r.expires_on) || "";
+    clearFormErr("registration");
+    document.querySelector("[data-registration-form]").classList.add("is-open");
+  }
+  function closeRegistrationForm() {
+    editingRegistrationId = null;
+    document.querySelector("[data-registration-form]").classList.remove("is-open");
+  }
+  function deleteRegistration(id) {
+    icareAuthFetch("/candidates/me/registrations/" + id, { method: "DELETE" }).then(function (res) {
+      if (res.ok) {
+        registrations = registrations.filter(function (r) { return r.id !== id; });
+        renderRegistrationsList();
+      }
+    });
   }
 
   // ---- Step 1: Basics ----
@@ -525,6 +948,162 @@ function icareRequireAuth(signInPath) {
   });
   document.querySelector('[data-back="3"]').addEventListener("click", function () { showStep(2); });
 
+  // ---- Step 4: Employment history ----
+  document.getElementById("emp-current").addEventListener("change", syncEmploymentEndedField);
+  document.querySelector("[data-add-employment]").addEventListener("click", function () { openEmploymentForm(null); });
+  document.querySelector("[data-employment-cancel]").addEventListener("click", closeEmploymentForm);
+  document.querySelector("[data-employment-save]").addEventListener("click", function () {
+    var btn = this;
+    var employer = document.getElementById("emp-employer").value.trim();
+    var jobTitle = document.getElementById("emp-job-title").value.trim();
+    var started = document.getElementById("emp-started").value;
+    if (!employer || !jobTitle || !started) {
+      showFormErr("employment", "Employer, job title, and start date are required.");
+      return;
+    }
+    var isCurrent = document.getElementById("emp-current").checked;
+    var payload = {
+      employer: employer,
+      job_title: jobTitle,
+      setting: document.getElementById("emp-setting").value.trim() || null,
+      started_on: started,
+      ended_on: isCurrent ? null : (document.getElementById("emp-ended").value || null),
+      is_current: isCurrent,
+      description: document.getElementById("emp-description").value.trim() || null,
+    };
+    btn.disabled = true;
+    var req = editingEmploymentId
+      ? jsend("PATCH", "/candidates/me/employment-history/" + editingEmploymentId, payload)
+      : jsend("POST", "/candidates/me/employment-history", payload);
+    req.then(function (result) {
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save that role.");
+      return jget("/candidates/me/employment-history");
+    }).then(function (r) {
+      btn.disabled = false;
+      employmentHistory = r.ok ? (r.body.employment_history || []) : employmentHistory;
+      renderEmploymentList();
+      closeEmploymentForm();
+    }).catch(function (err) {
+      btn.disabled = false;
+      showFormErr("employment", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-next="4"]').addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    advanceOnboarding(5, "employment_completed").then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save your progress.");
+      showStep(5);
+    }).catch(function (err) {
+      btn.disabled = false;
+      setStatus(4, "err", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-back="4"]').addEventListener("click", function () { showStep(3); });
+
+  // ---- Step 5: Qualifications ----
+  document.querySelector("[data-add-qualification]").addEventListener("click", function () { openQualificationForm(null); });
+  document.querySelector("[data-qualification-cancel]").addEventListener("click", closeQualificationForm);
+  document.querySelector("[data-qualification-save]").addEventListener("click", function () {
+    var btn = this;
+    var typeId = document.getElementById("qual-type").value || null;
+    var title = document.getElementById("qual-title").value.trim();
+    if (!title && !typeId) {
+      showFormErr("qualification", "Pick a qualification type or enter a title.");
+      return;
+    }
+    var payload = {
+      type_id: typeId,
+      title: title || qualificationTypeLabel(typeId) || null,
+      awarding_body: document.getElementById("qual-awarding-body").value.trim() || null,
+      awarded_on: document.getElementById("qual-awarded-on").value || null,
+      expires_on: document.getElementById("qual-expires-on").value || null,
+    };
+    var file = document.getElementById("qual-evidence").files[0] || null;
+
+    btn.disabled = true;
+    var req = editingQualificationId
+      ? jsend("PATCH", "/candidates/me/qualifications/" + editingQualificationId, payload)
+      : jsend("POST", "/candidates/me/qualifications", payload);
+    req.then(function (result) {
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save that qualification.");
+      var qualificationId = editingQualificationId || result.body.qualification.id;
+      if (file) return uploadQualificationEvidence(qualificationId, file);
+      return result;
+    }).then(function () {
+      return jget("/candidates/me/qualifications");
+    }).then(function (r) {
+      btn.disabled = false;
+      qualifications = r.ok ? (r.body.qualifications || []) : qualifications;
+      renderQualificationsList();
+      closeQualificationForm();
+    }).catch(function (err) {
+      btn.disabled = false;
+      showFormErr("qualification", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-next="5"]').addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    advanceOnboarding(6, "qualifications_completed").then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save your progress.");
+      showStep(6);
+    }).catch(function (err) {
+      btn.disabled = false;
+      setStatus(5, "err", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-back="5"]').addEventListener("click", function () { showStep(4); });
+
+  // ---- Step 6: Registrations ----
+  document.querySelector("[data-add-registration]").addEventListener("click", function () { openRegistrationForm(null); });
+  document.querySelector("[data-registration-cancel]").addEventListener("click", closeRegistrationForm);
+  document.querySelector("[data-registration-save]").addEventListener("click", function () {
+    var btn = this;
+    var regNumber = document.getElementById("reg-number").value.trim();
+    if (!regNumber) {
+      showFormErr("registration", "Registration number is required.");
+      return;
+    }
+    var payload = {
+      regulator: document.getElementById("reg-regulator").value,
+      reg_number: regNumber,
+      register_name: document.getElementById("reg-register-name").value.trim() || null,
+      expires_on: document.getElementById("reg-expires-on").value || null,
+    };
+    btn.disabled = true;
+    var req = editingRegistrationId
+      ? jsend("PATCH", "/candidates/me/registrations/" + editingRegistrationId, payload)
+      : jsend("POST", "/candidates/me/registrations", payload);
+    req.then(function (result) {
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save that registration.");
+      return jget("/candidates/me/registrations");
+    }).then(function (r) {
+      btn.disabled = false;
+      registrations = r.ok ? (r.body.registrations || []) : registrations;
+      renderRegistrationsList();
+      closeRegistrationForm();
+    }).catch(function (err) {
+      btn.disabled = false;
+      showFormErr("registration", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-next="6"]').addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    advanceOnboarding(7, "registrations_completed").then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save your progress.");
+      showStep(7);
+    }).catch(function (err) {
+      btn.disabled = false;
+      setStatus(6, "err", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-back="6"]').addEventListener("click", function () { showStep(5); });
+
   document.querySelector("[data-sign-out]").addEventListener("click", function () {
     icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
       icareClearSession();
@@ -539,9 +1118,15 @@ function icareRequireAuth(signInPath) {
     jget("/skills"),
     jget("/candidates/me/professions"),
     jget("/candidates/me/skills"),
+    jget("/qualification-types"),
+    jget("/candidates/me/employment-history"),
+    jget("/candidates/me/qualifications"),
+    jget("/candidates/me/registrations"),
   ]).then(function (results) {
     var candidateResult = results[0], professionsResult = results[1], skillsResult = results[2];
     var myProfessionsResult = results[3], mySkillsResult = results[4];
+    var qualificationTypesResult = results[5], employmentResult = results[6];
+    var qualificationsResult = results[7], registrationsResult = results[8];
 
     if (!candidateResult.ok) {
       setStatus(1, "err", "Couldn't load your profile. Try refreshing the page.");
@@ -550,6 +1135,10 @@ function icareRequireAuth(signInPath) {
     var candidate = candidateResult.body.candidate;
     professions = (professionsResult.body.professions || []);
     skills = (skillsResult.body.skills || []);
+    qualificationTypes = qualificationTypesResult.ok ? (qualificationTypesResult.body.qualification_types || []) : [];
+    employmentHistory = employmentResult.ok ? (employmentResult.body.employment_history || []) : [];
+    qualifications = qualificationsResult.ok ? (qualificationsResult.body.qualifications || []) : [];
+    registrations = registrationsResult.ok ? (registrationsResult.body.registrations || []) : [];
 
     document.getElementById("headline").value = candidate.headline || "";
     document.getElementById("about").value = candidate.about || "";
@@ -578,7 +1167,12 @@ function icareRequireAuth(signInPath) {
     var selectedSkillIds = mySkillRows.map(function (r) { return r.skill_id; });
     renderSkills(selectedSkillIds);
 
-    var resumeStep = Math.min(Math.max(candidate.onboarding_step || 1, 1), 4);
+    renderEmploymentList();
+    renderQualificationTypeOptions();
+    renderQualificationsList();
+    renderRegistrationsList();
+
+    var resumeStep = Math.min(Math.max(candidate.onboarding_step || 1, 1), 7);
     showStep(resumeStep);
   }).catch(function () {
     setStatus(1, "err", "Couldn't load your profile. Try refreshing the page.");
