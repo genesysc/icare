@@ -38,6 +38,12 @@
     --err: #b23a24;
     --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
   }
+  @media (prefers-reduced-motion: no-preference) {
+    ::view-transition-old(root), ::view-transition-new(root) {
+      animation-duration: 0.32s;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
@@ -73,20 +79,30 @@
     font-size: 15px; font-family: inherit; background: var(--white); color: var(--plum-950);
   }
   .field input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
-  .field-name { display: none; }
-  body.mode-signup .field-name { display: block; }
+  .field-name {
+    max-height: 0; opacity: 0; overflow: hidden; margin-top: 0;
+    transition: max-height 0.4s ease, opacity 0.3s ease, margin-top 0.35s ease;
+  }
+  body.mode-signup .field-name { max-height: 120px; opacity: 1; margin-top: 20px; }
 
-  .terms-row { margin-top: 18px; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--ink-faint); }
-  body:not(.mode-signup) .terms-row { display: none; }
+  .terms-row {
+    display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--ink-faint);
+    max-height: 0; opacity: 0; overflow: hidden; margin-top: 0;
+    transition: max-height 0.4s ease, opacity 0.3s ease, margin-top 0.35s ease;
+  }
+  body.mode-signup .terms-row { max-height: 120px; opacity: 1; margin-top: 18px; }
   .terms-row input { margin-top: 3px; }
+  @media (prefers-reduced-motion: reduce) { .field-name, .terms-row { transition: none; } }
 
   .btn {
     margin-top: 22px; width: 100%; padding: 13px 20px; border-radius: 999px;
     background: var(--teal-500); color: var(--white); border: none; font-weight: 700; font-size: 15px;
-    cursor: pointer; transition: background 0.2s ease;
+    cursor: pointer; transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
   }
-  .btn:hover { background: var(--teal-700); }
-  .btn:disabled { opacity: 0.6; cursor: default; }
+  .btn:hover { background: var(--teal-700); transform: translateY(-1px); box-shadow: 0 10px 22px -12px rgba(14, 140, 127, 0.55); }
+  .btn:active { transform: translateY(0) scale(0.98); }
+  .btn:disabled { opacity: 0.6; cursor: default; transform: none; box-shadow: none; }
+  @media (prefers-reduced-motion: reduce) { .btn:hover { transform: none; } }
 
   .status { margin-top: 14px; font-size: 13.5px; display: none; }
   .status.is-visible { display: block; }
@@ -141,7 +157,15 @@
 (function () {
   var TERMS_VERSION = "2026-08-26-draft";
 
-  function setMode(mode) {
+  function withTransition(fn) {
+    var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (document.startViewTransition && !reduced) {
+      document.startViewTransition(fn);
+    } else {
+      fn();
+    }
+  }
+  function applyMode(mode) {
     document.body.classList.toggle("mode-signup", mode === "signup");
     document.querySelector("[data-title]").textContent = mode === "signup" ? "Join iCare" : "Welcome back";
     document.querySelector("[data-sub]").textContent =
@@ -159,9 +183,12 @@
       // the mode toggle still works via body class, just without updating the URL bar.
     }
   }
+  function setMode(mode) {
+    withTransition(function () { applyMode(mode); });
+  }
 
   var initialMode = window.location.pathname === "/sign-up" ? "signup" : "signin";
-  setMode(initialMode);
+  applyMode(initialMode);
 
   document.querySelectorAll("[data-switch]").forEach(function (btn) {
     btn.addEventListener("click", function () { setMode(btn.getAttribute("data-switch")); });
