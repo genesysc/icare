@@ -420,11 +420,29 @@ ATS + an "iCompliance" module + AI-parsed video interviews —**not** the
 simple structured-field search `SPRINTS.md`'s employer track (Sprints
 6–10) was written against.
 
-**Next priorities**: `SPRINTS.md`'s employer track needs a revision pass
-against this before Sprint 6 starts — flagged to the user, not yet done.
-The candidate track (Sprints 0–5) is unaffected and can proceed as
-written. Don't restart the domain/Sender.net work unless the user brings
-it back up.
+That revision pass happened next — the user chose, explicitly: **chat is
+the primary employer interface from day one** (not a fast-follow layer),
+**pipeline stages are fixed** (Shortlisted/Interview/Offer/Hired) not
+per-employer configurable, **AI-parsed video interviews are a separate,
+later initiative** (not in this track), and **iCompliance is real and
+scoped** (an employer's own compliance checklist/workflow per hire) **but
+explicitly not urgent** — captured as Sprint 12, don't start it
+unprompted. `SPRINTS.md`'s employer track (now Sprints 6–11, plus 12
+unscheduled) reflects all of this. One catch worth restating here since
+it's easy to miss: the brief's own mockups show partial candidate names
+("Aoife M.") in pre-shortlist results, which violates non-negotiable #4
+— a first name signals gender/ethnicity, exactly the exposure that rule
+prevents. `SPRINTS.md` Sprint 8 states the real search/chat results must
+stay fully anonymous (role/badges/location/experience only) pre-
+shortlist; the landing page mockup is fine only because it's captioned
+illustrative marketing.
+
+**Next priorities**: `SPRINTS.md` is current — start at Sprint 0
+(candidate track) or, since the employer scope conversation is what
+prompted the pause, whichever the user wants next. Sprint 8 (chat
+infrastructure) will need an `ANTHROPIC_API_KEY` secret added via
+`wrangler secret put` when it starts — not yet provisioned. Don't
+restart the domain/Sender.net work unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.

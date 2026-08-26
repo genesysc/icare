@@ -152,15 +152,37 @@ real onboarding wizard, and have a published, evidenced profile.
 
 ## Employer track (after the candidate track ships)
 
-> **⚠️ Stale as of the employer landing page v2 revision.** The user's
-> uploaded design/copy brief for that page (see `PROGRESS.md`'s "Done"
-> section) describes the real employer product as chat-first AI search +
-> a built-in ATS ("iRecruit") + a compliance module ("iCompliance") + an
-> AI "Who is [name]" candidate summary + AI-parsed async video
-> interviews — none of which exist yet, and all bigger than Sprint 8's
-> "compliant structured search" below. **Revise this track against that
-> brief before starting Sprint 6** — don't build Sprints 6–10 as written
-> without that pass. The candidate track above is unaffected.
+**Revised** after a scope discussion prompted by the employer landing
+page v2 brief, which described a much bigger product than the original
+Sprints 6–10 below assumed. Decisions made (see `PROGRESS.md` for the
+full discussion):
+
+- **Chat is the primary interface from day one** — not a fast-follow
+  layer over traditional UI. Employers land on a single chat input after
+  sign-in; search, shortlist, pipeline moves, and questions all go
+  through it.
+- **Pipeline stages are fixed for the first release**: Shortlisted →
+  Interview → Offer → Hired (+ a non-active `rejected`/`archived` state).
+  Per-employer configurability is explicitly deferred.
+- **AI-parsed async video interviews are a separate, later initiative**
+  — not in this track at all. New infrastructure (video capture,
+  storage, transcription), and the brief itself says this needs its own
+  scoping session.
+- **iCompliance (an employer's own compliance checklist/workflow per
+  hire) is real, scoped, and deliberately not urgent** — captured at the
+  bottom of this track as Sprint 12, not scheduled. Don't start it
+  without the user asking first.
+
+**Hard constraint carried over from non-negotiable #4, worth restating
+because the brief's own mockups get this wrong:** pre-shortlist search
+results must not show a candidate's name — not even a first name or
+"Aoife M."-style partial. A first name signals gender and often
+ethnicity, which is exactly the Equality Act exposure #4 exists to
+prevent. The landing page's illustrative mockup (captioned as such) is
+fine as marketing; the real search/chat results are not allowed to
+repeat that pattern. Show role, badges, location (district-level),
+experience summary, and skills instead — genuinely anonymous until
+shortlist + candidate consent.
 
 ### Sprint 6 — Employer sign-up / sign-in UI
 
@@ -180,40 +202,90 @@ signup. Same **existing** `/auth/*` routes, same Sprint 0 auth helper.
 - Review is manual (Supabase dashboard) for now, same reasoning as
   Sprint 3's qualifications/registrations — no admin UI in this sprint.
 
-### Sprint 8 — Compliant candidate search (written-first)
+### Sprint 8 — Chat infrastructure + compliant candidate search
 
-The sprint non-negotiable #4 governs directly — this is not a normal
-listing page.
+The foundation everything else in this track sits on.
 
-- Search over **published** candidates by structured fields (profession,
-  skills, location/travel radius, availability). **Not** free-text/AI
-  search — that's explicitly phase 2 (§9) and needs the protected-
-  characteristics guardrail designed first (non-negotiable #5), not
-  just prompted around.
-- Results **must exclude photo, name, video, and CV file** — show only
-  the written case (headline, about, skills, qualifications summary,
-  badges) until shortlist + candidate consent. This is the whole point
-  of the sprint, not an afterthought.
+- **New: LLM tool-calling loop on the Worker** (Anthropic API — needs an
+  `ANTHROPIC_API_KEY` secret, `wrangler secret put`, never a plain
+  `wrangler.jsonc` var). The model's job is narrow: translate the
+  employer's natural-language message into a structured tool call. It
+  never sees or judges candidate data directly — that keeps non-
+  negotiable #5 enforceable by construction, not just by prompting.
+- **New: protected-characteristics guardrail**, checked on every
+  employer message *before* it can inform a search — reject/redirect
+  queries referencing sex, age, race, religion, disability, or the other
+  protected characteristics (Equality Act 2010), rather than silently
+  passing them to the search tool. This needs a real check (keyword +
+  classifier), not just a system-prompt instruction, per non-negotiable
+  #5's explicit requirement.
+- **New tool — `search_candidates`**: natural language → structured
+  filters (profession, skills, location/travel radius, availability) →
+  a deterministic query against **published** candidates. No ranking, no
+  scoring — the model only produces filter parameters, the database does
+  the (non-evaluative) matching.
+- **Chat UI**: single input + message thread, the employer's home after
+  sign-in (per the chat-first decision above).
+- **Results must exclude photo, name, video, and CV file** — see the
+  hard constraint above. Show headline info only: role, badges,
+  location, experience summary, skills.
 
-### Sprint 9 — Shortlisting + consent unlock
+### Sprint 9 — Shortlist + fixed pipeline, via chat
 
-- `POST /shortlists` (employer shortlists a candidate) — **new route**,
-  table already exists.
-- Candidate-side: see incoming shortlists, consent to unlock (sets
-  `shortlists.candidate_consented_at`).
-- Once consented: employer can see photo/name/video/CV. Full contact
-  details and the DBS certificate number stay separately gated (they're
-  Reg 22 territory, non-negotiable #7 — confirm identity, qualifications,
-  and two references before an actual placement, not just on shortlist).
+- **New tool — `shortlist_candidate`**: chat command ("shortlist them")
+  → `POST /shortlists` (**new route**, table already exists).
+- **New schema**: `shortlists` needs a `stage` column (`shortlisted` /
+  `interview` / `offer` / `hired` / `rejected`, default `shortlisted`,
+  check-constrained) — doesn't exist yet, matches the "fixed stages"
+  decision above.
+- **New tools** — `move_candidate_stage` (advance/change stage via chat
+  command) and `get_pipeline_status` (chat query: "how many candidates
+  are in my pipeline").
+- **Candidate-side, unchanged from the original plan**: see incoming
+  shortlists, consent to unlock (`shortlists.candidate_consented_at`).
+  Only after consent does the employer's view unlock name/photo/video/
+  CV. Full contact details and the DBS certificate number stay
+  separately gated — Reg 22 territory (non-negotiable #7), confirmed
+  before an actual placement, not just on shortlist.
 
-### Sprint 10 — Employer dashboard
+### Sprint 10 — "Who is [name]" AI summary
 
-View shortlists and their status, org profile/verification status, basic
-account settings.
+- **New tool — `who_is_summary`**: for a shortlisted + consented
+  candidate only (name is already unlocked by this point), an AI-
+  generated descriptive summary combining structured profile data
+  (experience, skills, qualifications, employment history,
+  `candidate_prompts`). **Deliberately v1-scoped to structured data
+  only** — the brief's fuller vision also draws on candidate self-
+  expression posts, which don't exist yet (still phase 2, §9). Don't
+  wait for posts to ship this.
+- Strict compliance, same family as the search guardrail: descriptive
+  only — no "strong candidate," "good fit," or other evaluative
+  language. This is the sharpest edge of non-negotiable #5 in the whole
+  employer product; get a second look on the actual prompt before
+  shipping, not just at review time.
 
-**→ Employer track complete here.** A verified employer can search
-compliantly, shortlist, and (with candidate consent) see enough to make
-contact.
+### Sprint 11 — Bulk chat commands + employer dashboard
+
+- **New tool — bulk pipeline actions**: compound commands like "send an
+  offer to everyone successful in the last two weeks" (pipeline stage +
+  date range → bulk stage transition). Builds on Sprint 9's stage
+  column.
+- A minimal employer dashboard/history view — chat is the primary
+  interface, but a lightweight fallback view of shortlists, pipeline,
+  and org profile is still needed (not a reversal of the chat-first
+  decision, just a supporting view).
+
+**→ Employer track complete here (excluding Sprint 12, not scheduled —
+see below, and video interviews, tracked separately).** A verified
+employer can search and manage their pipeline entirely through chat,
+compliantly, and (with candidate consent) see enough to make contact.
+
+### Sprint 12 — iCompliance (not scheduled)
+
+Employer's own compliance checklist/workflow per hire (contracts,
+right-to-work checks, induction records, etc.) — genuinely scoped, not
+just a name, but **explicitly not urgent**. Don't start this without the
+user asking for it first; it's captured here so the scope isn't lost.
 
 ---
 
@@ -224,10 +296,21 @@ contact.
   `under_review` assumes manual review via the Supabase dashboard until
   volume justifies building this. Worth a dedicated sprint once real
   users exist.
-- **Self-expression posts + employer conversational AI search** — §9,
-  explicitly phase 2 per the product brief. Needs the per-post consent
-  model and the protected-characteristics guardrail designed properly,
-  not bolted on.
+- **Candidate self-expression posts** — §9, explicitly phase 2 per the
+  product brief. Needs the per-post consent model designed properly, not
+  bolted on. (Employer conversational search itself is now scheduled —
+  Sprint 8 — but Sprint 10's "Who is X" summary deliberately doesn't
+  depend on posts existing; see that sprint's note.)
+- **AI-parsed async video interviews** — a separate, later initiative
+  per the scope discussion above, not part of the employer track's
+  Sprints 6–11. New infrastructure (video capture, storage,
+  transcription) and its own compliance question (the copy brief's own
+  note: parsing output must stay descriptive, not evaluative, "strong
+  communicator"/"hesitant" language would cross the same line as the
+  "Who is X" summary). Needs its own scoping session before sprint-izing.
+- **iCompliance** — Sprint 12 above. Scoped (employer's own compliance
+  checklist/workflow per hire), genuinely real, deliberately not
+  scheduled. Don't start without the user asking.
 - **Anything needing real outbound email** (reference-response emails,
   the waitlist welcome email, Sender.net integration itself) — blocked
   on the parked custom-domain work. Flag it when picked back up rather

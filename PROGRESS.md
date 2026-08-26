@@ -9,29 +9,38 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: employer landing page v2 built — reveals much bigger employer scope than SPRINTS.md assumed
+## Status: SPRINTS.md's employer track revised, ready to start building
 
 PR #9, #10, and #11 all merged and deployed (waitlist landing pages,
 candidate + employer). `main` is deployed and live, wired to the real
 Supabase backend. Branch restarted from `main` after each merge per this
-repo's convention (see "Conventions" — HANDOVER.md §10).
+repo's convention (see "Conventions" — HANDOVER.md §10). Employer landing
+page v2 (see "Done" below) is pushed to the branch, not yet merged.
 
 User asked to move past the waitlist and start building the actual
 platform, candidate journey first then employer, and asked for sprints
-to tackle the scope one by one — `SPRINTS.md` was written for that (Sprint
-0 foundations → 5 candidate sprints → 5 employer sprints). Before starting
-any sprint, the user uploaded a real design draft + copy brief for a v2
-employer landing page, and **it describes a materially bigger employer
-product than SPRINTS.md's employer track assumed**: a chat-first AI
-search interface (not structured filters), a built-in ATS/pipeline
-("iRecruit"), a compliance-tracking module ("iCompliance"), an AI "Who is
-[name]" candidate summary drawing on consented candidate posts, and
-AI-parsed async video interviews. None of this exists in the schema or
-API today, and it's explicitly bigger than SPRINTS.md Sprint 8's "compliant
-structured search." **`SPRINTS.md`'s employer track (Sprints 6–10) needs a
-revision pass before any of those sprints start** — flagged, not yet done.
-See "Done" below for the landing page build itself and the full list of
-compliance/accuracy fixes made against the user's draft.
+to tackle the scope one by one — `SPRINTS.md` was written for that. The
+employer landing page v2 brief then revealed a materially bigger employer
+product than the original employer track assumed (chat-first AI search,
+a built-in ATS, an "iCompliance" module, AI candidate summaries, AI-parsed
+video interviews) — flagged, then talked through with the user before
+writing any employer code.
+
+**Scope conversation outcome** (see "Done" below for the full breakdown):
+chat is the primary employer interface from day one, not a fast-follow
+layer; pipeline stages are fixed (Shortlisted/Interview/Offer/Hired) for
+now; AI-parsed video interviews are a separate, later initiative, not in
+this track; iCompliance is real and scoped (an employer's own compliance
+checklist/workflow per hire) but explicitly not urgent — captured as an
+unscheduled Sprint 12. `SPRINTS.md`'s employer track (Sprints 6–11) is
+now revised and current. Also caught and documented: the brief's mockups
+show partial candidate names pre-shortlist, which violates non-negotiable
+#4 — the real search/chat product must stay fully anonymous pre-
+shortlist regardless of what the marketing mockup shows.
+
+Nothing built yet from either track — `SPRINTS.md` is ready, next step is
+picking a sprint to start (candidate Sprint 0, or the employer landing
+page PR first).
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -592,6 +601,49 @@ they aren't lost:
     needing its own scoping session") — SPRINTS.md needs a revision pass
     before Sprint 6 starts, not a silent reconciliation.
   - Not yet pushed to a PR — validated and ready, see Status above.
+- **Employer product scope conversation**, before writing any employer
+  sprint code. Walked through what the landing page brief actually
+  implied technically, then used `AskUserQuestion` on the four decisions
+  that would materially change sprint shape (rather than guessing):
+  1. **Chat scope** — user chose *chat-first from day one* over my
+     recommended default (build structured UI first, add chat as a
+     layer later). Means the employer track builds the LLM tool-calling
+     loop and chat UI together with each backend action, not deferred.
+  2. **Video interviews** — user chose *separate, later initiative*,
+     matching my recommendation and the brief's own admission it needs
+     its own scoping session. Not in the employer track at all.
+  3. **iCompliance** — user chose *employer's own compliance
+     checklist/workflow* (the bigger of the three options I offered, not
+     just a read-only view of existing candidate data), but interrupted
+     the tool result to add: **not urgent, mention in the docs, don't
+     schedule it**. Captured as an explicitly unscheduled Sprint 12.
+  4. **Pipeline stages** — user chose *fixed stages to start*, matching
+     my recommendation.
+  - Caught one more compliance issue while designing the search sprint:
+    the brief's mockups show partial names ("Aoife M.") in pre-shortlist
+    results, which violates non-negotiable #4 (name must be excluded
+    pre-shortlist — a first name signals gender/ethnicity, the exact
+    Equality Act exposure the rule prevents). This wasn't a question for
+    the user — it's enforcing an existing non-negotiable against a
+    conflicting mockup, so it went straight into `SPRINTS.md` as a hard
+    constraint on Sprint 8, flagged clearly in the chat response rather
+    than silently fixed.
+  - Rewrote `SPRINTS.md`'s employer track (was Sprints 6–10, now 6–11
+    plus an unscheduled Sprint 12) to reflect all four decisions: Sprint
+    8 is now "chat infrastructure + compliant candidate search" (LLM
+    tool-calling loop, protected-characteristics guardrail, a narrow
+    `search_candidates` tool that only produces filter parameters — the
+    model never sees or judges candidate data directly, which keeps
+    non-negotiable #5 enforceable by construction); Sprint 9 adds the
+    `stage` column to `shortlists` (schema doesn't exist yet) plus
+    shortlist/pipeline-move/status chat tools; Sprint 10 is the "Who is
+    X" summary, deliberately v1-scoped to structured data only so it
+    doesn't have to wait on self-expression posts (still phase 2);
+    Sprint 11 is bulk chat commands + a minimal dashboard. Updated the
+    "explicitly not scheduled" list to match (self-expression posts
+    narrowed to just that, since conversational search is now
+    scheduled; added video interviews and iCompliance as their own
+    entries there too). No code written yet — this was planning only.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
