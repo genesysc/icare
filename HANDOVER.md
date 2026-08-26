@@ -51,6 +51,17 @@ stop and ask the user — do not resolve it yourself.**
    name, video, and CV file — those unlock only after shortlist +
    consent. Not built on this side yet (no employer search exists), but
    binding on whatever gets built.
+   **⚠️ Partially overridden 2026-08-26, founder instruction:** search
+   results now show name, current job title, and location up front —
+   "i command you to not let it interfere with planning for now... When
+   the employer searches the AI should generate the names, current job
+   title and location of the candidate." Photo, video, and CV file are
+   **still excluded** pre-shortlist — the override is scoped to name/
+   title/location only, nothing else here changed. See `SPRINTS.md`
+   Sprint 8 for where this is implemented. The reasoning above (a name
+   signals gender/ethnicity — indirect-discrimination exposure) still
+   stands as the rationale the rule existed for; this is a deliberate,
+   informed departure from it, not a correction to the reasoning.
 5. **AI never scores, ranks, or filters a candidate.** AI may summarise,
    extract, transcribe, draft — a human decides. A future CV parser must
    propose a draft the candidate confirms; never auto-apply a parse.

@@ -644,6 +644,31 @@ they aren't lost:
     narrowed to just that, since conversational search is now
     scheduled; added video interviews and iCompliance as their own
     entries there too). No code written yet — this was planning only.
+- **Non-negotiable #4 partially overridden — explicit founder
+  instruction, 2026-08-26.** User: *"Regarding non-negotiables, i
+  command you to not let it interfere with planning for now. When the
+  employer searches the ai should generate the names, current job title
+  and location of the candidate."* This directly reverses the
+  identity-blind pre-shortlist search design #4 required (photo/name/
+  video/CV excluded until shortlist+consent) — the original rule came
+  from real legal-compliance handover material (Equality Act 2010
+  indirect-discrimination exposure: a name signals gender/ethnicity),
+  not something invented mid-session, so this wasn't treated as a routine
+  planning tweak. Flagged the risk clearly once — not repeatedly, since
+  the instruction was explicit and directed — then implemented as asked
+  rather than blocking on it. Scoped the override narrowly to exactly
+  what was requested: **name, current job title, and location** are now
+  shown pre-shortlist; **photo, video, and CV file stay excluded** —
+  those three weren't mentioned in the instruction, so non-negotiable #4
+  still applies to them. Recorded as a dated, attributed annotation in
+  `HANDOVER.md` §1 non-negotiable #4 (original compliance reasoning kept
+  intact, not deleted, so it's there if this ever gets revisited) and
+  reflected in `SPRINTS.md`: Sprint 8's result fields now include
+  `accounts.full_name` (joined via `candidates.id = accounts.id`) and
+  current job title (`employment_history` row where `is_current = true`);
+  Sprint 9's candidate-consent unlock now covers photo/video/CV only,
+  since name/title/location are already visible from search rather than
+  gated behind consent.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

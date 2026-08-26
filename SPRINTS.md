@@ -173,16 +173,26 @@ full discussion):
   bottom of this track as Sprint 12, not scheduled. Don't start it
   without the user asking first.
 
-**Hard constraint carried over from non-negotiable #4, worth restating
-because the brief's own mockups get this wrong:** pre-shortlist search
-results must not show a candidate's name — not even a first name or
-"Aoife M."-style partial. A first name signals gender and often
-ethnicity, which is exactly the Equality Act exposure #4 exists to
-prevent. The landing page's illustrative mockup (captioned as such) is
-fine as marketing; the real search/chat results are not allowed to
-repeat that pattern. Show role, badges, location (district-level),
-experience summary, and skills instead — genuinely anonymous until
-shortlist + candidate consent.
+> **⚠️ Non-negotiable #4 overridden for search results — founder
+> decision, 2026-08-26.** The paragraph below documents what #4
+> originally required and why. The user has since explicitly instructed:
+> *"i command you to not let it interfere with planning for now... When
+> the employer searches the AI should generate the names, current job
+> title and location of the candidate."* That instruction stands and is
+> what Sprint 8 is now built against — **pre-shortlist results show
+> name, current job title, and location.** This is a real, deliberate
+> departure from the original identity-blind design, not an oversight;
+> flagged clearly once when the instruction was given, not re-litigated
+> here. If this ever needs revisiting, the compliance reasoning below is
+> why it existed in the first place.
+
+~~Hard constraint carried over from non-negotiable #4~~ (superseded,
+kept for context): pre-shortlist search results were meant to exclude a
+candidate's name — not even a first name or "Aoife M."-style partial —
+because a first name signals gender and often ethnicity, which is the
+Equality Act exposure #4 exists to prevent. Photo, video, and CV file
+**remain excluded pre-shortlist** — the override above is scoped to name
++ job title + location only, nothing else in #4 changed.
 
 ### Sprint 6 — Employer sign-up / sign-in UI
 
@@ -202,7 +212,7 @@ signup. Same **existing** `/auth/*` routes, same Sprint 0 auth helper.
 - Review is manual (Supabase dashboard) for now, same reasoning as
   Sprint 3's qualifications/registrations — no admin UI in this sprint.
 
-### Sprint 8 — Chat infrastructure + compliant candidate search
+### Sprint 8 — Chat infrastructure + candidate search
 
 The foundation everything else in this track sits on.
 
@@ -218,7 +228,8 @@ The foundation everything else in this track sits on.
   protected characteristics (Equality Act 2010), rather than silently
   passing them to the search tool. This needs a real check (keyword +
   classifier), not just a system-prompt instruction, per non-negotiable
-  #5's explicit requirement.
+  #5's explicit requirement. Nothing about the name/title/location
+  override above touches this guardrail — it stays in full force.
 - **New tool — `search_candidates`**: natural language → structured
   filters (profession, skills, location/travel radius, availability) →
   a deterministic query against **published** candidates. No ranking, no
@@ -226,9 +237,13 @@ The foundation everything else in this track sits on.
   the (non-evaluative) matching.
 - **Chat UI**: single input + message thread, the employer's home after
   sign-in (per the chat-first decision above).
-- **Results must exclude photo, name, video, and CV file** — see the
-  hard constraint above. Show headline info only: role, badges,
-  location, experience summary, skills.
+- **Result fields — per the founder override above**: candidate's name
+  (`accounts.full_name`, joined via `candidates.id = accounts.id`),
+  current job title (`employment_history` row where `is_current = true`,
+  its `job_title`), and location (`candidates.town`/
+  `postcode_district`). Plus role/badges/experience summary/skills as
+  before. **Photo, video, and CV file stay excluded pre-shortlist** —
+  the override didn't touch those.
 
 ### Sprint 9 — Shortlist + fixed pipeline, via chat
 
@@ -241,18 +256,19 @@ The foundation everything else in this track sits on.
 - **New tools** — `move_candidate_stage` (advance/change stage via chat
   command) and `get_pipeline_status` (chat query: "how many candidates
   are in my pipeline").
-- **Candidate-side, unchanged from the original plan**: see incoming
+- **Candidate-side, adjusted for the Sprint 8 override**: see incoming
   shortlists, consent to unlock (`shortlists.candidate_consented_at`).
-  Only after consent does the employer's view unlock name/photo/video/
-  CV. Full contact details and the DBS certificate number stay
+  Name/job title/location are already visible from search (per the
+  founder override), so consent now unlocks **photo, video, and CV**
+  specifically. Full contact details and the DBS certificate number stay
   separately gated — Reg 22 territory (non-negotiable #7), confirmed
   before an actual placement, not just on shortlist.
 
 ### Sprint 10 — "Who is [name]" AI summary
 
 - **New tool — `who_is_summary`**: for a shortlisted + consented
-  candidate only (name is already unlocked by this point), an AI-
-  generated descriptive summary combining structured profile data
+  candidate only, an AI-generated descriptive summary combining
+  structured profile data
   (experience, skills, qualifications, employment history,
   `candidate_prompts`). **Deliberately v1-scoped to structured data
   only** — the brief's fuller vision also draws on candidate self-
