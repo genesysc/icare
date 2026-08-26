@@ -9,13 +9,15 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: Sprints 0-2 shipped, opening a PR and merging next
+## Status: Sprints 0-2 merged and deployed; Sprint 3 next
 
-PR #9, #10, and #11 all merged and deployed (waitlist landing pages,
-candidate + employer). `main` is deployed and live, wired to the real
-Supabase backend. Branch restarted from `main` after each merge per this
-repo's convention (see "Conventions" — HANDOVER.md §10). Employer landing
-page v2 is pushed to the branch, not yet merged.
+PR #9, #10, #11, and now #12 all merged and deployed (waitlist landing
+pages, candidate + employer, employer landing page v2, and Sprints 0-2 of
+the candidate onboarding journey). `main` is deployed and live, wired to
+the real Supabase backend — CI run #13
+(https://github.com/genesysc/icare/actions/runs/32938882643) succeeded.
+Branch restarted from `main` after the merge per this repo's convention
+(see "Conventions" — HANDOVER.md §10).
 
 `SPRINTS.md` was written, then its employer track revised after a scope
 conversation (chat-first from day one, fixed pipeline stages, video
@@ -51,7 +53,11 @@ full step flow, a conditional field, and resume-from-step-3 all work
 correctly, no page errors. See "Done" below for all three sprints' full
 detail.
 
-User asked to open a PR and merge after this sprint — doing that next.
+User asked to open a PR and merge after this sprint. PR #12
+(https://github.com/genesysc/icare/pull/12) was opened, `mergeable_state`
+confirmed `clean`, squash-merged into `main`, and CI run #13 confirmed
+`success`. Next: Sprint 3 (work history, qualifications, registrations —
+continues the same onboarding wizard).
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -792,7 +798,13 @@ they aren't lost:
     1 — the resume behavior actually works, not just plausible-looking
     code. Also: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
     cleanly, 6-viewport headless-Chromium overflow audit (zero overflow).
-  - Not yet pushed to a PR — opening one next per the user's request.
+- **PR #12 opened, merged, and deployed** (squash-merged into `main`,
+  `mergeable_state` confirmed `clean` before merging): employer landing
+  page v2, `SPRINTS.md`, the non-negotiable #4 override annotation, and
+  Sprints 0-2 (privacy/terms pages, auth helper, sign-up/sign-in/verify
+  pages, and the real onboarding wizard) all now live on `main`. CI run
+  #13 (https://github.com/genesysc/icare/actions/runs/32938882643)
+  confirmed `success`. Branch restarted from `main` per convention.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

@@ -490,6 +490,13 @@ headless Chromium and mocked API responses to confirm the step flow, a
 conditional field, and resume-from-a-later-step all genuinely work, not
 just look plausible. See PROGRESS.md's "Done" section for full detail.
 
+All of the above (employer landing page v2, `SPRINTS.md`, the
+non-negotiable #4 override annotation, and Sprints 0-2) shipped on
+**PR #12**, which the user approved merging — `mergeable_state` confirmed
+`clean`, squash-merged into `main`, deploy run #13
+(https://github.com/genesysc/icare/actions/runs/32938882643) succeeded.
+Live. Branch restarted from `main` per convention (§10).
+
 **Next priorities**: Sprint 3 (work history, qualifications,
 registrations) continues the wizard. Sprint 8 (chat infrastructure,
 employer track) will need an `ANTHROPIC_API_KEY` secret added via
