@@ -719,7 +719,27 @@ UPDATE policy), so each (re)submission is a new audit row rather than
 an edit — the route's design follows that directly rather than fighting
 it. See PROGRESS.md's "Done" section for full detail, including a
 `PATCH /employers/me` route that was drafted then deliberately removed
-before committing since nothing used it. Not yet pushed as a PR.
+before committing since nothing used it.
+
+All of the above (Sprint 7 + the CV-import Workers AI switch) shipped
+on **PR #16**, which the user asked to be merged — `mergeable_state`
+confirmed `clean`, squash-merged into `main`, deploy run #17
+(https://github.com/genesysc/icare/actions/runs/33004189020) confirmed
+`success`. Live. Branch restarted from `main` per convention.
+
+**CQC verification is currently fully manual, by design** — asked
+about directly and worth being explicit here: `POST /employers/me/
+verification-requests` only ever creates a `submitted` audit row, it
+never checks the CQC provider ID against anything. `employers.
+is_verified` stays `false` until someone with database access checks
+the CQC register themselves and flips it via `service_role` (no admin
+UI exists for this yet — a raw Supabase dashboard edit). CQC is
+believed to publish a public "Syndication API" for looking up a
+provider's registration status, but this has **not been verified**
+in any session (no live web access to confirm the current endpoint/
+terms) — do not build against it from training-knowledge recall alone;
+research it properly first if/when the founder asks for automated
+verification.
 
 **Next priorities**: Sprint 8 (chat infrastructure + candidate search —
 the foundation the rest of the employer track sits on). **Default to
