@@ -9,13 +9,15 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: Sprints 0-2 shipped, opening a PR and merging next
+## Status: Sprints 0-3 merged and deployed; Sprint 4 next
 
-PR #9, #10, and #11 all merged and deployed (waitlist landing pages,
-candidate + employer). `main` is deployed and live, wired to the real
-Supabase backend. Branch restarted from `main` after each merge per this
-repo's convention (see "Conventions" — HANDOVER.md §10). Employer landing
-page v2 is pushed to the branch, not yet merged.
+PR #9, #10, #11, and now #12 all merged and deployed (waitlist landing
+pages, candidate + employer, employer landing page v2, and Sprints 0-2 of
+the candidate onboarding journey). `main` is deployed and live, wired to
+the real Supabase backend — CI run #13
+(https://github.com/genesysc/icare/actions/runs/32938882643) succeeded.
+Branch restarted from `main` after the merge per this repo's convention
+(see "Conventions" — HANDOVER.md §10).
 
 `SPRINTS.md` was written, then its employer track revised after a scope
 conversation (chat-first from day one, fixed pipeline stages, video
@@ -51,7 +53,27 @@ full step flow, a conditional field, and resume-from-step-3 all work
 correctly, no page errors. See "Done" below for all three sprints' full
 detail.
 
-User asked to open a PR and merge after this sprint — doing that next.
+PR #12 (https://github.com/genesysc/icare/pull/12) was opened,
+`mergeable_state` confirmed `clean`, squash-merged into `main`, and CI
+run #13 confirmed `success`.
+
+**Sprint 3 is now shipped too** — work history, qualifications, and
+registrations, continuing the same wizard (now 6 real steps + a holding
+screen, was 3 + holding). Employment history's step (4) reuses the
+existing full-CRUD API with a new add/edit/delete record-card UI.
+Qualifications and registrations got brand-new CRUD routes in
+`src/candidates.ts` (plus a qualification evidence-upload route to R2)
+and a new public `GET /qualification-types` reference route, all
+RLS-checked directly against `pg_policies` before writing them. One
+correction against `SPRINTS.md`'s original assumption, caught by
+checking the real schema instead of trusting the doc: a new
+qualification's `status` starts `none` (DB default), not `submitted` —
+it only becomes `submitted` once evidence is actually uploaded, which
+matches the enum's own semantics better. Two real layout bugs found and
+fixed during the responsive audit (see "Done" below for detail — a
+6-label overflow and a record-card action/title overlap), both caught
+by rendering populated cards with headless Chromium, not by reading the
+CSS. See "Done" below for full detail.
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -792,16 +814,88 @@ they aren't lost:
     1 — the resume behavior actually works, not just plausible-looking
     code. Also: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
     cleanly, 6-viewport headless-Chromium overflow audit (zero overflow).
-  - Not yet pushed to a PR — opening one next per the user's request.
+- **PR #12 opened, merged, and deployed** (squash-merged into `main`,
+  `mergeable_state` confirmed `clean` before merging): employer landing
+  page v2, `SPRINTS.md`, the non-negotiable #4 override annotation, and
+  Sprints 0-2 (privacy/terms pages, auth helper, sign-up/sign-in/verify
+  pages, and the real onboarding wizard) all now live on `main`. CI run
+  #13 (https://github.com/genesysc/icare/actions/runs/32938882643)
+  confirmed `success`. Branch restarted from `main` per convention.
+- **Sprint 3: work history, qualifications, registrations** — the
+  wizard's steps 4-6, replacing the Sprint 2 holding screen (now step 7).
+  - **Employment history (step 4)**: reused the existing full-CRUD
+    `/candidates/me/employment-history` API outright — no backend
+    changes needed. New wizard UI: a record-card list (job title ·
+    employer, setting, date range) with a single reusable inline
+    add/edit form (employer, job title, setting, started/ended dates,
+    "I still work here" checkbox that hides the ended-date field,
+    description). Each save/delete calls the API immediately and
+    re-fetches the list, rather than batching changes for a later
+    "Continue" — matches how the professions/skills pickers already
+    work, and means nothing is lost if someone abandons the wizard
+    mid-step.
+  - **Qualifications (step 5)**: **new routes** in `src/candidates.ts`
+    — `GET/POST /candidates/me/qualifications`,
+    `PATCH/DELETE .../:id`, and `POST .../:id/evidence` (R2 upload,
+    same `Content-Type`-must-be-image-or-pdf pattern as the existing
+    candidate photo route). RLS checked directly against
+    `pg_policies` (`qualifications_self`, `candidate_id = auth.uid()`,
+    `ALL`) before writing them — matches exactly. New public
+    `GET /qualification-types` route (same pattern as `/professions`/
+    `/skills`) populates a grouped-by-family `<select>`.
+    **Correction against `SPRINTS.md`'s original assumption**: checked
+    the real schema instead of trusting the doc, and a new
+    qualification's `status` actually defaults to `none`, not
+    `submitted` — it only moves to `submitted` once evidence is
+    genuinely uploaded (handled server-side in the evidence route,
+    `none → submitted` on first upload, doesn't touch it if evidence is
+    replaced later). This reads truer to the enum's own semantics
+    (`none → submitted → under_review → accepted/rejected/expired`)
+    than "submitted the moment a title is typed in." `SPRINTS.md`
+    corrected to match.
+  - **Registrations (step 6)**: **new routes**, same CRUD shape —
+    `GET/POST /candidates/me/registrations`, `PATCH/DELETE .../:id`.
+    RLS checked the same way (`registrations_self`, plus a separate
+    `registrations_shortlisted` policy for employer visibility after
+    consent — out of scope for this sprint, not touched). `status`
+    defaults to `submitted` (matches `SPRINTS.md`'s original
+    assumption this time) — a registration is a factual claim
+    (regulator + reg number) made up front, unlike a qualification.
+  - **Two real layout bugs found and fixed** during the 6-viewport
+    responsive audit (rendered actual populated record cards with
+    headless Chromium, not just read the CSS):
+    - The step-label row (expanded from 3 labels to 6 for the new
+      steps) overflowed horizontally below ~390px — `justify-content:
+      space-between` doesn't let text shrink. Fixed by giving each
+      label an equal flex column (`flex: 1; min-width: 0`) so long
+      words wrap within their own column instead of forcing the row
+      wider than its container.
+    - A qualification/registration record card's action buttons
+      ("Add evidence", "Edit", "Delete") overlapped the title text
+      when both didn't fit on one row — `.record-main` had no flex
+      sizing, so the fixed-width actions squeezed it into a sliver.
+      Fixed with `flex-wrap: wrap` on the card plus an explicit
+      `flex-basis` on `.record-main`, so actions drop to their own
+      line instead of overlapping.
+  - **Verification**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly, RLS checked directly against `pg_policies` for
+    both new tables before writing routes, and the full step 4→5→6→7
+    flow (add/edit/delete on all three record types, the evidence
+    upload transitioning `none → submitted`, and resume-on-step-4 for
+    an account that finished Sprint 2) exercised with headless
+    Chromium + mocked API responses — no uncaught page errors, correct
+    state after every action. 6-viewport overflow audit re-run after
+    the two CSS fixes: zero horizontal overflow at any tested size.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
   shortlisting published candidates) — deliberately deferred in favor of
   candidate API first. Any employer search view must exclude photo/name/
   video/CV per non-negotiable #4 above.
-- Candidate qualifications, DBS records, references, badges, prompts,
-  CV import — not covered by the candidate API slice just built. DBS/badge
-  copy must follow non-negotiables #2–#3 above when built.
+- Candidate DBS records, references, badges, prompts, CV import — not
+  covered by the candidate API slice built so far (qualifications and
+  registrations *are* now covered — see Sprint 3 above). DBS/badge copy
+  must follow non-negotiables #2–#3 above when built.
 - Candidate self-expression posts + per-post consent model, employer
   conversational AI search + its protected-characteristics guardrail —
   see "Product direction" above. Explicitly phase 2; the guardrail design

@@ -62,6 +62,17 @@ app.get("/skills", async (c) => {
   return c.json({ skills: data });
 });
 
+app.get("/qualification-types", async (c) => {
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
+  const { data, error } = await supabase
+    .from("qualification_types")
+    .select("id, label, family, renews_every_months")
+    .order("family", { ascending: true })
+    .order("label", { ascending: true });
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ qualification_types: data });
+});
+
 app.get("/media-check", async (c) => {
   const list = await c.env.MEDIA.list({ limit: 1 });
   return c.json({ bucket: "icare", objects: list.objects.length });

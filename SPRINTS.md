@@ -142,23 +142,42 @@ Sprint 1 stub `src/onboarding.html` outright.
   mocked `onboarding_step: 3` — the wizard resumes on step 3 rather than
   restarting at step 1. No uncaught page errors during any of it.
 
-### Sprint 3 — Work history, qualifications, registrations
+### Sprint 3 — Work history, qualifications, registrations ✅ Shipped
 
 The evidence that actually backs a profile.
 
 - **Step — Employment history:** full CRUD, **existing** API
-  (`/candidates/me/employment-history`), new wizard UI for add/edit/
-  reorder.
-- **Step — Qualifications:** **new routes needed** for `qualifications`
-  (create/list/delete, evidence file upload to R2, `status` starts
-  `submitted`). Schema/RLS already exist, no Worker routes yet.
-- **Step — Registrations:** **new routes needed** for `registrations`
-  (regulator enum + reg number, `status` starts `submitted`). Schema/RLS
-  already exist, no Worker routes yet.
+  (`/candidates/me/employment-history`), new wizard UI (step 4) for
+  add/edit/delete via an inline record-card list + form. No manual
+  reorder in this sprint — `sort_order` defaults to 0 for every row;
+  reordering is deferred, not scoped to Sprint 3.
+- **Step — Qualifications:** **new routes shipped** for `qualifications`
+  (create/list/update/delete + `POST .../:id/evidence` for R2 upload).
+  **Correction against this doc's original assumption**: `status`
+  actually starts `none` (the real DB default, checked directly against
+  the schema, not `submitted` as first assumed here) — a qualification
+  is only "submitted" once evidence is actually uploaded, which reads
+  truer to the enum's own semantics (`none → submitted → under_review →
+  accepted/rejected/expired`). New public `GET /qualification-types`
+  reference route added (same pattern as `/professions`, `/skills`).
+- **Step — Registrations:** **new routes shipped** for `registrations`
+  (create/list/update/delete). `status` starts `submitted` (DB default,
+  matches this doc's original assumption) — a registration is a
+  factual claim (regulator + reg number) made up front, unlike a
+  qualification.
 - Both qualifications and registrations land in `submitted`/
   `under_review` with no reviewer UI yet — review happens manually via
   the Supabase dashboard for now. An admin review tool is real scope,
   deliberately not in this sprint (see "Explicitly not scheduled" below).
+- Wizard now spans 6 real steps + a holding screen (was 3 + holding
+  after Sprint 2) — step dots/labels expanded accordingly. Found and
+  fixed two real layout bugs during the responsive audit: the 6-label
+  row overflowed horizontally at narrow widths (fixed by giving each
+  label an equal flex column with `min-width: 0` instead of
+  `justify-content: space-between`, which doesn't let text shrink), and
+  record-card action buttons overlapped the title text when both
+  didn't fit on one row (fixed with `flex-wrap: wrap` so actions drop
+  to their own line instead of squeezing the title into a sliver).
 
 ### Sprint 4 — DBS, references, self-expression prompts
 
