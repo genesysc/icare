@@ -11,11 +11,11 @@ for the standing instruction.
 
 ## Status: Sprints 0-3 merged and deployed; Sprint 4 next
 
-PR #9, #10, #11, and now #12 all merged and deployed (waitlist landing
-pages, candidate + employer, employer landing page v2, and Sprints 0-2 of
-the candidate onboarding journey). `main` is deployed and live, wired to
-the real Supabase backend — CI run #13
-(https://github.com/genesysc/icare/actions/runs/32938882643) succeeded.
+PR #9, #10, #11, #12, and now #13 all merged and deployed (waitlist
+landing pages, candidate + employer, employer landing page v2, and
+Sprints 0-3 of the candidate onboarding journey). `main` is deployed
+and live, wired to the real Supabase backend — CI run #14
+(https://github.com/genesysc/icare/actions/runs/32941646689) succeeded.
 Branch restarted from `main` after the merge per this repo's convention
 (see "Conventions" — HANDOVER.md §10).
 
@@ -74,6 +74,12 @@ fixed during the responsive audit (see "Done" below for detail — a
 6-label overflow and a record-card action/title overlap), both caught
 by rendering populated cards with headless Chromium, not by reading the
 CSS. See "Done" below for full detail.
+
+PR #13 (https://github.com/genesysc/icare/pull/13) was opened,
+`mergeable_state` confirmed `clean`, squash-merged into `main`, and CI
+run #14 confirmed `success`. Branch restarted from `main` per
+convention. Next: Sprint 4 (DBS status/consent, references,
+self-expression prompts).
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -886,6 +892,11 @@ they aren't lost:
     Chromium + mocked API responses — no uncaught page errors, correct
     state after every action. 6-viewport overflow audit re-run after
     the two CSS fixes: zero horizontal overflow at any tested size.
+- **PR #13 opened, merged, and deployed** (squash-merged into `main`,
+  `mergeable_state` confirmed `clean` before merging): Sprint 3 (work
+  history, qualifications, registrations) now live on `main`. CI run
+  #14 (https://github.com/genesysc/icare/actions/runs/32941646689)
+  confirmed `success`. Branch restarted from `main` per convention.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

@@ -513,6 +513,13 @@ during testing (a step-label overflow at narrow widths, and a
 record-card action/title overlap) — see PROGRESS.md's "Done" section
 for full detail on both.
 
+All of the above (Sprint 3) shipped on **PR #13**, which the user
+approved merging — `mergeable_state` confirmed `clean`, squash-merged
+into `main`, deploy run #14
+(https://github.com/genesysc/icare/actions/runs/32941646689) succeeded.
+Live. Branch restarted from `main` per convention (§10). The user then
+said "We will continue later" — no further work requested this session.
+
 **Next priorities**: Sprint 4 (DBS status/consent, references,
 self-expression prompts) continues the wizard — the DBS step needs
 careful copy per non-negotiable #3, and the reference step's actual
