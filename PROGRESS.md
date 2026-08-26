@@ -1766,16 +1766,82 @@ they aren't lost:
     (375/1920) overflow check on the new posts card with a long title and
     a long body — zero overflow.
   - Committed and pushed to the branch. Not yet its own PR.
+- **Sprint 9 (partial): shortlist + fixed pipeline via chat, plus two new
+  search filters (same day, 2026-08-26)** — triggered by a founder
+  walkthrough of the intended flow ("found 42 people... shortlist 10 for
+  me... they should appear in iRecruit").
+  - Migration `0016`: `shortlists` gained `stage` (text + check
+    constraint, not a native enum — founder asked for "provisions to add
+    more stages later," which a constraint swap serves better than
+    `ALTER TYPE ... ADD VALUE`) and `stage_updated_at`; a
+    `(employer_id, candidate_id)` unique constraint so "shortlist 10" is
+    safely re-runnable without creating duplicate rows; a new
+    `shortlists_employer_update` RLS policy (employers had INSERT+SELECT
+    from Sprint 6 hardening but no UPDATE policy at all — needed for
+    stage moves). `candidate_search` gained `qualification_type_ids`
+    (array, excludes `rejected`-status quals) and `order by c.id` for
+    deterministic result ordering — "shortlist the first 10" needs a
+    stable order across repeated calls, not whatever an unordered query
+    happens to return.
+  - **Consent model confirmed before building**: the founder's own
+    example ("shortlist 10 for me") is a count, not named individuals —
+    non-negotiable #5 means the AI can't pick "the best 10." Asked
+    directly rather than guessing: confirmed "first N in result order,"
+    deterministic and non-evaluative, over an extra confirm-first round
+    trip. Also confirmed the fixed pipeline stages already speced in
+    `SPRINTS.md` (shortlisted/interview/offer/hired/rejected) were right,
+    with the founder explicitly wanting room to add more later.
+  - `src/employer-chat.ts`: three new tools alongside `search_candidates`.
+    `shortlist_candidates` (count or `all`) reads the most recent
+    assistant message with a non-null `results_snapshot`, takes the
+    first N ids, upserts into `shortlists` with `ignoreDuplicates: true`
+    (skips already-shortlisted candidates rather than resetting their
+    stage back to `shortlisted`). `move_candidate_stage` and
+    `get_pipeline_status` operate on a fresh per-request pipeline fetch,
+    included in the system prompt as `candidate_id: name (stage)` so the
+    model can resolve "move Sarah to interview" — `move_candidate_stage`
+    still validates the candidate_id against the real pipeline set
+    server-side before writing, same defense-in-depth pattern as every
+    other tool call in this file. All replies for all three tools are
+    fixed templates, same as `search_candidates` — no path for the model
+    to add evaluative commentary about a candidate it just moved.
+    `search_candidates` gained `min_experience_years` (`.gte()` on the
+    already-computed `experience_months`) and `qualification_type_id`
+    (validated against the real `qualification_types` table, matching
+    the founder's own example: `nvq2`/`nvq3` are literally labeled "NVQ /
+    Diploma L2/L3 Health & Social Care" in the live data — checked before
+    assuming it existed). The zero-result/found-N reply templates were
+    extended to hint at shortlisting and the new filters.
+  - `src/employers.ts`: new `GET /pipeline` — a read-only supporting view
+    (chat remains the primary way to act on the pipeline; this is just so
+    the employer can see what the chat commands built), joining
+    `shortlists` with `candidate_search` for the same fields already
+    shown pre-shortlist.
+  - `src/employer-home.html`: new "iRecruit" pipeline card, grouped by
+    stage, refreshed on load and after every chat send (since a chat
+    message might have just shortlisted or moved someone). Removed the
+    now-shipped "Shortlisting & pipeline" roadmap placeholder (and its
+    now-dead `.coming-list`/`.coming-item*` CSS) from the verification
+    card.
+  - Tested: `tsc --noEmit` + `wrangler deploy --dry-run` clean. Headless
+    Chromium smoke tests: pipeline renders grouped/counted correctly
+    across three candidates in two stages, empty-pipeline state, and a
+    chat send correctly triggers a pipeline refetch. 2-viewport
+    (375/1920) overflow check with a long name/role/employer combination
+    — zero overflow.
+  - Committed and pushed to the branch. Not yet its own PR.
 
 ## Not started yet
 - ~~Employer-side API (profile, verification-request flow, browsing
   published candidates)~~ — Sprints 6-8 shipped sign-up/sign-in,
-  verification, and chat-based search. **Shortlisting itself (Sprint 9)
-  is the one piece of this still not started** — an employer can find
-  candidates via chat but can't yet act on a result. Any employer
-  search/shortlist view must exclude photo/video/CV per non-negotiable
-  #4 (name, current job title, and location are the founder's dated
-  override — already shown in Sprint 8's chat results, not excluded).
+  verification, and chat-based search; Sprint 9 (shortlist + pipeline via
+  chat) shipped same day as this doc's last update — see "Done" above.
+  **Still not built**: the candidate-side consent-to-unlock flow (photo/
+  video/CV after shortlist) — `shortlists.candidate_consented_at` exists
+  in the schema but nothing sets it yet. Any employer search/shortlist
+  view must exclude photo/video/CV per non-negotiable #4 (name, current
+  job title, and location are the founder's dated override — already
+  shown in Sprint 8's chat results, not excluded).
 - ~~Candidate self-expression posts~~ — shipped this session (see "Done"
   below and the "⚠️ Correction" note under "Product direction" above).
   Not built: a peer-facing feed (posts are only ever candidate-authored/
