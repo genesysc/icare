@@ -9,38 +9,29 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: SPRINTS.md's employer track revised, ready to start building
+## Status: Sprint 0 shipped, starting Sprint 1
 
 PR #9, #10, and #11 all merged and deployed (waitlist landing pages,
 candidate + employer). `main` is deployed and live, wired to the real
 Supabase backend. Branch restarted from `main` after each merge per this
 repo's convention (see "Conventions" — HANDOVER.md §10). Employer landing
-page v2 (see "Done" below) is pushed to the branch, not yet merged.
+page v2 is pushed to the branch, not yet merged.
 
-User asked to move past the waitlist and start building the actual
-platform, candidate journey first then employer, and asked for sprints
-to tackle the scope one by one — `SPRINTS.md` was written for that. The
-employer landing page v2 brief then revealed a materially bigger employer
-product than the original employer track assumed (chat-first AI search,
-a built-in ATS, an "iCompliance" module, AI candidate summaries, AI-parsed
-video interviews) — flagged, then talked through with the user before
-writing any employer code.
+`SPRINTS.md` was written, then its employer track revised after a scope
+conversation (chat-first from day one, fixed pipeline stages, video
+interviews split out as a separate initiative, iCompliance scoped but
+deliberately unscheduled), then non-negotiable #4 partially overridden
+per explicit founder instruction (search results now show name/current
+job title/location pre-shortlist — see the dated annotation in §1 and
+the "Done" entries below for both). All of that was planning; the user
+then said to start building.
 
-**Scope conversation outcome** (see "Done" below for the full breakdown):
-chat is the primary employer interface from day one, not a fast-follow
-layer; pipeline stages are fixed (Shortlisted/Interview/Offer/Hired) for
-now; AI-parsed video interviews are a separate, later initiative, not in
-this track; iCompliance is real and scoped (an employer's own compliance
-checklist/workflow per hire) but explicitly not urgent — captured as an
-unscheduled Sprint 12. `SPRINTS.md`'s employer track (Sprints 6–11) is
-now revised and current. Also caught and documented: the brief's mockups
-show partial candidate names pre-shortlist, which violates non-negotiable
-#4 — the real search/chat product must stay fully anonymous pre-
-shortlist regardless of what the marketing mockup shows.
+**Sprint 0 is now shipped** — `/privacy` and `/terms` pages, a shared
+client-side auth helper, and the Magic Link email template confirmed as
+still-manual (no Supabase MCP tool touches Auth email config — checked,
+not assumed). See "Done" below for detail. Not yet pushed to a PR.
 
-Nothing built yet from either track — `SPRINTS.md` is ready, next step is
-picking a sprint to start (candidate Sprint 0, or the employer landing
-page PR first).
+Next: Sprint 1 (candidate sign-up/sign-in UI).
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -669,6 +660,37 @@ they aren't lost:
   Sprint 9's candidate-consent unlock now covers photo/video/CV only,
   since name/title/location are already visible from search rather than
   gated behind consent.
+- **Sprint 0 shipped** (`SPRINTS.md`): the foundations candidate Sprint 1
+  onward depends on.
+  - `src/privacy.html` and `src/terms.html` — self-contained pages
+    matching the landing pages' pattern, linked from both landing
+    pages' footers. Explicitly marked DRAFT with an on-page notice, not
+    just in the source comments — grounded in real system behavior
+    (including the Sprint 8 name/title/location override, described
+    honestly rather than as an idealised identity-blind design) rather
+    than generic boilerplate, but not lawyer-reviewed. Placeholders
+    (company registration details, contact email, retention period,
+    governing law) are bracketed and colored distinctly on the page,
+    not invented as if settled.
+  - Checked whether the Supabase Magic Link email template fix could be
+    done from here (queried the actual list of available Supabase MCP
+    tools rather than assuming) — confirmed no tool exposes Auth email
+    template config. Still a manual Dashboard step for the user.
+  - `src/auth-client.js` — the shared client-side auth helper, written
+    as a canonical reference file (not imported — this repo has no
+    build step, so every signed-in page copies it into its own
+    `<script>` tag verbatim, matching how the landing pages already
+    duplicate their reveal/share-panel JS rather than importing it).
+    `icareGetSession`/`icareSetSession`/`icareClearSession`
+    (localStorage), `icareAuthFetch` (attaches the bearer token),
+    `icareRequireAuth` (redirect-to-sign-in with `?next=` if no valid
+    session).
+  - Verified: `tsc --noEmit` clean (confirmed `auth-client.js` isn't
+    picked up by `tsconfig.json`'s default `allowJs: false`, so it's
+    inert until copied into a page — checked the config rather than
+    assuming), `wrangler deploy --dry-run` bundles cleanly, 6-viewport
+    headless-Chromium audit on both new pages — zero horizontal overflow.
+  - Not yet pushed to a PR.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

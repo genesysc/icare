@@ -22,34 +22,33 @@ before building.
 
 ---
 
-## Sprint 0 — Foundations for a real (non-waitlist) product surface
+## Sprint 0 — Foundations for a real (non-waitlist) product surface ✅ Shipped
 
 Nothing below this works without these first.
 
-- **`/privacy` and `/terms` pages.** Static, server-rendered HTML (same
-  pattern as `landing.html`/`employers.html`). Required before any real
-  account-creation flow ships (`HANDOVER.md` §8 item 8) — `accounts` has
-  a `terms_version`/`terms_accepted_at` pair already waiting to be used.
-- **Fix the Supabase "Magic Link" email template** (`{{ .Token }}`,
-  Dashboard → Authentication → Emails → Templates). Manual step, not
-  scriptable from here. **Note: this does NOT need the parked custom
-  domain or Sender.net** — Supabase's own default email sending works
-  for OTP codes today; the domain only blocks moving to Sender.net/custom
-  SMTP later. This is the one item on the list worth doing even while the
-  domain stays parked.
-- **UI approach decision (default, flag if you want different):**
-  continue the existing pattern for every signed-in page too — self-
-  contained server-rendered HTML, text-imported into the Worker, vanilla
-  JS calling the JSON API, no build step, no new framework. Consistent
-  with the landing pages, keeps the "no build step beyond `wrangler
-  deploy`" property. The alternative (e.g. htmx for the multi-step
-  wizard) is reasonable but is a real architecture choice — say so before
-  Sprint 2 if you'd rather not default into this.
-- **A shared client-side auth helper.** New, not yet built: store the
-  Supabase access/refresh token (localStorage), attach `Authorization:
-  Bearer <token>` to API calls, redirect to sign-in when there's no
-  session. Every signed-in page from Sprint 1 onward depends on this
-  existing once, not being reinvented per page.
+- **`/privacy` and `/terms` pages** — ✅ built (`src/privacy.html`,
+  `src/terms.html`), same self-contained pattern as the landing pages,
+  linked from both pages' footers. **Marked DRAFT throughout** — grounded
+  in what the product actually does (including the Sprint 8 search-result
+  override) rather than generic boilerplate, but not lawyer-reviewed;
+  placeholders (company registration details, contact email, retention
+  period, governing law) are bracketed, not invented. Get real legal
+  review before this governs an actual signup flow.
+- **Fix the Supabase "Magic Link" email template** — ❌ still manual,
+  confirmed no Supabase MCP tool exposes Auth email template config
+  (checked the available tool list directly rather than assuming).
+  Needs the user in the Dashboard. Doesn't need the parked domain.
+- **UI approach decision** — confirmed by doing it: `/privacy` and
+  `/terms` follow the same self-contained-HTML pattern as the landing
+  pages, no new framework introduced.
+- **A shared client-side auth helper** — ✅ built (`src/auth-client.js`).
+  Not imported anywhere (no build step in this repo) — it's the
+  canonical reference every signed-in page copies verbatim into its own
+  `<script>` tag, same convention already used for the landing pages'
+  duplicated JS. `icareGetSession`/`icareSetSession`/`icareClearSession`
+  (localStorage), `icareAuthFetch` (attaches `Authorization: Bearer`),
+  `icareRequireAuth` (redirects to sign-in with a `?next=` param if no
+  valid session). Sprint 1 is the first consumer.
 
 ---
 

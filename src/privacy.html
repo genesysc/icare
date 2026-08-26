@@ -1,0 +1,229 @@
+<!--
+  iCare Privacy Policy — SPRINTS.md Sprint 0.
+
+  DRAFT. Grounded in what the product actually does today (the real
+  Supabase schema, the real waitlist/auth/candidate-API routes already
+  built) rather than generic boilerplate — but this is NOT legal advice
+  and has not been reviewed by a lawyer. HANDOVER.md §12 already flags
+  the closed-account retention period (`purge_after`, currently defaults
+  to 12 months) as needing legal confirmation; that's carried through
+  here rather than silently presented as settled. Placeholders are
+  marked clearly in [brackets] rather than invented. Get this reviewed
+  before it governs a real signup flow.
+
+  Same self-contained-HTML, no-build-step pattern as the rest of the
+  site. Shares landing.html's design tokens for visual consistency
+  (this is a shared/legal page, not tied to either the candidate or
+  employer sub-brand).
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy — iCare</title>
+<meta name="description" content="How iCare collects, uses, and protects your information." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533;
+    --plum-800: #382349;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --amber-600: #b8791f;
+    --amber-100: #faedd4;
+    --paper: #fefefc;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper);
+    color: var(--ink-soft);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; }
+  p, li { margin: 0; }
+  a { color: var(--teal-700); }
+
+  .wrap { max-width: 720px; margin: 0 auto; padding: 0 24px; }
+  .divider { border: none; border-top: 1px solid var(--line); margin: 0; }
+
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 24px; max-width: 720px; margin: 0 auto; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 21px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+  .nav-links { display: flex; gap: 20px; font-size: 14px; font-weight: 600; }
+  .nav-links a { color: var(--ink-faint); text-decoration: none; }
+  .nav-links a:hover { color: var(--teal-700); }
+
+  .doc-header { padding: 48px 0 8px; }
+  .doc-title { font-size: clamp(28px, 4vw, 38px); font-weight: 600; letter-spacing: -0.015em; }
+  .doc-meta { margin-top: 12px; font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--ink-faint); }
+  .draft-notice {
+    margin-top: 24px; padding: 16px 18px; border-radius: 12px;
+    background: var(--amber-100); border: 1px solid #f0dcb0;
+    font-size: 14px; line-height: 1.6; color: #6b4f14;
+  }
+  .draft-notice strong { color: #4a3609; }
+
+  .content { padding: 40px 0 72px; font-size: 16px; line-height: 1.75; }
+  .content h2 { font-size: 21px; margin-top: 40px; margin-bottom: 12px; }
+  .content h2:first-child { margin-top: 0; }
+  .content p { margin-top: 14px; }
+  .content ul { margin: 14px 0 0; padding-left: 22px; }
+  .content li { margin-top: 8px; }
+  .content li::marker { color: var(--teal-500); }
+  .bracket { color: var(--amber-600); font-style: italic; }
+
+  .footer { padding: 32px 0 48px; }
+  .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
+  .footer-tag { font-size: 13px; color: var(--ink-faint); }
+
+  @media (max-width: 600px) {
+    .nav { flex-direction: column; gap: 10px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header class="nav" aria-label="Primary">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <div class="nav-links">
+    <a href="/">For candidates</a>
+    <a href="/employers">For employers</a>
+    <a href="/terms">Terms</a>
+  </div>
+</header>
+
+<hr class="divider" />
+
+<main>
+  <div class="wrap">
+    <div class="doc-header">
+      <h1 class="doc-title">Privacy Policy</h1>
+      <p class="doc-meta">DRAFT · last updated 2026-08-26</p>
+      <div class="draft-notice">
+        <strong>This is a working draft.</strong> It describes what iCare's live systems actually
+        collect and do today, but has not yet been reviewed by a lawyer, and details marked
+        <span class="bracket">[like this]</span> are placeholders. Don't treat it as final ahead of a real
+        signup flow going live.
+      </div>
+    </div>
+
+    <div class="content">
+      <h2>Who we are</h2>
+      <p>
+        iCare is built and operated by <span class="bracket">[Genesys Consultancy Ltd — company number
+        and registered address to be confirmed]</span>. For anything in this policy, contact us at
+        <span class="bracket">[privacy contact email — to be set up once the icare.co.uk domain is live]</span>.
+      </p>
+
+      <h2>What we collect</h2>
+      <p>What we collect depends on how you use iCare:</p>
+      <ul>
+        <li><strong>Waitlist sign-up:</strong> your name, email address, and (if you choose to give it) phone
+          number. If you're signing up as an employer, also your organisation's name and, optionally, what
+          roles you're typically hiring for.</li>
+        <li><strong>Account creation:</strong> your email address, used to sign you in via a one-time code —
+          we don't store passwords.</li>
+        <li><strong>Candidate profiles:</strong> the information you choose to add — your professional headline,
+          experience, skills, qualifications, employment history, availability, a profile photo if you upload
+          one, and (if relevant) DBS and reference details, only with your explicit consent at each step.</li>
+        <li><strong>Employer accounts:</strong> your organisation's details and the information you submit to
+          verify your organisation (for example a CQC provider ID or Companies House number).</li>
+        <li><strong>Usage data:</strong> basic technical information needed to run the service — timestamps,
+          and session tokens stored in your browser so you stay signed in.</li>
+      </ul>
+
+      <h2>What we don't collect</h2>
+      <p>
+        When we build tools that read documents you upload (like a CV), we deliberately avoid extracting
+        sensitive details — date of birth, nationality, immigration status, marital status, gender, religion,
+        ethnicity, health information, or National Insurance numbers. If any of that turns up in something you
+        upload, it gets flagged for your attention rather than stored as structured profile data.
+      </p>
+
+      <h2>How we use it</h2>
+      <ul>
+        <li>To create and run your account, and let you build and manage your profile.</li>
+        <li>To let verified employers search published candidate profiles and, if you consent, contact you
+          about opportunities.</li>
+        <li>To send you service emails — confirming your account, letting you know when iCare launches, and
+          (for waitlist sign-ups) an early-access welcome email.</li>
+        <li>To keep the platform secure and working as intended.</li>
+      </ul>
+      <p>We do not sell your personal data, and we do not use it for third-party advertising.</p>
+
+      <h2>Who we share it with</h2>
+      <p>
+        Candidate profile information is never shown in full to an employer without your consent — see our
+        approach to shortlisting below. We use a small number of service providers to run iCare:
+        <span class="bracket">[Supabase (database and authentication), Cloudflare (hosting), and — once set up
+        — Sender.net (email delivery)]</span>. These providers process data on our behalf under their own data
+        processing agreements; we don't sell or share your data with anyone else.
+      </p>
+
+      <h2>Written shortlisting, before anything visual</h2>
+      <p>
+        When an employer searches for candidates, we're deliberate about what's shown and when, in order to
+        keep hiring decisions fair. Full details of exactly what's visible at each stage are set out in our
+        Terms of Service.
+      </p>
+
+      <h2>How long we keep it</h2>
+      <p>
+        We keep your account data for as long as your account is active. If you close your account, we
+        currently retain the data for <span class="bracket">[12 months — this default is provisional and
+        pending legal confirmation]</span> before permanent deletion, in case you want to reopen your account
+        in that window. You can ask us to delete your data sooner — see "Your rights" below.
+      </p>
+
+      <h2>Your rights</h2>
+      <p>Under UK GDPR, you have the right to:</p>
+      <ul>
+        <li>Access the personal data we hold about you.</li>
+        <li>Ask us to correct inaccurate data.</li>
+        <li>Ask us to delete your data (subject to any legal retention requirements).</li>
+        <li>Ask us to restrict or object to certain processing.</li>
+        <li>Receive your data in a portable format.</li>
+      </ul>
+      <p>
+        To exercise any of these, contact us at <span class="bracket">[privacy contact email]</span>. You can
+        also close your account directly from your account settings once that feature is live.
+      </p>
+
+      <h2>Cookies and local storage</h2>
+      <p>
+        We use your browser's local storage to keep you signed in between visits — this is essential to the
+        service and isn't used for tracking or advertising. We don't currently use third-party analytics or
+        advertising cookies.
+      </p>
+
+      <h2>Changes to this policy</h2>
+      <p>
+        We'll update this page as the product changes, and update the "last updated" date above when we do.
+        Material changes will be communicated by email where we have one on file for you.
+      </p>
+    </div>
+  </div>
+</main>
+
+<hr class="divider" />
+
+<footer class="footer wrap">
+  <div class="footer-inner">
+    <a href="/" class="logo">i<em>Care</em></a>
+    <p class="footer-tag">&copy; 2026 iCare</p>
+  </div>
+</footer>
+
+</body>
+</html>

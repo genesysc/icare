@@ -145,7 +145,10 @@ stop and ask the user — do not resolve it yourself.**
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
 | `src/emails/waitlist-welcome.ts` | The actual welcome email subject/HTML, unused until `email.ts` is wired up |
-| `src/landing.html` | The waitlist landing page — single file, inline CSS/JS, GSAP via CDN |
+| `src/landing.html` | Candidate waitlist landing page — single file, inline CSS/JS, GSAP via CDN |
+| `src/employers.html` | Employer waitlist landing page — separate design system, same self-contained pattern |
+| `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
+| `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -439,21 +442,28 @@ later initiative** (not in this track), and **iCompliance is real and
 scoped** (an employer's own compliance checklist/workflow per hire) **but
 explicitly not urgent** — captured as Sprint 12, don't start it
 unprompted. `SPRINTS.md`'s employer track (now Sprints 6–11, plus 12
-unscheduled) reflects all of this. One catch worth restating here since
-it's easy to miss: the brief's own mockups show partial candidate names
-("Aoife M.") in pre-shortlist results, which violates non-negotiable #4
-— a first name signals gender/ethnicity, exactly the exposure that rule
-prevents. `SPRINTS.md` Sprint 8 states the real search/chat results must
-stay fully anonymous (role/badges/location/experience only) pre-
-shortlist; the landing page mockup is fine only because it's captioned
-illustrative marketing.
+unscheduled) reflects all of this.
 
-**Next priorities**: `SPRINTS.md` is current — start at Sprint 0
-(candidate track) or, since the employer scope conversation is what
-prompted the pause, whichever the user wants next. Sprint 8 (chat
-infrastructure) will need an `ANTHROPIC_API_KEY` secret added via
-`wrangler secret put` when it starts — not yet provisioned. Don't
-restart the domain/Sender.net work unless the user brings it back up.
+**⚠️ Correction, stale as of 2026-08-26**: this paragraph used to say
+pre-shortlist search results "must stay fully anonymous." That's no
+longer accurate — see §1 non-negotiable #4's dated annotation. The user
+explicitly instructed candidate name, current job title, and location to
+be shown pre-shortlist; only photo/video/CV stay gated. Don't rely on
+this paragraph's history for current behavior — §1 is the source of
+truth.
+
+Sprint 0 is now shipped: `/privacy` + `/terms` pages (self-contained,
+explicitly marked DRAFT, grounded in real system behavior including the
+#4 override rather than idealised boilerplate) and the shared
+`src/auth-client.js` reference helper. The Magic Link template fix is
+confirmed still-manual (checked the actual Supabase MCP tool list, no
+tool touches Auth email config). See PROGRESS.md's "Done" section.
+
+**Next priorities**: Sprint 1 (candidate sign-up/sign-in UI) is next.
+Sprint 8 (chat infrastructure, employer track) will need an
+`ANTHROPIC_API_KEY` secret added via `wrangler secret put` when it
+starts — not yet provisioned. Don't restart the domain/Sender.net work
+unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.
