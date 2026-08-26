@@ -102,6 +102,12 @@ stop and ask the user — do not resolve it yourself.**
   file, text-imported into the Worker at build time and served via
   `c.html()`. No build step beyond `wrangler deploy`.
 - **GitHub Actions** for CI/CD (deploy on push to `main`).
+- **Workers AI** (`env.AI` binding, `wrangler.jsonc`'s `ai` block) for
+  CV parsing (Sprint 5 review pass) — deliberately not the Claude/
+  Anthropic API, which was tried first and dropped over its per-call
+  cost (founder decision, 2026-08-26). Default to Workers AI for any
+  future LLM feature (e.g. Sprint 8's chat search) unless the user says
+  otherwise.
 - Email (transactional/waitlist) is planned via **Sender.net**, not yet
   active — see §8.
 
@@ -141,7 +147,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, badges (read-only), close-account, onboarding advance/complete, CV import (upload → Claude parse → review/apply) |
+| `src/candidates.ts` | Candidate profile CRUD, photo upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
 | `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
@@ -260,21 +266,35 @@ row plus `candidates`+`candidate_contact` or `employers`+
   next bullet) or fill in the wizard manually.
 - **CV import** (`POST/GET /candidates/me/cv*` in `src/candidates.ts`,
   the CV intro/upload/review screens in `src/onboarding.html`): upload a
-  PDF → Claude (`claude-opus-5`, forced tool use, enum-constrained
-  profession/skill/qualification ids so results can only reference real
-  reference-table rows) extracts a draft → candidate reviews/edits/
-  unchecks anything wrong on a dedicated screen → only then does
-  "Apply" write anything, through the exact same routes manual entry
-  uses. The parse route itself never touches profile tables — enforces
-  non-negotiable #5 (never auto-apply an AI parse) architecturally, not
-  just by prompting. Non-negotiable #6 (data minimisation) is enforced
-  both in the system prompt and structurally (the tool schema has no
-  field that could carry DOB/nationality/immigration/marital/gender/
-  religion/ethnicity/health/NI-number/photo data — those are flagged via
-  `sensitive_categories_noticed` instead and surfaced to the candidate).
-  **⚠️ Needs `ANTHROPIC_API_KEY` provisioned** (`wrangler secret put
-  ANTHROPIC_API_KEY`) before it works live — not yet done, see §8 and
-  §12.
+  PDF → **Workers AI** (`env.AI`, no separate vendor/API key — runs on
+  the same Cloudflare account, draws from its free daily Neuron
+  allocation) extracts a draft → candidate reviews/edits/unchecks
+  anything wrong on a dedicated screen → only then does "Apply" write
+  anything, through the exact same routes manual entry uses. Two Workers
+  AI calls: `env.AI.toMarkdown()` extracts text from the PDF (embedded-
+  image conversion explicitly disabled, so a CV photo is never
+  described/reasoned about — non-negotiable #6 applied to images too),
+  then `env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", …)` with
+  JSON-mode `response_format` extracts structured JSON from that text.
+  **Originally built against the Claude API; switched to Workers AI
+  after the founder declined the per-call cost** (2026-08-26) — see
+  PROGRESS.md for the full before/after. The parse route itself never
+  touches profile tables — enforces non-negotiable #5 architecturally,
+  not just by prompting. Non-negotiable #6 (data minimisation) is
+  enforced both in the system prompt and structurally (no field in the
+  schema can carry DOB/nationality/immigration/marital/gender/religion/
+  ethnicity/health/NI-number/photo data — flagged via
+  `sensitive_categories_noticed` instead). **Real difference from the
+  Claude version**: an open-weight model's JSON-mode isn't guaranteed to
+  honor schema `enum` constraints the way Claude's forced tool-use was,
+  so `sanitizeParsed()` in `src/candidates.ts` is now the actual
+  guarantee — every profession/skill/qualification-type id and
+  regulator the model returns is checked against the real reference
+  tables and dropped if it doesn't match, regardless of what the model
+  output. Verified in isolation against 10 adversarial inputs
+  (hallucinated ids, malformed nested objects, non-array garbage,
+  empty input) — see PROGRESS.md. No secret to provision — works as
+  soon as it's deployed.
 - **Candidate dashboard** (`src/dashboard.html`, Sprint 5): profile
   summary, badges (grouped by family, grade visually distinct per
   non-negotiable #2), a per-section "at a glance" list linking back
@@ -341,11 +361,11 @@ deploy confirmation yet.
    the dated override in §1: name/current job title/location are **not**
    excluded, per explicit founder instruction.
 5. ~~CV import~~ — built during the post-Sprint-5 review pause (upload →
-   Claude parse → candidate review/edit → apply), see §7. **Blocked on
-   provisioning `ANTHROPIC_API_KEY`** — this sandbox has no live
-   Cloudflare auth (`wrangler whoami` unauthenticated), so the secret
-   needs `wrangler secret put ANTHROPIC_API_KEY` run by the user or CI
-   before it works against the real Worker.
+   Workers AI parse → candidate review/edit → apply), see §7. **No
+   blocker** — runs on Workers AI (`env.AI`), the same Cloudflare
+   account already in use, no separate secret to provision. (Originally
+   built against the Claude API and blocked on `ANTHROPIC_API_KEY`;
+   switched after the founder declined the cost — see PROGRESS.md.)
 6. Candidate self-expression posts (with per-post, revocable, opt-in
    consent gating what's employer-visible) + employer conversational AI
    search (natural language, descriptive-not-evaluative, with a
@@ -627,22 +647,37 @@ removable chips (data was already broad — 28 professions, 6 families —
 the checkbox grid was just presenting it narrowly); the DBS step gained
 a live preview line stating the exact non-negotiable #3 phrase as the
 candidate fills it in; and CV import — a feature requested at the very
-start of onboarding planning — was built: PDF upload → Claude
-(`claude-opus-5`, forced tool use, enum-constrained against real
-reference-table ids) → a fully editable review screen → apply, with
-non-negotiables #5 and #6 enforced architecturally (the parse route
-never writes to profile tables; the tool schema has no field that could
-carry sensitive personal data). All three fixes verified with headless
+start of onboarding planning — was built: PDF upload → an LLM extracts
+a draft → a fully editable review screen → apply, with non-negotiables
+#5 and #6 enforced architecturally (the parse route never writes to
+profile tables; the extraction schema has no field that could carry
+sensitive personal data). All three fixes verified with headless
 Chromium + a 5-viewport overflow audit; not yet pushed as a PR (folding
 into the next sprint's PR unless asked to ship separately).
 
-**⚠️ `ANTHROPIC_API_KEY` not yet provisioned.** CV import needs this
-secret (`wrangler secret put ANTHROPIC_API_KEY`) to actually call Claude
-in production — this sandbox has no live Cloudflare auth (`wrangler
-whoami` → unauthenticated), so it can't be set from here even with a
-key value. The user (or CI, or an authenticated session) needs to run
-it against the real `icare` Worker. Until then the route deploys fine
-but 500s on the Claude call.
+**⚠️ Switched off the Claude API, 2026-08-26 — founder declined the
+per-call cost.** CV import was originally built against the Claude API
+(`claude-opus-5`, forced tool use). When told this wasn't free, the
+founder asked for a genuinely free alternative rather than a cheaper
+metered one, and picked **Cloudflare Workers AI** from three options
+presented (the others: Google Gemini's free tier, or no LLM at all).
+Rebuilt against `env.AI` — no separate vendor/API key, runs on the
+Cloudflare account already in use, draws from its free daily Neuron
+allocation (10,000/day). Two calls replace the single Claude call:
+`env.AI.toMarkdown()` extracts text from the PDF (with embedded-image
+conversion explicitly turned off, so a CV photo is never described —
+non-negotiable #6 applied to images too), then
+`env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", …)` with
+JSON-mode extracts the structured draft from that text. **The one real
+trade-off**: Claude's forced tool-use with a strict schema guaranteed
+every returned id was real; an open-weight model's JSON mode doesn't
+give that guarantee, so a new `sanitizeParsed()` function in
+`src/candidates.ts` now does it explicitly — every id/regulator the
+model returns is checked against the live reference tables and dropped
+if invalid. Verified against 10 adversarial inputs in isolation
+(hallucinated ids, malformed nested objects, garbage types, empty
+input) — all pass. No secret to provision; works as soon as it's
+deployed. See PROGRESS.md's "Done" section for full detail.
 
 Sprint 6 (employer sign-up/sign-in UI) is now shipped — **the employer
 track has started.** `src/employer-sign-in.html` (own purple/teal design
@@ -687,10 +722,12 @@ it. See PROGRESS.md's "Done" section for full detail, including a
 before committing since nothing used it. Not yet pushed as a PR.
 
 **Next priorities**: Sprint 8 (chat infrastructure + candidate search —
-the foundation the rest of the employer track sits on). It will need an
-`ANTHROPIC_API_KEY` secret — see above, still not provisioned; CV import
-needs the same secret, so provisioning it unblocks both at once. Don't
-restart the domain/Sender.net work unless the user brings it back up.
+the foundation the rest of the employer track sits on). **Default to
+Workers AI for this too, not the Claude API** — the founder's cost
+objection above is a standing preference, not a one-off for CV import;
+check with the user before reaching for a metered third-party LLM API
+anywhere else in this build. Don't restart the domain/Sender.net work
+unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.

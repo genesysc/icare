@@ -1384,7 +1384,93 @@ they aren't lost:
     blank is caught client-side before any network call. 5-viewport
     overflow audit on the rejected state (longest content on the page,
     including a long reviewer note) — zero horizontal overflow anywhere.
-  - Not yet pushed as a PR.
+  - Pushed to the branch; **PR #16 opened** (not yet merged — user asked
+    to open it, hasn't asked to merge yet).
+- **CV import: switched off the Claude API to Cloudflare Workers AI** —
+  the founder's response on seeing the Anthropic API is metered: "not
+  willing to do that... can we use other tools instead?" Presented three
+  real alternatives rather than picking one unilaterally — Cloudflare
+  Workers AI (no new vendor, free daily allowance, needs a PDF-to-text
+  step since its models don't read PDFs natively like Claude), Google
+  Gemini's free tier (closest to the existing architecture, PDF-native,
+  but a new vendor and a rate-limited trial allowance not a guarantee),
+  or dropping the LLM entirely for regex parsing (free but genuinely
+  poor quality on real CVs). The founder picked Workers AI.
+  - **Researched the real API shape before writing anything** — same
+    discipline as every schema check this session, just aimed at
+    Cloudflare's docs instead of Supabase's: confirmed via
+    `search_cloudflare_documentation` and the installed
+    `@cloudflare/workers-types` definitions (not guessed) that (a)
+    `env.AI.toMarkdown()` extracts PDF text natively — no separate PDF
+    library needed — and that Cloudflare's own docs state image
+    conversion (not plain text extraction) is the part that invokes
+    billed models, so a text-based CV's extraction step is effectively
+    free; (b) `env.AI.run()` accepts a `response_format: {type:
+    "json_schema", json_schema}` parameter directly (OpenAI-compatible
+    JSON mode), confirmed against the real
+    `Ai_Cf_Meta_Llama_3_3_70B_Instruct_Fp8_Fast_Messages` type, not the
+    OpenAI-SDK-wrapper examples the docs mostly show; (c)
+    `@cf/meta/llama-3.3-70b-instruct-fp8-fast` is free-plan-eligible
+    (some newer models like Kimi K2.7/GLM-5.2 now require Workers Paid —
+    checked the current list before picking a model, since it had
+    changed since training) and supports function calling / JSON mode.
+  - **Rebuilt `POST /candidates/me/cv`** (`src/candidates.ts`): removed
+    `@anthropic-ai/sdk` entirely (`npm uninstall`), removed the
+    `nodejs_compat` compatibility flag (only ever needed for the
+    Anthropic SDK's credential-chain module — confirmed nothing else in
+    the codebase needs Node builtins before removing it), added
+    `"ai": {"binding": "AI"}` to `wrangler.jsonc`. Two Workers AI calls
+    now replace the single Claude call: `env.AI.toMarkdown()` (PDF →
+    text, with `conversionOptions.pdf.images.convert: false` explicitly
+    turned off — a deliberate, not default, choice: without it, an
+    embedded CV photo would get run through an object-detection +
+    image-to-text model and described in the output, which is exactly
+    what non-negotiable #6 (data minimisation) forbids for photos; this
+    is the same principle Sprint 5's design already applied to text
+    fields, just extended to catch an image path the Claude version
+    never had to think about since it never auto-converted embedded
+    images at all) followed by `env.AI.run("@cf/meta/llama-3.3-70b-
+    instruct-fp8-fast", {messages, response_format})` for the structured
+    extraction itself.
+  - **The one real trade-off, faced head-on rather than glossed over**:
+    Claude's forced tool-use with `strict: true` guaranteed every
+    returned profession/skill/qualification-type id was real, because
+    the API itself enforced the schema's `enum`. Workers AI's JSON mode
+    on an open-weight model doesn't come with that same guarantee. Built
+    a new `sanitizeParsed()` function that replaces the guarantee
+    explicitly and server-side: every id/regulator/category the model
+    returns is checked against a `Set` of the real, freshly-fetched
+    reference-table values (or the fixed regulator/sensitive-category
+    lists) and dropped — not coerced, not guessed — if it doesn't match;
+    malformed nested objects (wrong type, missing required sub-fields)
+    are dropped per-entry rather than corrupting the whole parse; total
+    garbage input degrades to a safe, fully-null/empty shape rather than
+    throwing. This is arguably a stronger guarantee than before, since
+    it's explicit, auditable code instead of trusting the model
+    provider's schema-adherence claims.
+  - **Verified without a live model call** (this sandbox still has no
+    live Cloudflare auth, same limitation as before — `wrangler dev`
+    requires real Cloudflare auth for Workers AI even locally, per
+    Cloudflare's own docs: "Using Workers AI always accesses your
+    Cloudflare account... even in local development"): `tsc --noEmit`
+    clean, `wrangler deploy --dry-run` bundles cleanly (1521KB → 1099KB
+    after dropping the Anthropic SDK, no `nodejs_compat` warning after
+    removing the flag), and — since `sanitizeParsed()` is pure logic
+    with no I/O — reimplemented it standalone in plain Node and ran it
+    against 10 adversarial inputs (hallucinated profession/skill ids
+    mixed with real ones, an invalid qualification `type_id` on an
+    otherwise-valid entry, a qualification missing its required title,
+    an invalid registration regulator, a valid registration, an
+    employment entry missing `job_title`, invalid sensitive-category
+    values mixed with real ones, a nonsense `overall_confidence` string,
+    a fully empty object, and non-array/non-object garbage for every
+    array field) — all 10 passed, confirming the safety net holds
+    regardless of what a real model call would actually return. The
+    existing frontend Playwright test (`cv-import-check.js`, unchanged
+    since the frontend contract — the `parsed` JSON's field names —
+    didn't change) was re-run and still passes end-to-end.
+  - Committed and pushed to the branch. Not yet its own PR — will fold
+    into whichever PR comes next unless asked to ship separately.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

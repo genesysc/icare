@@ -3,7 +3,6 @@
   "name": "icare",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
-  "compatibility_flags": ["nodejs_compat"],
   "account_id": "181e44a6963cb30381a30edbd56a4b46",
   "vars": {
     "SUPABASE_URL": "https://blflbiwqflidltqflwew.supabase.co",
@@ -15,6 +14,9 @@
       "bucket_name": "icare"
     }
   ],
+  "ai": {
+    "binding": "AI"
+  },
   "rules": [
     { "type": "Text", "globs": ["**/*.html"], "fallthrough": true }
   ],
