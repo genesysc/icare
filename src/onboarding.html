@@ -101,6 +101,21 @@
   .skill-family { margin-top: 18px; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal-700); }
   .skill-family:first-of-type { margin-top: 4px; }
 
+  .profession-chips { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .profession-chip {
+    display: inline-flex; align-items: center; gap: 4px; padding: 6px 6px 6px 12px; border-radius: 999px;
+    background: var(--teal-100); color: var(--teal-700); font-size: 13px; font-weight: 600;
+  }
+  .profession-chip .primary-tag {
+    font-family: "IBM Plex Mono", monospace; font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--teal-700); opacity: 0.75; margin-left: 2px;
+  }
+  .profession-chip button {
+    background: none; border: none; cursor: pointer; color: var(--teal-700); font-size: 16px; line-height: 1;
+    padding: 3px 6px; border-radius: 999px;
+  }
+  .profession-chip button:hover { background: rgba(36, 21, 51, 0.08); color: var(--err); }
+
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 480px) { .two-col { grid-template-columns: 1fr; } }
 
@@ -195,6 +210,49 @@
   .publish-checklist-title { font-size: 13px; font-weight: 700; color: var(--amber-600); }
   .publish-checklist ul { margin: 8px 0 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-soft); }
   .publish-checklist li { margin-top: 4px; }
+
+  /* CV intro + review-and-apply */
+  .cv-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 22px; }
+  @media (max-width: 480px) { .cv-choice { grid-template-columns: 1fr; } }
+  .cv-choice-btn {
+    text-align: left; padding: 18px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--white);
+    cursor: pointer; font-family: inherit;
+  }
+  .cv-choice-btn:hover { border-color: var(--teal-500); background: var(--teal-100); }
+  .cv-choice-btn.is-primary { border-color: var(--teal-500); background: var(--teal-100); }
+  .cv-choice-title { font-size: 15.5px; font-weight: 700; color: var(--plum-950); }
+  .cv-choice-sub { margin-top: 4px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; }
+  .cv-upload-zone { display: none; margin-top: 22px; }
+  .cv-upload-zone.is-open { display: block; }
+  .cv-parsing { display: none; margin-top: 22px; text-align: center; padding: 30px 0; }
+  .cv-parsing.is-visible { display: block; }
+  .cv-spinner {
+    width: 28px; height: 28px; margin: 0 auto; border-radius: 999px; border: 3px solid var(--line);
+    border-top-color: var(--teal-500); animation: cv-spin 0.8s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) { .cv-spinner { animation: none; } }
+  @keyframes cv-spin { to { transform: rotate(360deg); } }
+  .cv-parsing p { margin-top: 14px; font-size: 13.5px; color: var(--ink-faint); }
+
+  .sensitive-notice { margin-top: 18px; padding: 14px 16px; border-radius: 12px; background: var(--amber-100); font-size: 13px; color: var(--ink-soft); line-height: 1.55; }
+  .sensitive-notice strong { color: var(--amber-600); }
+
+  .review-field-list { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
+  .review-employment-item, .review-qual-item {
+    border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px;
+  }
+  .review-item-toggle { display: flex; align-items: flex-start; gap: 10px; }
+  .review-item-toggle input { margin-top: 3px; }
+  .review-item-toggle-label { font-size: 14px; font-weight: 700; color: var(--plum-950); }
+  .review-item-toggle-sub { margin-top: 2px; font-size: 12.5px; color: var(--ink-faint); }
+  .review-item-detail { margin-top: 10px; }
+  .review-item-detail textarea { width: 100%; min-height: 60px; padding: 10px; border-radius: 8px; border: 1.5px solid var(--line); font-family: inherit; font-size: 13.5px; }
+  .chip-row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .review-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border-radius: 999px;
+    background: var(--teal-100); color: var(--teal-700); font-size: 13px; font-weight: 600;
+  }
+  .review-chip input { margin: 0; }
 </style>
 </head>
 <body>
@@ -205,22 +263,110 @@
 </header>
 
 <div class="wrap">
-  <div class="steps" aria-hidden="true">
-    <div class="step-dot" data-dot="1"></div>
-    <div class="step-dot" data-dot="2"></div>
-    <div class="step-dot" data-dot="3"></div>
-    <div class="step-dot" data-dot="4"></div>
-    <div class="step-dot" data-dot="5"></div>
-    <div class="step-dot" data-dot="6"></div>
-    <div class="step-dot" data-dot="7"></div>
-    <div class="step-dot" data-dot="8"></div>
-    <div class="step-dot" data-dot="9"></div>
-    <div class="step-dot" data-dot="10"></div>
-    <div class="step-dot" data-dot="11"></div>
-  </div>
-  <div class="step-current-label" data-current-label></div>
+  <!-- CV intro: get started faster, or fill in manually. Not part of the numbered 1-11 wizard steps. -->
+  <div class="card" data-cv-intro>
+    <h1 class="card-title">Get started faster</h1>
+    <p class="card-sub">Upload your CV and we'll pre-fill what we can from it — you'll review and confirm everything before it's saved. Or skip this and fill it in yourself.</p>
 
-  <div class="card" style="margin-top:20px;">
+    <div class="cv-choice" data-cv-choice>
+      <button type="button" class="cv-choice-btn is-primary" data-cv-choose-upload>
+        <div class="cv-choice-title">Upload my CV</div>
+        <div class="cv-choice-sub">PDF only, up to 8MB. We'll draft your profile from it — nothing saves until you say so.</div>
+      </button>
+      <button type="button" class="cv-choice-btn" data-cv-choose-manual>
+        <div class="cv-choice-title">I'll fill it in myself</div>
+        <div class="cv-choice-sub">Start from a blank profile and go step by step.</div>
+      </button>
+    </div>
+
+    <div class="cv-upload-zone" data-cv-upload-zone>
+      <div class="field" style="margin-top:0;">
+        <label for="cv-file">Choose your CV (PDF)</label>
+        <div class="file-row"><input id="cv-file" type="file" accept="application/pdf" /></div>
+      </div>
+      <p class="form-err" data-cv-upload-err></p>
+      <div class="record-form-actions">
+        <button type="button" class="btn-small btn-primary" data-cv-upload-submit>Upload &amp; extract</button>
+        <button type="button" class="btn-small btn-ghost" data-cv-upload-cancel>Back</button>
+      </div>
+    </div>
+
+    <div class="cv-parsing" data-cv-parsing>
+      <div class="cv-spinner"></div>
+      <p>Reading your CV — this can take a few seconds…</p>
+    </div>
+  </div>
+
+  <!-- CV review-and-apply: shown once a parse comes back. Nothing above this point has been saved yet. -->
+  <div class="card" data-cv-review style="display:none;">
+    <h1 class="card-title">Here's what we found</h1>
+    <p class="card-sub" data-cv-review-sub>Check it over and untick anything that's wrong or that you'd rather add yourself — nothing is saved until you continue.</p>
+
+    <div class="sensitive-notice" data-cv-sensitive-notice style="display:none;">
+      <strong>We noticed but didn't extract:</strong> <span data-cv-sensitive-list></span> — we don't pull these from a CV automatically. Add them yourself only where the platform actually asks.
+    </div>
+
+    <div class="field">
+      <label for="cv-headline">Headline</label>
+      <input id="cv-headline" type="text" maxlength="120" />
+    </div>
+    <div class="field">
+      <label for="cv-about">About you</label>
+      <textarea id="cv-about"></textarea>
+    </div>
+    <div class="field">
+      <label for="cv-town">Town / area</label>
+      <input id="cv-town" type="text" />
+    </div>
+
+    <div class="field" data-cv-professions-field style="display:none;">
+      <label>Professions we matched</label>
+      <div class="chip-row" data-cv-professions-list></div>
+    </div>
+    <div class="field" data-cv-skills-field style="display:none;">
+      <label>Skills we matched</label>
+      <div class="chip-row" data-cv-skills-list></div>
+    </div>
+
+    <div class="field" data-cv-employment-field style="display:none;">
+      <label>Work history</label>
+      <div class="review-field-list" data-cv-employment-list></div>
+    </div>
+
+    <div class="field" data-cv-qualifications-field style="display:none;">
+      <label>Qualifications</label>
+      <div class="review-field-list" data-cv-qualifications-list></div>
+    </div>
+
+    <div class="field" data-cv-registration-field style="display:none;">
+      <label>Registration</label>
+      <div class="review-field-list" data-cv-registration-list></div>
+    </div>
+
+    <p class="status" data-status="cv-review"></p>
+    <div class="actions">
+      <button type="button" class="btn btn-ghost" data-cv-review-discard>Discard, start manually</button>
+      <button type="button" class="btn btn-primary" data-cv-review-apply>Looks good — continue</button>
+    </div>
+  </div>
+
+  <div data-wizard-shell style="display:none;">
+    <div class="steps" aria-hidden="true">
+      <div class="step-dot" data-dot="1"></div>
+      <div class="step-dot" data-dot="2"></div>
+      <div class="step-dot" data-dot="3"></div>
+      <div class="step-dot" data-dot="4"></div>
+      <div class="step-dot" data-dot="5"></div>
+      <div class="step-dot" data-dot="6"></div>
+      <div class="step-dot" data-dot="7"></div>
+      <div class="step-dot" data-dot="8"></div>
+      <div class="step-dot" data-dot="9"></div>
+      <div class="step-dot" data-dot="10"></div>
+      <div class="step-dot" data-dot="11"></div>
+    </div>
+    <div class="step-current-label" data-current-label></div>
+
+    <div class="card" style="margin-top:20px;">
     <!-- Step 1: Basics -->
     <div class="panel" data-panel="1">
       <h1 class="card-title">Tell us the basics</h1>
@@ -247,7 +393,9 @@
       </div>
       <div class="field">
         <label>Your profession(s)</label>
-        <div class="check-grid" data-professions-list></div>
+        <span class="field-hint" style="display:block;margin:0 0 6px;">From care roles to nursing, allied health, dentistry, and pharmacy — pick everything that applies.</span>
+        <select data-profession-picker></select>
+        <div class="profession-chips" data-profession-chips></div>
       </div>
       <div class="field" data-primary-profession-field style="display:none;">
         <label for="primary-profession">Primary profession</label>
@@ -526,6 +674,7 @@
         <div class="field">
           <div class="check-row"><input type="checkbox" id="dbs-on-update-service" /><label for="dbs-on-update-service">I'm registered on the DBS Update Service</label></div>
         </div>
+        <p class="field-hint" data-dbs-preview style="display:none;"></p>
         <div class="field">
           <div class="check-row"><input type="checkbox" id="dbs-consent" /><label for="dbs-consent">I consent to a DBS status check via the Update Service once I'm shortlisted for a role</label></div>
         </div>
@@ -639,6 +788,7 @@
         <button type="button" class="btn btn-primary" data-publish>Publish my profile</button>
       </div>
     </div>
+    </div>
   </div>
 </div>
 
@@ -695,6 +845,8 @@ function icareRequireAuth(signInPath) {
   var editingQualificationId = null;
   var editingRegistrationId = null;
   var editingReferenceId = null;
+  var cvParsed = null;
+  var cvImportId = null;
 
   function jget(url) {
     return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
@@ -737,42 +889,71 @@ function icareRequireAuth(signInPath) {
   }
 
   function renderProfessions(selectedIds, primaryId) {
-    var list = document.querySelector("[data-professions-list]");
-    list.innerHTML = "";
-    professions.forEach(function (p) {
-      var row = document.createElement("div");
-      row.className = "check-row";
-      var checked = selectedIds.indexOf(p.id) !== -1 ? "checked" : "";
-      row.innerHTML = '<input type="checkbox" id="prof-' + p.id + '" value="' + p.id + '" ' + checked + ' />' +
-        '<label for="prof-' + p.id + '">' + p.name + "</label>";
-      list.appendChild(row);
+    myProfessionIds = selectedIds.slice();
+    renderProfessionPicker(primaryId);
+  }
+
+  function renderProfessionPicker(preferredPrimaryId) {
+    var picker = document.querySelector("[data-profession-picker]");
+    var chips = document.querySelector("[data-profession-chips]");
+
+    picker.innerHTML = '<option value="">+ Add a profession…</option>';
+    var families = [];
+    professions.forEach(function (p) { if (families.indexOf(p.family) === -1) families.push(p.family); });
+    families.forEach(function (family) {
+      var available = professions.filter(function (p) { return p.family === family && myProfessionIds.indexOf(p.id) === -1; });
+      if (available.length === 0) return;
+      var group = document.createElement("optgroup");
+      group.label = family;
+      available.forEach(function (p) {
+        var opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name;
+        group.appendChild(opt);
+      });
+      picker.appendChild(group);
     });
-    list.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
-      cb.addEventListener("change", function () { updatePrimaryProfessionOptions(primaryId); });
+
+    updatePrimaryProfessionOptions(preferredPrimaryId);
+
+    var primarySelect = document.getElementById("primary-profession");
+    var currentPrimary = myProfessionIds.length > 1 ? primarySelect.value : myProfessionIds[0];
+
+    chips.innerHTML = "";
+    myProfessionIds.forEach(function (id) {
+      var p = professions.filter(function (x) { return x.id === id; })[0];
+      var chip = document.createElement("span");
+      chip.className = "profession-chip";
+      chip.innerHTML = '<span></span><span class="primary-tag" style="display:none;">Primary</span><button type="button" aria-label="Remove">×</button>';
+      chip.children[0].textContent = p ? p.name : id;
+      if (myProfessionIds.length > 1 && id === currentPrimary) chip.children[1].style.display = "inline";
+      chip.querySelector("button").addEventListener("click", function () {
+        myProfessionIds = myProfessionIds.filter(function (x) { return x !== id; });
+        renderProfessionPicker(preferredPrimaryId);
+      });
+      chips.appendChild(chip);
     });
-    updatePrimaryProfessionOptions(primaryId);
   }
 
   function updatePrimaryProfessionOptions(preferredPrimaryId) {
-    var checked = Array.prototype.slice.call(document.querySelectorAll('[data-professions-list] input:checked')).map(function (cb) { return cb.value; });
     var field = document.querySelector("[data-primary-profession-field]");
     var select = document.getElementById("primary-profession");
-    if (checked.length <= 1) {
+    if (myProfessionIds.length <= 1) {
       field.style.display = "none";
       return;
     }
     field.style.display = "block";
     var prevValue = select.value;
     select.innerHTML = "";
-    checked.forEach(function (id) {
+    myProfessionIds.forEach(function (id) {
       var prof = professions.filter(function (p) { return p.id === id; })[0];
       var opt = document.createElement("option");
       opt.value = id;
       opt.textContent = prof ? prof.name : id;
       select.appendChild(opt);
     });
-    if (checked.indexOf(preferredPrimaryId) !== -1) select.value = preferredPrimaryId;
-    else if (checked.indexOf(prevValue) !== -1) select.value = prevValue;
+    if (myProfessionIds.indexOf(preferredPrimaryId) !== -1) select.value = preferredPrimaryId;
+    else if (myProfessionIds.indexOf(prevValue) !== -1) select.value = prevValue;
   }
 
   function renderSkills(selectedIds) {
@@ -801,6 +982,126 @@ function icareRequireAuth(signInPath) {
 
   function advanceOnboarding(step, event) {
     return jsend("POST", "/candidates/me/onboarding/advance", { step: step, event: event });
+  }
+
+  // ---- CV import: upload -> review-and-apply, never auto-saved ----
+  var SENSITIVE_LABELS = {
+    date_of_birth: "date of birth", nationality: "nationality", immigration_status: "immigration status",
+    marital_status: "marital status", gender: "gender", religion: "religion", ethnicity: "ethnicity",
+    health_information: "health information", ni_number: "National Insurance number", photo: "a photo",
+  };
+
+  function showCvIntro() {
+    document.querySelector("[data-cv-intro]").style.display = "block";
+    document.querySelector("[data-cv-review]").style.display = "none";
+    document.querySelector("[data-wizard-shell]").style.display = "none";
+  }
+  function showWizardShell(resumeStep) {
+    document.querySelector("[data-cv-intro]").style.display = "none";
+    document.querySelector("[data-cv-review]").style.display = "none";
+    document.querySelector("[data-wizard-shell]").style.display = "block";
+    showStep(resumeStep);
+  }
+  function resetCvIntroState() {
+    document.querySelector("[data-cv-choice]").style.display = "grid";
+    document.querySelector("[data-cv-upload-zone]").classList.remove("is-open");
+    document.querySelector("[data-cv-parsing]").classList.remove("is-visible");
+  }
+
+  function renderCvChipList(fieldSelector, listSelector, ids, referenceList, labelFn) {
+    var field = document.querySelector(fieldSelector);
+    var list = document.querySelector(listSelector);
+    list.innerHTML = "";
+    if (!ids.length) { field.style.display = "none"; return; }
+    field.style.display = "block";
+    ids.forEach(function (id) {
+      var item = referenceList.filter(function (x) { return x.id === id; })[0];
+      var chip = document.createElement("label");
+      chip.className = "review-chip";
+      chip.innerHTML = '<input type="checkbox" checked data-cv-chip-id="' + id + '" /><span></span>';
+      chip.querySelector("span").textContent = item ? labelFn(item) : id;
+      list.appendChild(chip);
+    });
+  }
+
+  function showCvReview(parsed, sensitiveFound) {
+    document.querySelector("[data-cv-intro]").style.display = "none";
+    document.querySelector("[data-wizard-shell]").style.display = "none";
+    document.querySelector("[data-cv-review]").style.display = "block";
+
+    var notice = document.querySelector("[data-cv-sensitive-notice]");
+    if (sensitiveFound && sensitiveFound.length) {
+      document.querySelector("[data-cv-sensitive-list]").textContent =
+        sensitiveFound.map(function (s) { return SENSITIVE_LABELS[s] || s; }).join(", ");
+      notice.style.display = "block";
+    } else {
+      notice.style.display = "none";
+    }
+
+    document.getElementById("cv-headline").value = parsed.headline || "";
+    document.getElementById("cv-about").value = parsed.about || "";
+    document.getElementById("cv-town").value = parsed.town || "";
+
+    renderCvChipList("[data-cv-professions-field]", "[data-cv-professions-list]", parsed.profession_ids || [], professions, function (p) { return p.name; });
+    renderCvChipList("[data-cv-skills-field]", "[data-cv-skills-list]", parsed.skill_ids || [], skills, function (s) { return s.label; });
+
+    var empField = document.querySelector("[data-cv-employment-field]");
+    var empList = document.querySelector("[data-cv-employment-list]");
+    empList.innerHTML = "";
+    var employmentEntries = parsed.employment_history || [];
+    if (employmentEntries.length) {
+      empField.style.display = "block";
+      employmentEntries.forEach(function (job, i) {
+        var dates = [job.started_on, job.is_current ? "Present" : job.ended_on].filter(Boolean).join(" – ");
+        var item = document.createElement("div");
+        item.className = "review-employment-item";
+        item.innerHTML =
+          '<label class="review-item-toggle"><input type="checkbox" checked data-cv-emp-keep="' + i + '" />' +
+          '<span><span class="review-item-toggle-label"></span><div class="review-item-toggle-sub"></div></span></label>';
+        item.querySelector(".review-item-toggle-label").textContent = job.job_title + " · " + job.employer;
+        item.querySelector(".review-item-toggle-sub").textContent = [job.setting, dates].filter(Boolean).join(" — ");
+        empList.appendChild(item);
+      });
+    } else {
+      empField.style.display = "none";
+    }
+
+    var qualField = document.querySelector("[data-cv-qualifications-field]");
+    var qualList = document.querySelector("[data-cv-qualifications-list]");
+    qualList.innerHTML = "";
+    var qualEntries = parsed.qualifications || [];
+    if (qualEntries.length) {
+      qualField.style.display = "block";
+      qualEntries.forEach(function (q, i) {
+        var item = document.createElement("div");
+        item.className = "review-qual-item";
+        item.innerHTML =
+          '<label class="review-item-toggle"><input type="checkbox" checked data-cv-qual-keep="' + i + '" />' +
+          '<span><span class="review-item-toggle-label"></span><div class="review-item-toggle-sub"></div></span></label>';
+        item.querySelector(".review-item-toggle-label").textContent = q.title;
+        item.querySelector(".review-item-toggle-sub").textContent = [q.awarding_body, q.awarded_on].filter(Boolean).join(" — ");
+        qualList.appendChild(item);
+      });
+    } else {
+      qualField.style.display = "none";
+    }
+
+    var regField = document.querySelector("[data-cv-registration-field]");
+    var regList = document.querySelector("[data-cv-registration-list]");
+    regList.innerHTML = "";
+    if (parsed.registration) {
+      regField.style.display = "block";
+      var regItem = document.createElement("div");
+      regItem.className = "review-qual-item";
+      regItem.innerHTML =
+        '<label class="review-item-toggle"><input type="checkbox" checked data-cv-reg-keep />' +
+        '<span><span class="review-item-toggle-label"></span><div class="review-item-toggle-sub"></div></span></label>';
+      regItem.querySelector(".review-item-toggle-label").textContent = (parsed.registration.regulator || "").toUpperCase() + " — " + parsed.registration.reg_number;
+      regItem.querySelector(".review-item-toggle-sub").textContent = parsed.registration.register_name || "";
+      regList.appendChild(regItem);
+    } else {
+      regField.style.display = "none";
+    }
   }
 
   function formatMonthYear(dateStr) {
@@ -1016,8 +1317,23 @@ function icareRequireAuth(signInPath) {
   }
 
   // ---- DBS status (singleton, no record list) ----
+  var DBS_LEVEL_LABELS = { basic: "Basic DBS", standard: "Standard DBS", enhanced: "Enhanced DBS", enhanced_barred: "Enhanced DBS, with barred list check" };
   function syncDbsFields() {
-    document.querySelector("[data-dbs-fields]").style.display = document.getElementById("dbs-level").value ? "block" : "none";
+    var level = document.getElementById("dbs-level").value;
+    document.querySelector("[data-dbs-fields]").style.display = level ? "block" : "none";
+    syncDbsPreview();
+  }
+  function syncDbsPreview() {
+    var level = document.getElementById("dbs-level").value;
+    var preview = document.querySelector("[data-dbs-preview]");
+    if (!level) {
+      preview.style.display = "none";
+      return;
+    }
+    var onUpdateService = document.getElementById("dbs-on-update-service").checked;
+    var text = DBS_LEVEL_LABELS[level] + (onUpdateService ? " · on Update Service" : "");
+    preview.textContent = "This is how it will read on your profile: “" + text + "” — we never say “verified” or “certified”; only the Update Service can confirm that, so we leave it to employers to check.";
+    preview.style.display = "block";
   }
 
   // ---- References (record list, new CRUD) ----
@@ -1169,12 +1485,131 @@ function icareRequireAuth(signInPath) {
     });
   }
 
+  // ---- CV intro / upload / review ----
+  document.querySelector("[data-cv-choose-manual]").addEventListener("click", function () {
+    showWizardShell(1);
+  });
+  document.querySelector("[data-cv-choose-upload]").addEventListener("click", function () {
+    document.querySelector("[data-cv-choice]").style.display = "none";
+    document.querySelector("[data-cv-upload-zone]").classList.add("is-open");
+  });
+  document.querySelector("[data-cv-upload-cancel]").addEventListener("click", function () {
+    resetCvIntroState();
+  });
+  document.querySelector("[data-cv-upload-submit]").addEventListener("click", function () {
+    var file = document.getElementById("cv-file").files[0];
+    var errEl = document.querySelector("[data-cv-upload-err]");
+    errEl.className = "form-err";
+    if (!file) { errEl.textContent = "Choose a PDF first."; errEl.className = "form-err is-visible"; return; }
+    if (file.type !== "application/pdf") { errEl.textContent = "PDF files only, for now."; errEl.className = "form-err is-visible"; return; }
+    if (file.size > 8 * 1024 * 1024) { errEl.textContent = "That file is over 8MB — try a smaller PDF."; errEl.className = "form-err is-visible"; return; }
+
+    document.querySelector("[data-cv-upload-zone]").classList.remove("is-open");
+    document.querySelector("[data-cv-parsing]").classList.add("is-visible");
+
+    icareAuthFetch("/candidates/me/cv", {
+      method: "POST",
+      headers: { "Content-Type": "application/pdf", "X-File-Name": file.name },
+      body: file,
+    }).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        document.querySelector("[data-cv-parsing]").classList.remove("is-visible");
+        var cvImport = result.body && result.body.cv_import;
+        if (!result.ok || !cvImport || cvImport.status !== "parsed") {
+          resetCvIntroState();
+          errEl.textContent = (cvImport && cvImport.error_detail)
+            ? "We couldn't read that CV (" + cvImport.error_detail + "). Try a different file, or fill it in yourself."
+            : "We couldn't read that CV. Try a different file, or fill it in yourself.";
+          errEl.className = "form-err is-visible";
+          return;
+        }
+        cvImportId = cvImport.id;
+        cvParsed = cvImport.parsed;
+        showCvReview(cvParsed, cvImport.sensitive_found || []);
+      }).catch(function () {
+        document.querySelector("[data-cv-parsing]").classList.remove("is-visible");
+        resetCvIntroState();
+        errEl.textContent = "Something went wrong. Please try again.";
+        errEl.className = "form-err is-visible";
+      });
+  });
+
+  document.querySelector("[data-cv-review-discard]").addEventListener("click", function () {
+    cvParsed = null;
+    cvImportId = null;
+    showWizardShell(1);
+  });
+  document.querySelector("[data-cv-review-apply]").addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    clearStatus("cv-review");
+
+    var headline = document.getElementById("cv-headline").value.trim();
+    var about = document.getElementById("cv-about").value.trim();
+    var town = document.getElementById("cv-town").value.trim();
+
+    var keptProfessionIds = Array.prototype.slice.call(document.querySelectorAll('[data-cv-professions-list] input:checked'))
+      .map(function (cb) { return cb.getAttribute("data-cv-chip-id"); });
+    var keptSkillIds = Array.prototype.slice.call(document.querySelectorAll('[data-cv-skills-list] input:checked'))
+      .map(function (cb) { return cb.getAttribute("data-cv-chip-id"); });
+    var keptEmployment = (cvParsed.employment_history || []).filter(function (_, i) {
+      var cb = document.querySelector('[data-cv-emp-keep="' + i + '"]');
+      return cb ? cb.checked : false;
+    });
+    var keptQualifications = (cvParsed.qualifications || []).filter(function (_, i) {
+      var cb = document.querySelector('[data-cv-qual-keep="' + i + '"]');
+      return cb ? cb.checked : false;
+    });
+    var regKeepBox = document.querySelector("[data-cv-reg-keep]");
+    var keepRegistration = !!(cvParsed.registration && regKeepBox && regKeepBox.checked);
+
+    var ops = [jsend("PATCH", "/candidates/me", { headline: headline, about: about, town: town })];
+    if (keptProfessionIds.length) ops.push(jsend("PUT", "/candidates/me/professions", { profession_ids: keptProfessionIds, primary_id: keptProfessionIds[0] }));
+    if (keptSkillIds.length) ops.push(jsend("PUT", "/candidates/me/skills", { skill_ids: keptSkillIds }));
+    keptEmployment.forEach(function (job) {
+      ops.push(jsend("POST", "/candidates/me/employment-history", {
+        employer: job.employer, job_title: job.job_title, setting: job.setting,
+        started_on: job.started_on, ended_on: job.is_current ? null : job.ended_on,
+        is_current: job.is_current, description: job.description,
+      }));
+    });
+    keptQualifications.forEach(function (q) {
+      ops.push(jsend("POST", "/candidates/me/qualifications", {
+        type_id: q.type_id, title: q.title, awarding_body: q.awarding_body, awarded_on: q.awarded_on,
+      }));
+    });
+    if (keepRegistration) {
+      ops.push(jsend("POST", "/candidates/me/registrations", {
+        regulator: cvParsed.registration.regulator, reg_number: cvParsed.registration.reg_number, register_name: cvParsed.registration.register_name,
+      }));
+    }
+
+    Promise.all(ops).then(function (results) {
+      var failed = results.filter(function (r) { return !r.ok; });
+      if (failed.length) throw new Error("Some of this didn't save — please check step 1 onward once you're in.");
+      return jsend("POST", "/candidates/me/cv/" + cvImportId + "/mark-applied", {});
+    }).then(function () {
+      window.location.href = "/onboarding?step=1";
+    }).catch(function (err) {
+      btn.disabled = false;
+      setStatus("cv-review", "err", err.message || "Something went wrong. Please try again.");
+    });
+  });
+
   // ---- Step 1: Basics ----
+  document.querySelector("[data-profession-picker]").addEventListener("change", function () {
+    var id = this.value;
+    if (!id) return;
+    if (myProfessionIds.indexOf(id) === -1) myProfessionIds.push(id);
+    renderProfessionPicker(null);
+  });
+  document.getElementById("primary-profession").addEventListener("change", function () {
+    renderProfessionPicker(this.value);
+  });
   document.querySelector('[data-next="1"]').addEventListener("click", function () {
     var btn = this;
-    var checkedProfessions = Array.prototype.slice.call(document.querySelectorAll('[data-professions-list] input:checked')).map(function (cb) { return cb.value; });
     var primarySelect = document.getElementById("primary-profession");
-    var primaryId = checkedProfessions.length > 1 ? primarySelect.value : checkedProfessions[0];
+    var primaryId = myProfessionIds.length > 1 ? primarySelect.value : myProfessionIds[0];
 
     btn.disabled = true;
     clearStatus(1);
@@ -1187,7 +1622,7 @@ function icareRequireAuth(signInPath) {
     })
       .then(function (result) {
         if (!result.ok) throw new Error(result.body.error || "Couldn't save your details.");
-        return jsend("PUT", "/candidates/me/professions", { profession_ids: checkedProfessions, primary_id: primaryId || null });
+        return jsend("PUT", "/candidates/me/professions", { profession_ids: myProfessionIds, primary_id: primaryId || null });
       })
       .then(function (result) {
         if (!result.ok) throw new Error(result.body.error || "Couldn't save your profession.");
@@ -1438,6 +1873,7 @@ function icareRequireAuth(signInPath) {
 
   // ---- Step 7: DBS status + consent ----
   document.getElementById("dbs-level").addEventListener("change", syncDbsFields);
+  document.getElementById("dbs-on-update-service").addEventListener("change", syncDbsPreview);
   document.querySelector('[data-next="7"]').addEventListener("click", function () {
     var btn = this;
     var level = document.getElementById("dbs-level").value;
@@ -1715,7 +2151,12 @@ function icareRequireAuth(signInPath) {
     var stepOverrideMatch = /[?&]step=(\d+)/.exec(window.location.search);
     var stepOverride = stepOverrideMatch ? parseInt(stepOverrideMatch[1], 10) : null;
     var resumeStep = (stepOverride && stepOverride >= 1 && stepOverride <= highestReached) ? stepOverride : highestReached;
-    showStep(resumeStep);
+
+    if (resumeStep === 1 && !stepOverride) {
+      showCvIntro();
+    } else {
+      showWizardShell(resumeStep);
+    }
   }).catch(function () {
     setStatus(1, "err", "Couldn't load your profile. Try refreshing the page.");
   });

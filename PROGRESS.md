@@ -9,13 +9,13 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: Sprint 5 shipped — candidate track complete, not yet merged
+## Status: Candidate track complete, merged and deployed; employer track next
 
-PR #9, #10, #11, #12, and now #13 all merged and deployed (waitlist
-landing pages, candidate + employer, employer landing page v2, and
-Sprints 0-3 of the candidate onboarding journey). `main` is deployed
-and live, wired to the real Supabase backend — CI run #14
-(https://github.com/genesysc/icare/actions/runs/32941646689) succeeded.
+PR #9, #10, #11, #12, #13, and now #14 all merged and deployed
+(waitlist landing pages, candidate + employer, employer landing page
+v2, and Sprints 0-5 of the candidate onboarding journey). `main` is
+deployed and live, wired to the real Supabase backend — CI run #15
+(https://github.com/genesysc/icare/actions/runs/32966651915) succeeded.
 Branch restarted from `main` after the merge per this repo's convention
 (see "Conventions" — HANDOVER.md §10).
 
@@ -123,6 +123,12 @@ different colors each — per non-negotiable #2. Account closure is a
 new route wrapping the existing `close_my_account()` RPC, behind a
 two-step in-page confirm rather than a native `confirm()` dialog. See
 "Done" below for full detail.
+
+PR #14 (https://github.com/genesysc/icare/pull/14) was opened,
+`mergeable_state` confirmed `clean`, squash-merged into `main`, and CI
+run #15 confirmed `success`. Branch restarted from `main` per
+convention. **The candidate track is done.** Next: Sprint 6 starts the
+employer track.
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -1101,17 +1107,227 @@ they aren't lost:
     audit on both the review step and the dashboard (populated with
     real-shaped data, including the DBS badge's long label) — zero
     horizontal overflow at any tested size.
+- **PR #14 opened, merged, and deployed** (squash-merged into `main`,
+  `mergeable_state` confirmed `clean` before merging): Sprint 5 (photo,
+  review, publish, candidate dashboard) now live on `main`. CI run #15
+  (https://github.com/genesysc/icare/actions/runs/32966651915)
+  confirmed `success`. Branch restarted from `main` per convention.
+  **Candidate track complete end to end, live in production.**
+- **Candidate-side UI/copy review pass** — the user asked to pause sprint
+  work and review every candidate screen visually. Rendered all 16
+  screens (landing → sign-up/sign-in → verify → all 11 wizard steps →
+  dashboard) with headless Chromium against one consistent realistic
+  test profile (Registered Nurse, 8 years' experience, fully populated
+  across employment/qualifications/registrations/DBS/references/
+  prompts) and published them as an artifact for review, with exact
+  on-screen copy quoted for the compliance-sensitive screens. Two fixes
+  came out of that review:
+  - **Professions picker (step 1)**: was a flat checkbox grid, which
+    read as carer/nurse-dominated even though the real `professions`
+    table already has 28 professions across 6 families (Social care,
+    Nursing, Allied health, Dental, Pharmacy, Support) — the gap was
+    presentation, not data. Rewritten as a grouped `<select>` dropdown
+    (optgroups by family, matching the qualification-type picker's
+    existing convention) + removable chips for what's picked, with a
+    "Primary" tag on whichever chip matches the primary-profession
+    selection. Field hint copy now states the breadth explicitly
+    ("From care roles to nursing, allied health, dentistry, and
+    pharmacy..."). A real ordering bug was caught and fixed while
+    building this: the primary-tag logic read the primary `<select>`'s
+    value *before* its options were rebuilt for the new pick, so it
+    lagged a render behind — fixed by rebuilding the select first, then
+    reading its settled value for the chip tags.
+  - **DBS status wording (step 7)**: the non-negotiable #3 phrase
+    ("Enhanced DBS · on Update Service") was never actually shown
+    together as one line during data entry — only as two separate
+    inputs (a level dropdown, a separate Update Service checkbox), with
+    the combined phrase only appearing later as a badge label. Added a
+    live preview line under the Update Service checkbox that composes
+    the exact phrase from the current level + checkbox state and states
+    the "never verified/certified, only the Update Service can confirm"
+    rule in plain language, updating live as either input changes.
+  - Verified: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+    cleanly, both flows exercised with headless Chromium (multi-pick,
+    remove-by-chip, primary-reassignment for professions; all 4 DBS
+    level/update-service combinations for the preview text), zero
+    horizontal overflow at 3 viewport widths including the longest DBS
+    label case.
+  - Not yet pushed as a PR — this is a fix within the review pause, not
+    a new sprint; will fold into whichever sprint's PR comes next unless
+    the user asks to ship it separately.
+- **CV import (upload → parse → review → apply)** — the user's original
+  request from the very start of onboarding planning, picked up during
+  the review pause rather than deferred to the employer track. The
+  `cv_imports` table was already fully modeled in the schema (`status`
+  lifecycle `uploaded→parsing→parsed→review_complete/failed/unreadable`,
+  `confidence`, `sensitive_found` columns) — confirms this was designed
+  intent, not new scope invented mid-session.
+  - **Backend** (`src/candidates.ts`): `POST /candidates/me/cv` (body:
+    raw PDF, `Content-Type: application/pdf`, max 8MB) inserts a
+    `cv_imports` row (`status: "parsing"`), stores the file in R2
+    (`candidates/{id}/cv/{importId}.pdf`), then calls the Claude API
+    (`@anthropic-ai/sdk`, model `claude-opus-5`) with the PDF as a
+    `document` content block and a single forced tool call
+    (`tool_choice: {type:"tool", name:"extract_cv_data"}`, `strict:
+    true`) to extract headline/about/town, profession/skill ids,
+    employment history, qualifications, registration, and which
+    sensitive categories were noticed. **Architectural enforcement of
+    non-negotiable #5** (never auto-apply an AI parse): this route only
+    ever writes to `cv_imports` — it never touches `candidates`,
+    `employment_history`, `candidate_professions`, or any other profile
+    table. Those are only written later, by the candidate's own "Apply"
+    click on the review screen, which calls the exact same
+    already-built, already-RLS-scoped routes a manual-entry candidate
+    uses (`PATCH /candidates/me`, `PUT .../professions`, `PUT
+    .../skills`, `POST .../employment-history`, `POST
+    .../qualifications`, `POST .../registrations`), one call per item
+    the candidate left checked.
+  - **Non-negotiable #6 (data minimisation) enforced two ways**: (1) the
+    system prompt explicitly forbids extracting DOB, nationality,
+    immigration/visa status, marital status, gender, religion,
+    ethnicity, health info, NI number, or photo — anywhere, including
+    inside free-text fields — and instead instructs the model to flag
+    the category in `sensitive_categories_noticed`; (2) the tool's JSON
+    Schema has no field that could carry those values at all, so even a
+    model mistake has nowhere structurally to put them. The review
+    screen surfaces `sensitive_found` as an explicit notice ("We noticed
+    but didn't extract: date of birth, nationality — add them yourself
+    only where the platform actually asks").
+  - **No fuzzy-matching step needed, by construction**: `profession_ids`/
+    `skill_ids`/`qualification type_id`/`registration.regulator` are
+    constrained as JSON Schema `enum`s built from the live
+    `professions`/`clinical_skills`/`qualification_types` tables (plus a
+    fixed 7-regulator list) at request time, so the model can only ever
+    return ids that already exist in our system — no separate
+    reconciliation pass between "what the model guessed" and "what's
+    actually in the DB".
+  - `GET /candidates/me/cv/latest` and
+    `POST /candidates/me/cv/:id/mark-applied` round out the lifecycle
+    (the latter stamps `status: "review_complete"` + `applied_at` once
+    the candidate confirms).
+  - **Frontend** (`src/onboarding.html`): restructured the page's DOM
+    into three top-level screens — a CV intro (choose "Upload my CV" vs.
+    "Fill it in myself"), an upload zone + parsing spinner, and a review
+    screen — shown only on a genuine first visit (`onboarding_step === 1`
+    and no `?step=` override); returning via an explicit step link still
+    goes straight to the wizard. The review screen is fully editable
+    before anything is written: text inputs for headline/about/town,
+    removable-style checkbox chips for professions/skills (default
+    checked), and a checkbox-per-entry card list for employment history/
+    qualifications/registrations (default checked, uncheck to drop an
+    item) — "Looks good — continue" only submits what's still checked.
+    After a successful apply, the page reloads to `/onboarding?step=1`
+    (not a bare `/onboarding`) specifically so the candidate lands on
+    their now-pre-filled Step 1 form instead of seeing the CV-choice
+    screen again — `onboarding_step` itself doesn't advance until the
+    candidate clicks Continue on step 1 for real.
+  - **Config**: added `"compatibility_flags": ["nodejs_compat"]` to
+    `wrangler.jsonc` — required because `@anthropic-ai/sdk`'s
+    credential-chain module has static top-level imports of `node:fs`/
+    `node:path` (used for `ant auth login` profile auth, unused here
+    since this route passes `apiKey` explicitly, but the import still
+    executes at module load). Confirmed via `wrangler deploy --dry-run`:
+    warned before the flag, clean after.
+  - **Verified**: `tsc --noEmit` clean against the real installed SDK
+    types; `wrangler deploy --dry-run` bundles cleanly (~1.49MB / 311KB
+    gzip). Exercised end-to-end with headless Chromium and a mocked
+    upload response shaped exactly like the real endpoint's real output:
+    intro screen shows on first load, choosing upload reveals the file
+    picker, submitting shows the parsing spinner then the review screen
+    with every field/chip/card correctly pre-filled from the mock,
+    unchecking one of two employment entries before applying results in
+    exactly 1 (not 2) `employment-history` POST firing and `mark-applied`
+    being called — confirms partial-apply (keep some entries, drop
+    others) actually works, not just full-apply. 5-viewport overflow
+    audit (375/430/768/1280/1920px) across the intro, upload-zone, and
+    review screens — zero horizontal overflow at any size.
+  - **⚠️ Blocked on provisioning `ANTHROPIC_API_KEY`**: this route needs
+    an `ANTHROPIC_API_KEY` secret (`wrangler secret put
+    ANTHROPIC_API_KEY`) to actually call Claude in production. This
+    session's local `wrangler` has no live Cloudflare authentication
+    (`wrangler whoami` → "You are not authenticated") — checked directly
+    rather than assumed — so the secret can't be provisioned from here
+    even with a key value supplied. The user (or CI, or an authenticated
+    session) needs to run `wrangler secret put ANTHROPIC_API_KEY`
+    against the real `icare` Worker before this feature works live; the
+    route is otherwise complete and deployable as-is (it'll just 500 on
+    the Claude call until the secret exists).
+  - Not yet pushed as a PR — same review-pause status as the professions/
+    DBS fixes above.
+- **Sprint 6: employer sign-up / sign-in UI** — the employer track's
+  first sprint, resumed after the review pause. Read
+  `handle_new_user()`'s real SQL before assuming anything needed to be
+  built server-side, and it surfaced something useful: an employer
+  signup **already** creates both the `employers` row (`org_name`,
+  `is_verified: false`) and an `employer_verification_requests` row
+  (`submitted_org_name`, `submitted_email`) automatically — so Sprint 6
+  itself needs zero new backend routes, exactly as `SPRINTS.md` scoped
+  it, and Sprint 7's job is reviewing/completing that request, not
+  creating it from scratch.
+  - **`src/employer-sign-in.html`** (new): same one-file sign-up/sign-in
+    toggle pattern as `src/sign-in.html`, but re-themed to match
+    `employers.html`'s own purple/teal design system (`--purple:
+    #330072`, `--teal: #00a499`) rather than reusing the candidate
+    pages' plum/teal palette, and with an organisation-name field added
+    alongside name/email at signup. Posts the existing
+    `POST /auth/request-code` with `role: "employer"`. Mounted at both
+    `/employer/sign-up` and `/employer/sign-in`.
+  - **`src/verify.html`** (shared, not duplicated): gained an optional
+    `?role=` query hint, set by whichever sign-in page redirected here.
+    It only steers cosmetic bits — the "use a different email" link
+    target and the offline-fallback landing page if `/auth/me` can't be
+    reached — never the actual post-verify redirect, which now calls the
+    **existing** `GET /auth/me` first and branches on the account's real
+    `role`: employers go to the new `/employer/home`, candidates keep
+    the exact same `onboarding_done`-based `/onboarding` vs `/dashboard`
+    check as before. This was a deliberate choice over building a
+    separate `employer-verify.html` — one shared page, avoids
+    duplicating the whole verification form a second time.
+  - **`src/employer-home.html`** (new stub): the non-broken landing
+    target for a signed-in employer — the same role Sprint 1's
+    `onboarding.html`/`dashboard.html` stubs played for candidates
+    before later sprints replaced them. Deliberately minimal, matching
+    Sprint 6's actual scope: greets by name via the existing
+    `GET /auth/me` (no new route needed just to say hello), shows a
+    static "Verification: pending" status line and a 3-item roadmap
+    card (organisation verification → chat search → pipeline). Sprint 7
+    onward replaces its body outright, same as Sprint 2 replaced the
+    candidate stub.
+  - **Cross-links added both directions**: candidate sign-in now shows
+    "Hiring instead? Employer sign in", employer sign-in shows "Looking
+    for work instead? Candidate sign in" — someone who lands on the
+    wrong audience's page isn't stuck re-typing a URL.
+  - **Left alone on purpose**: the `/employers` marketing/waitlist page
+    itself — no CTA there points at the new real sign-up flow yet, same
+    as the candidate landing page was left unlinked to `/sign-in` after
+    Sprint 1. Pre-launch marketing and the real signed-in product stay
+    deliberately separate until the user decides to connect them.
+  - **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly (~1.51MB / 314KB gzip). Exercised with headless
+    Chromium against mocked `/auth/verify-code` + `/auth/me` responses:
+    an employer login correctly redirects to `/employer/home` and
+    **never** calls `/candidates/me`; a candidate login is unaffected
+    (still redirects to `/onboarding` or `/dashboard` based on
+    `onboarding_done`, both branches re-confirmed as a regression
+    check); the unauthenticated `employer-home.html` guard correctly
+    redirects to `/employer/sign-in?next=...`; the signup form's actual
+    POST payload confirmed `role: "employer"` plus the typed
+    organisation name both reach the server correctly, unmodified.
+    (`window.location.href` navigation itself can't complete under
+    `file://` in this sandbox — there's no server behind those paths —
+    so redirects were verified via the attempted navigation request's
+    URL rather than the final loaded page; same limitation already
+    documented elsewhere in this file, not new.) 5-viewport overflow
+    audit across all 4 new/changed pages, including the employer form in
+    both its sign-in and sign-up states — zero horizontal overflow
+    anywhere.
+  - Not yet pushed as a PR.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
   shortlisting published candidates) — deliberately deferred in favor of
   candidate API first. Any employer search view must exclude photo/name/
   video/CV per non-negotiable #4 above.
-- CV import — the one item from the original "not covered" list still
-  actually not covered (qualifications/registrations landed in Sprint
-  3; DBS/references/prompts/badges landed in Sprints 4-5). A future CV
-  parser must still follow non-negotiable #6's data-minimisation rules
-  and #5's "never auto-apply" rule when built.
 - Candidate self-expression posts + per-post consent model, employer
   conversational AI search + its protected-characteristics guardrail —
   see "Product direction" above. Explicitly phase 2; the guardrail design

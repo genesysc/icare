@@ -141,7 +141,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, badges (read-only), close-account, onboarding advance/complete |
+| `src/candidates.ts` | Candidate profile CRUD, photo upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, badges (read-only), close-account, onboarding advance/complete, CV import (upload → Claude parse → review/apply) |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
 | `src/emails/waitlist-welcome.ts` | The actual welcome email subject/HTML, unused until `email.ts` is wired up |
@@ -150,7 +150,9 @@ stop and ask the user — do not resolve it yourself.**
 | `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
 | `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
-| `src/verify.html` | OTP code entry, `/verify?email=...` |
+| `src/employer-sign-in.html` | Employer sign-up/sign-in (Sprint 6), mounted at both `/employer/sign-up` and `/employer/sign-in`, own purple/teal design system |
+| `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me` |
+| `src/employer-home.html` | Employer stub home (Sprint 6), `/employer/home` — non-broken landing target until Sprint 7+ builds the real thing |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
 | `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, account closure |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
@@ -252,13 +254,40 @@ row plus `candidates`+`candidate_contact` or `employers`+
   history, qualifications, registrations, DBS status/consent,
   references, self-expression prompts, photo, review & publish.
   Resumes from `onboarding_step` on load; accepts `?step=N` to jump to
-  an earlier completed step (used for editing from the dashboard).
+  an earlier completed step (used for editing from the dashboard). On a
+  genuine first visit, offers a choice screen first: upload a CV (see
+  next bullet) or fill in the wizard manually.
+- **CV import** (`POST/GET /candidates/me/cv*` in `src/candidates.ts`,
+  the CV intro/upload/review screens in `src/onboarding.html`): upload a
+  PDF → Claude (`claude-opus-5`, forced tool use, enum-constrained
+  profession/skill/qualification ids so results can only reference real
+  reference-table rows) extracts a draft → candidate reviews/edits/
+  unchecks anything wrong on a dedicated screen → only then does
+  "Apply" write anything, through the exact same routes manual entry
+  uses. The parse route itself never touches profile tables — enforces
+  non-negotiable #5 (never auto-apply an AI parse) architecturally, not
+  just by prompting. Non-negotiable #6 (data minimisation) is enforced
+  both in the system prompt and structurally (the tool schema has no
+  field that could carry DOB/nationality/immigration/marital/gender/
+  religion/ethnicity/health/NI-number/photo data — those are flagged via
+  `sensitive_categories_noticed` instead and surfaced to the candidate).
+  **⚠️ Needs `ANTHROPIC_API_KEY` provisioned** (`wrangler secret put
+  ANTHROPIC_API_KEY`) before it works live — not yet done, see §8 and
+  §12.
 - **Candidate dashboard** (`src/dashboard.html`, Sprint 5): profile
   summary, badges (grouped by family, grade visually distinct per
   non-negotiable #2), a per-section "at a glance" list linking back
   into the wizard for edits, account closure.
 - Sign-up/sign-in/verify (`src/sign-in.html`, `src/verify.html`, Sprint
   1): OTP-based, one entry point for both flows.
+- **Employer sign-up/sign-in** (`src/employer-sign-in.html`,
+  `src/employer-home.html`, Sprint 6): mirrors the candidate flow for
+  `role: "employer"`, own purple/teal design system matching
+  `employers.html`, collects an organisation name at signup. Lands on
+  the new `/employer/home` stub post-verify — `handle_new_user()`
+  already creates the `employers` row and an
+  `employer_verification_requests` row automatically, so this needed no
+  new backend routes.
 - Landing pages: candidate-primary (`src/landing.html`) and employer
   (`src/employers.html`, v2, built against a real design/copy brief).
   Both waitlist-first pre-launch pages, not the real signed-in product.
@@ -300,11 +329,12 @@ deploy confirmation yet.
    must exclude photo/video/CV pre-shortlist per non-negotiable #4 — note
    the dated override in §1: name/current job title/location are **not**
    excluded, per explicit founder instruction.
-5. CV import — the one item from the original candidate-API gap list
-   still actually not built (qualifications, DBS, references, badges,
-   and prompts all landed in Sprints 3–5). A parser here must follow
-   non-negotiable #6's data-minimisation rules and #5's "never
-   auto-apply" rule.
+5. ~~CV import~~ — built during the post-Sprint-5 review pause (upload →
+   Claude parse → candidate review/edit → apply), see §7. **Blocked on
+   provisioning `ANTHROPIC_API_KEY`** — this sandbox has no live
+   Cloudflare auth (`wrangler whoami` unauthenticated), so the secret
+   needs `wrangler secret put ANTHROPIC_API_KEY` run by the user or CI
+   before it works against the real Worker.
 6. Candidate self-expression posts (with per-post, revocable, opt-in
    consent gating what's employer-visible) + employer conversational AI
    search (natural language, descriptive-not-evaluative, with a
@@ -568,13 +598,65 @@ rather than duplicating every form a second time. Badges render with a
 genuinely distinct visual treatment per grade per non-negotiable #2.
 Account closure wraps the existing `close_my_account()` RPC behind a
 two-step in-page confirm. See PROGRESS.md's "Done" section for full
-detail. Not yet merged.
+detail.
 
-**Next priorities**: the candidate track is done — Sprint 6 starts the
-employer track (per the revised Sprints 6-11 plan; iCompliance/Sprint 12
-stays explicitly unscheduled). Sprint 8 (chat infrastructure, employer
-track) will need an `ANTHROPIC_API_KEY` secret added via
-`wrangler secret put` when it starts — not yet provisioned. Don't
+All of the above (Sprint 5) shipped on **PR #14**, which the user
+approved merging — `mergeable_state` confirmed `clean`, squash-merged
+into `main`, deploy run #15
+(https://github.com/genesysc/icare/actions/runs/32966651915) succeeded.
+Live. Branch restarted from `main` per convention (§10). **The
+candidate track is complete end to end, in production**: sign up →
+verify → 11-step wizard → publish → real dashboard.
+
+The user then paused sprint work to review the full candidate journey's
+UI and copy — see PROGRESS.md's "Candidate-side UI/copy review pass" and
+"CV import" entries for full detail. Three things came out of that
+review: the professions picker was rebuilt as a grouped dropdown +
+removable chips (data was already broad — 28 professions, 6 families —
+the checkbox grid was just presenting it narrowly); the DBS step gained
+a live preview line stating the exact non-negotiable #3 phrase as the
+candidate fills it in; and CV import — a feature requested at the very
+start of onboarding planning — was built: PDF upload → Claude
+(`claude-opus-5`, forced tool use, enum-constrained against real
+reference-table ids) → a fully editable review screen → apply, with
+non-negotiables #5 and #6 enforced architecturally (the parse route
+never writes to profile tables; the tool schema has no field that could
+carry sensitive personal data). All three fixes verified with headless
+Chromium + a 5-viewport overflow audit; not yet pushed as a PR (folding
+into the next sprint's PR unless asked to ship separately).
+
+**⚠️ `ANTHROPIC_API_KEY` not yet provisioned.** CV import needs this
+secret (`wrangler secret put ANTHROPIC_API_KEY`) to actually call Claude
+in production — this sandbox has no live Cloudflare auth (`wrangler
+whoami` → unauthenticated), so it can't be set from here even with a
+key value. The user (or CI, or an authenticated session) needs to run
+it against the real `icare` Worker. Until then the route deploys fine
+but 500s on the Claude call.
+
+Sprint 6 (employer sign-up/sign-in UI) is now shipped — **the employer
+track has started.** `src/employer-sign-in.html` (own purple/teal design
+system, mirrors the candidate sign-in pattern, collects an organisation
+name at signup) and a new `src/employer-home.html` stub (the employer
+equivalent of Sprint 1's onboarding/dashboard stubs) round out the flow;
+`src/verify.html` is now shared by both audiences, branching the
+post-verify redirect on the account's real role from the existing
+`GET /auth/me` rather than duplicating the whole verification page.
+Reading `handle_new_user()`'s real SQL first (not assumed) showed it
+already creates both the `employers` row and an
+`employer_verification_requests` row automatically on employer
+signup — so this sprint needed zero new backend routes, and Sprint 7's
+job is reviewing/completing that request, not creating it. The
+`/employers` marketing page itself is untouched, same as the candidate
+landing page was left unlinked to `/sign-in` after Sprint 1 — pre-launch
+marketing and the real signed-in product stay separate for now. See
+PROGRESS.md's "Done" section for full detail, including how redirects
+were verified given `file://`'s navigation limitation in this sandbox.
+Not yet pushed as a PR.
+
+**Next priorities**: Sprint 7 (employer verification flow — CQC
+provider ID / Companies House number, gating search behind
+`is_verified_employer()`). Sprint 8 (chat infrastructure) will need an
+`ANTHROPIC_API_KEY` secret — see above, still not provisioned. Don't
 restart the domain/Sender.net work unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in

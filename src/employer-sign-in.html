@@ -1,42 +1,50 @@
 <!--
-  iCare candidate sign-up / sign-in — SPRINTS.md Sprint 1.
+  iCare employer sign-up / sign-in — SPRINTS.md Sprint 6.
 
-  One page serves both /sign-up and /sign-in (same file, mounted at both
-  routes in index.ts) — default mode is read from window.location.pathname,
-  and a toggle link switches it client-side. Avoids maintaining two near-
-  identical files for what's really one form with a name field that shows
-  or hides.
+  Mirrors src/sign-in.html's structure (one file for both /employer/sign-up
+  and /employer/sign-in, client-side mode toggle) but themed to match
+  employers.html's own design system (purple/teal, not the candidate
+  pages' plum/teal) and collecting an organisation name at signup instead
+  of relying on full name alone.
 
-  Posts to the EXISTING POST /auth/request-code (no backend changes this
-  sprint). On success, redirects to /verify?email=... — the verify step
-  itself doesn't need to know sign-up vs sign-in, since role/full_name/
-  terms_version are already staged server-side by request-code's `data`
-  payload on signInWithOtp.
+  Posts to the EXISTING POST /auth/request-code with role: "employer" —
+  no backend changes this sprint. handle_new_user() already creates the
+  employers row (org_name, is_verified: false) and an
+  employer_verification_requests row automatically on first sign-up
+  (confirmed by reading the trigger's real SQL before building this) —
+  Sprint 7 adds the routes to actually review/complete that request, not
+  create it from scratch.
+
+  Redirects to /verify?email=...&role=employer — verify.html reads the
+  role param to send "use a different email" back to the right sign-in
+  page, but the actual post-verify landing page is decided authoritatively
+  by GET /auth/me's account.role, not this query param.
 -->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Sign in — iCare</title>
+<title>Employer sign in — iCare</title>
 <meta name="robots" content="noindex" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --plum-950: #241533;
-    --ink-soft: #5b5670;
+    --purple-dark: #2e0b4d;
+    --purple: #330072;
+    --ink: #1b1420;
+    --ink-soft: #5b5566;
     --ink-faint: #8a8599;
-    --teal-700: #0e8c7f;
-    --teal-500: #16b8a6;
-    --teal-100: #e3faf6;
-    --paper: #fefefc;
-    --paper-dim: #f8f6f1;
+    --teal: #00a499;
+    --teal-dark: #00807a;
+    --teal-100: #e0f5f3;
+    --paper: #fbf9f6;
     --line: #e7e3da;
     --white: #ffffff;
     --err: #b23a24;
-    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+    --shadow-soft: 0 24px 60px -24px rgba(46, 11, 77, 0.22);
   }
   * { box-sizing: border-box; }
   body {
@@ -44,18 +52,18 @@
     min-height: 100vh;
     display: flex; flex-direction: column;
     font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: var(--paper-dim);
+    background: var(--paper);
     color: var(--ink-soft);
     -webkit-font-smoothing: antialiased;
   }
-  h1 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  h1 { font-family: "Fraunces", Georgia, serif; color: var(--purple-dark); margin: 0; font-weight: 600; }
   p { margin: 0; }
-  a { color: var(--teal-700); }
+  a { color: var(--teal-dark); }
   button { font-family: inherit; }
 
   .nav { padding: 22px 24px; }
-  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
-  .logo em { font-style: normal; color: var(--teal-500); }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--purple-dark); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal); }
 
   .center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
   .card {
@@ -67,14 +75,14 @@
   .card-sub { margin-top: 8px; font-size: 14.5px; color: var(--ink-faint); }
 
   .field { margin-top: 20px; }
-  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--plum-950); margin-bottom: 6px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--purple-dark); margin-bottom: 6px; }
   .field input {
     width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--line);
-    font-size: 15px; font-family: inherit; background: var(--white); color: var(--plum-950);
+    font-size: 15px; font-family: inherit; background: var(--white); color: var(--ink);
   }
-  .field input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
-  .field-name { display: none; }
-  body.mode-signup .field-name { display: block; }
+  .field input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-100); }
+  .field-signup { display: none; }
+  body.mode-signup .field-signup { display: block; }
 
   .terms-row { margin-top: 18px; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--ink-faint); }
   body:not(.mode-signup) .terms-row { display: none; }
@@ -82,10 +90,10 @@
 
   .btn {
     margin-top: 22px; width: 100%; padding: 13px 20px; border-radius: 999px;
-    background: var(--teal-500); color: var(--white); border: none; font-weight: 700; font-size: 15px;
+    background: var(--purple); color: var(--white); border: none; font-weight: 700; font-size: 15px;
     cursor: pointer; transition: background 0.2s ease;
   }
-  .btn:hover { background: var(--teal-700); }
+  .btn:hover { background: var(--purple-dark); }
   .btn:disabled { opacity: 0.6; cursor: default; }
 
   .status { margin-top: 14px; font-size: 13.5px; display: none; }
@@ -93,32 +101,36 @@
   .status.err { color: var(--err); }
 
   .toggle { margin-top: 22px; text-align: center; font-size: 14px; }
-  .toggle button { background: none; border: none; color: var(--teal-700); font-weight: 600; cursor: pointer; padding: 0; font-size: inherit; }
+  .toggle button { background: none; border: none; color: var(--teal-dark); font-weight: 600; cursor: pointer; padding: 0; font-size: inherit; }
   .toggle button:hover { text-decoration: underline; }
 
   .switch-audience { margin-top: 14px; text-align: center; font-size: 13px; color: var(--ink-faint); }
   .switch-audience a { color: var(--ink-faint); text-decoration: underline; }
-  .switch-audience a:hover { color: var(--teal-700); }
+  .switch-audience a:hover { color: var(--teal-dark); }
 </style>
 </head>
 <body>
 
 <header class="nav">
-  <a href="/" class="logo">i<em>Care</em></a>
+  <a href="/employers" class="logo">i<em>Care</em></a>
 </header>
 
 <div class="center">
   <div class="card">
     <h1 class="card-title" data-title>Welcome back</h1>
-    <p class="card-sub" data-sub>Sign in with your email — we'll send you a one-time code, no password needed.</p>
+    <p class="card-sub" data-sub>Sign in with your work email — we'll send you a one-time code, no password needed.</p>
 
     <form id="auth-form" novalidate>
-      <div class="field field-name">
-        <label for="full-name">Full name</label>
+      <div class="field field-signup">
+        <label for="full-name">Your name</label>
         <input id="full-name" name="full_name" type="text" autocomplete="name" />
       </div>
+      <div class="field field-signup">
+        <label for="org-name">Organisation name</label>
+        <input id="org-name" name="org_name" type="text" autocomplete="organization" />
+      </div>
       <div class="field">
-        <label for="email">Email</label>
+        <label for="email">Work email</label>
         <input id="email" name="email" type="email" autocomplete="email" required />
       </div>
       <div class="terms-row">
@@ -130,10 +142,10 @@
     <p class="status" data-status></p>
 
     <div class="toggle">
-      <span data-toggle-signin>New to iCare? <button type="button" data-switch="signup">Create an account</button></span>
+      <span data-toggle-signin>New to iCare? <button type="button" data-switch="signup">Create an employer account</button></span>
       <span data-toggle-signup style="display:none;">Already have an account? <button type="button" data-switch="signin">Sign in</button></span>
     </div>
-    <div class="switch-audience">Hiring instead? <a href="/employer/sign-in">Employer sign in</a></div>
+    <div class="switch-audience">Looking for work instead? <a href="/sign-in">Candidate sign in</a></div>
   </div>
 </div>
 
@@ -146,21 +158,22 @@
     document.querySelector("[data-title]").textContent = mode === "signup" ? "Join iCare" : "Welcome back";
     document.querySelector("[data-sub]").textContent =
       mode === "signup"
-        ? "Create your candidate account — we'll send you a one-time code, no password needed."
-        : "Sign in with your email — we'll send you a one-time code, no password needed.";
+        ? "Create your employer account — we'll send you a one-time code, no password needed."
+        : "Sign in with your work email — we'll send you a one-time code, no password needed.";
     document.querySelector("[data-toggle-signin]").style.display = mode === "signup" ? "none" : "inline";
     document.querySelector("[data-toggle-signup]").style.display = mode === "signup" ? "inline" : "none";
     document.getElementById("full-name").required = mode === "signup";
+    document.getElementById("org-name").required = mode === "signup";
     document.getElementById("terms").required = mode === "signup";
     try {
-      history.replaceState(null, "", mode === "signup" ? "/sign-up" : "/sign-in");
+      history.replaceState(null, "", mode === "signup" ? "/employer/sign-up" : "/employer/sign-in");
     } catch (e) {
       // Some contexts (e.g. file:// during local testing) disallow replaceState —
       // the mode toggle still works via body class, just without updating the URL bar.
     }
   }
 
-  var initialMode = window.location.pathname === "/sign-up" ? "signup" : "signin";
+  var initialMode = window.location.pathname === "/employer/sign-up" ? "signup" : "signin";
   setMode(initialMode);
 
   document.querySelectorAll("[data-switch]").forEach(function (btn) {
@@ -180,10 +193,11 @@
     var isSignup = document.body.classList.contains("mode-signup");
     var email = document.getElementById("email").value.trim();
     var fullName = document.getElementById("full-name").value.trim();
+    var orgName = document.getElementById("org-name").value.trim();
     var termsAccepted = document.getElementById("terms").checked;
     if (!email) return;
-    if (isSignup && (!fullName || !termsAccepted)) {
-      setStatus("err", "Please enter your name and accept the Terms to continue.");
+    if (isSignup && (!fullName || !orgName || !termsAccepted)) {
+      setStatus("err", "Please enter your name, organisation, and accept the Terms to continue.");
       return;
     }
 
@@ -192,8 +206,9 @@
 
     var payload = { email: email, create: isSignup };
     if (isSignup) {
-      payload.role = "candidate";
+      payload.role = "employer";
       payload.full_name = fullName;
+      payload.org_name = orgName;
       payload.terms_version = TERMS_VERSION;
     }
 
@@ -210,7 +225,7 @@
           setStatus("err", result.body.error || "Something went wrong. Please try again.");
           return;
         }
-        window.location.href = "/verify?email=" + encodeURIComponent(email) + "&role=candidate";
+        window.location.href = "/verify?email=" + encodeURIComponent(email) + "&role=employer";
       })
       .catch(function () {
         submitBtn.disabled = false;

@@ -1,0 +1,200 @@
+<!--
+  iCare employer home — SPRINTS.md Sprint 6.
+
+  A non-broken landing target for a signed-in employer, same role the
+  Sprint 1 onboarding.html/dashboard.html stubs played for candidates
+  before Sprints 2-5 built the real thing. verify.html redirects here for
+  role: "employer" (decided via GET /auth/me, not a client-side guess).
+
+  Deliberately minimal — no new backend routes this sprint (matches
+  SPRINTS.md's Sprint 6 scope exactly). Sprint 7 adds real verification-
+  status routes/UI; Sprint 8 replaces this page's body outright with the
+  chat interface. Only calls the EXISTING GET /auth/me to greet by name.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Your account — iCare for employers</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --purple-dark: #2e0b4d;
+    --purple: #330072;
+    --ink: #1b1420;
+    --ink-soft: #5b5566;
+    --ink-faint: #8a8599;
+    --teal: #00a499;
+    --teal-dark: #00807a;
+    --teal-100: #e0f5f3;
+    --paper: #fbf9f6;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --shadow-soft: 0 24px 60px -24px rgba(46, 11, 77, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper); color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--purple-dark); margin: 0; font-weight: 600; }
+  p { margin: 0; }
+  button { font-family: inherit; }
+
+  .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--purple-dark); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal); }
+  .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .sign-out:hover { color: var(--teal-dark); }
+
+  .wrap { max-width: 560px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  .card {
+    background: var(--white); border-radius: 20px; border: 1px solid var(--line);
+    box-shadow: var(--shadow-soft); padding: 36px 32px;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal-dark);
+  }
+  .card-title { margin-top: 10px; font-size: 26px; }
+  .card-body { margin-top: 14px; font-size: 15px; line-height: 1.6; }
+  .card-body strong { color: var(--ink); }
+
+  .status-row {
+    margin-top: 24px; padding: 14px 16px; border-radius: 12px; background: var(--teal-100);
+    display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--teal-dark); font-weight: 600;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--teal-dark); flex: none; }
+
+  .coming-list { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .coming-item {
+    display: flex; gap: 12px; align-items: flex-start; font-size: 14px; padding: 12px 0;
+    border-top: 1px solid var(--line);
+  }
+  .coming-item-num {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); flex: none;
+    width: 20px; padding-top: 2px;
+  }
+  .coming-item-label { color: var(--ink); font-weight: 600; }
+  .coming-item-sub { margin-top: 2px; color: var(--ink-faint); font-size: 13px; }
+
+  .loading-note { font-size: 14px; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/employers" class="logo">i<em>Care</em></a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <p class="eyebrow">Employer account</p>
+    <h1 class="card-title" data-greeting>You're in</h1>
+    <p class="card-body" data-body>Your employer account is set up. We're still building the search and hiring tools — you'll see them appear here as they ship.</p>
+
+    <div class="status-row">
+      <span class="status-dot"></span>
+      <span>Verification: pending — we'll review your organisation shortly</span>
+    </div>
+
+    <div class="coming-list">
+      <div class="coming-item">
+        <span class="coming-item-num">01</span>
+        <div>
+          <div class="coming-item-label">Organisation verification</div>
+          <div class="coming-item-sub">Confirm your CQC provider ID or Companies House number to unlock search.</div>
+        </div>
+      </div>
+      <div class="coming-item">
+        <span class="coming-item-num">02</span>
+        <div>
+          <div class="coming-item-label">Chat-based candidate search</div>
+          <div class="coming-item-sub">Describe the role you're hiring for in plain language — no forms or filters.</div>
+        </div>
+      </div>
+      <div class="coming-item">
+        <span class="coming-item-num">03</span>
+        <div>
+          <div class="coming-item-label">Shortlisting &amp; pipeline</div>
+          <div class="coming-item-sub">Move candidates through Shortlisted → Interview → Offer → Hired, all from chat.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Shared auth helper (src/auth-client.js, copied per this repo's no-build-step convention) ----
+var ICARE_SESSION_KEY = "icare_session";
+function icareGetSession() {
+  try {
+    var raw = localStorage.getItem(ICARE_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function icareClearSession() {
+  try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {}
+}
+function icareIsSessionExpired(session) {
+  if (!session || !session.expires_at) return true;
+  return Date.now() >= session.expires_at * 1000;
+}
+function icareAuthFetch(url, options) {
+  var session = icareGetSession();
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+function icareRequireAuth(signInPath) {
+  var session = icareGetSession();
+  if (!session || icareIsSessionExpired(session)) {
+    icareClearSession();
+    var next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = (signInPath || "/sign-in") + "?next=" + next;
+    return null;
+  }
+  return session;
+}
+// ---- End shared auth helper ----
+
+(function () {
+  var session = icareRequireAuth("/employer/sign-in");
+  if (!session) return;
+
+  icareAuthFetch("/auth/me")
+    .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+    .then(function (result) {
+      if (!result.ok || !result.body.account) return;
+      var account = result.body.account;
+      if (account.role !== "employer") {
+        // Signed in, but not an employer account — send them to the right home.
+        window.location.href = "/dashboard";
+        return;
+      }
+      if (account.full_name) {
+        document.querySelector("[data-greeting]").textContent = "Welcome, " + account.full_name;
+      }
+    })
+    .catch(function () {
+      // Non-fatal — the generic greeting still reads fine without a name.
+    });
+
+  document.querySelector("[data-sign-out]").addEventListener("click", function () {
+    icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
+      icareClearSession();
+      window.location.href = "/employer/sign-in";
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -313,10 +313,61 @@ Equality Act exposure #4 exists to prevent. Photo, video, and CV file
 **remain excluded pre-shortlist** — the override above is scoped to name
 + job title + location only, nothing else in #4 changed.
 
-### Sprint 6 — Employer sign-up / sign-in UI
+### Sprint 6 — Employer sign-up / sign-in UI ✅ Shipped
 
 Mirrors Sprint 1 for `role: "employer"`, collecting `org_name` at
-signup. Same **existing** `/auth/*` routes, same Sprint 0 auth helper.
+signup. Same **existing** `/auth/*` routes, same Sprint 0 auth helper —
+no new backend routes, confirmed against `handle_new_user()`'s real SQL
+before assuming so: it already creates the `employers` row (`org_name`,
+`is_verified: false`) *and* an `employer_verification_requests` row
+automatically on employer signup. Sprint 7's routes are for
+reviewing/completing that request, not creating it from scratch.
+
+- **`src/employer-sign-in.html`** (new, mounted at `/employer/sign-up` +
+  `/employer/sign-in`): same one-file toggle pattern as
+  `src/sign-in.html`, but themed to `employers.html`'s own purple/teal
+  design system rather than reusing the candidate pages' plum/teal, and
+  collecting an organisation name field alongside name/email at signup.
+  Posts `role: "employer"` to the existing `POST /auth/request-code`.
+- **`src/verify.html`** (shared by both audiences, not duplicated): now
+  reads an optional `?role=` hint (set by whichever sign-in page
+  redirected here) purely to steer the "use a different email" link and
+  the offline fallback landing page — the actual post-verify redirect is
+  decided authoritatively by the account's real role from the
+  **existing** `GET /auth/me`, never trusted from the query param.
+  Employers land on `/employer/home`; candidates keep the pre-existing
+  `onboarding_done` check against `/candidates/me` unchanged.
+- **`src/employer-home.html`** (new stub, mounted at `/employer/home`):
+  the non-broken landing target for a signed-in employer, playing the
+  same role Sprint 1's `onboarding.html`/`dashboard.html` stubs played
+  for candidates before later sprints built the real thing. Deliberately
+  minimal — greets by name via the existing `GET /auth/me`, shows a
+  static "verification pending" status and a 3-item roadmap
+  (verification → chat search → pipeline), no new routes. Sprint 7+
+  replaces its body with the real thing.
+- Cross-links added both directions: candidate sign-in gets "Hiring
+  instead? Employer sign in", employer sign-in gets "Looking for work
+  instead? Candidate sign in" — someone landing on the wrong audience's
+  page isn't stuck.
+- The employer landing page (`/employers`) itself is untouched — stays
+  waitlist-only for now, same as the candidate landing page was left
+  unlinked to `/sign-in` after Sprint 1. Pre-launch marketing pages and
+  the real signed-in product are deliberately separate until launch.
+- **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+  cleanly. Exercised with headless Chromium against mocked
+  `/auth/verify-code` + `/auth/me` responses: an employer login correctly
+  redirects to `/employer/home` and never calls `/candidates/me`; a
+  candidate login is unaffected (still redirects to `/onboarding` or
+  `/dashboard` based on `onboarding_done`, confirmed both branches); the
+  unauthenticated `employer-home.html` guard redirects to
+  `/employer/sign-in?next=...`; the signup form's actual POST payload
+  confirmed `role: "employer"` and the typed organisation name reach the
+  server correctly. (Navigation itself can't complete under `file://` in
+  this sandbox with no server behind it — verified via the attempted
+  navigation request's URL instead of the final page, same limitation
+  noted elsewhere in this doc.) 5-viewport overflow audit across all 4
+  new/changed pages (including the employer-themed form in both sign-in
+  and sign-up mode) — zero horizontal overflow anywhere.
 
 ### Sprint 7 — Employer verification flow
 
