@@ -1,0 +1,134 @@
+<!--
+  iCare candidate dashboard — STUB, SPRINTS.md Sprint 1.
+
+  Placeholder redirect target for onboarding_done = true (won't really
+  be reachable until Sprint 5 sets that flag via publish). Replace with
+  the real profile view/edit dashboard in Sprint 5 — the auth-guard JS
+  below is reusable as-is.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Your profile — iCare</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --amber-600: #b8791f;
+    --amber-100: #faedd4;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  p { margin: 0; }
+  button { font-family: inherit; }
+
+  .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+  .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .sign-out:hover { color: var(--teal-700); }
+
+  .center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card {
+    width: 100%; max-width: 460px; background: var(--white);
+    border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft);
+    padding: 40px 36px; text-align: center;
+  }
+  .card-title { font-size: 25px; }
+  .card-sub { margin-top: 12px; font-size: 15px; line-height: 1.6; }
+  .card-sub strong { color: var(--plum-950); }
+  .soon-tag {
+    display: inline-flex; margin-top: 20px; font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber-600);
+    background: var(--amber-100); padding: 5px 10px; border-radius: 999px;
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</header>
+
+<div class="center">
+  <div class="card">
+    <h1 class="card-title">Welcome back.</h1>
+    <p class="card-sub">Signed in as <strong data-email>…</strong>. Your published profile lives here once
+      it exists — for now, this confirms your account and sign-in are working end to end.</p>
+    <span class="soon-tag">Profile dashboard — coming soon</span>
+  </div>
+</div>
+
+<script>
+// ---- Shared auth helper (src/auth-client.js, copied per this repo's no-build-step convention) ----
+var ICARE_SESSION_KEY = "icare_session";
+function icareGetSession() {
+  try { var raw = localStorage.getItem(ICARE_SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+function icareClearSession() {
+  try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {}
+}
+function icareIsSessionExpired(session) {
+  if (!session || !session.expires_at) return true;
+  return Date.now() >= session.expires_at * 1000;
+}
+function icareAuthFetch(url, options) {
+  var session = icareGetSession();
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+function icareRequireAuth(signInPath) {
+  var session = icareGetSession();
+  if (!session || icareIsSessionExpired(session)) {
+    icareClearSession();
+    var next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = (signInPath || "/sign-in") + "?next=" + next;
+    return null;
+  }
+  return session;
+}
+// ---- End shared auth helper ----
+
+(function () {
+  var session = icareRequireAuth();
+  if (!session) return;
+
+  icareAuthFetch("/auth/me")
+    .then(function (res) { return res.json(); })
+    .then(function (body) {
+      if (body && body.account) document.querySelector("[data-email]").textContent = body.account.email;
+    })
+    .catch(function () {});
+
+  document.querySelector("[data-sign-out]").addEventListener("click", function () {
+    icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
+      icareClearSession();
+      window.location.href = "/";
+    });
+  });
+})();
+</script>
+</body>
+</html>

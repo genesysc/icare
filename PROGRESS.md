@@ -9,7 +9,7 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: Sprint 0 shipped, starting Sprint 1
+## Status: Sprint 1 shipped, real candidate sign-up/sign-in now exists
 
 PR #9, #10, and #11 all merged and deployed (waitlist landing pages,
 candidate + employer). `main` is deployed and live, wired to the real
@@ -29,9 +29,17 @@ then said to start building.
 **Sprint 0 is now shipped** — `/privacy` and `/terms` pages, a shared
 client-side auth helper, and the Magic Link email template confirmed as
 still-manual (no Supabase MCP tool touches Auth email config — checked,
-not assumed). See "Done" below for detail. Not yet pushed to a PR.
+not assumed).
 
-Next: Sprint 1 (candidate sign-up/sign-in UI).
+**Sprint 1 is now shipped too** — real sign-up/sign-in/verify pages,
+calling the existing (unmodified) `/auth/request-code` and
+`/auth/verify-code` routes, landing on new stub `/onboarding` and
+`/dashboard` pages until Sprints 2 and 5 build the real thing. One real
+bug found and fixed during testing (a `history.replaceState` throw that
+silently broke the entire sign-up/sign-in mode toggle) — see "Done"
+below for detail on both sprints. Neither is pushed to a PR yet.
+
+Next: Sprint 2 (onboarding wizard shell + core profile).
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -690,6 +698,45 @@ they aren't lost:
     inert until copied into a page — checked the config rather than
     assuming), `wrangler deploy --dry-run` bundles cleanly, 6-viewport
     headless-Chromium audit on both new pages — zero horizontal overflow.
+  - Not yet pushed to a PR.
+- **Sprint 1 shipped** (`SPRINTS.md`): real candidate sign-up/sign-in.
+  - `src/sign-in.html` — one file mounted at both `/sign-up` and
+    `/sign-in`, client-side mode toggle (name field + terms checkbox
+    only show in sign-up mode). Posts to the existing, unmodified
+    `POST /auth/request-code` — no backend changes this sprint.
+  - `src/verify.html` — 6-digit code entry, posts to the existing,
+    unmodified `POST /auth/verify-code`, stores the session via the
+    Sprint 0 auth helper (copied inline). On success, calls the
+    existing `GET /candidates/me` to check `onboarding_done` and
+    redirects to `/onboarding` or `/dashboard` accordingly.
+  - `src/onboarding.html`, `src/dashboard.html` — new stub pages, both
+    just enough to be real, working, auth-guarded destinations (confirm
+    the account, show the signed-in email, offer sign-out) since Sprints
+    2 and 5 don't exist yet and Sprint 1 needs non-broken redirect
+    targets either way. Both reuse the same `icareRequireAuth` guard
+    the real pages will keep using.
+  - **Bug found and fixed during testing, not just a lucky catch**:
+    tested the sign-up/sign-in mode toggle with a headless-Chromium
+    click (not just visual inspection) and found `history.replaceState`
+    throwing uncaught in the tested context — which silently aborted
+    the rest of the page's init script, meaning the toggle's click
+    handlers never got attached at all, with zero visible error. Wrapped
+    in try/catch; re-tested and confirmed the toggle switches correctly
+    (name field + terms checkbox appear, copy updates, body class
+    updates) after the fix.
+  - **Explicitly not testable from this sandbox**: a live OTP round-trip
+    (send code → real inbox → verify). Confirmed — again, more directly
+    this time — that this sandbox can't reach `*.supabase.co` at all:
+    tried a plain `curl` directly (not just `wrangler dev`), got no
+    response (`000`). This is the same limitation `HANDOVER.md` §6
+    already flagged (OTP flow deployed but unconfirmed against a real
+    inbox, pending the Magic Link template fix), not something new or
+    worse introduced by this sprint. What's actually verified instead:
+    the request/response shapes used match the real, unmodified
+    `src/auth.ts`/`src/candidates.ts` exactly (read the source, not
+    assumed), plus `tsc --noEmit`, `wrangler deploy --dry-run`, and a
+    6-viewport headless-Chromium audit across all 4 new pages (zero
+    horizontal overflow).
   - Not yet pushed to a PR.
 
 ## Not started yet

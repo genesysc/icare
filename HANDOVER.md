@@ -459,8 +459,23 @@ explicitly marked DRAFT, grounded in real system behavior including the
 confirmed still-manual (checked the actual Supabase MCP tool list, no
 tool touches Auth email config). See PROGRESS.md's "Done" section.
 
-**Next priorities**: Sprint 1 (candidate sign-up/sign-in UI) is next.
-Sprint 8 (chat infrastructure, employer track) will need an
+Sprint 1 (candidate sign-up/sign-in UI) is also now shipped:
+`src/sign-in.html` (one file, mounted at `/sign-up` and `/sign-in`),
+`src/verify.html`, and two new stub pages (`src/onboarding.html`,
+`src/dashboard.html`) as non-broken redirect targets until Sprints 2 and
+5 build the real thing. All call the existing, unmodified `/auth/*` and
+`/candidates/me` routes — no backend changes. A real bug was found and
+fixed during testing: `history.replaceState` threw uncaught inside the
+sign-up/sign-in mode toggle, silently aborting the rest of the page's
+init script (so the toggle's click handlers never attached, no visible
+error) — now wrapped in try/catch. See PROGRESS.md's "Done" section for
+full detail, including what could and couldn't be tested (a live OTP
+round-trip still isn't testable from this sandbox — confirmed again via
+a direct `curl` to `*.supabase.co`, not just `wrangler dev` — same
+pre-existing limitation, not new).
+
+**Next priorities**: Sprint 2 (onboarding wizard shell + core profile)
+is next. Sprint 8 (chat infrastructure, employer track) will need an
 `ANTHROPIC_API_KEY` secret added via `wrangler secret put` when it
 starts — not yet provisioned. Don't restart the domain/Sender.net work
 unless the user brings it back up.

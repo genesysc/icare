@@ -54,19 +54,42 @@ Nothing below this works without these first.
 
 ## Candidate track
 
-### Sprint 1 — Candidate sign-up / sign-in UI
+### Sprint 1 — Candidate sign-up / sign-in UI ✅ Shipped
 
 A real candidate can create an account and land somewhere.
 
-- Sign-up screen: name + email → `POST /auth/request-code`
-  (`create: true, role: "candidate"`) — **route already exists.**
-- Verify-code screen: 6-digit code → `POST /auth/verify-code` — **route
-  already exists.** Store the returned session via Sprint 0's auth helper.
-- Sign-in screen for returning candidates (`create: false`).
-- On success: redirect to the onboarding wizard if
-  `candidates.onboarding_done = false`, else to the candidate home
-  (Sprint 5). No DB changes needed — `handle_new_user()` already creates
-  the `candidates` row on signup.
+- Sign-up + sign-in combined into one page (`src/sign-in.html`, mounted
+  at both `/sign-up` and `/sign-in`) with a client-side mode toggle —
+  posts to the **existing, unmodified** `POST /auth/request-code`
+  (`create: true, role: "candidate"` for sign-up; `create: false` for
+  sign-in). Sign-up requires a terms checkbox linking to `/terms`/
+  `/privacy` (Sprint 0), sends `terms_version`.
+- `src/verify.html` — 6-digit code entry, posts to the **existing,
+  unmodified** `POST /auth/verify-code`, stores the session via the
+  Sprint 0 auth helper (copied inline, per convention).
+- On verify success: calls the **existing** `GET /candidates/me` to read
+  `onboarding_done`, then redirects to `/onboarding` (false) or
+  `/dashboard` (true). Both are new **stub** pages — the real wizard
+  (Sprint 2) and dashboard (Sprint 5) don't exist yet, but Sprint 1 needs
+  a non-broken redirect target either way. Both stubs reuse the same
+  auth-guard JS (`icareRequireAuth`) that the real pages will keep.
+- No DB or existing-route changes — `handle_new_user()` already creates
+  the `candidates` row on signup, exactly as this sprint assumed.
+- **Bug caught and fixed during testing**: `history.replaceState` in the
+  mode-toggle threw uncaught in one tested context, which silently
+  aborted the rest of the page's init script — meaning the toggle button
+  never got its click handler at all, with no visible error. Wrapped in
+  try/catch; the URL-bar update is best-effort, the mode toggle itself
+  no longer depends on it succeeding.
+- **Not testable from this environment**: a live OTP round-trip (send
+  code → real inbox → verify) — this sandbox has no email inbox access,
+  and confirmed (again) it can't reach `*.supabase.co` at all, by
+  `curl`, not just via `wrangler dev`. Same pre-existing limitation
+  `HANDOVER.md` §6 already flagged, not new to this sprint. What *is*
+  verified: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+  cleanly, 6-viewport headless-Chromium audit on all 4 new pages (zero
+  overflow), and the sign-up/sign-in mode toggle visually confirmed
+  correct after the fix above.
 
 ### Sprint 2 — Onboarding wizard shell + core profile
 
