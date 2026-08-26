@@ -169,6 +169,32 @@
   .form-err.is-visible { display: block; }
   .file-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
   .file-row input[type="file"] { font-size: 13px; }
+
+  /* Photo step */
+  .photo-preview {
+    width: 120px; height: 120px; border-radius: 999px; background: var(--paper-dim);
+    border: 1.5px dashed var(--line); display: flex; align-items: center; justify-content: center;
+    overflow: hidden; margin: 4px auto 0;
+  }
+  .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-preview-empty { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--ink-faint); text-align: center; padding: 8px; }
+
+  /* Review & publish step */
+  .completeness-bar { margin-top: 18px; height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .completeness-fill { height: 100%; background: var(--teal-500); border-radius: 999px; transition: width 0.3s ease; }
+  .completeness-label { margin-top: 8px; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-faint); }
+  .review-summary { margin-top: 22px; display: flex; flex-direction: column; gap: 14px; }
+  .review-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .review-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .review-row-label { font-size: 13px; font-weight: 600; color: var(--plum-950); flex: none; width: 120px; }
+  .review-row-value { font-size: 14px; color: var(--ink-soft); text-align: right; flex: 1; }
+  .review-edit-link { font-size: 12.5px; font-weight: 600; color: var(--teal-700); background: none; border: none; cursor: pointer; flex: none; }
+  .review-edit-link:hover { color: var(--plum-950); }
+  .publish-checklist { margin-top: 18px; padding: 14px 16px; border-radius: 12px; background: var(--amber-100); display: none; }
+  .publish-checklist.is-visible { display: block; }
+  .publish-checklist-title { font-size: 13px; font-weight: 700; color: var(--amber-600); }
+  .publish-checklist ul { margin: 8px 0 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-soft); }
+  .publish-checklist li { margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -189,6 +215,8 @@
     <div class="step-dot" data-dot="7"></div>
     <div class="step-dot" data-dot="8"></div>
     <div class="step-dot" data-dot="9"></div>
+    <div class="step-dot" data-dot="10"></div>
+    <div class="step-dot" data-dot="11"></div>
   </div>
   <div class="step-current-label" data-current-label></div>
 
@@ -566,12 +594,50 @@
       </div>
     </div>
 
-    <!-- Step 10: holding screen (Sprint 5 not built yet) -->
-    <div class="panel holding" data-panel="10">
-      <h1 class="card-title">Nice progress.</h1>
-      <p class="card-sub">We've saved everything so far. A profile photo, a final review, and publishing your
-        profile are being built next — come back soon to keep going.</p>
-      <span class="soon-tag">Rest of the wizard — coming soon</span>
+    <!-- Step 10: Photo -->
+    <div class="panel" data-panel="10">
+      <h1 class="card-title">Add a photo</h1>
+      <p class="card-sub">Optional, but profiles with a photo tend to get more attention. You can add or change
+        this any time.</p>
+
+      <div class="photo-preview" data-photo-preview>
+        <span class="photo-preview-empty">No photo yet</span>
+      </div>
+      <div class="field" style="text-align:center;">
+        <div class="file-row" style="justify-content:center;">
+          <input id="photo-file" type="file" accept="image/*" />
+        </div>
+        <button type="button" class="btn-small btn-primary" data-photo-upload style="margin-top:12px;">Upload</button>
+      </div>
+      <p class="status" data-status="photo"></p>
+
+      <p class="status" data-status="10"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" data-back="10">Back</button>
+        <button type="button" class="btn btn-primary" data-next="10">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 11: Review & publish -->
+    <div class="panel" data-panel="11">
+      <h1 class="card-title">Review & publish</h1>
+      <p class="card-sub">Here's everything you've told us. Publishing makes your profile visible to employers.</p>
+
+      <div class="completeness-bar"><div class="completeness-fill" data-completeness-fill style="width:0%;"></div></div>
+      <p class="completeness-label" data-completeness-label>0% complete</p>
+
+      <div class="review-summary" data-review-summary></div>
+
+      <div class="publish-checklist" data-publish-checklist>
+        <p class="publish-checklist-title">A couple of things are still needed before you can publish:</p>
+        <ul data-publish-checklist-items></ul>
+      </div>
+
+      <p class="status" data-status="11"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" data-back="11">Back</button>
+        <button type="button" class="btn btn-primary" data-publish>Publish my profile</button>
+      </div>
     </div>
   </div>
 </div>
@@ -622,6 +688,9 @@ function icareRequireAuth(signInPath) {
   var registrations = [];
   var references = [];
   var prompts = [];
+  var myPromptAnswers = [];
+  var myProfessionIds = [];
+  var candidate = null;
   var editingEmploymentId = null;
   var editingQualificationId = null;
   var editingRegistrationId = null;
@@ -644,11 +713,11 @@ function icareRequireAuth(signInPath) {
     el.className = "status";
   }
 
-  var TOTAL_STEPS = 9;
+  var TOTAL_STEPS = 11;
   var STEP_LABELS = {
     1: "Basics", 2: "Skills", 3: "Availability", 4: "Experience",
     5: "Qualifications", 6: "Registration", 7: "DBS & consent",
-    8: "References", 9: "Your own words",
+    8: "References", 9: "Your own words", 10: "Photo", 11: "Review & publish",
   };
   function showStep(step) {
     currentStep = step;
@@ -662,6 +731,8 @@ function icareRequireAuth(signInPath) {
     });
     var labelEl = document.querySelector("[data-current-label]");
     labelEl.textContent = STEP_LABELS[step] ? ("Step " + step + " of " + TOTAL_STEPS + " · " + STEP_LABELS[step]) : "";
+    if (step === 10) renderPhotoPreview();
+    if (step === 11) loadReviewSummary();
     window.scrollTo(0, 0);
   }
 
@@ -1009,6 +1080,92 @@ function icareRequireAuth(signInPath) {
       textarea.placeholder = p.placeholder;
       textarea.value = existing;
       list.appendChild(wrap);
+    });
+  }
+
+  // ---- Photo (existing routes) ----
+  function renderPhotoPreview() {
+    var preview = document.querySelector("[data-photo-preview]");
+    if (candidate && candidate.photo_path) {
+      preview.innerHTML = '<img src="/candidates/me/photo?t=' + Date.now() + '" alt="Your photo" />';
+    } else {
+      preview.innerHTML = '<span class="photo-preview-empty">No photo yet</span>';
+    }
+  }
+
+  // ---- Review & publish ----
+  function dbsLevelLabel(level) {
+    var labels = { basic: "Basic DBS", standard: "Standard DBS", enhanced: "Enhanced DBS", enhanced_barred: "Enhanced DBS, with barred list check" };
+    return labels[level] || level;
+  }
+  function computeCompleteness(dbs) {
+    var pts = 0;
+    if (myProfessionIds.length > 0) pts += 15;
+    if (candidate.postcode_district) pts += 10;
+    if (candidate.availability) pts += 10;
+    if (candidate.right_to_work && candidate.right_to_work !== "not_stated") pts += 10;
+    if (employmentHistory.length > 0) pts += 20;
+    if (dbs) pts += 10;
+    if (myPromptAnswers.length > 0) pts += 15;
+    if (candidate.photo_path) pts += 10;
+    return Math.min(100, pts);
+  }
+  function renderReviewSummary(dbs) {
+    var container = document.querySelector("[data-review-summary]");
+    container.innerHTML = "";
+
+    function addRow(label, value, editStep) {
+      var row = document.createElement("div");
+      row.className = "review-row";
+      row.innerHTML =
+        '<div class="review-row-label"></div><div class="review-row-value"></div><button type="button" class="review-edit-link">Edit</button>';
+      row.querySelector(".review-row-label").textContent = label;
+      row.querySelector(".review-row-value").textContent = value;
+      row.querySelector(".review-edit-link").addEventListener("click", function () { showStep(editStep); });
+      container.appendChild(row);
+    }
+
+    var professionNames = myProfessionIds.map(function (id) {
+      var p = professions.filter(function (x) { return x.id === id; })[0];
+      return p ? p.name : id;
+    });
+    addRow("Basics", candidate.headline || "Not added yet", 1);
+    addRow("Professions", professionNames.length ? professionNames.join(", ") : "None picked yet", 1);
+    addRow("Availability", candidate.availability ? candidate.availability.replace(/_/g, " ") : "Not set", 3);
+    addRow("Experience", employmentHistory.length + (employmentHistory.length === 1 ? " role added" : " roles added"), 4);
+    addRow("Qualifications", qualifications.length + " added", 5);
+    addRow("Registrations", registrations.length + " added", 6);
+    addRow("DBS", dbs ? dbsLevelLabel(dbs.level) : "Not added yet", 7);
+    addRow("References", references.length + " added", 8);
+    addRow("Your own words", myPromptAnswers.length + (myPromptAnswers.length === 1 ? " prompt answered" : " prompts answered"), 9);
+    addRow("Photo", candidate.photo_path ? "Added" : "Not added yet", 10);
+
+    var pts = computeCompleteness(dbs);
+    document.querySelector("[data-completeness-fill]").style.width = pts + "%";
+    document.querySelector("[data-completeness-label]").textContent = pts + "% complete";
+  }
+  function renderPublishChecklist() {
+    var missing = [];
+    if (myProfessionIds.length === 0) missing.push("Pick at least one profession (step 1).");
+    if (employmentHistory.length === 0) missing.push("Add at least one role to your work history (step 4).");
+    if (!candidate.postcode_district) missing.push("Add your postcode district (step 1).");
+    if (!candidate.right_to_work || candidate.right_to_work === "not_stated") missing.push("Tell us your right-to-work status (step 3).");
+
+    var box = document.querySelector("[data-publish-checklist]");
+    var list = document.querySelector("[data-publish-checklist-items]");
+    list.innerHTML = "";
+    missing.forEach(function (m) {
+      var li = document.createElement("li");
+      li.textContent = m;
+      list.appendChild(li);
+    });
+    box.classList.toggle("is-visible", missing.length > 0);
+    return missing;
+  }
+  function loadReviewSummary() {
+    return jget("/candidates/me/dbs").then(function (dbsResult) {
+      renderReviewSummary(dbsResult.ok ? dbsResult.body.dbs : null);
+      renderPublishChecklist();
     });
   }
 
@@ -1379,6 +1536,9 @@ function icareRequireAuth(signInPath) {
     Promise.all(ops).then(function (results) {
       var failed = results.filter(function (r) { return !r.ok; });
       if (failed.length) throw new Error("Couldn't save one or more answers.");
+      myPromptAnswers = textareas.filter(function (ta) { return ta.value.trim(); }).map(function (ta) {
+        return { prompt_id: ta.getAttribute("data-prompt-id"), answer: ta.value.trim() };
+      });
       return advanceOnboarding(10, "prompts_completed");
     }).then(function (result) {
       btn.disabled = false;
@@ -1390,6 +1550,73 @@ function icareRequireAuth(signInPath) {
     });
   });
   document.querySelector('[data-back="9"]').addEventListener("click", function () { showStep(8); });
+
+  // ---- Step 10: Photo ----
+  document.querySelector("[data-photo-upload]").addEventListener("click", function () {
+    var btn = this;
+    var file = document.getElementById("photo-file").files[0];
+    if (!file) {
+      setStatus("photo", "err", "Choose a photo first.");
+      return;
+    }
+    btn.disabled = true;
+    clearStatus("photo");
+    icareAuthFetch("/candidates/me/photo", {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    }).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        btn.disabled = false;
+        if (!result.ok) {
+          setStatus("photo", "err", result.body.error || "Couldn't upload your photo.");
+          return;
+        }
+        candidate.photo_path = result.body.candidate.photo_path;
+        renderPhotoPreview();
+      }).catch(function () {
+        btn.disabled = false;
+        setStatus("photo", "err", "Something went wrong. Please try again.");
+      });
+  });
+  document.querySelector('[data-next="10"]').addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    advanceOnboarding(11, "photo_completed").then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save your progress.");
+      showStep(11);
+    }).catch(function (err) {
+      btn.disabled = false;
+      setStatus(10, "err", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-back="10"]').addEventListener("click", function () { showStep(9); });
+
+  // ---- Step 11: Review & publish ----
+  document.querySelector("[data-publish]").addEventListener("click", function () {
+    var btn = this;
+    var missing = renderPublishChecklist();
+    if (missing.length > 0) {
+      setStatus(11, "err", "Please complete the missing items below before publishing.");
+      return;
+    }
+    btn.disabled = true;
+    clearStatus(11);
+    jsend("POST", "/candidates/me/publish", {}).then(function (result) {
+      btn.disabled = false;
+      if (!result.ok || !result.body.published) {
+        renderPublishChecklist();
+        setStatus(11, "err", (result.body && result.body.error) || "Couldn't publish yet — check the items below.");
+        return;
+      }
+      window.location.href = "/dashboard";
+    }).catch(function () {
+      btn.disabled = false;
+      setStatus(11, "err", "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-back="11"]').addEventListener("click", function () { showStep(10); });
 
   document.querySelector("[data-sign-out]").addEventListener("click", function () {
     icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
@@ -1425,7 +1652,7 @@ function icareRequireAuth(signInPath) {
       setStatus(1, "err", "Couldn't load your profile. Try refreshing the page.");
       return;
     }
-    var candidate = candidateResult.body.candidate;
+    candidate = candidateResult.body.candidate;
     professions = (professionsResult.body.professions || []);
     skills = (skillsResult.body.skills || []);
     qualificationTypes = qualificationTypesResult.ok ? (qualificationTypesResult.body.qualification_types || []) : [];
@@ -1455,6 +1682,7 @@ function icareRequireAuth(signInPath) {
 
     var myProfessionRows = myProfessionsResult.ok ? (myProfessionsResult.body.professions || []) : [];
     var selectedProfessionIds = myProfessionRows.map(function (r) { return r.profession_id; });
+    myProfessionIds = selectedProfessionIds;
     var primaryRow = myProfessionRows.filter(function (r) { return r.is_primary; })[0];
     renderProfessions(selectedProfessionIds, primaryRow ? primaryRow.profession_id : null);
 
@@ -1480,10 +1708,13 @@ function icareRequireAuth(signInPath) {
 
     renderReferencesList();
 
-    var myPromptAnswers = myPromptsResult.ok ? (myPromptsResult.body.prompts || []) : [];
+    myPromptAnswers = myPromptsResult.ok ? (myPromptsResult.body.prompts || []) : [];
     renderPrompts(myPromptAnswers);
 
-    var resumeStep = Math.min(Math.max(candidate.onboarding_step || 1, 1), TOTAL_STEPS + 1);
+    var highestReached = Math.min(Math.max(candidate.onboarding_step || 1, 1), TOTAL_STEPS);
+    var stepOverrideMatch = /[?&]step=(\d+)/.exec(window.location.search);
+    var stepOverride = stepOverrideMatch ? parseInt(stepOverrideMatch[1], 10) : null;
+    var resumeStep = (stepOverride && stepOverride >= 1 && stepOverride <= highestReached) ? stepOverride : highestReached;
     showStep(resumeStep);
   }).catch(function () {
     setStatus(1, "err", "Couldn't load your profile. Try refreshing the page.");

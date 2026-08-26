@@ -164,6 +164,21 @@ candidates.post("/me/photo", async (c) => {
   return c.json({ candidate: data });
 });
 
+// GET-back for the photo the candidate just uploaded — scoped to their own
+// key (never a general /media/:key route, so there's no key-enumeration
+// surface). Good enough for the wizard/dashboard to preview it; a
+// consent-gated route for employers to view it after shortlist is later
+// scope, not this sprint's.
+candidates.get("/me/photo", async (c) => {
+  const userId = c.get("userId");
+  const object = await c.env.MEDIA.get(`candidates/${userId}/photo`);
+  if (!object) return c.json({ error: "No photo uploaded" }, 404);
+
+  return new Response(object.body, {
+    headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream" },
+  });
+});
+
 // --- Professions (candidate's own set, replace-whole-set semantics) ---
 
 candidates.get("/me/professions", async (c) => {
@@ -655,6 +670,33 @@ candidates.delete("/me/prompts/:promptId", async (c) => {
 
   if (error) return c.json({ error: error.message }, 400);
   return c.body(null, 204);
+});
+
+// --- Badges (SPRINTS.md Sprint 5) ---
+// Read-only, always — non-negotiable #2 forbids any client write path to
+// candidate_badges. publish_my_profile() and refresh_experience_badges()
+// (both DB-side) are the only things that ever insert here.
+
+candidates.get("/me/badges", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidate_badges")
+    .select("badge_code, awarded_at, expires_at, badges(code, label, grade, family, description)")
+    .eq("candidate_id", c.get("userId"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ badges: data });
+});
+
+// --- Account settings (SPRINTS.md Sprint 5) ---
+
+candidates.post("/me/close-account", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const reason = typeof body?.reason === "string" ? body.reason : null;
+
+  const { error } = await c.get("supabase").rpc("close_my_account", { p_reason: reason });
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ closed: true });
 });
 
 export default candidates;

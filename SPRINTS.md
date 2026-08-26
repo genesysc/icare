@@ -222,19 +222,47 @@ The compliance-sensitive steps — written carefully, not fast.
   dot. More scalable for the remaining Sprint 5 steps, and removes a
   whole class of "N labels don't fit in the row" bugs going forward.
 
-### Sprint 5 — Photo, review, publish, candidate home
+### Sprint 5 — Photo, review, publish, candidate home ✅ Shipped
 
 Close the loop: zero to a real published profile.
 
-- **Step — Photo:** **existing** `POST /candidates/me/photo`.
-- **Review step:** summary of everything entered, completeness indicator
-  (`candidates.completeness` — already computed by a DB trigger).
-- **Publish:** **existing** `POST /candidates/me/publish` RPC.
-- **Candidate home/dashboard:** view + edit the published profile, see
-  own badges (`candidate_badges`, read-only — `verified`/`evidenced`/
-  `derived`/`declared` must stay visually distinct per non-negotiable
-  #2), basic account settings (close account via the **existing**
-  `close_my_account()` RPC).
+- **Step — Photo (step 10):** **existing** `POST /candidates/me/photo`,
+  plus a **new** `GET /candidates/me/photo` to actually get the bytes
+  back for a preview (didn't exist — no route served R2 objects at
+  all before this). Scoped to the caller's own key
+  (`candidates/{userId}/photo`), never a general `/media/:key` route,
+  so there's no key-enumeration surface.
+- **Review step (step 11):** live completeness %, computed client-side
+  using the **exact** same 8-factor breakdown as the DB's
+  `profile_completeness()` function (professions 15, postcode 10,
+  availability 10, right-to-work 10, employment history 20, DBS 10,
+  prompts 15, photo 10 = 100) — read the function body via SQL first
+  rather than guessing weights. A per-section summary with inline
+  "Edit" links (jump straight back to that step, same page, no
+  reload).
+- **Publish:** **existing** `POST /candidates/me/publish` RPC — reading
+  its actual definition first (not assumed) surfaced two things this
+  doc didn't know: (1) it already sets `onboarding_done = true` on
+  success, so the dedicated `onboarding/complete` route from Sprint 2
+  stays permanently unused by design — publishing *is* the completion
+  signal; (2) it gates on a `can_publish()` function requiring
+  profession + employment history + postcode + right-to-work ≠
+  `not_stated`, returning `false` (not an error) if unmet. The wizard
+  mirrors those exact 4 conditions client-side to show a specific
+  "still needed" checklist rather than a generic failure.
+- **Candidate home/dashboard:** replaces the Sprint 1 stub outright.
+  View-only for individual fields (no duplicate edit UI — "Edit"
+  buttons route back into the wizard via a new `?step=N` override that
+  lets it jump to an already-completed step instead of always
+  resuming at the highest one). **New** `GET /candidates/me/badges`
+  (read-only, joins the `badges` reference table for label/grade/
+  family) renders badges grouped by family, with a genuinely distinct
+  visual treatment per grade (`verified`/`evidenced`: solid fill;
+  `derived`/`declared`: outline; different colors each) per
+  non-negotiable #2. Account settings: **new**
+  `POST /candidates/me/close-account` wrapping the **existing**
+  `close_my_account()` RPC, behind a two-step confirm (not a native
+  `confirm()` dialog).
 
 **→ Candidate track complete here.** A candidate can sign up, complete a
 real onboarding wizard, and have a published, evidenced profile.
