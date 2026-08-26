@@ -179,40 +179,90 @@ The evidence that actually backs a profile.
   didn't fit on one row (fixed with `flex-wrap: wrap` so actions drop
   to their own line instead of squeezing the title into a sliver).
 
-### Sprint 4 — DBS, references, self-expression prompts
+### Sprint 4 — DBS, references, self-expression prompts ✅ Shipped
 
 The compliance-sensitive steps — written carefully, not fast.
 
-- **Step — DBS status + consent:** **new routes needed** for
-  `dbs_records` (level, `on_update_service`, `consent_to_check` +
-  `consent_given_at`). Copy must say *"Enhanced DBS · on Update
-  Service"* — never "verified/certified/checked" (non-negotiable #3).
-  `certificate_number` is captured but never exposed pre-shortlist.
-- **Step — References:** **new routes needed** for `candidate_references`
-  (referee name/org/email/relationship). Reg 22 (non-negotiable #7)
-  requires two references confirmed *before a placement*, not
-  necessarily before publish — this sprint collects referee details;
-  the actual referee-response flow (`candidate_references.token`,
-  outbound email to the referee) is deferred to a later sprint since it
-  needs real outbound email, which is blocked on the same parked
-  domain/Sender.net work. Flag this dependency when it's picked up.
-- **Step — Prompts:** **new routes needed** for `candidate_prompts`
-  (short free-text answers to the `prompts` reference table) — this is
-  the "your own voice" positioning from the landing page copy, made real.
+- **Step — DBS status + consent:** **new routes shipped** —
+  `GET/PUT /candidates/me/dbs`. `dbs_records` is a singleton per
+  candidate (`candidate_id` is the primary key, checked directly
+  against the schema), so this is an upsert, not list CRUD.
+  `consent_given_at` is server-stamped the moment `consent_to_check`
+  first flips true, and cleared if consent is withdrawn — never
+  client-supplied, so it's an honest record of when consent was
+  actually given. Copy says *"Enhanced DBS"* / *"I'm registered on the
+  DBS Update Service"* — never "verified/certified/checked"
+  (non-negotiable #3). `certificate_number` is captured but marked
+  "kept private" on the form; never exposed pre-shortlist once
+  employer search exists. Skipping this step (no DBS yet) doesn't
+  create a row — `level` is `NOT NULL` with no default, so an empty
+  form correctly just advances without writing anything.
+- **Step — References:** **new routes shipped** — full CRUD on
+  `candidate_references` (referee name/org/email/relationship), same
+  record-card pattern as employment/qualifications/registrations. Reg
+  22 (non-negotiable #7) requires two references confirmed *before a
+  placement*, not necessarily before publish — this sprint collects
+  referee details; the actual referee-response flow
+  (`candidate_references.token`, outbound email to the referee) is
+  still deferred to a later sprint since it needs real outbound email,
+  blocked on the same parked domain/Sender.net work.
+- **Step — Prompts:** **new routes shipped** — `GET /candidates/me/
+  prompts`, `PUT/DELETE /candidates/me/prompts/:promptId` (upsert per
+  `(candidate_id, prompt_id)`, the real primary key). New public
+  `GET /prompts` reference route serves the 6 real prompts already
+  seeded in the DB (`good_at_not_cv`, `work_best_with`, `why_care`,
+  `proud_moment`, `need_from_employer`, `difficult_day`) — this is the
+  "your own voice" positioning from the landing page copy, made real.
+  Answering any prompt is optional.
+- **Progress-indicator redesign**: the wizard grew to 9 real steps +
+  a holding screen. The per-step label row (already patched once in
+  Sprint 3 for 6 labels) would not have scaled to 9 without shrinking
+  to illegibility, so it's replaced with a single dynamic line ("Step
+  7 of 9 · DBS & consent") above the dots instead of one label per
+  dot. More scalable for the remaining Sprint 5 steps, and removes a
+  whole class of "N labels don't fit in the row" bugs going forward.
 
-### Sprint 5 — Photo, review, publish, candidate home
+### Sprint 5 — Photo, review, publish, candidate home ✅ Shipped
 
 Close the loop: zero to a real published profile.
 
-- **Step — Photo:** **existing** `POST /candidates/me/photo`.
-- **Review step:** summary of everything entered, completeness indicator
-  (`candidates.completeness` — already computed by a DB trigger).
-- **Publish:** **existing** `POST /candidates/me/publish` RPC.
-- **Candidate home/dashboard:** view + edit the published profile, see
-  own badges (`candidate_badges`, read-only — `verified`/`evidenced`/
-  `derived`/`declared` must stay visually distinct per non-negotiable
-  #2), basic account settings (close account via the **existing**
-  `close_my_account()` RPC).
+- **Step — Photo (step 10):** **existing** `POST /candidates/me/photo`,
+  plus a **new** `GET /candidates/me/photo` to actually get the bytes
+  back for a preview (didn't exist — no route served R2 objects at
+  all before this). Scoped to the caller's own key
+  (`candidates/{userId}/photo`), never a general `/media/:key` route,
+  so there's no key-enumeration surface.
+- **Review step (step 11):** live completeness %, computed client-side
+  using the **exact** same 8-factor breakdown as the DB's
+  `profile_completeness()` function (professions 15, postcode 10,
+  availability 10, right-to-work 10, employment history 20, DBS 10,
+  prompts 15, photo 10 = 100) — read the function body via SQL first
+  rather than guessing weights. A per-section summary with inline
+  "Edit" links (jump straight back to that step, same page, no
+  reload).
+- **Publish:** **existing** `POST /candidates/me/publish` RPC — reading
+  its actual definition first (not assumed) surfaced two things this
+  doc didn't know: (1) it already sets `onboarding_done = true` on
+  success, so the dedicated `onboarding/complete` route from Sprint 2
+  stays permanently unused by design — publishing *is* the completion
+  signal; (2) it gates on a `can_publish()` function requiring
+  profession + employment history + postcode + right-to-work ≠
+  `not_stated`, returning `false` (not an error) if unmet. The wizard
+  mirrors those exact 4 conditions client-side to show a specific
+  "still needed" checklist rather than a generic failure.
+- **Candidate home/dashboard:** replaces the Sprint 1 stub outright.
+  View-only for individual fields (no duplicate edit UI — "Edit"
+  buttons route back into the wizard via a new `?step=N` override that
+  lets it jump to an already-completed step instead of always
+  resuming at the highest one). **New** `GET /candidates/me/badges`
+  (read-only, joins the `badges` reference table for label/grade/
+  family) renders badges grouped by family, with a genuinely distinct
+  visual treatment per grade (`verified`/`evidenced`: solid fill;
+  `derived`/`declared`: outline; different colors each) per
+  non-negotiable #2. Account settings: **new**
+  `POST /candidates/me/close-account` wrapping the **existing**
+  `close_my_account()` RPC, behind a two-step confirm (not a native
+  `confirm()` dialog).
 
 **→ Candidate track complete here.** A candidate can sign up, complete a
 real onboarding wizard, and have a published, evidenced profile.

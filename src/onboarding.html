@@ -73,9 +73,10 @@
   .step-dot { flex: 1; height: 4px; border-radius: 999px; background: var(--line); }
   .step-dot.is-done { background: var(--teal-500); }
   .step-dot.is-current { background: var(--plum-800); }
-  .step-labels { display: flex; gap: 8px; margin-top: 8px; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: 0.03em; color: var(--ink-faint); text-transform: uppercase; }
-  .step-labels span { flex: 1; min-width: 0; text-align: center; line-height: 1.3; overflow-wrap: break-word; }
-  .step-labels span.is-current { color: var(--plum-950); font-weight: 600; }
+  .step-current-label {
+    margin-top: 10px; font-family: "IBM Plex Mono", monospace; font-size: 11px;
+    letter-spacing: 0.04em; color: var(--ink-faint); text-transform: uppercase; font-weight: 600;
+  }
 
   .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 36px 32px; }
   .card-title { font-size: 24px; }
@@ -168,6 +169,32 @@
   .form-err.is-visible { display: block; }
   .file-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
   .file-row input[type="file"] { font-size: 13px; }
+
+  /* Photo step */
+  .photo-preview {
+    width: 120px; height: 120px; border-radius: 999px; background: var(--paper-dim);
+    border: 1.5px dashed var(--line); display: flex; align-items: center; justify-content: center;
+    overflow: hidden; margin: 4px auto 0;
+  }
+  .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-preview-empty { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--ink-faint); text-align: center; padding: 8px; }
+
+  /* Review & publish step */
+  .completeness-bar { margin-top: 18px; height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .completeness-fill { height: 100%; background: var(--teal-500); border-radius: 999px; transition: width 0.3s ease; }
+  .completeness-label { margin-top: 8px; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-faint); }
+  .review-summary { margin-top: 22px; display: flex; flex-direction: column; gap: 14px; }
+  .review-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .review-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .review-row-label { font-size: 13px; font-weight: 600; color: var(--plum-950); flex: none; width: 120px; }
+  .review-row-value { font-size: 14px; color: var(--ink-soft); text-align: right; flex: 1; }
+  .review-edit-link { font-size: 12.5px; font-weight: 600; color: var(--teal-700); background: none; border: none; cursor: pointer; flex: none; }
+  .review-edit-link:hover { color: var(--plum-950); }
+  .publish-checklist { margin-top: 18px; padding: 14px 16px; border-radius: 12px; background: var(--amber-100); display: none; }
+  .publish-checklist.is-visible { display: block; }
+  .publish-checklist-title { font-size: 13px; font-weight: 700; color: var(--amber-600); }
+  .publish-checklist ul { margin: 8px 0 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-soft); }
+  .publish-checklist li { margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -185,15 +212,13 @@
     <div class="step-dot" data-dot="4"></div>
     <div class="step-dot" data-dot="5"></div>
     <div class="step-dot" data-dot="6"></div>
+    <div class="step-dot" data-dot="7"></div>
+    <div class="step-dot" data-dot="8"></div>
+    <div class="step-dot" data-dot="9"></div>
+    <div class="step-dot" data-dot="10"></div>
+    <div class="step-dot" data-dot="11"></div>
   </div>
-  <div class="step-labels">
-    <span data-label="1">Basics</span>
-    <span data-label="2">Skills</span>
-    <span data-label="3">Availability</span>
-    <span data-label="4">Experience</span>
-    <span data-label="5">Quals</span>
-    <span data-label="6">Registration</span>
-  </div>
+  <div class="step-current-label" data-current-label></div>
 
   <div class="card" style="margin-top:20px;">
     <!-- Step 1: Basics -->
@@ -467,12 +492,152 @@
       </div>
     </div>
 
-    <!-- Step 7: holding screen (Sprints 4-5 not built yet) -->
-    <div class="panel holding" data-panel="7">
-      <h1 class="card-title">Nice progress.</h1>
-      <p class="card-sub">We've saved everything so far. DBS status, references, your own words, a photo, and
-        publishing your profile are being built next — come back soon to keep going.</p>
-      <span class="soon-tag">Rest of the wizard — coming soon</span>
+    <!-- Step 7: DBS status + consent -->
+    <div class="panel" data-panel="7">
+      <h1 class="card-title">DBS status</h1>
+      <p class="card-sub">If you don't have one yet, skip this for now — you can add it any time.</p>
+
+      <div class="field">
+        <label for="dbs-level">DBS level</label>
+        <select id="dbs-level">
+          <option value="">I don't have one yet</option>
+          <option value="basic">Basic DBS</option>
+          <option value="standard">Standard DBS</option>
+          <option value="enhanced">Enhanced DBS</option>
+          <option value="enhanced_barred">Enhanced DBS, with barred list check</option>
+        </select>
+      </div>
+      <div class="field" data-dbs-fields style="display:none;">
+        <div class="field two-col" style="margin-top:0;">
+          <div>
+            <label for="dbs-issued-on">Date issued (optional)</label>
+            <input id="dbs-issued-on" type="date" />
+          </div>
+          <div>
+            <label for="dbs-workforce">Workforce (optional)</label>
+            <input id="dbs-workforce" type="text" placeholder="e.g. Adult" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="dbs-certificate-number">Certificate number (optional)</label>
+          <input id="dbs-certificate-number" type="text" />
+          <span class="field-hint">Kept private — never shown on your profile or to an employer before shortlist.</span>
+        </div>
+        <div class="field">
+          <div class="check-row"><input type="checkbox" id="dbs-on-update-service" /><label for="dbs-on-update-service">I'm registered on the DBS Update Service</label></div>
+        </div>
+        <div class="field">
+          <div class="check-row"><input type="checkbox" id="dbs-consent" /><label for="dbs-consent">I consent to a DBS status check via the Update Service once I'm shortlisted for a role</label></div>
+        </div>
+      </div>
+
+      <p class="status" data-status="7"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" data-back="7">Back</button>
+        <button type="button" class="btn btn-primary" data-next="7">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 8: References -->
+    <div class="panel" data-panel="8">
+      <h1 class="card-title">References</h1>
+      <p class="card-sub">Add people who can vouch for your work. Two are needed before any placement — you can
+        add them here now or come back later.</p>
+
+      <div class="record-list" data-references-list></div>
+      <button type="button" class="add-record-btn" data-add-reference>+ Add a reference</button>
+
+      <div class="record-form" data-reference-form>
+        <div class="field" style="margin-top:0;">
+          <label for="ref-name">Referee name</label>
+          <input id="ref-name" type="text" placeholder="e.g. Sarah Patel" />
+        </div>
+        <div class="field two-col">
+          <div>
+            <label for="ref-org">Organisation (optional)</label>
+            <input id="ref-org" type="text" placeholder="e.g. Willow House Care Home" />
+          </div>
+          <div>
+            <label for="ref-relationship">Relationship (optional)</label>
+            <input id="ref-relationship" type="text" placeholder="e.g. Line manager" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="ref-email">Referee email</label>
+          <input id="ref-email" type="email" placeholder="e.g. sarah@willowhouse.example" />
+        </div>
+        <p class="form-err" data-reference-form-err></p>
+        <div class="record-form-actions">
+          <button type="button" class="btn-small btn-primary" data-reference-save>Save reference</button>
+          <button type="button" class="btn-small btn-ghost" data-reference-cancel>Cancel</button>
+        </div>
+      </div>
+
+      <p class="status" data-status="8"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" data-back="8">Back</button>
+        <button type="button" class="btn btn-primary" data-next="8">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 9: Self-expression prompts -->
+    <div class="panel" data-panel="9">
+      <h1 class="card-title">In your own words</h1>
+      <p class="card-sub">Answer as many or as few as you like — this is the part a CV can't show.</p>
+
+      <div class="field" data-prompts-list></div>
+
+      <p class="status" data-status="9"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" data-back="9">Back</button>
+        <button type="button" class="btn btn-primary" data-next="9">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 10: Photo -->
+    <div class="panel" data-panel="10">
+      <h1 class="card-title">Add a photo</h1>
+      <p class="card-sub">Optional, but profiles with a photo tend to get more attention. You can add or change
+        this any time.</p>
+
+      <div class="photo-preview" data-photo-preview>
+        <span class="photo-preview-empty">No photo yet</span>
+      </div>
+      <div class="field" style="text-align:center;">
+        <div class="file-row" style="justify-content:center;">
+          <input id="photo-file" type="file" accept="image/*" />
+        </div>
+        <button type="button" class="btn-small btn-primary" data-photo-upload style="margin-top:12px;">Upload</button>
+      </div>
+      <p class="status" data-status="photo"></p>
+
+      <p class="status" data-status="10"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" data-back="10">Back</button>
+        <button type="button" class="btn btn-primary" data-next="10">Continue</button>
+      </div>
+    </div>
+
+    <!-- Step 11: Review & publish -->
+    <div class="panel" data-panel="11">
+      <h1 class="card-title">Review & publish</h1>
+      <p class="card-sub">Here's everything you've told us. Publishing makes your profile visible to employers.</p>
+
+      <div class="completeness-bar"><div class="completeness-fill" data-completeness-fill style="width:0%;"></div></div>
+      <p class="completeness-label" data-completeness-label>0% complete</p>
+
+      <div class="review-summary" data-review-summary></div>
+
+      <div class="publish-checklist" data-publish-checklist>
+        <p class="publish-checklist-title">A couple of things are still needed before you can publish:</p>
+        <ul data-publish-checklist-items></ul>
+      </div>
+
+      <p class="status" data-status="11"></p>
+      <div class="actions">
+        <button type="button" class="btn btn-ghost" data-back="11">Back</button>
+        <button type="button" class="btn btn-primary" data-publish>Publish my profile</button>
+      </div>
     </div>
   </div>
 </div>
@@ -521,9 +686,15 @@ function icareRequireAuth(signInPath) {
   var employmentHistory = [];
   var qualifications = [];
   var registrations = [];
+  var references = [];
+  var prompts = [];
+  var myPromptAnswers = [];
+  var myProfessionIds = [];
+  var candidate = null;
   var editingEmploymentId = null;
   var editingQualificationId = null;
   var editingRegistrationId = null;
+  var editingReferenceId = null;
 
   function jget(url) {
     return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
@@ -542,6 +713,12 @@ function icareRequireAuth(signInPath) {
     el.className = "status";
   }
 
+  var TOTAL_STEPS = 11;
+  var STEP_LABELS = {
+    1: "Basics", 2: "Skills", 3: "Availability", 4: "Experience",
+    5: "Qualifications", 6: "Registration", 7: "DBS & consent",
+    8: "References", 9: "Your own words", 10: "Photo", 11: "Review & publish",
+  };
   function showStep(step) {
     currentStep = step;
     document.querySelectorAll("[data-panel]").forEach(function (p) {
@@ -552,9 +729,10 @@ function icareRequireAuth(signInPath) {
       d.classList.toggle("is-done", n < step);
       d.classList.toggle("is-current", n === step);
     });
-    document.querySelectorAll("[data-label]").forEach(function (l) {
-      l.classList.toggle("is-current", l.getAttribute("data-label") === String(step));
-    });
+    var labelEl = document.querySelector("[data-current-label]");
+    labelEl.textContent = STEP_LABELS[step] ? ("Step " + step + " of " + TOTAL_STEPS + " · " + STEP_LABELS[step]) : "";
+    if (step === 10) renderPhotoPreview();
+    if (step === 11) loadReviewSummary();
     window.scrollTo(0, 0);
   }
 
@@ -837,6 +1015,160 @@ function icareRequireAuth(signInPath) {
     });
   }
 
+  // ---- DBS status (singleton, no record list) ----
+  function syncDbsFields() {
+    document.querySelector("[data-dbs-fields]").style.display = document.getElementById("dbs-level").value ? "block" : "none";
+  }
+
+  // ---- References (record list, new CRUD) ----
+  function renderReferencesList() {
+    var list = document.querySelector("[data-references-list]");
+    list.innerHTML = "";
+    references.forEach(function (r) {
+      var card = document.createElement("div");
+      card.className = "record-card";
+      var subParts = [r.referee_email];
+      if (r.referee_org) subParts.push(r.referee_org);
+      if (r.relationship) subParts.push(r.relationship);
+      card.innerHTML =
+        '<div class="record-main"><div class="record-title"></div><div class="record-sub"></div></div>' +
+        '<div class="record-actions"><button type="button" data-edit>Edit</button><button type="button" class="danger" data-delete>Delete</button></div>';
+      card.querySelector(".record-title").textContent = r.referee_name;
+      card.querySelector(".record-sub").textContent = subParts.join(" — ");
+      card.querySelector("[data-edit]").addEventListener("click", function () { openReferenceForm(r); });
+      card.querySelector("[data-delete]").addEventListener("click", function () { deleteReference(r.id); });
+      list.appendChild(card);
+    });
+  }
+  function openReferenceForm(r) {
+    editingReferenceId = r ? r.id : null;
+    document.getElementById("ref-name").value = r ? r.referee_name : "";
+    document.getElementById("ref-org").value = (r && r.referee_org) || "";
+    document.getElementById("ref-relationship").value = (r && r.relationship) || "";
+    document.getElementById("ref-email").value = r ? r.referee_email : "";
+    clearFormErr("reference");
+    document.querySelector("[data-reference-form]").classList.add("is-open");
+  }
+  function closeReferenceForm() {
+    editingReferenceId = null;
+    document.querySelector("[data-reference-form]").classList.remove("is-open");
+  }
+  function deleteReference(id) {
+    icareAuthFetch("/candidates/me/references/" + id, { method: "DELETE" }).then(function (res) {
+      if (res.ok) {
+        references = references.filter(function (r) { return r.id !== id; });
+        renderReferencesList();
+      }
+    });
+  }
+
+  // ---- Self-expression prompts (fixed list, per-prompt upsert on Continue) ----
+  function renderPrompts(myAnswers) {
+    var list = document.querySelector("[data-prompts-list]");
+    list.innerHTML = "";
+    var answerByPromptId = {};
+    myAnswers.forEach(function (a) { answerByPromptId[a.prompt_id] = a.answer; });
+    prompts.forEach(function (p) {
+      var wrap = document.createElement("div");
+      wrap.className = "field";
+      wrap.style.marginTop = "22px";
+      var existing = answerByPromptId[p.id] || "";
+      wrap.innerHTML =
+        '<label></label><textarea data-prompt-id="' + p.id + '" data-original-value="' + existing.replace(/"/g, "&quot;") + '"></textarea>';
+      wrap.querySelector("label").textContent = p.label;
+      var textarea = wrap.querySelector("textarea");
+      textarea.placeholder = p.placeholder;
+      textarea.value = existing;
+      list.appendChild(wrap);
+    });
+  }
+
+  // ---- Photo (existing routes) ----
+  function renderPhotoPreview() {
+    var preview = document.querySelector("[data-photo-preview]");
+    if (candidate && candidate.photo_path) {
+      preview.innerHTML = '<img src="/candidates/me/photo?t=' + Date.now() + '" alt="Your photo" />';
+    } else {
+      preview.innerHTML = '<span class="photo-preview-empty">No photo yet</span>';
+    }
+  }
+
+  // ---- Review & publish ----
+  function dbsLevelLabel(level) {
+    var labels = { basic: "Basic DBS", standard: "Standard DBS", enhanced: "Enhanced DBS", enhanced_barred: "Enhanced DBS, with barred list check" };
+    return labels[level] || level;
+  }
+  function computeCompleteness(dbs) {
+    var pts = 0;
+    if (myProfessionIds.length > 0) pts += 15;
+    if (candidate.postcode_district) pts += 10;
+    if (candidate.availability) pts += 10;
+    if (candidate.right_to_work && candidate.right_to_work !== "not_stated") pts += 10;
+    if (employmentHistory.length > 0) pts += 20;
+    if (dbs) pts += 10;
+    if (myPromptAnswers.length > 0) pts += 15;
+    if (candidate.photo_path) pts += 10;
+    return Math.min(100, pts);
+  }
+  function renderReviewSummary(dbs) {
+    var container = document.querySelector("[data-review-summary]");
+    container.innerHTML = "";
+
+    function addRow(label, value, editStep) {
+      var row = document.createElement("div");
+      row.className = "review-row";
+      row.innerHTML =
+        '<div class="review-row-label"></div><div class="review-row-value"></div><button type="button" class="review-edit-link">Edit</button>';
+      row.querySelector(".review-row-label").textContent = label;
+      row.querySelector(".review-row-value").textContent = value;
+      row.querySelector(".review-edit-link").addEventListener("click", function () { showStep(editStep); });
+      container.appendChild(row);
+    }
+
+    var professionNames = myProfessionIds.map(function (id) {
+      var p = professions.filter(function (x) { return x.id === id; })[0];
+      return p ? p.name : id;
+    });
+    addRow("Basics", candidate.headline || "Not added yet", 1);
+    addRow("Professions", professionNames.length ? professionNames.join(", ") : "None picked yet", 1);
+    addRow("Availability", candidate.availability ? candidate.availability.replace(/_/g, " ") : "Not set", 3);
+    addRow("Experience", employmentHistory.length + (employmentHistory.length === 1 ? " role added" : " roles added"), 4);
+    addRow("Qualifications", qualifications.length + " added", 5);
+    addRow("Registrations", registrations.length + " added", 6);
+    addRow("DBS", dbs ? dbsLevelLabel(dbs.level) : "Not added yet", 7);
+    addRow("References", references.length + " added", 8);
+    addRow("Your own words", myPromptAnswers.length + (myPromptAnswers.length === 1 ? " prompt answered" : " prompts answered"), 9);
+    addRow("Photo", candidate.photo_path ? "Added" : "Not added yet", 10);
+
+    var pts = computeCompleteness(dbs);
+    document.querySelector("[data-completeness-fill]").style.width = pts + "%";
+    document.querySelector("[data-completeness-label]").textContent = pts + "% complete";
+  }
+  function renderPublishChecklist() {
+    var missing = [];
+    if (myProfessionIds.length === 0) missing.push("Pick at least one profession (step 1).");
+    if (employmentHistory.length === 0) missing.push("Add at least one role to your work history (step 4).");
+    if (!candidate.postcode_district) missing.push("Add your postcode district (step 1).");
+    if (!candidate.right_to_work || candidate.right_to_work === "not_stated") missing.push("Tell us your right-to-work status (step 3).");
+
+    var box = document.querySelector("[data-publish-checklist]");
+    var list = document.querySelector("[data-publish-checklist-items]");
+    list.innerHTML = "";
+    missing.forEach(function (m) {
+      var li = document.createElement("li");
+      li.textContent = m;
+      list.appendChild(li);
+    });
+    box.classList.toggle("is-visible", missing.length > 0);
+    return missing;
+  }
+  function loadReviewSummary() {
+    return jget("/candidates/me/dbs").then(function (dbsResult) {
+      renderReviewSummary(dbsResult.ok ? dbsResult.body.dbs : null);
+      renderPublishChecklist();
+    });
+  }
+
   // ---- Step 1: Basics ----
   document.querySelector('[data-next="1"]').addEventListener("click", function () {
     var btn = this;
@@ -1104,6 +1436,188 @@ function icareRequireAuth(signInPath) {
   });
   document.querySelector('[data-back="6"]').addEventListener("click", function () { showStep(5); });
 
+  // ---- Step 7: DBS status + consent ----
+  document.getElementById("dbs-level").addEventListener("change", syncDbsFields);
+  document.querySelector('[data-next="7"]').addEventListener("click", function () {
+    var btn = this;
+    var level = document.getElementById("dbs-level").value;
+    btn.disabled = true;
+    clearStatus(7);
+
+    var save = level
+      ? jsend("PUT", "/candidates/me/dbs", {
+          level: level,
+          issued_on: document.getElementById("dbs-issued-on").value || null,
+          on_update_service: document.getElementById("dbs-on-update-service").checked,
+          certificate_number: document.getElementById("dbs-certificate-number").value.trim() || null,
+          workforce: document.getElementById("dbs-workforce").value.trim() || null,
+          consent_to_check: document.getElementById("dbs-consent").checked,
+        })
+      : Promise.resolve({ ok: true });
+
+    save.then(function (result) {
+      if (!result.ok) throw new Error((result.body && result.body.error) || "Couldn't save your DBS details.");
+      return advanceOnboarding(8, "dbs_completed");
+    }).then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save your progress.");
+      showStep(8);
+    }).catch(function (err) {
+      btn.disabled = false;
+      setStatus(7, "err", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-back="7"]').addEventListener("click", function () { showStep(6); });
+
+  // ---- Step 8: References ----
+  document.querySelector("[data-add-reference]").addEventListener("click", function () { openReferenceForm(null); });
+  document.querySelector("[data-reference-cancel]").addEventListener("click", closeReferenceForm);
+  document.querySelector("[data-reference-save]").addEventListener("click", function () {
+    var btn = this;
+    var name = document.getElementById("ref-name").value.trim();
+    var email = document.getElementById("ref-email").value.trim();
+    if (!name || !email) {
+      showFormErr("reference", "Referee name and email are required.");
+      return;
+    }
+    var payload = {
+      referee_name: name,
+      referee_org: document.getElementById("ref-org").value.trim() || null,
+      relationship: document.getElementById("ref-relationship").value.trim() || null,
+      referee_email: email,
+    };
+    btn.disabled = true;
+    var req = editingReferenceId
+      ? jsend("PATCH", "/candidates/me/references/" + editingReferenceId, payload)
+      : jsend("POST", "/candidates/me/references", payload);
+    req.then(function (result) {
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save that reference.");
+      return jget("/candidates/me/references");
+    }).then(function (r) {
+      btn.disabled = false;
+      references = r.ok ? (r.body.references || []) : references;
+      renderReferencesList();
+      closeReferenceForm();
+    }).catch(function (err) {
+      btn.disabled = false;
+      showFormErr("reference", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-next="8"]').addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    advanceOnboarding(9, "references_completed").then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save your progress.");
+      showStep(9);
+    }).catch(function (err) {
+      btn.disabled = false;
+      setStatus(8, "err", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-back="8"]').addEventListener("click", function () { showStep(7); });
+
+  // ---- Step 9: Self-expression prompts ----
+  document.querySelector('[data-next="9"]').addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    clearStatus(9);
+
+    var textareas = Array.prototype.slice.call(document.querySelectorAll("[data-prompts-list] textarea"));
+    var ops = textareas.map(function (ta) {
+      var promptId = ta.getAttribute("data-prompt-id");
+      var value = ta.value.trim();
+      var original = ta.getAttribute("data-original-value") || "";
+      if (value === original) return Promise.resolve({ ok: true });
+      if (value) return jsend("PUT", "/candidates/me/prompts/" + promptId, { answer: value });
+      return icareAuthFetch("/candidates/me/prompts/" + promptId, { method: "DELETE" }).then(function (res) { return { ok: res.ok }; });
+    });
+
+    Promise.all(ops).then(function (results) {
+      var failed = results.filter(function (r) { return !r.ok; });
+      if (failed.length) throw new Error("Couldn't save one or more answers.");
+      myPromptAnswers = textareas.filter(function (ta) { return ta.value.trim(); }).map(function (ta) {
+        return { prompt_id: ta.getAttribute("data-prompt-id"), answer: ta.value.trim() };
+      });
+      return advanceOnboarding(10, "prompts_completed");
+    }).then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save your progress.");
+      showStep(10);
+    }).catch(function (err) {
+      btn.disabled = false;
+      setStatus(9, "err", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-back="9"]').addEventListener("click", function () { showStep(8); });
+
+  // ---- Step 10: Photo ----
+  document.querySelector("[data-photo-upload]").addEventListener("click", function () {
+    var btn = this;
+    var file = document.getElementById("photo-file").files[0];
+    if (!file) {
+      setStatus("photo", "err", "Choose a photo first.");
+      return;
+    }
+    btn.disabled = true;
+    clearStatus("photo");
+    icareAuthFetch("/candidates/me/photo", {
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    }).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        btn.disabled = false;
+        if (!result.ok) {
+          setStatus("photo", "err", result.body.error || "Couldn't upload your photo.");
+          return;
+        }
+        candidate.photo_path = result.body.candidate.photo_path;
+        renderPhotoPreview();
+      }).catch(function () {
+        btn.disabled = false;
+        setStatus("photo", "err", "Something went wrong. Please try again.");
+      });
+  });
+  document.querySelector('[data-next="10"]').addEventListener("click", function () {
+    var btn = this;
+    btn.disabled = true;
+    advanceOnboarding(11, "photo_completed").then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) throw new Error(result.body.error || "Couldn't save your progress.");
+      showStep(11);
+    }).catch(function (err) {
+      btn.disabled = false;
+      setStatus(10, "err", err.message || "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-back="10"]').addEventListener("click", function () { showStep(9); });
+
+  // ---- Step 11: Review & publish ----
+  document.querySelector("[data-publish]").addEventListener("click", function () {
+    var btn = this;
+    var missing = renderPublishChecklist();
+    if (missing.length > 0) {
+      setStatus(11, "err", "Please complete the missing items below before publishing.");
+      return;
+    }
+    btn.disabled = true;
+    clearStatus(11);
+    jsend("POST", "/candidates/me/publish", {}).then(function (result) {
+      btn.disabled = false;
+      if (!result.ok || !result.body.published) {
+        renderPublishChecklist();
+        setStatus(11, "err", (result.body && result.body.error) || "Couldn't publish yet — check the items below.");
+        return;
+      }
+      window.location.href = "/dashboard";
+    }).catch(function () {
+      btn.disabled = false;
+      setStatus(11, "err", "Something went wrong. Please try again.");
+    });
+  });
+  document.querySelector('[data-back="11"]').addEventListener("click", function () { showStep(10); });
+
   document.querySelector("[data-sign-out]").addEventListener("click", function () {
     icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
       icareClearSession();
@@ -1122,23 +1636,31 @@ function icareRequireAuth(signInPath) {
     jget("/candidates/me/employment-history"),
     jget("/candidates/me/qualifications"),
     jget("/candidates/me/registrations"),
+    jget("/candidates/me/dbs"),
+    jget("/candidates/me/references"),
+    jget("/prompts"),
+    jget("/candidates/me/prompts"),
   ]).then(function (results) {
     var candidateResult = results[0], professionsResult = results[1], skillsResult = results[2];
     var myProfessionsResult = results[3], mySkillsResult = results[4];
     var qualificationTypesResult = results[5], employmentResult = results[6];
     var qualificationsResult = results[7], registrationsResult = results[8];
+    var dbsResult = results[9], referencesResult = results[10];
+    var promptsResult = results[11], myPromptsResult = results[12];
 
     if (!candidateResult.ok) {
       setStatus(1, "err", "Couldn't load your profile. Try refreshing the page.");
       return;
     }
-    var candidate = candidateResult.body.candidate;
+    candidate = candidateResult.body.candidate;
     professions = (professionsResult.body.professions || []);
     skills = (skillsResult.body.skills || []);
     qualificationTypes = qualificationTypesResult.ok ? (qualificationTypesResult.body.qualification_types || []) : [];
     employmentHistory = employmentResult.ok ? (employmentResult.body.employment_history || []) : [];
     qualifications = qualificationsResult.ok ? (qualificationsResult.body.qualifications || []) : [];
     registrations = registrationsResult.ok ? (registrationsResult.body.registrations || []) : [];
+    references = referencesResult.ok ? (referencesResult.body.references || []) : [];
+    prompts = promptsResult.ok ? (promptsResult.body.prompts || []) : [];
 
     document.getElementById("headline").value = candidate.headline || "";
     document.getElementById("about").value = candidate.about || "";
@@ -1160,6 +1682,7 @@ function icareRequireAuth(signInPath) {
 
     var myProfessionRows = myProfessionsResult.ok ? (myProfessionsResult.body.professions || []) : [];
     var selectedProfessionIds = myProfessionRows.map(function (r) { return r.profession_id; });
+    myProfessionIds = selectedProfessionIds;
     var primaryRow = myProfessionRows.filter(function (r) { return r.is_primary; })[0];
     renderProfessions(selectedProfessionIds, primaryRow ? primaryRow.profession_id : null);
 
@@ -1172,7 +1695,26 @@ function icareRequireAuth(signInPath) {
     renderQualificationsList();
     renderRegistrationsList();
 
-    var resumeStep = Math.min(Math.max(candidate.onboarding_step || 1, 1), 7);
+    var dbs = dbsResult.ok ? dbsResult.body.dbs : null;
+    if (dbs) {
+      document.getElementById("dbs-level").value = dbs.level;
+      document.getElementById("dbs-issued-on").value = dbs.issued_on || "";
+      document.getElementById("dbs-workforce").value = dbs.workforce || "";
+      document.getElementById("dbs-certificate-number").value = dbs.certificate_number || "";
+      document.getElementById("dbs-on-update-service").checked = !!dbs.on_update_service;
+      document.getElementById("dbs-consent").checked = !!dbs.consent_to_check;
+    }
+    syncDbsFields();
+
+    renderReferencesList();
+
+    myPromptAnswers = myPromptsResult.ok ? (myPromptsResult.body.prompts || []) : [];
+    renderPrompts(myPromptAnswers);
+
+    var highestReached = Math.min(Math.max(candidate.onboarding_step || 1, 1), TOTAL_STEPS);
+    var stepOverrideMatch = /[?&]step=(\d+)/.exec(window.location.search);
+    var stepOverride = stepOverrideMatch ? parseInt(stepOverrideMatch[1], 10) : null;
+    var resumeStep = (stepOverride && stepOverride >= 1 && stepOverride <= highestReached) ? stepOverride : highestReached;
     showStep(resumeStep);
   }).catch(function () {
     setStatus(1, "err", "Couldn't load your profile. Try refreshing the page.");

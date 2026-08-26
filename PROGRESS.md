@@ -9,13 +9,13 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
-## Status: Sprints 0-3 merged and deployed; Sprint 4 next
+## Status: Sprint 5 shipped — candidate track complete, not yet merged
 
-PR #9, #10, #11, and now #12 all merged and deployed (waitlist landing
-pages, candidate + employer, employer landing page v2, and Sprints 0-2 of
-the candidate onboarding journey). `main` is deployed and live, wired to
-the real Supabase backend — CI run #13
-(https://github.com/genesysc/icare/actions/runs/32938882643) succeeded.
+PR #9, #10, #11, #12, and now #13 all merged and deployed (waitlist
+landing pages, candidate + employer, employer landing page v2, and
+Sprints 0-3 of the candidate onboarding journey). `main` is deployed
+and live, wired to the real Supabase backend — CI run #14
+(https://github.com/genesysc/icare/actions/runs/32941646689) succeeded.
 Branch restarted from `main` after the merge per this repo's convention
 (see "Conventions" — HANDOVER.md §10).
 
@@ -74,6 +74,55 @@ fixed during the responsive audit (see "Done" below for detail — a
 6-label overflow and a record-card action/title overlap), both caught
 by rendering populated cards with headless Chromium, not by reading the
 CSS. See "Done" below for full detail.
+
+PR #13 (https://github.com/genesysc/icare/pull/13) was opened,
+`mergeable_state` confirmed `clean`, squash-merged into `main`, and CI
+run #14 confirmed `success`. Branch restarted from `main` per
+convention.
+
+**Sprint 4 is now shipped too** — DBS status/consent, references, and
+self-expression prompts, continuing the same wizard (now 9 real steps +
+a holding screen, was 6 + holding). DBS is a singleton upsert
+(`dbs_records.candidate_id` is the primary key), with
+`consent_given_at` stamped server-side the moment consent first flips
+true — never client-supplied. References reuse the same record-card
+CRUD pattern as Sprint 3. Prompts are a new per-`(candidate_id,
+prompt_id)` upsert/delete against the 6 real prompts already seeded in
+the DB. All RLS-checked directly against `pg_policies` before writing
+routes. **Also redesigned the step progress indicator**: the per-step
+label row (already patched once in Sprint 3 for 6 labels) wouldn't have
+scaled to 9, so it's replaced with a single dynamic "Step X of 9 ·
+Label" line above the dots — removes a whole recurring class of
+overflow bugs rather than patching it a third time.
+
+**Sprint 5 is now shipped too — the candidate track is complete.** The
+wizard's final two steps (photo, review & publish, now 11 real steps
+total) plus a real candidate dashboard replacing the Sprint 1 stub.
+Reading `publish_my_profile()`'s and `can_publish()`'s actual SQL
+before building against them (not just `SPRINTS.md`'s one-line
+description) surfaced two things worth knowing: publishing itself sets
+`onboarding_done = true` — the dedicated `onboarding/complete` route
+from Sprint 2 stays permanently unused by design, publish *is* the
+completion signal — and publishing is gated on 4 specific conditions
+(profession, employment history, postcode, right-to-work), returning
+`published: false` rather than an error if unmet. The review step
+mirrors those exact conditions client-side for an honest "still
+needed" checklist, and computes a live completeness percentage using
+the same 8-factor weights as the DB's `profile_completeness()`
+function (read first, not guessed). A new `GET /candidates/me/photo`
+route had to be added — there was no way to get an uploaded photo's
+bytes back at all before this, for either the wizard's preview or the
+dashboard. The dashboard is view-only for individual fields by design:
+"Edit" buttons route back into the wizard (now supporting a `?step=N`
+override to jump to an already-completed step) rather than duplicating
+every edit form a second time. Badges are read-only (`GET
+/candidates/me/badges`, joins the `badges` reference table) and
+rendered with a genuinely distinct visual treatment per grade — solid
+fill for `verified`/`evidenced`, outline for `derived`/`declared`,
+different colors each — per non-negotiable #2. Account closure is a
+new route wrapping the existing `close_my_account()` RPC, behind a
+two-step in-page confirm rather than a native `confirm()` dialog. See
+"Done" below for full detail.
 
 Custom-domain/Sender.net work remains explicitly parked per the user's
 earlier request ("will buy the domain in a few days time") — don't
@@ -886,16 +935,183 @@ they aren't lost:
     Chromium + mocked API responses — no uncaught page errors, correct
     state after every action. 6-viewport overflow audit re-run after
     the two CSS fixes: zero horizontal overflow at any tested size.
+- **PR #13 opened, merged, and deployed** (squash-merged into `main`,
+  `mergeable_state` confirmed `clean` before merging): Sprint 3 (work
+  history, qualifications, registrations) now live on `main`. CI run
+  #14 (https://github.com/genesysc/icare/actions/runs/32941646689)
+  confirmed `success`. Branch restarted from `main` per convention.
+- **Sprint 4: DBS status/consent, references, self-expression prompts**
+  — the wizard's steps 7-9, replacing the Sprint 3 holding screen (now
+  step 10).
+  - **DBS status + consent (step 7)**: **new routes** —
+    `GET/PUT /candidates/me/dbs`. Checked the schema before assuming
+    anything: `dbs_records`' primary key is `candidate_id` itself (one
+    row per candidate), so the route is a true upsert
+    (`.upsert(update, { onConflict: "candidate_id" })`), not list CRUD
+    like the Sprint 3 tables. `level` is `NOT NULL` with no DB default,
+    so the route only writes a row when the candidate actually picks a
+    level — leaving the picker on "I don't have one yet" and hitting
+    Continue advances the wizard without touching the table at all
+    (verified: `dbsRow` stayed `null` in the mocked test after a
+    skip-continue). `consent_given_at` is entirely server-owned: the
+    route reads the existing row first, and only stamps a fresh
+    `new Date().toISOString()` when `consent_to_check` is arriving as
+    `true` for the *first* time (i.e. it was previously false/absent);
+    if consent is unchecked, `consent_given_at` is cleared to `null`.
+    This means the timestamp is an honest record of when consent was
+    actually given, never something the client could backdate or fake.
+    UI copy uses exactly the non-negotiable #3 wording ("Enhanced DBS",
+    "I'm registered on the DBS Update Service") and never
+    "verified/certified/checked"; the certificate-number field carries
+    an explicit "kept private, never shown pre-shortlist" hint.
+  - **References (step 8)**: **new routes**, full CRUD
+    (`GET/POST /candidates/me/references`, `PATCH/DELETE .../:id`),
+    same record-card add/edit/delete UI pattern as Sprint 3's
+    qualifications/registrations. RLS checked directly against
+    `pg_policies` (`candidate_references_self`, `candidate_id =
+    auth.uid()`, `ALL`) before writing them. Only referee details are
+    collected this sprint — the actual referee-response flow
+    (`candidate_references.token`, an email to the referee) is still
+    deferred, since it needs real outbound email and that's blocked on
+    the parked domain/Sender.net work (documented as a flagged
+    dependency in `SPRINTS.md`, not silently dropped).
+  - **Self-expression prompts (step 9)**: **new routes** —
+    `GET /candidates/me/prompts`, `PUT/DELETE
+    /candidates/me/prompts/:promptId`. Schema check here mattered too:
+    `candidate_prompts`' primary key is the composite
+    `(candidate_id, prompt_id)`, so `PUT` is an upsert scoped to that
+    pair (`onConflict: "candidate_id,prompt_id"`), and clearing an
+    answer calls `DELETE` rather than storing an empty string. New
+    public `GET /prompts` reference route (same pattern as
+    `/professions`/`/skills`/`/qualification-types`) serves the 6 real
+    prompts already seeded in the DB — genuine content
+    ("Something I'm good at that isn't on my CV", "Why I went into
+    care", etc.), not placeholders invented for this sprint. Answering
+    any given prompt is optional; the wizard step doesn't require a
+    minimum count. On Continue, the step diffs each textarea against
+    its loaded value and only fires the network calls for prompts that
+    actually changed (unchanged textareas are skipped, not
+    re-submitted).
+  - **Progress-indicator redesign**: the per-step label row (patched
+    once already in Sprint 3, when it grew from 3 labels to 6 and
+    started overflowing at narrow widths) was heading toward the same
+    failure again at 9 labels. Rather than patch it a third time,
+    replaced the whole row with a single dynamic line above the dots —
+    `"Step 7 of 9 · DBS & consent"` — computed from a
+    step-number-to-label lookup in `showStep()`. The dots themselves
+    (no text, just background color) don't have the shrinking-text
+    problem the labels did, so they stayed as-is, just extended from 6
+    to 9. This removes the recurring bug class outright rather than
+    re-fixing it, and scales cleanly for Sprint 5's remaining steps.
+  - **Verification**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly, RLS for all three new/changed tables checked
+    directly against `pg_policies` before writing routes, and the full
+    step 7→8→9→10 flow exercised with headless Chromium + mocked API
+    responses — confirmed: skipping DBS writes nothing, filling DBS
+    persists exactly the fields sent plus the correct
+    server-stamped consent timestamp, adding/editing a reference
+    round-trips correctly, answering one prompt and leaving another
+    blank results in exactly one row server-side, and resume lands
+    directly on step 7 for an account that finished Sprint 3. No
+    uncaught page errors. 6-viewport overflow audit (with every new
+    step populated with real-shaped data, including a filled reference
+    card and an answered prompt) — zero horizontal overflow at any
+    tested size.
+- **Sprint 5: photo, review, publish, candidate home** — the wizard's
+  final two steps (10-11) plus a real candidate dashboard, replacing
+  the Sprint 1 stub outright. **Candidate track complete.**
+  - **Photo (step 10)**: reuses the existing `POST /candidates/me/
+    photo`, but there was no way to get the bytes back — no route
+    served R2 objects at all. New `GET /candidates/me/photo`, scoped
+    to the caller's own key (`candidates/{userId}/photo`, derived from
+    the verified JWT, never client-supplied) rather than a general
+    `/media/:key` route, so there's no key-enumeration surface. Skips
+    cleanly if the candidate doesn't add one — completeness treats it
+    as optional (10 of 100 points), `can_publish()` doesn't require it.
+  - **Review & publish (step 11)**: before writing anything, read the
+    actual SQL of `publish_my_profile()` and `can_publish()` rather
+    than building against `SPRINTS.md`'s one-line description. That
+    surfaced two things the doc didn't know: (1) `publish_my_profile()`
+    already sets `onboarding_done = true` on success — meaning the
+    dedicated `POST /candidates/me/onboarding/complete` route built in
+    Sprint 2 and deliberately never called is now confirmed to stay
+    unused *by design*, forever — publishing itself is the completion
+    signal, not a separate step; (2) publishing is gated by
+    `can_publish()`, which requires exactly four things (a profession,
+    an employment-history entry, a postcode district, and a
+    right-to-work status that isn't `not_stated`) and returns
+    `published: false` — not an HTTP error — if any are missing. The
+    review step mirrors those exact four conditions client-side
+    (`renderPublishChecklist()`) to show a specific, honest "still
+    needed" list rather than a generic failure message, and computes a
+    live completeness percentage using the identical 8-factor point
+    breakdown as the DB's `profile_completeness()` function (professions
+    15, postcode 10, availability 10, right-to-work 10, employment 20,
+    DBS 10, prompts 15, photo 10), read from the function body, not
+    guessed or approximated. Each summary row has an inline "Edit" link
+    that calls `showStep(N)` directly (same page, already-loaded data,
+    no refetch).
+  - **Candidate dashboard** (`src/dashboard.html`, full rewrite):
+    loads the profile, professions, employment history, qualifications,
+    registrations, DBS, references, prompts, and badges in one
+    `Promise.all`, then renders a profile-summary card, a badges
+    section, a compact "profile at a glance" section list, and account
+    settings. Deliberately **view-only for individual fields** — no
+    second copy of every edit form. Instead, "Edit" links point at
+    `/onboarding?step=N`, and `onboarding.html` gained a new `?step=`
+    query override: it normally always resumes at the highest step
+    reached, but now, if a valid `step` param names an
+    already-completed step, it jumps there instead — a small, targeted
+    addition that reuses every per-step form already built rather than
+    duplicating them. New `GET /candidates/me/badges` (read-only, joins
+    the `badges` reference table for `label`/`grade`/`family`/
+    `description` — confirmed the FK from `candidate_badges.badge_code`
+    to `badges.code` exists before relying on the embed syntax, same
+    pattern already proven working by the existing `/me/professions`
+    route's `professions(...)` embed). Badges render grouped by family
+    with a genuinely distinct visual treatment per grade — solid fill
+    for `verified` (teal) and `evidenced` (plum), outline for `derived`
+    (teal) and `declared` (amber) — per non-negotiable #2, not just
+    different text labels on an identical chip.
+  - **Account settings**: new `POST /candidates/me/close-account`
+    wraps the existing `close_my_account()` RPC (confirmed callable by
+    the `authenticated` role via `has_function_privilege` before
+    relying on it). UI is a two-step in-page confirm (click reveals a
+    warning + a second confirm button) rather than a native `confirm()`
+    dialog — easier to test and a more consistent look than a native
+    dialog. Copy is honest about what the RPC actually does (unpublishes
+    the profile, marks the account closed, logs a closure request) —
+    doesn't claim it deletes data, since it doesn't.
+  - **Verification**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly, the `candidate_badges → badges` foreign key and
+    `close_my_account`/`publish_my_profile` execute privileges checked
+    directly against the schema before relying on them. Exercised with
+    headless Chromium + mocked API responses: resume-on-step-10 for an
+    account that finished Sprint 4; the exact completeness percentage
+    (65% for a profile with profession/postcode/availability/
+    right-to-work/employment but no DBS/prompts/photo — matches the
+    formula by hand-calculation); the publish-blocked path (all 4
+    checklist items appear correctly for an empty profile, status
+    message shown, no redirect); the publish-succeeds path (redirects
+    to `/dashboard`); the photo upload round-trip (correct
+    `Content-Type`, preview updates without a page reload); and the
+    dashboard's badge rendering (3 badges, 3 distinct grade classes),
+    section list (7 rows, correct `?step=N` hrefs), and close-account
+    confirm flow. No uncaught page errors anywhere. 6-viewport overflow
+    audit on both the review step and the dashboard (populated with
+    real-shaped data, including the DBS badge's long label) — zero
+    horizontal overflow at any tested size.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/
   shortlisting published candidates) — deliberately deferred in favor of
   candidate API first. Any employer search view must exclude photo/name/
   video/CV per non-negotiable #4 above.
-- Candidate DBS records, references, badges, prompts, CV import — not
-  covered by the candidate API slice built so far (qualifications and
-  registrations *are* now covered — see Sprint 3 above). DBS/badge copy
-  must follow non-negotiables #2–#3 above when built.
+- CV import — the one item from the original "not covered" list still
+  actually not covered (qualifications/registrations landed in Sprint
+  3; DBS/references/prompts/badges landed in Sprints 4-5). A future CV
+  parser must still follow non-negotiable #6's data-minimisation rules
+  and #5's "never auto-apply" rule when built.
 - Candidate self-expression posts + per-post consent model, employer
   conversational AI search + its protected-characteristics guardrail —
   see "Product direction" above. Explicitly phase 2; the guardrail design

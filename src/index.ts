@@ -73,6 +73,17 @@ app.get("/qualification-types", async (c) => {
   return c.json({ qualification_types: data });
 });
 
+app.get("/prompts", async (c) => {
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
+  const { data, error } = await supabase
+    .from("prompts")
+    .select("id, label, placeholder, sort_order")
+    .eq("active", true)
+    .order("sort_order", { ascending: true });
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ prompts: data });
+});
+
 app.get("/media-check", async (c) => {
   const list = await c.env.MEDIA.list({ limit: 1 });
   return c.json({ bucket: "icare", objects: list.objects.length });

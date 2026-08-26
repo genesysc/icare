@@ -138,10 +138,10 @@ stop and ask the user — do not resolve it yourself.**
 | File | What |
 |---|---|
 | `wrangler.jsonc` | Worker config — account id, vars (Supabase URL/key), R2 binding, the `Text` import rule for `.html` |
-| `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/qualification-types`, `/media-check` |
+| `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo upload, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, onboarding advance/complete |
+| `src/candidates.ts` | Candidate profile CRUD, photo upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, badges (read-only), close-account, onboarding advance/complete |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
 | `src/emails/waitlist-welcome.ts` | The actual welcome email subject/HTML, unused until `email.ts` is wired up |
@@ -151,8 +151,8 @@ stop and ask the user — do not resolve it yourself.**
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
 | `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
 | `src/verify.html` | OTP code entry, `/verify?email=...` |
-| `src/onboarding.html` | The real onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations) — spans Sprints 2–5, not done after this |
-| `src/dashboard.html` | Stub post-onboarding landing, real dashboard is Sprint 5 |
+| `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
+| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, account closure |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -238,22 +238,36 @@ row plus `candidates`+`candidate_contact` or `employers`+
 - Supabase wired in as the real backend (D1 was removed — it was a
   placeholder from before the real backend was identified).
 - Auth: OTP request/verify, logout, me.
-- Candidate profile API: profile CRUD (whitelisted fields), photo upload
-  to R2, publish (via the existing RPC), professions/skills
-  (replace-whole-set), employment history (full CRUD), public
-  professions/skills reference lists.
-- Landing page v2: waitlist-first, candidate-primary (employer messaging
-  is supporting context only — no employer CTA on this page). Built
-  against an actual copy/design brief and mockup the user provided
-  mid-session (superseded a v1 draft that guessed wrong). Serif display
-  type (Fraunces) + monospace labels (IBM Plex Mono) + teal/plum palette.
-  Restrained scroll/entrance motion (`epic-design` skill), full
-  `prefers-reduced-motion` + coarse-pointer fallbacks.
-- Waitlist: captures name/email/phone, RLS-private, a real (not
-  fabricated) live counter, honest "first 100" recognition-only messaging
-  (explicitly not a paid-feature credit — see §1.1), on-page + email
-  social share buttons (X/LinkedIn/Facebook/WhatsApp, plain share-intent
-  URLs, no library).
+- Candidate profile API (`src/candidates.ts`): profile CRUD (whitelisted
+  fields), photo upload/download to R2, publish (via the existing
+  `publish_my_profile()` RPC, gated by `can_publish()`),
+  professions/skills (replace-whole-set), employment history/
+  qualifications/registrations (full CRUD), DBS (singleton upsert),
+  references (full CRUD), self-expression prompts (per-prompt
+  upsert/delete), badges (read-only), close-account, plus onboarding
+  advance/complete. Public reference routes: `/professions`, `/skills`,
+  `/qualification-types`, `/prompts`.
+- **Candidate onboarding wizard** (`src/onboarding.html`, Sprints 2–5):
+  the full 11-step journey — basics, skills, availability, employment
+  history, qualifications, registrations, DBS status/consent,
+  references, self-expression prompts, photo, review & publish.
+  Resumes from `onboarding_step` on load; accepts `?step=N` to jump to
+  an earlier completed step (used for editing from the dashboard).
+- **Candidate dashboard** (`src/dashboard.html`, Sprint 5): profile
+  summary, badges (grouped by family, grade visually distinct per
+  non-negotiable #2), a per-section "at a glance" list linking back
+  into the wizard for edits, account closure.
+- Sign-up/sign-in/verify (`src/sign-in.html`, `src/verify.html`, Sprint
+  1): OTP-based, one entry point for both flows.
+- Landing pages: candidate-primary (`src/landing.html`) and employer
+  (`src/employers.html`, v2, built against a real design/copy brief).
+  Both waitlist-first pre-launch pages, not the real signed-in product.
+- Waitlist: captures name/email/phone (+ `hiring_for` for employers),
+  RLS-private, a real (not fabricated) live counter, honest "first 100"
+  recognition-only messaging (explicitly not a paid-feature credit —
+  see §1.1), on-page + email social share buttons.
+- `/privacy`, `/terms` (Sprint 0): draft legal pages, explicitly marked
+  DRAFT, not lawyer-reviewed.
 - Welcome email: fully written (`src/emails/waitlist-welcome.ts`), not
   yet sending — see §8.
 
@@ -282,35 +296,34 @@ deploy confirmation yet.
 
 4. Employer-side API (profile, verification-request flow, browsing/
    shortlisting published candidates) — deliberately deferred behind the
-   candidate side. Any search view must exclude photo/name/video/CV per
-   non-negotiable #4.
-5. Candidate qualifications, DBS records, references, badges, prompts, CV
-   import — schema and RLS already exist, no Worker routes yet. DBS/badge
-   *copy* must follow non-negotiables #2–#3 when built.
-6. Onboarding wizard + candidate home page — a parallel Next.js build
-   (not deployed, referenced mid-session) already has these; the decision
-   was to **port the logic/business rules to Cloudflare Workers, not
-   reuse the Next.js code directly** (different framework — no server
-   components/actions here). Treat those files as a spec, if the user
-   still has them, not as code to merge in.
-7. Candidate self-expression posts (with per-post, revocable, opt-in
+   candidate side, which is now complete (Sprint 5). Any search view
+   must exclude photo/video/CV pre-shortlist per non-negotiable #4 — note
+   the dated override in §1: name/current job title/location are **not**
+   excluded, per explicit founder instruction.
+5. CV import — the one item from the original candidate-API gap list
+   still actually not built (qualifications, DBS, references, badges,
+   and prompts all landed in Sprints 3–5). A parser here must follow
+   non-negotiable #6's data-minimisation rules and #5's "never
+   auto-apply" rule.
+6. Candidate self-expression posts (with per-post, revocable, opt-in
    consent gating what's employer-visible) + employer conversational AI
    search (natural language, descriptive-not-evaluative, with a
    protected-characteristics guardrail that needs real design work, not
    just a prompt instruction) — explicitly phase 2 per the product brief.
-8. `/privacy` and `/terms` pages — will be needed before any real signup
-   flow (not just waitlist) ships.
-9. A real signed-in app UI (dashboard, profile editor) — nothing exists
-   yet for a user to land on after authenticating via `/auth/*`.
-10. ~~Employer-facing landing page~~ — built and merged (`GET /employers`,
-    PR #11, deploy run #12); then rebuilt as v2 against the user's actual
-    design/copy brief (much richer than v1 — see PROGRESS.md's "Done"
-    section for detail and the fixes made against the draft). **That
-    brief reveals the real employer product is chat-first AI search + a
-    built-in ATS + an "iCompliance" module + AI interview parsing — not
-    the simple structured-field search assumed elsewhere in this doc and
-    in `SPRINTS.md`.** Treat `SPRINTS.md`'s employer track as stale until
-    it's revised against this.
+7. ~~`/privacy` and `/terms` pages~~ — built (Sprint 0), explicitly
+   marked DRAFT, not lawyer-reviewed.
+8. ~~A real signed-in app UI (dashboard, profile editor)~~ — built: the
+   full 11-step onboarding wizard (Sprints 2–5) and the real candidate
+   dashboard (Sprint 5, `src/dashboard.html`). Candidate track complete.
+9. ~~Employer-facing landing page~~ — built and merged (`GET /employers`,
+   PR #11, deploy run #12); then rebuilt as v2 against the user's actual
+   design/copy brief (much richer than v1 — see PROGRESS.md's "Done"
+   section for detail and the fixes made against the draft). **That
+   brief reveals the real employer product is chat-first AI search + a
+   built-in ATS + an "iCompliance" module + AI interview parsing — not
+   the simple structured-field search assumed elsewhere in this doc and
+   in `SPRINTS.md`.** Treat `SPRINTS.md`'s employer track as stale until
+   it's revised against this — it has been (see §13).
 
 ---
 
@@ -513,12 +526,53 @@ during testing (a step-label overflow at narrow widths, and a
 record-card action/title overlap) — see PROGRESS.md's "Done" section
 for full detail on both.
 
-**Next priorities**: Sprint 4 (DBS status/consent, references,
-self-expression prompts) continues the wizard — the DBS step needs
-careful copy per non-negotiable #3, and the reference step's actual
-referee-response flow needs real outbound email, which is still blocked
-on the parked domain/Sender.net work (collecting referee details is not
-blocked, just the email send). Sprint 8 (chat infrastructure, employer
+All of the above (Sprint 3) shipped on **PR #13**, which the user
+approved merging — `mergeable_state` confirmed `clean`, squash-merged
+into `main`, deploy run #14
+(https://github.com/genesysc/icare/actions/runs/32941646689) succeeded.
+Live. Branch restarted from `main` per convention (§10).
+
+Sprint 4 (DBS status/consent, references, self-expression prompts) is
+also now shipped: the wizard grew from 6 real steps + a holding screen
+to 9 + holding. DBS is a true upsert (`dbs_records.candidate_id` is the
+primary key, checked directly against the schema) with
+`consent_given_at` stamped server-side only on the first `true` — never
+client-supplied. References reuse the Sprint 3 record-card CRUD
+pattern; the referee-response flow itself stays deferred, still blocked
+on the parked domain/Sender.net work. Prompts are a new
+`(candidate_id, prompt_id)` upsert/delete against the 6 real prompts
+already seeded in the DB. All RLS-checked directly against
+`pg_policies` first. The per-step label row (patched once already in
+Sprint 3) was replaced outright with a single dynamic "Step X of 9 ·
+Label" line, since it would have needed a third patch at 9 labels —
+this removes that whole bug class instead of re-fixing it. See
+PROGRESS.md's "Done" section for full detail. Not yet merged.
+
+Sprint 5 (photo, review, publish, real candidate dashboard) is also now
+shipped — **the candidate track is complete.** Read
+`publish_my_profile()`'s and `can_publish()`'s actual SQL before
+building against them, which surfaced two things neither `SPRINTS.md`
+nor this doc previously knew: publishing itself sets `onboarding_done =
+true` (the dedicated `onboarding/complete` route from Sprint 2 stays
+permanently unused by design — publish *is* the completion signal), and
+publishing is gated on 4 specific conditions (profession, employment
+history, postcode, right-to-work ≠ `not_stated`), returning `published:
+false` rather than an error if unmet. The review step mirrors those
+exact conditions for an honest "still needed" checklist and computes
+completeness using the DB's own 8-factor weights, read first not
+guessed. A new `GET /candidates/me/photo` route had to be added — there
+was no way to get an uploaded photo's bytes back before this. The new
+dashboard (`src/dashboard.html`) is view-only for individual fields by
+design — "Edit" links reuse the wizard via a new `?step=N` override
+rather than duplicating every form a second time. Badges render with a
+genuinely distinct visual treatment per grade per non-negotiable #2.
+Account closure wraps the existing `close_my_account()` RPC behind a
+two-step in-page confirm. See PROGRESS.md's "Done" section for full
+detail. Not yet merged.
+
+**Next priorities**: the candidate track is done — Sprint 6 starts the
+employer track (per the revised Sprints 6-11 plan; iCompliance/Sprint 12
+stays explicitly unscheduled). Sprint 8 (chat infrastructure, employer
 track) will need an `ANTHROPIC_API_KEY` secret added via
 `wrangler secret put` when it starts — not yet provisioned. Don't
 restart the domain/Sender.net work unless the user brings it back up.
