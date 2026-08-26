@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import auth from "./auth";
 import candidates from "./candidates";
 import employersApi from "./employers";
+import employerChat from "./employer-chat";
 import waitlist from "./waitlist";
 import landingPage from "./landing.html";
 import employerLandingPage from "./employers.html";
@@ -26,6 +27,7 @@ const app = new Hono<{ Bindings: Bindings }>();
 app.route("/auth", auth);
 app.route("/candidates", candidates);
 app.route("/employers", employersApi);
+app.route("/employers/chat", employerChat);
 app.route("/waitlist", waitlist);
 
 app.get("/", (c) => c.html(landingPage));
@@ -67,6 +69,16 @@ app.get("/skills", async (c) => {
   const { data, error } = await supabase.from("clinical_skills").select("id, label, family");
   if (error) return c.json({ error: error.message }, 500);
   return c.json({ skills: data });
+});
+
+// Used by the employer chat UI to render badge chips with a grade-distinct
+// style (non-negotiable #2 — grade must stay visually distinct, including
+// on the employer side, not just the candidate dashboard).
+app.get("/badges", async (c) => {
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
+  const { data, error } = await supabase.from("badges").select("code, label, grade, family, description");
+  if (error) return c.json({ error: error.message }, 500);
+  return c.json({ badges: data });
 });
 
 app.get("/qualification-types", async (c) => {

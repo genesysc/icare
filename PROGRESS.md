@@ -1583,12 +1583,132 @@ they aren't lost:
     the conditional regulator block in the verification-submitted email
     renders correctly both with and without a regulator present.
   - Committed and pushed to the branch. Not yet its own PR.
+- **Sprint 8: chat infrastructure + candidate search** — the employer
+  track's foundation sprint, per the user's direct instruction to start
+  it. Built on Workers AI throughout, not the Claude API originally
+  specced in `SPRINTS.md` — the founder's cost preference from the
+  CV-import conversation is now a standing default, applied here without
+  re-asking.
+  - **Real schema check first**, same discipline as every sprint: listed
+    every `public` table before assuming anything was missing, and
+    found the original `candidate_search` view (from `0001_init`) had
+    **no verification gate at all** — its `WHERE` clause only checked
+    `is_published`, meaning any authenticated role able to query it saw
+    every published candidate regardless of `is_verified_employer()`.
+    This predates Sprint 8 but was latent until now, since no
+    employer-facing search UI existed to exploit it. Also confirmed
+    directly against `pg_policies` that `candidate_professions` and
+    `candidate_skills` already had `is_verified_employer()`-gated
+    read policies for employers (built ahead of this sprint,
+    apparently anticipating it) while `employment_history` and
+    `accounts` had none — informing the join-vs-RLS design below.
+  - **Migration `0013_employer_chat_and_search`**: dropped and rebuilt
+    `candidate_search` (a `CREATE OR REPLACE VIEW` can't reorder/insert
+    columns before existing ones — checked `pg_depend` first to confirm
+    nothing referenced the old column order before doing a clean
+    drop+recreate instead). The new view adds `accounts.full_name`
+    (never email/phone — those stay behind `candidate_contact` +
+    shortlist consent, untouched), the candidate's current
+    `employment_history` row via a `LATERAL` join, `total_experience_
+    months()` (an existing function from `0001_init`, not
+    reimplemented), and full `profession_ids`/`skill_ids` arrays — and,
+    critically, now requires `is_verified_employer()` in its own
+    `WHERE` clause, closing the gap above. Chose a view over RLS
+    policies on `accounts`/`employment_history` directly: views created
+    by the migration role run with that role's own table privileges
+    (confirmed this is why the original view worked with zero RLS
+    policies of its own), so the view's column list becomes the *only*
+    exposure surface — safer and more precise than broadening RLS on
+    two tables that also hold real contact/audit data. New
+    `employer_chat_messages` table (RLS self-only, `ALL USING (employer_
+    id = auth.uid())`) persists the conversation; a same-day follow-up
+    migration `0014` added a `results_snapshot jsonb` column so a page
+    reload replays real result cards, not just a count — added once it
+    became clear a bare count made for a worse reload experience,
+    rather than building it in from the start on spec.
+  - **`src/employer-chat-guardrail.ts`** (new): the protected-
+    characteristics guardrail non-negotiable #5 explicitly requires
+    ("a real validation layer, not just a prompt instruction"). Three
+    independent layers — structural (the tool schema has no field for
+    a protected characteristic at all), a deterministic keyword/
+    proximity regex check run in code before the model ever sees the
+    message, and a system-prompt instruction as pure defense-in-depth.
+    Wrote a 30-case test suite (Node, via `npx tsx`, no DB/model call
+    needed since it's pure logic) covering all nine Equality Act 2010
+    characteristics plus national origin/immigration status, and it
+    caught **two real bugs** before they shipped: (1) the first version
+    used strict word-adjacency (`\s+`) between a characteristic word and
+    a role noun, which "female care staff preferred" slipped straight
+    through (the word "care" sitting in between broke the match) — fixed
+    with a bounded-proximity match (up to 3 filler words) instead; (2)
+    fixing #1 by widening the match then let "people" as a trigger word
+    false-block "experience working with young people" and "supporting
+    older people at home" — both completely standard care-sector
+    phrasing describing the *client population* a candidate works with,
+    not the candidate's own age. Fixed by giving the age category its
+    own narrower qualifier-word list that excludes "people/person/
+    someone" entirely, rather than trying to patch the ambiguity with a
+    lookaround exemption. All 30 cases pass after both fixes.
+  - **`src/employer-chat.ts`** (new router, mounted at `/employers/
+    chat`): `POST /` — validates the employer is verified
+    (`is_verified_employer()` RPC, re-checked server-side even though
+    the UI already gates on it), persists the user message, runs the
+    guardrail (if blocked, the model is never called at all for that
+    message), fetches the live professions/skills catalogues, calls
+    Workers AI with the `search_candidates` tool definition and up to
+    10 recent messages for conversational continuity (safe to replay to
+    the model since assistant messages are always either a fixed
+    template sentence or a plain reply, never raw candidate data), then
+    either executes the deterministic Supabase query (via `.contains()`
+    for profession/skill array membership, `.ilike()` for town,
+    `.lte()`/`.eq()` for radius/availability) or — if the model didn't
+    call the tool — returns its plain conversational reply. Tool-call
+    arguments are sanitized against the live reference sets before use,
+    same pattern as CV import's `sanitizeParsed()`. `GET /` replays the
+    persisted thread.
+  - **UI** (`src/employer-home.html`): widened `.wrap` to 720px for the
+    chat card while keeping the verification card's own width pinned at
+    560px (`.card { max-width: 560px; margin: 0 auto; }`) so it doesn't
+    stretch oddly now that its container is wider. New chat section
+    (message thread + input) shown only once `employer.is_verified`;
+    result cards render name/role/location/experience/skills plus
+    grade-distinct badge chips (new public `GET /badges` route, same
+    pattern as `/professions`/`/skills`, feeding a `code → grade` map
+    client-side) — honoring non-negotiable #2 on the employer side, not
+    just the candidate dashboard where it was originally built. Removed
+    the "Chat-based candidate search — coming soon" line from the
+    roadmap list now that it's real; "Shortlisting & pipeline" (Sprint
+    9) is the only item left.
+  - **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly throughout. Guardrail test suite (30 cases) run
+    standalone. Full chat UI exercised with headless Chromium against
+    mocked responses: unverified employers never see the chat section;
+    a verified employer's persisted history (including snapshotted
+    result cards) replays correctly; sending a message posts the
+    correct body and renders the reply plus result cards; a guardrail
+    redirect renders with zero results; a zero-result search renders
+    zero cards. Re-ran the Sprint 7 verification-form suite afterward
+    specifically to check the layout changes hadn't regressed it, which
+    caught a third real bug: `loadChatHistory()` was the only fetch in
+    the file without a `.catch()`, throwing an unhandled rejection
+    whenever the request failed (visible as a stray `pageerror` in an
+    unrelated Sprint 7 test run that happened to also exercise the
+    verified-employer code path). Fixed by adding the same non-fatal
+    `.catch()` every other fetch in this file already uses. 5-viewport
+    overflow audit on the chat+results state, including a long
+    candidate name, a long job title/employer, and a long user message
+    — zero horizontal overflow anywhere.
+  - Committed and pushed to the branch. Not yet its own PR.
 
 ## Not started yet
-- Employer-side API (profile, verification-request flow, browsing/
-  shortlisting published candidates) — deliberately deferred in favor of
-  candidate API first. Any employer search view must exclude photo/name/
-  video/CV per non-negotiable #4 above.
+- ~~Employer-side API (profile, verification-request flow, browsing
+  published candidates)~~ — Sprints 6-8 shipped sign-up/sign-in,
+  verification, and chat-based search. **Shortlisting itself (Sprint 9)
+  is the one piece of this still not started** — an employer can find
+  candidates via chat but can't yet act on a result. Any employer
+  search/shortlist view must exclude photo/video/CV per non-negotiable
+  #4 (name, current job title, and location are the founder's dated
+  override — already shown in Sprint 8's chat results, not excluded).
 - Candidate self-expression posts + per-post consent model, employer
   conversational AI search + its protected-characteristics guardrail —
   see "Product direction" above. Explicitly phase 2; the guardrail design

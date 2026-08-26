@@ -144,11 +144,13 @@ stop and ask the user — do not resolve it yourself.**
 | File | What |
 |---|---|
 | `wrangler.jsonc` | Worker config — account id, vars (Supabase URL/key), R2 binding, the `Text` import rule for `.html` |
-| `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/qualification-types`, `/prompts`, `/media-check` |
+| `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/badges`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
 | `src/candidates.ts` | Candidate profile CRUD, photo upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
 | `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review |
+| `src/employer-chat.ts` | Employer chat + candidate search (Sprint 8): `POST /employers/chat` (guardrail → Workers AI tool call → deterministic search → persist), `GET /employers/chat` (replay thread) |
+| `src/employer-chat-guardrail.ts` | Protected-characteristics keyword/proximity guardrail — the deterministic layer behind the chat's non-negotiable #5 compliance, see §7 |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
 | `src/emails/waitlist-welcome.ts`, `employer-waitlist.ts`, `candidate-profile-published.ts`, `employer-verification-submitted.ts`, `employer-verified.ts` | Stage-completion email subject/HTML, all unused until `email.ts` is wired up (see §8 item 3). The first two are for the waitlist; the latter three are candidate/employer product-stage emails, added 2026-08-26 |
@@ -159,7 +161,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
 | `src/employer-sign-in.html` | Employer sign-up/sign-in (Sprint 6), mounted at both `/employer/sign-up` and `/employer/sign-in`, own purple/teal design system |
 | `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me` |
-| `src/employer-home.html` | Employer stub home (Sprint 6), `/employer/home` — non-broken landing target until Sprint 7+ builds the real thing |
+| `src/employer-home.html` | Employer home, `/employer/home` — verification card (Sprint 7) + chat-based candidate search (Sprint 8, shown once verified) |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
 | `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, account closure |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
@@ -169,8 +171,8 @@ stop and ask the user — do not resolve it yourself.**
 | `AGENTS.md` / `CLAUDE.md` | Pointer files: read `PROGRESS.md` (and now this file) first, update before ending a session |
 
 **`supabase/migrations/*.sql` now mirrors the live database**
-(2026-08-26) — all 12 migrations to date (`0001_init` through
-`0012_employer_verification_multi_regulator`) are committed as files,
+(2026-08-26) — all 14 migrations to date (`0001_init` through
+`0014_employer_chat_results_snapshot`) are committed as files,
 fetched verbatim from `supabase_migrations.schema_migrations`
 (its `statements` column holds the exact SQL each migration ran). This
 is a point-in-time backup/version-control mirror, not a live sync —
@@ -202,10 +204,20 @@ read policies for the employer side.
 This build added: **`waitlist`** (`email` unique, `full_name`, `phone`,
 `created_at`) — RLS allows anyone to insert, nobody to read the raw
 table; a `SECURITY DEFINER waitlist_count()` RPC exposes just the
-aggregate count.
+aggregate count. **`employer_chat_messages`** (Sprint 8, RLS self-only)
+— the persisted employer chat thread, one row per message, with
+`tool_call`/`result_count`/`results_snapshot` populated on messages
+that ran a search. **`candidate_search`** (a view, from `0001_init`,
+rewritten in Sprint 8's `0013` migration) is the actual query surface
+employer search runs against — corrected to require
+`is_verified_employer()` in its own `WHERE` clause (it had no gate at
+all before) and extended with `full_name` (never email/phone),
+current job title/employer (via a `LATERAL` join to
+`employment_history`), and full `profession_ids`/`skill_ids` arrays.
 
 Useful existing RPCs: `current_role_is(role)`, `is_verified_employer()`,
-`close_my_account(reason)`, `publish_my_profile()`.
+`close_my_account(reason)`, `publish_my_profile()`,
+`total_experience_months(candidate_id)` (used by `candidate_search`).
 
 ---
 
@@ -333,6 +345,23 @@ row plus `candidates`+`candidate_contact` or `employers`+
   qualifications/registrations. A confirmation email fires on
   submission (content written, wired at the call site) — see §8 item 3
   for why it doesn't actually send yet.
+- **Employer chat + candidate search** (`src/employer-chat.ts`,
+  `src/employer-chat-guardrail.ts`, Sprint 8): a verified employer's home
+  is a persisted chat thread (`employer_chat_messages`, RLS self-only).
+  Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`, native
+  function-calling — not the Claude API, see §2) translates a message
+  into a `search_candidates` tool call; it never sees results, so the
+  reply an employer gets is always a fixed template sentence, never
+  model-generated prose about who matched. Three-layer protected-
+  characteristics guardrail (structural tool schema, deterministic
+  keyword/proximity check, prompt instruction) — the keyword layer's
+  30-case test suite caught two real bugs before shipping, see
+  PROGRESS.md. `candidate_search` (the query surface) was corrected to
+  require `is_verified_employer()` (had no gate at all before Sprint 8)
+  and extended with name/current job title per the founder's
+  non-negotiable #4 override — photo/video/CV stay excluded, those
+  columns were never added. Result cards show grade-distinct badges
+  (new public `GET /badges` route).
 - Landing pages: candidate-primary (`src/landing.html`) and employer
   (`src/employers.html`, v2, built against a real design/copy brief).
   Both waitlist-first pre-launch pages, not the real signed-in product.
@@ -388,12 +417,14 @@ deploy confirmation yet.
 
 **Next, no particular blocker**
 
-4. Employer-side API (profile, verification-request flow, browsing/
-   shortlisting published candidates) — deliberately deferred behind the
-   candidate side, which is now complete (Sprint 5). Any search view
-   must exclude photo/video/CV pre-shortlist per non-negotiable #4 — note
-   the dated override in §1: name/current job title/location are **not**
-   excluded, per explicit founder instruction.
+4. ~~Employer-side API (profile, verification-request flow, browsing
+   published candidates)~~ — Sprints 6-8 shipped sign-up/sign-in,
+   verification, and chat-based search (`candidate_search`, corrected to
+   exclude photo/video/CV pre-shortlist per non-negotiable #4 — name/
+   current job title/location are shown, per the dated founder
+   override in §1). **Shortlisting itself (Sprint 9) is what's left** —
+   an employer can find candidates via chat but can't yet act on a
+   result.
 5. ~~CV import~~ — built during the post-Sprint-5 review pause (upload →
    Workers AI parse → candidate review/edit → apply), see §7. **No
    blocker** — runs on Workers AI (`env.AI`), the same Cloudflare
@@ -802,14 +833,37 @@ follow-up message, not yet pushed as a PR:
    real blockers hit trying to unblock it this session (Sender MCP
    disconnected, `WebFetch` egress-blocked to sender.net).
 
-**Next priorities**: Sprint 8 (chat infrastructure + candidate search —
-the foundation the rest of the employer track sits on). **Default to
-Workers AI for this too, not the Claude API** — the founder's cost
-objection above is a standing preference, not a one-off for CV import;
-check with the user before reaching for a metered third-party LLM API
-anywhere else in this build. Don't restart the domain/Sender.net work
-unless the user brings it back up — though reconnecting the Sender MCP
-connector would unblock item 3 above without touching the domain
+Sprint 8 (chat infrastructure + candidate search) is now shipped, on
+the user's direct instruction to start it — **the employer track's
+foundation is in place.** Built on Workers AI throughout, per the
+standing cost preference above, not the Claude API `SPRINTS.md`
+originally specced. A verified employer's home is a persisted chat
+thread (`employer_chat_messages`); the model only ever produces a
+`search_candidates` tool call and never sees results, so the reply is
+always a fixed template sentence, never model-generated prose about
+who matched — that's non-negotiable #5 by construction. The
+protected-characteristics guardrail is three independent layers
+(structural tool schema, a deterministic keyword/proximity check, a
+prompt instruction) — the middle layer's 30-case test suite caught two
+real bugs before they shipped (a strict-adjacency match letting
+"female care staff preferred" through, then an over-broad fix
+false-blocking "experience working with young people" — standard
+care-sector language about the client population, not the candidate).
+While rebuilding `candidate_search` to add the founder's non-negotiable
+#4 fields (name, current job title), also found and fixed a real
+pre-existing gap: the view had **no verification gate at all** —
+before this migration, any authenticated role able to query it saw
+every published candidate regardless of `is_verified_employer()`,
+latent only because no employer search UI existed yet to exploit it.
+See PROGRESS.md's "Done" section for full detail, including a third
+real bug (`loadChatHistory()` missing a `.catch()`) caught by re-running
+the Sprint 7 test suite after this sprint's layout changes.
+
+**Next priorities**: Sprint 9 (shortlist + fixed pipeline, via chat —
+an employer can find candidates now but can't act on a result yet).
+Don't restart the domain/Sender.net work unless the user brings it back
+up — though reconnecting the Sender MCP connector would unblock the
+Sender.net API integration (§8 item 3) without touching the domain
 question at all.
 
 As always: check current branch/PR state before assuming anything in

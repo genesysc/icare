@@ -427,38 +427,90 @@ reviewing/completing that request, not creating it from scratch.
   5-viewport overflow audit on the rejected state (longest content, incl.
   a long reviewer note) — zero horizontal overflow anywhere.
 
-### Sprint 8 — Chat infrastructure + candidate search
+### Sprint 8 — Chat infrastructure + candidate search ✅ Shipped
 
 The foundation everything else in this track sits on.
 
-- **New: LLM tool-calling loop on the Worker** (Anthropic API — needs an
-  `ANTHROPIC_API_KEY` secret, `wrangler secret put`, never a plain
-  `wrangler.jsonc` var). The model's job is narrow: translate the
-  employer's natural-language message into a structured tool call. It
-  never sees or judges candidate data directly — that keeps non-
-  negotiable #5 enforceable by construction, not just by prompting.
-- **New: protected-characteristics guardrail**, checked on every
-  employer message *before* it can inform a search — reject/redirect
-  queries referencing sex, age, race, religion, disability, or the other
-  protected characteristics (Equality Act 2010), rather than silently
-  passing them to the search tool. This needs a real check (keyword +
-  classifier), not just a system-prompt instruction, per non-negotiable
-  #5's explicit requirement. Nothing about the name/title/location
-  override above touches this guardrail — it stays in full force.
-- **New tool — `search_candidates`**: natural language → structured
-  filters (profession, skills, location/travel radius, availability) →
-  a deterministic query against **published** candidates. No ranking, no
-  scoring — the model only produces filter parameters, the database does
-  the (non-evaluative) matching.
-- **Chat UI**: single input + message thread, the employer's home after
-  sign-in (per the chat-first decision above).
-- **Result fields — per the founder override above**: candidate's name
-  (`accounts.full_name`, joined via `candidates.id = accounts.id`),
-  current job title (`employment_history` row where `is_current = true`,
-  its `job_title`), and location (`candidates.town`/
-  `postcode_district`). Plus role/badges/experience summary/skills as
-  before. **Photo, video, and CV file stay excluded pre-shortlist** —
-  the override didn't touch those.
+- **LLM tool-calling loop on the Worker — Workers AI, not the Claude
+  API.** This section originally specced the Anthropic API; superseded
+  by the founder's standing cost preference (see the CV import switch —
+  `HANDOVER.md`). `env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  {messages, tools})` with native function-calling, same model already
+  used for CV parsing. No `ANTHROPIC_API_KEY` needed. The model's job is
+  narrow: translate the employer's natural-language message into a
+  `search_candidates` tool call. **It never sees search results at
+  all** — the reply an employer sees after a search is always a fixed,
+  deterministic template sentence ("Found N candidates matching your
+  search"), never model-generated prose about who matched. That's what
+  makes non-negotiable #5 ("descriptive, not evaluative") true by
+  construction, not by prompting.
+- **Protected-characteristics guardrail — three independent layers**,
+  not one (see `src/employer-chat-guardrail.ts`'s own comment for the
+  full reasoning):
+  1. *Structural*: the `search_candidates` tool schema has no field
+     that could even encode age/sex/race/religion/disability/etc. —
+     nowhere to put it, matching CV import's sensitive-data philosophy.
+  2. *Deterministic keyword/proximity check*, run in code *before* the
+     message ever reaches the model — the actual "real check, not just
+     a prompt instruction" non-negotiable #5 demands. Verified against
+     30 adversarial + legitimate test cases (see PROGRESS.md), including
+     two real bugs caught and fixed during testing: a strict-adjacency
+     match that let "female care staff preferred" through (fixed with a
+     bounded-proximity match instead of `\s+`), and an over-broad
+     trigger word ("people") that then false-blocked completely
+     standard care-sector phrasing like "experience working with young
+     people" — describing the *client population*, not the candidate.
+  3. *System prompt instruction*, pure defense-in-depth, not the
+     primary control.
+- **`search_candidates` tool**: natural language → structured filters
+  (profession, skills, town, travel radius, availability) → a
+  deterministic query against `candidate_search` (migration 0013,
+  rewritten this sprint). No ranking, no scoring. Tool-call arguments
+  are never trusted as-is — every id is checked against the live
+  `professions`/`clinical_skills` tables and dropped if invalid, same
+  defense-in-depth pattern as CV import's `sanitizeParsed()`.
+- **`candidate_search` view corrected on two fronts** while rebuilding
+  it: (1) it had **no verification gate at all** — any authenticated
+  role able to query it saw every published candidate regardless of
+  `is_verified_employer()`; the view's `WHERE` clause now requires it
+  explicitly. (2) it lacked the founder's non-negotiable #4 override
+  fields entirely (name, current job title) — added via a join to
+  `accounts.full_name` (never email/phone) and a `LATERAL` join to the
+  candidate's current `employment_history` row. Views created by the
+  migration role run with that role's table privileges, which is why
+  this is safe without granting employers any direct RLS access to
+  `accounts`/`employment_history` — the view's own column list is the
+  only exposure surface, same reason `candidate_search` worked at all
+  pre-Sprint-8 with no RLS policy of its own.
+- **Chat UI** (`src/employer-home.html`, replacing the "coming soon"
+  list item): single input + persisted message thread, shown only once
+  `employer.is_verified`. New `employer_chat_messages` table (RLS
+  self-only) persists the conversation, including a `results_snapshot`
+  of each search's result rows, so a page reload replays real result
+  cards, not just a text summary. Result cards show badges with a
+  grade-distinct style (non-negotiable #2), reusing a new public
+  `GET /badges` reference route (same pattern as `/professions`/
+  `/skills`).
+- **Result fields — per the founder override**: candidate's name, current
+  job title, and location, plus role/badges/experience/skills.
+  **Photo, video, and CV file stay excluded pre-shortlist** — the
+  override didn't touch those, and `candidate_search` structurally
+  can't leak them (those columns were never added to the view).
+- **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+  cleanly. The guardrail's 30-case test suite (above) run standalone in
+  Node. Exercised the full chat UI with headless Chromium against mocked
+  responses: unverified employers never see the chat section; a verified
+  employer's persisted history (including snapshotted result cards)
+  replays correctly on load; sending a message posts the right body and
+  renders the reply plus result cards; a guardrail redirect renders with
+  no results; a zero-result search renders no cards. Re-ran the Sprint 7
+  verification-form suite afterward to confirm the layout changes (wider
+  `.wrap` for the chat card) didn't regress it — caught and fixed one
+  real bug in the process: `loadChatHistory()` had no `.catch()`, unlike
+  every other fetch in the file, throwing an unhandled rejection when
+  the request failed. 5-viewport overflow audit on the chat+results
+  state (long candidate name, long job title/employer, long user
+  message) — zero horizontal overflow anywhere.
 
 ### Sprint 9 — Shortlist + fixed pipeline, via chat
 
