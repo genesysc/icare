@@ -134,18 +134,6 @@
   .form-status.err { color: var(--err); }
   .form-status.ok { color: var(--teal-dark); }
 
-  .coming-list { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; }
-  .coming-item {
-    display: flex; gap: 12px; align-items: flex-start; font-size: 14px; padding: 12px 0;
-    border-top: 1px solid var(--line);
-  }
-  .coming-item-num {
-    font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); flex: none;
-    width: 20px; padding-top: 2px;
-  }
-  .coming-item-label { color: var(--ink); font-weight: 600; }
-  .coming-item-sub { margin-top: 2px; color: var(--ink-faint); font-size: 13px; }
-
   .loading-note { font-size: 14px; color: var(--ink-faint); }
 
   /* Chat */
@@ -190,6 +178,29 @@
     font-size: 14.5px; font-family: inherit; background: var(--white); color: var(--ink);
   }
   .chat-form input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-100); }
+
+  /* iRecruit pipeline (Sprint 9, partial) */
+  .pipeline-card {
+    margin-top: 20px; background: var(--white); border-radius: 20px; border: 1px solid var(--line);
+    box-shadow: var(--shadow-soft); overflow: hidden;
+  }
+  .pipeline-header { padding: 20px 24px; border-bottom: 1px solid var(--line); }
+  .pipeline-header h2 { font-size: 18px; }
+  .pipeline-header p { margin-top: 4px; font-size: 13px; color: var(--ink-faint); }
+  .pipeline-body { padding: 4px 24px 24px; }
+  .pipeline-stage-group { margin-top: 18px; }
+  .pipeline-stage-label {
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--ink-faint);
+  }
+  .pipeline-row {
+    margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 11px 14px;
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  }
+  .pipeline-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .pipeline-role { margin-top: 2px; font-size: 12.5px; color: var(--ink-soft); flex-basis: 100%; }
+  .pipeline-location { font-size: 12px; color: var(--ink-faint); flex: none; }
+  .pipeline-empty { padding: 16px 24px 24px; font-size: 13.5px; color: var(--ink-faint); }
   .chat-send-btn { margin-top: 0; flex: none; padding: 11px 20px; }
   .chat-typing { align-self: flex-start; font-size: 13px; color: var(--ink-faint); font-style: italic; }
 </style>
@@ -241,15 +252,6 @@
       <p class="form-status" data-verify-form-status></p>
     </div>
 
-    <div class="coming-list" data-coming-list>
-      <div class="coming-item">
-        <span class="coming-item-num">01</span>
-        <div>
-          <div class="coming-item-label">Shortlisting &amp; pipeline</div>
-          <div class="coming-item-sub">Move candidates through Shortlisted → Interview → Offer → Hired, all from chat.</div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <div class="chat-card" data-chat-section style="display:none;">
@@ -267,6 +269,16 @@
       <input type="text" id="chat-input" placeholder="e.g. Nurse near Belfast…" autocomplete="off" />
       <button type="submit" class="btn chat-send-btn" data-chat-send>Send</button>
     </form>
+  </div>
+
+  <div class="pipeline-card" data-pipeline-section style="display:none;">
+    <div class="pipeline-header">
+      <h2>iRecruit — your pipeline</h2>
+      <p>Candidates you've shortlisted, grouped by stage. Move them through the pipeline from the chat above.</p>
+    </div>
+    <div class="pipeline-body" data-pipeline-body>
+      <p class="pipeline-empty" data-pipeline-empty style="display:none;">Nobody in your pipeline yet — search for candidates above and say "shortlist them" to get started.</p>
+    </div>
   </div>
 </div>
 
@@ -418,6 +430,65 @@ function icareRequireAuth(signInPath) {
     thread.scrollTop = thread.scrollHeight;
   }
 
+  var PIPELINE_STAGE_ORDER = ["shortlisted", "interview", "offer", "hired", "rejected"];
+  var PIPELINE_STAGE_LABELS = { shortlisted: "Shortlisted", interview: "Interview", offer: "Offer", hired: "Hired", rejected: "Rejected" };
+
+  function renderPipeline(rows) {
+    var body = document.querySelector("[data-pipeline-body]");
+    var empty = document.querySelector("[data-pipeline-empty]");
+    Array.prototype.forEach.call(body.querySelectorAll(".pipeline-stage-group"), function (el) { el.remove(); });
+
+    if (!rows || rows.length === 0) {
+      empty.style.display = "block";
+      return;
+    }
+    empty.style.display = "none";
+
+    PIPELINE_STAGE_ORDER.forEach(function (stage) {
+      var stageRows = rows.filter(function (r) { return r.stage === stage; });
+      if (!stageRows.length) return;
+
+      var group = document.createElement("div");
+      group.className = "pipeline-stage-group";
+      var label = document.createElement("div");
+      label.className = "pipeline-stage-label";
+      label.textContent = (PIPELINE_STAGE_LABELS[stage] || stage) + " (" + stageRows.length + ")";
+      group.appendChild(label);
+
+      stageRows.forEach(function (r) {
+        var cand = r.candidate || {};
+        var location = [cand.town, cand.postcode_district].filter(Boolean).join(", ");
+        var roleLine = cand.current_job_title
+          ? cand.current_job_title + (cand.current_employer ? " at " + cand.current_employer : "")
+          : cand.primary_profession || "";
+
+        var row = document.createElement("div");
+        row.className = "pipeline-row";
+        row.innerHTML =
+          '<span class="pipeline-name"></span>' +
+          (location ? '<span class="pipeline-location"></span>' : "") +
+          (roleLine ? '<span class="pipeline-role"></span>' : "");
+        row.querySelector(".pipeline-name").textContent = cand.full_name || "Candidate";
+        if (location) row.querySelector(".pipeline-location").textContent = location;
+        if (roleLine) row.querySelector(".pipeline-role").textContent = roleLine;
+        group.appendChild(row);
+      });
+
+      body.appendChild(group);
+    });
+  }
+
+  function loadPipeline() {
+    return icareAuthFetch("/employers/pipeline")
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        if (result.ok) renderPipeline(result.body.pipeline);
+      })
+      .catch(function () {
+        // Non-fatal — the pipeline card just stays on its empty state.
+      });
+  }
+
   function loadChatHistory() {
     return icareAuthFetch("/employers/chat")
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
@@ -456,6 +527,7 @@ function icareRequireAuth(signInPath) {
           return;
         }
         appendChatMessage("assistant", result.body.reply, result.body.results);
+        loadPipeline();
       })
       .catch(function () {
         typing.remove();
@@ -511,9 +583,11 @@ function icareRequireAuth(signInPath) {
     }
 
     document.querySelector("[data-chat-section]").style.display = employer.is_verified ? "flex" : "none";
+    document.querySelector("[data-pipeline-section]").style.display = employer.is_verified ? "block" : "none";
     if (employer.is_verified && !chatInitialized) {
       chatInitialized = true;
       loadChatReferenceData().then(loadChatHistory);
+      loadPipeline();
     }
   }
 

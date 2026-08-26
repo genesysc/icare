@@ -514,17 +514,29 @@ The foundation everything else in this track sits on.
 
 ### Sprint 9 — Shortlist + fixed pipeline, via chat
 
-- **New tool — `shortlist_candidate`**: chat command ("shortlist them")
-  → `POST /shortlists` (**new route**, table already exists).
-- **New schema**: `shortlists` needs a `stage` column (`shortlisted` /
-  `interview` / `offer` / `hired` / `rejected`, default `shortlisted`,
-  check-constrained) — doesn't exist yet, matches the "fixed stages"
-  decision above.
-- **New tools** — `move_candidate_stage` (advance/change stage via chat
-  command) and `get_pipeline_status` (chat query: "how many candidates
-  are in my pipeline").
-- **Candidate-side, adjusted for the Sprint 8 override**: see incoming
-  shortlists, consent to unlock (`shortlists.candidate_consented_at`).
+- ✅ **Shipped 2026-08-26 (partial)** — `shortlist_candidates`,
+  `move_candidate_stage`, `get_pipeline_status` chat tools all live in
+  `employer-chat.ts`; `shortlists` has its `stage` column (migration
+  `0016`, `shortlisted` / `interview` / `offer` / `hired` / `rejected`,
+  text + check-constrained, not a native enum, specifically so the list
+  can be extended later without an `ALTER TYPE` dance); a read-only
+  "iRecruit" pipeline card on `employer-home.html` shows the grouped
+  result. Also folded in two founder-requested search filters
+  (`min_experience_years`, `qualification_type_id`) in the same pass —
+  see PROGRESS.md for full detail.
+  - **`shortlist_candidates` takes a count, never named individuals** —
+    "shortlist 10 of them" takes the first 10 from the MOST RECENT
+    search results in the conversation, in the order returned (now
+    deterministic — `candidate_search` gained `order by c.id`). Founder
+    confirmed this explicitly rather than free-form name-based selection,
+    to keep it structurally non-evaluative (no "AI picks the best 10").
+  - **Not built**: the candidate-side consent-to-unlock-photo/video/CV
+    flow described below (still real, still needed) — this pass covers
+    the employer-facing chat + pipeline-view half only. `shortlists.
+    candidate_consented_at` already exists in the schema (from `0001_init`)
+    but nothing sets it yet.
+- **Still open — candidate-side, adjusted for the Sprint 8 override**: see
+  incoming shortlists, consent to unlock (`shortlists.candidate_consented_at`).
   Name/job title/location are already visible from search (per the
   founder override), so consent now unlocks **photo, video, and CV**
   specifically. Full contact details and the DBS certificate number stay

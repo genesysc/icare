@@ -142,6 +142,45 @@ employers.post("/me/verification-requests", async (c) => {
   return c.json({ verification_request: data });
 });
 
+// --- Pipeline (iRecruit) read view — Sprint 9 (partial) ---
+// Chat is the primary interface for shortlisting/moving stages (see
+// employer-chat.ts); this is a read-only supporting view so the employer
+// can actually see the pipeline the chat commands are building, not just
+// talk to it. candidate_search is reused for display fields rather than a
+// new view — same fields already shown pre-shortlist per non-negotiable #4.
+employers.get("/pipeline", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+
+  const { data: shortlistRows, error } = await supabase
+    .from("shortlists")
+    .select("candidate_id, stage, created_at, stage_updated_at")
+    .eq("employer_id", userId)
+    .order("stage_updated_at", { ascending: false });
+  if (error) return c.json({ error: error.message }, 400);
+
+  const candidateIds = (shortlistRows || []).map((r) => r.candidate_id);
+  const candidatesById: Record<string, unknown> = {};
+  if (candidateIds.length) {
+    const { data: candidateRows, error: candidatesError } = await supabase
+      .from("candidate_search")
+      .select("id, full_name, primary_profession, current_job_title, current_employer, town, postcode_district")
+      .in("id", candidateIds);
+    if (candidatesError) return c.json({ error: candidatesError.message }, 400);
+    for (const cand of candidateRows || []) candidatesById[cand.id] = cand;
+  }
+
+  const pipeline = (shortlistRows || []).map((r) => ({
+    candidate_id: r.candidate_id,
+    stage: r.stage,
+    created_at: r.created_at,
+    stage_updated_at: r.stage_updated_at,
+    candidate: candidatesById[r.candidate_id as string] || null,
+  }));
+
+  return c.json({ pipeline });
+});
+
 // --- Report a candidate post (Sprint 8 follow-up: candidate posts) ---
 // Posts have no pre-publish review by design — this is the only moderation
 // hook. flag_candidate_post() is security definer (checks is_verified_employer()

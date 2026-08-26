@@ -56,10 +56,17 @@ employerChat.use("*", requireAuth);
 
 const AVAILABILITY_STATES = ["available_now", "available_from", "open_to_offers", "not_looking"] as const;
 
+// Sprint 9 (partial, added same day as Sprint 8): shortlist + fixed
+// pipeline, via chat. stage is text + check-constrained in the DB (migration
+// 0016), not a native enum, specifically so the list below can be extended
+// later with a single constraint swap — founder asked for "provisions to
+// add more stages later" when confirming this fixed list.
+const PIPELINE_STAGES = ["shortlisted", "interview", "offer", "hired", "rejected"] as const;
+
 const SEARCH_TOOL = {
   name: "search_candidates",
   description:
-    "Search published, verified candidates by job-relevant criteria only: profession, clinical skills, location, travel radius, availability, and — optionally — a topic to look for in candidates' own posts/stories. " +
+    "Search published, verified candidates by job-relevant criteria only: profession, clinical skills, location, travel radius, availability, minimum experience, qualification level, and — optionally — a topic to look for in candidates' own posts/stories. " +
     "There is no field for age, sex, race, religion, disability, sexual orientation, or any other personal characteristic — never attempt to encode one here.",
   parameters: {
     type: "object",
@@ -70,9 +77,46 @@ const SEARCH_TOOL = {
       town: { type: "string", description: "Town or city to search near, if the employer named a location." },
       max_travel_radius_miles: { type: "number", description: "Maximum travel radius in miles, only if explicitly mentioned." },
       availability: { type: "string", description: "One of available_now, available_from, open_to_offers, not_looking — only if explicitly mentioned." },
+      min_experience_years: { type: "number", description: "Minimum total years of experience, only if the employer gave a number (e.g. '5 years experience')." },
+      qualification_type_id: { type: "string", description: "A single qualification type id from the allowed list, only if the employer named a specific qualification or level (e.g. a Level 2 or Level 3 diploma)." },
       post_topic: { type: "string", description: "A short keyword or topic to look for in candidates' own posts/stories, only if the employer explicitly asked to read about a specific experience, opinion, or story — never a personal characteristic." },
     },
   },
+};
+
+const SHORTLIST_TOOL = {
+  name: "shortlist_candidates",
+  description:
+    "Add candidates from the MOST RECENT search results in this conversation to the employer's shortlist, taken strictly in the order the search returned them — never chosen by judgment. " +
+    "Use this when the employer asks to shortlist some or all of the candidates just shown (e.g. 'shortlist 10 of them', 'shortlist all of them').",
+  parameters: {
+    type: "object",
+    required: [],
+    properties: {
+      count: { type: "number", description: "How many candidates to shortlist, in the order the last search returned them. Omit if the employer said 'all'." },
+      all: { type: "boolean", description: "True if the employer asked to shortlist all of the last search results." },
+    },
+  },
+};
+
+const MOVE_STAGE_TOOL = {
+  name: "move_candidate_stage",
+  description:
+    "Move one already-shortlisted candidate to a different pipeline stage. Only use a candidate_id copied exactly from the employer's current pipeline list in the system prompt — never invent or guess one.",
+  parameters: {
+    type: "object",
+    required: ["candidate_id", "stage"],
+    properties: {
+      candidate_id: { type: "string", description: "The candidate's id, copied exactly from the pipeline list in the system prompt." },
+      stage: { type: "string", enum: PIPELINE_STAGES as unknown as string[], description: "The stage to move them to." },
+    },
+  },
+};
+
+const PIPELINE_STATUS_TOOL = {
+  name: "get_pipeline_status",
+  description: "Report how many candidates the employer currently has at each pipeline stage. Use this when the employer asks about their pipeline, shortlist, or how many candidates are at a given stage.",
+  parameters: { type: "object", required: [], properties: {} },
 };
 
 const POST_SUMMARY_SYSTEM_PROMPT =
@@ -134,31 +178,54 @@ employerChat.post("/", async (c) => {
     .limit(10);
   const recentMessages = (history || []).reverse().map((m) => ({ role: m.role as string, content: m.content as string }));
 
-  const [professionsResult, skillsResult] = await Promise.all([
+  const [professionsResult, skillsResult, qualTypesResult, pipelineResult] = await Promise.all([
     supabase.from("professions").select("id, name, family"),
     supabase.from("clinical_skills").select("id, label, family"),
+    supabase.from("qualification_types").select("id, label"),
+    supabase.from("shortlists").select("candidate_id, stage").eq("employer_id", userId),
   ]);
   const professionIds = new Set((professionsResult.data || []).map((p) => p.id));
   const skillIds = new Set((skillsResult.data || []).map((s) => s.id));
+  const qualTypeIds = new Set((qualTypesResult.data || []).map((q) => q.id));
   const professionCatalogue = (professionsResult.data || []).map((p) => `${p.id}: ${p.name} (${p.family})`).join("\n");
   const skillCatalogue = (skillsResult.data || []).map((s) => `${s.id}: ${s.label} (${s.family})`).join("\n");
+  const qualTypeCatalogue = (qualTypesResult.data || []).map((q) => `${q.id}: ${q.label}`).join("\n");
+
+  const pipelineRows = pipelineResult.data || [];
+  const pipelineCandidateIdSet = new Set(pipelineRows.map((r) => r.candidate_id as string));
+  const pipelineNameById = new Map<string, string>();
+  if (pipelineCandidateIdSet.size) {
+    const { data: pipelineCandidates } = await supabase
+      .from("candidate_search")
+      .select("id, full_name")
+      .in("id", Array.from(pipelineCandidateIdSet));
+    for (const pc of pipelineCandidates || []) pipelineNameById.set(pc.id, pc.full_name);
+  }
+  const pipelineCatalogue =
+    pipelineRows.map((r) => `${r.candidate_id}: ${pipelineNameById.get(r.candidate_id as string) || "Candidate"} (${r.stage})`).join("\n") ||
+    "(empty — nobody shortlisted yet)";
 
   const systemPrompt =
-    "You help a verified UK healthcare/social-care employer search for candidates on iCare, entirely by calling the search_candidates tool. " +
-    "You never see or judge candidate data yourself — you only translate the employer's request into search filters; the platform runs the actual query. " +
-    "Only use profession_id/skill_ids from the allowed lists below — never invent one. " +
-    "If the employer's message doesn't describe what kind of candidate they want (a greeting, a question about how this works), reply conversationally and briefly instead of calling the tool — never claim to know about specific candidates without calling the tool. " +
+    "You help a verified UK healthcare/social-care employer search for and manage candidates on iCare, entirely by calling one of four tools: search_candidates, shortlist_candidates, move_candidate_stage, get_pipeline_status. " +
+    "You never see or judge candidate data yourself — you only translate the employer's request into the right tool call; the platform runs the actual query or update. " +
+    "Only use profession_id/skill_ids/qualification_type_id from the allowed lists below — never invent one. " +
+    "If the employer's message doesn't match any of these actions (a greeting, a question about how this works), reply conversationally and briefly instead of calling a tool — never claim to know about specific candidates or their pipeline without calling the right tool. " +
     "post_topic searches candidates' own posts/stories — use it only when the employer explicitly asks to read about a specific experience, opinion, or story, never to look for a personal characteristic. " +
-    "Never ask for, accept, or act on age, sex, race, religion, disability, sexual orientation, nationality, or any other personal characteristic — if a request implies one, decline that part and search only on what's left (profession, skills, location, availability, post topic).\n\n" +
+    "shortlist_candidates always takes from the MOST RECENT search results in this conversation, in the order returned — never pick specific individuals by judgment. " +
+    "move_candidate_stage and get_pipeline_status act on the employer's current pipeline, listed below — only ever describe or move candidates neutrally, never add opinion about any of them (no \"strong candidate\", \"good fit\", or similar, ever). " +
+    "Never ask for, accept, or act on age, sex, race, religion, disability, sexual orientation, nationality, or any other personal characteristic — if a request implies one, decline that part and search only on what's left (profession, skills, location, availability, experience, qualification, post topic).\n\n" +
     "Allowed professions (id: name (family)):\n" + professionCatalogue + "\n\n" +
-    "Allowed clinical skills (id: label (family)):\n" + skillCatalogue;
+    "Allowed clinical skills (id: label (family)):\n" + skillCatalogue + "\n\n" +
+    "Allowed qualification types (id: label):\n" + qualTypeCatalogue + "\n\n" +
+    "Pipeline stages, in order: " + PIPELINE_STAGES.join(", ") + "\n\n" +
+    "Employer's current pipeline (candidate_id: name (stage)):\n" + pipelineCatalogue;
 
   let toolCall: { name?: string; arguments?: Record<string, unknown> } | undefined;
   let modelReply = "";
   try {
     const result = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
       messages: [{ role: "system", content: systemPrompt }, ...recentMessages],
-      tools: [SEARCH_TOOL],
+      tools: [SEARCH_TOOL, SHORTLIST_TOOL, MOVE_STAGE_TOOL, PIPELINE_STATUS_TOOL],
       max_tokens: 600,
     });
     if (typeof result === "object" && result !== null) {
@@ -173,7 +240,102 @@ employerChat.post("/", async (c) => {
     return c.json({ error: errorMessage, reply: fallback, message_id: assistantRow?.id }, 500);
   }
 
-  if (!toolCall || toolCall.name !== "search_candidates") {
+  if (!toolCall) {
+    const reply = modelReply || "I'm not sure what you're looking for — try describing the role, skills, or location you need.";
+    const assistantRow = await saveAssistantMessage(supabase, userId, reply);
+    return c.json({ reply, results: null, message_id: assistantRow?.id });
+  }
+
+  if (toolCall.name === "shortlist_candidates") {
+    const { data: lastSearch } = await supabase
+      .from("employer_chat_messages")
+      .select("results_snapshot")
+      .eq("employer_id", userId)
+      .eq("role", "assistant")
+      .not("results_snapshot", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const lastResults = (lastSearch?.results_snapshot as { id: string }[] | null) || [];
+    if (lastResults.length === 0) {
+      const reply = "You don't have a recent search to shortlist from — try searching for candidates first.";
+      const assistantRow = await saveAssistantMessage(supabase, userId, reply);
+      return c.json({ reply, results: null, message_id: assistantRow?.id });
+    }
+
+    const shortlistArgs = toolCall.arguments || {};
+    const wantAll = shortlistArgs.all === true;
+    const requestedCount = typeof shortlistArgs.count === "number" && shortlistArgs.count > 0 ? Math.floor(shortlistArgs.count) : null;
+    const take = wantAll ? lastResults.length : requestedCount || lastResults.length;
+    const candidateIds = lastResults.slice(0, take).map((r) => r.id);
+
+    const { data: inserted, error: shortlistError } = await supabase
+      .from("shortlists")
+      .upsert(
+        candidateIds.map((candidate_id) => ({ employer_id: userId, candidate_id })),
+        { onConflict: "employer_id,candidate_id", ignoreDuplicates: true },
+      )
+      .select("candidate_id");
+    if (shortlistError) return c.json({ error: shortlistError.message }, 400);
+
+    const insertedCount = inserted?.length || 0;
+    const alreadyCount = candidateIds.length - insertedCount;
+    const reply =
+      insertedCount === 0
+        ? `All ${candidateIds.length} of those were already on your shortlist.`
+        : `Shortlisted ${insertedCount} candidate${insertedCount === 1 ? "" : "s"}` +
+          (alreadyCount > 0 ? ` (${alreadyCount} were already shortlisted)` : "") +
+          ". They're now in your pipeline — ask to see your pipeline status, or move someone to a different stage.";
+
+    const assistantRow = await saveAssistantMessage(supabase, userId, reply, {
+      tool_call: { count: requestedCount, all: wantAll },
+      result_count: insertedCount,
+    });
+    return c.json({ reply, results: null, message_id: assistantRow?.id });
+  }
+
+  if (toolCall.name === "move_candidate_stage") {
+    const moveArgs = toolCall.arguments || {};
+    const candidateId = typeof moveArgs.candidate_id === "string" ? moveArgs.candidate_id : null;
+    const stage = typeof moveArgs.stage === "string" && (PIPELINE_STAGES as readonly string[]).includes(moveArgs.stage) ? moveArgs.stage : null;
+
+    if (!candidateId || !stage || !pipelineCandidateIdSet.has(candidateId)) {
+      const reply = "I couldn't match that to someone in your current pipeline — try naming them again, or ask to see your pipeline first.";
+      const assistantRow = await saveAssistantMessage(supabase, userId, reply);
+      return c.json({ reply, results: null, message_id: assistantRow?.id });
+    }
+
+    const { error: moveError } = await supabase
+      .from("shortlists")
+      .update({ stage, stage_updated_at: new Date().toISOString() })
+      .eq("employer_id", userId)
+      .eq("candidate_id", candidateId);
+    if (moveError) return c.json({ error: moveError.message }, 400);
+
+    const candidateName = pipelineNameById.get(candidateId) || "the candidate";
+    const reply = `Moved ${candidateName} to ${stage}.`;
+    const assistantRow = await saveAssistantMessage(supabase, userId, reply, { tool_call: { candidate_id: candidateId, stage } });
+    return c.json({ reply, results: null, message_id: assistantRow?.id });
+  }
+
+  if (toolCall.name === "get_pipeline_status") {
+    const counts: Record<string, number> = { shortlisted: 0, interview: 0, offer: 0, hired: 0, rejected: 0 };
+    for (const r of pipelineRows) {
+      const stage = r.stage as string;
+      if (stage in counts) counts[stage] += 1;
+    }
+    const total = pipelineRows.length;
+    const reply =
+      total === 0
+        ? "Your pipeline is empty — search for candidates and shortlist some to get started."
+        : `Your pipeline (${total} total): ` + PIPELINE_STAGES.map((s) => `${counts[s]} ${s}`).join(", ") + ".";
+
+    const assistantRow = await saveAssistantMessage(supabase, userId, reply, { result_count: total });
+    return c.json({ reply, results: null, message_id: assistantRow?.id });
+  }
+
+  if (toolCall.name !== "search_candidates") {
     const reply = modelReply || "I'm not sure what you're looking for — try describing the role, skills, or location you need.";
     const assistantRow = await saveAssistantMessage(supabase, userId, reply);
     return c.json({ reply, results: null, message_id: assistantRow?.id });
@@ -194,6 +356,9 @@ employerChat.post("/", async (c) => {
     typeof args.availability === "string" && (AVAILABILITY_STATES as readonly string[]).includes(args.availability)
       ? args.availability
       : null;
+  const minExperienceYears = typeof args.min_experience_years === "number" && args.min_experience_years > 0 ? args.min_experience_years : null;
+  const qualificationTypeId =
+    typeof args.qualification_type_id === "string" && qualTypeIds.has(args.qualification_type_id) ? args.qualification_type_id : null;
   const postTopic = typeof args.post_topic === "string" && args.post_topic.trim() ? args.post_topic.trim().slice(0, 200) : null;
 
   // Post matching runs first (not just as a post-filter on candidate_search's
@@ -220,6 +385,8 @@ employerChat.post("/", async (c) => {
     if (town) query = query.ilike("town", `%${town}%`);
     if (maxRadius) query = query.lte("travel_radius_miles", maxRadius);
     if (availability) query = query.eq("availability", availability);
+    if (minExperienceYears) query = query.gte("experience_months", minExperienceYears * 12);
+    if (qualificationTypeId) query = query.contains("qualification_type_ids", [qualificationTypeId]);
     if (postTopic) query = query.in("id", Array.from(postByCandidateId.keys()));
 
     const { data, error: searchError } = await query.limit(25);
@@ -262,11 +429,20 @@ employerChat.post("/", async (c) => {
   const count = results.length;
   const reply =
     count === 0
-      ? "No candidates matched that search — try widening the location, skills, profession, or post topic."
-      : `Found ${count} candidate${count === 1 ? "" : "s"} matching your search.`;
+      ? "No candidates matched that search — try widening the location, skills, profession, experience, or qualification."
+      : `Found ${count} candidate${count === 1 ? "" : "s"} matching your search. Say "shortlist them" or "shortlist 10 of them" to add some to your pipeline.`;
 
   const assistantRow = await saveAssistantMessage(supabase, userId, reply, {
-    tool_call: { profession_id: professionId, skill_ids: requestedSkillIds, town, max_travel_radius_miles: maxRadius, availability, post_topic: postTopic },
+    tool_call: {
+      profession_id: professionId,
+      skill_ids: requestedSkillIds,
+      town,
+      max_travel_radius_miles: maxRadius,
+      availability,
+      min_experience_years: minExperienceYears,
+      qualification_type_id: qualificationTypeId,
+      post_topic: postTopic,
+    },
     result_count: count,
     results_snapshot: results,
   });
