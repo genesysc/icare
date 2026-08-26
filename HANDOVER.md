@@ -151,7 +151,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
-| `src/emails/waitlist-welcome.ts` | The actual welcome email subject/HTML, unused until `email.ts` is wired up |
+| `src/emails/waitlist-welcome.ts`, `employer-waitlist.ts`, `candidate-profile-published.ts`, `employer-verification-submitted.ts`, `employer-verified.ts` | Stage-completion email subject/HTML, all unused until `email.ts` is wired up (see §8 item 3). The first two are for the waitlist; the latter three are candidate/employer product-stage emails, added 2026-08-26 |
 | `src/landing.html` | Candidate waitlist landing page — single file, inline CSS/JS, GSAP via CDN |
 | `src/employers.html` | Employer waitlist landing page — separate design system, same self-contained pattern |
 | `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
@@ -168,14 +168,19 @@ stop and ask the user — do not resolve it yourself.**
 | `SPRINTS.md` | Forward-looking roadmap — candidate journey sprints, then employer journey sprints. Check here before picking "what's next" |
 | `AGENTS.md` / `CLAUDE.md` | Pointer files: read `PROGRESS.md` (and now this file) first, update before ending a session |
 
-No `supabase/migrations/*.sql` files exist in this repo — all Postgres
-migrations were applied directly to the live Supabase project via MCP
-tooling (`apply_migration`), not committed as files here. Migration
-history so far: `0001_init` through `0006_function_privileges` (from the
-original Next.js build, already in place when this build started),
-`0007_waitlist`, `0008_waitlist_details` (added by this build). **Worth
-deciding** whether to start mirroring these as files in this repo for
-version control — not yet done.
+**`supabase/migrations/*.sql` now mirrors the live database**
+(2026-08-26) — all 12 migrations to date (`0001_init` through
+`0012_employer_verification_multi_regulator`) are committed as files,
+fetched verbatim from `supabase_migrations.schema_migrations`
+(its `statements` column holds the exact SQL each migration ran). This
+is a point-in-time backup/version-control mirror, not a live sync —
+migrations are still applied to the real project via `apply_migration`
+(MCP) as before; **whoever adds a new migration going forward should
+also write the matching file here** to keep the mirror current, the
+same way this repo already expects `PROGRESS.md`/`HANDOVER.md` to be
+kept current by hand. Nothing here changes how `apply_migration` itself
+works — this is purely a "so it isn't only visible from inside
+Supabase" archive.
 
 ---
 
@@ -309,16 +314,25 @@ row plus `candidates`+`candidate_contact` or `employers`+
   already creates the `employers` row and an
   `employer_verification_requests` row automatically, so this needed no
   new backend routes.
-- **Employer verification flow** (`src/employers.ts`, Sprint 7):
-  `GET /employers/me` (own row + full verification-request history),
-  `POST /employers/me/verification-requests` (submit/re-submit a CQC
-  provider ID and/or Companies House number). `employers.is_verified`
-  itself is the real gate (`is_verified_employer()` RPC) and can only be
-  flipped by `service_role` — a DB trigger enforces this, so no client
-  path can self-verify even by bug. `employer-home.html` now shows a
-  real, data-driven verification card (4 states: none/pending/rejected/
-  verified) instead of Sprint 6's static line. Review stays manual via
-  the Supabase dashboard, same as qualifications/registrations.
+- **Employer verification flow** (`src/employers.ts`, Sprint 7,
+  corrected 2026-08-26): `GET /employers/me` (own row + full
+  verification-request history), `POST /employers/me/verification-
+  requests` (submit/re-submit). **A Companies House number is required**
+  — the real minimum bar per founder decision, since not every UK care
+  employer is CQC-registered (Scotland has Care Inspectorate, Northern
+  Ireland has RQIA, Wales has CIW). A care regulator + registration
+  number is optional supplementary evidence, required together if
+  either is given. `employers.is_verified` itself is the real gate
+  (`is_verified_employer()` RPC) and can only be flipped by
+  `service_role` — a DB trigger enforces this, so no client path can
+  self-verify even by bug. `employer-home.html` shows a real,
+  data-driven verification card (4 states: none/pending/rejected/
+  verified) instead of a static line, with a regulator dropdown that
+  reveals a registration-number field only when a regulator is picked.
+  Review stays manual via the Supabase dashboard, same as
+  qualifications/registrations. A confirmation email fires on
+  submission (content written, wired at the call site) — see §8 item 3
+  for why it doesn't actually send yet.
 - Landing pages: candidate-primary (`src/landing.html`) and employer
   (`src/employers.html`, v2, built against a real design/copy brief).
   Both waitlist-first pre-launch pages, not the real signed-in product.
@@ -348,9 +362,29 @@ deploy confirmation yet.
    Dashboard step.
 3. **Sender.net API integration itself** — `src/email.ts` has a stub with
    clear activation instructions in a comment, but the actual
-   transactional-send request was never written (blocked on #1 anyway).
-   Check current Sender.net API docs for the exact endpoint/payload
-   shape when this is picked up — don't guess at it.
+   transactional-send request was never written. **Genuinely tried to
+   unblock this on 2026-08-26**, not just left alone: the Sender MCP
+   connector disconnected mid-session (can't inspect the live account —
+   verified domains, templates, workflows), and `WebFetch` to
+   `api.sender.net`/`www.sender.net`/`developers.sender.net` all came
+   back `EGRESS_BLOCKED` from this sandbox's network proxy — the same
+   class of restriction that blocks `*.supabase.co` and
+   `api.anthropic.com` elsewhere. Did **not** guess the request shape to
+   route around it. What *is* done: three stage-completion email
+   templates (`src/emails/candidate-profile-published.ts`,
+   `employer-verification-submitted.ts`, `employer-verified.ts`) are
+   written and — for the two with a real trigger point — wired at their
+   call sites (`POST /candidates/me/publish` in `candidates.ts`,
+   `POST /employers/me/verification-requests` in `employers.ts`); both
+   calls go through the same safe no-op `sendTransactionalEmail()`, so
+   nothing breaks with sending still off. `employer-verified.ts` has
+   **no trigger to wire it to yet** — `is_verified` is only ever flipped
+   by a manual Supabase dashboard edit, no API call behind it — that
+   needs either a Postgres database webhook or a real admin review
+   route, a decision for the founder. To finish #3: reconnect the
+   Sender MCP (or paste the relevant API docs directly) so the actual
+   `fetch()` call in `email.ts` can be filled in against real docs, not
+   guessed.
 
 **Next, no particular blocker**
 
@@ -455,19 +489,30 @@ the hard constraints this must respect.
 - **`icare` domain** — not yet purchased/chosen. Blocks §8 item 1.
 - **Sender.net vs an alternative** for transactional email — decided in
   principle (Sender.net, as SMTP relay behind Supabase Auth for auth
-  emails; direct API for the waitlist welcome email), not yet executed.
-- **Whether to mirror Supabase migrations as files in this repo** — right
-  now the only record of schema history is Supabase's own migration
-  list, not version-controlled alongside the app code.
+  emails; direct API for stage-completion emails), not yet executed. See
+  §8 item 3 — the actual send call is still blocked on reaching
+  Sender.net's docs/account at all, not just the domain.
+- ~~Whether to mirror Supabase migrations as files in this repo~~ —
+  resolved 2026-08-26: yes, done. See §4.
+- ~~What "verified employer" actually requires~~ — resolved 2026-08-26,
+  founder decision: a Companies House number (proof of being a genuine
+  UK-registered company) is the real minimum bar and is now required to
+  submit for verification; a care-regulator registration (CQC/Care
+  Inspectorate Scotland/RQIA/CIW) is optional supplementary evidence,
+  since not every UK care employer has one. See §7's employer
+  verification entry and `SPRINTS.md` Sprint 7's correction note.
+- **Not the same question, still open**: whether *iCare itself* needs
+  Northern Ireland agency licensing to operate there (carried over from
+  the original Next.js build's handover, entity not yet incorporated).
+  Don't conflate this with the now-resolved employer-verification
+  question above — the founder's "not inclined to waste time on agency
+  licensing for Northern Ireland" comment was about what iCare requires
+  *of employers* during verification, not about iCare's own regulatory
+  status, which remains genuinely unresolved.
 - Carried over from the original Next.js build's handover, still
-  unresolved: Northern Ireland agency licensing (entity not yet
-  incorporated), retention period on closed accounts (`purge_after`
+  unresolved: retention period on closed accounts (`purge_after`
   currently defaults to 12 months, needs legal confirmation), two-factor
-  auth for employers (deferred until there are real shortlists), what
-  "verified employer" actually requires (CQC provider ID match is
-  strong, Companies House number weaker, email domain match weak —
-  currently would be a manual judgement call, no employer verification
-  flow exists yet to make it in).
+  auth for employers (deferred until there are real shortlists).
 
 ---
 
@@ -741,13 +786,31 @@ terms) — do not build against it from training-knowledge recall alone;
 research it properly first if/when the founder asks for automated
 verification.
 
+Three more things landed the same day (2026-08-26), from a founder
+follow-up message, not yet pushed as a PR:
+
+1. **Supabase migrations mirrored to the repo** — `supabase/migrations/`
+   now has all 12 real migrations as files, fetched verbatim from
+   `supabase_migrations.schema_migrations`. See §4.
+2. **Employer verification corrected to multi-regulator** — Companies
+   House number is now required (the real minimum bar per founder
+   decision); CQC/Care Inspectorate Scotland/RQIA/CIW is optional
+   supplementary evidence. Migration `0012`. See §7 and §12.
+3. **Stage-completion email templates written and wired** (candidate
+   profile published, employer verification submitted, employer
+   verified) — sending itself stays blocked; see §8 item 3 for the two
+   real blockers hit trying to unblock it this session (Sender MCP
+   disconnected, `WebFetch` egress-blocked to sender.net).
+
 **Next priorities**: Sprint 8 (chat infrastructure + candidate search —
 the foundation the rest of the employer track sits on). **Default to
 Workers AI for this too, not the Claude API** — the founder's cost
 objection above is a standing preference, not a one-off for CV import;
 check with the user before reaching for a metered third-party LLM API
 anywhere else in this build. Don't restart the domain/Sender.net work
-unless the user brings it back up.
+unless the user brings it back up — though reconnecting the Sender MCP
+connector would unblock item 3 above without touching the domain
+question at all.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.

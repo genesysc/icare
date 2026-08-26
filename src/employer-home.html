@@ -9,13 +9,21 @@
   Sprint 7 replaced the static "verification pending" line with a real
   verification card: GET /employers/me loads the employer's own row plus
   their verification-request history, and — while not yet verified — a
-  form posts to POST /employers/me/verification-requests (CQC provider ID
-  and/or Companies House number). employers.is_verified itself can only
-  be flipped by service_role (a DB trigger enforces this, confirmed by
-  reading its real SQL before building this route), so review stays
-  manual via the Supabase dashboard for now, same as Sprint 3's
-  qualifications/registrations. Sprint 8 replaces the rest of this page's
-  body with the chat interface.
+  form posts to POST /employers/me/verification-requests. employers.
+  is_verified itself can only be flipped by service_role (a DB trigger
+  enforces this, confirmed by reading its real SQL before building this
+  route), so review stays manual via the Supabase dashboard for now,
+  same as Sprint 3's qualifications/registrations. Sprint 8 replaces the
+  rest of this page's body with the chat interface.
+
+  Founder decision, 2026-08-26: not every UK care employer is CQC-
+  registered (Scotland has its own Care Inspectorate, Northern Ireland
+  has RQIA, Wales has CIW), and region-specific agency-licensing checks
+  were explicitly deprioritised. Companies House number is now the
+  REQUIRED field — the real minimum bar is being a genuine UK-registered
+  company. A care regulator + registration number is OPTIONAL
+  supplementary evidence, shown/required together only when the
+  employer picks a regulator from the dropdown.
 -->
 <!doctype html>
 <html lang="en">
@@ -92,11 +100,12 @@
   .field { margin-top: 16px; }
   .field:first-child { margin-top: 0; }
   .field label { display: block; font-size: 13px; font-weight: 600; color: var(--purple-dark); margin-bottom: 6px; }
-  .field input {
+  .field label .optional { font-weight: 500; color: var(--ink-faint); text-transform: none; letter-spacing: 0; }
+  .field input, .field select {
     width: 100%; padding: 11px 13px; border-radius: 10px; border: 1.5px solid var(--line);
     font-size: 14.5px; font-family: inherit; background: var(--white); color: var(--ink);
   }
-  .field input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-100); }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-100); }
   .field-hint { margin-top: 10px; font-size: 12.5px; color: var(--ink-faint); }
 
   .btn {
@@ -151,14 +160,24 @@
 
       <form class="verify-form" id="verify-form" data-verify-form>
         <div class="field">
-          <label for="cqc-id">CQC provider ID</label>
-          <input id="cqc-id" type="text" placeholder="e.g. 1-000000000" autocomplete="off" />
-        </div>
-        <div class="field">
           <label for="ch-no">Companies House number</label>
           <input id="ch-no" type="text" placeholder="e.g. 12345678" autocomplete="off" />
         </div>
-        <p class="field-hint">Provide at least one — a CQC provider ID is the strongest signal we can check.</p>
+        <div class="field">
+          <label for="care-regulator">Care regulator <span class="optional">(optional)</span></label>
+          <select id="care-regulator">
+            <option value="">Not registered with a care regulator</option>
+            <option value="cqc">CQC (England)</option>
+            <option value="care_inspectorate_scotland">Care Inspectorate (Scotland)</option>
+            <option value="rqia">RQIA (Northern Ireland)</option>
+            <option value="ciw">CIW (Wales)</option>
+          </select>
+        </div>
+        <div class="field" data-regulator-reg-field style="display:none;">
+          <label for="regulator-reg-no">Registration number</label>
+          <input id="regulator-reg-no" type="text" placeholder="e.g. 1-000000000" autocomplete="off" />
+        </div>
+        <p class="field-hint">Your Companies House number is required — it's what confirms you're a genuine UK-registered company. If you're also registered with a care regulator, add that too; not every care employer is.</p>
         <button type="submit" class="btn" data-verify-submit>Submit for verification</button>
       </form>
       <p class="form-status" data-verify-form-status></p>
@@ -230,6 +249,11 @@ function icareRequireAuth(signInPath) {
     expired: "Expired — please resubmit",
   };
 
+  function syncRegulatorRegField() {
+    var hasRegulator = !!document.getElementById("care-regulator").value;
+    document.querySelector("[data-regulator-reg-field]").style.display = hasRegulator ? "block" : "none";
+  }
+
   function renderVerification(employer, latestRequest) {
     document.querySelector("[data-verify-loading]").style.display = "none";
     document.querySelector("[data-verify-block]").style.display = "block";
@@ -242,14 +266,14 @@ function icareRequireAuth(signInPath) {
     statusRow.className = "status-row";
     reviewerNote.style.display = "none";
 
-    var hasIdentifier = latestRequest && (latestRequest.cqc_provider_id || latestRequest.companies_house_no);
+    var hasIdentifier = latestRequest && latestRequest.companies_house_no;
 
     if (employer.is_verified) {
       statusText.textContent = "Verified — your organisation is confirmed";
       form.style.display = "none";
     } else if (!hasIdentifier) {
       statusRow.classList.add("status-row-pending");
-      statusText.textContent = "Add your CQC provider ID or Companies House number to start verification";
+      statusText.textContent = "Add your Companies House number to start verification";
       form.style.display = "block";
     } else if (latestRequest.status === "rejected" || latestRequest.status === "expired") {
       statusRow.classList.add("status-row-rejected");
@@ -266,8 +290,10 @@ function icareRequireAuth(signInPath) {
     }
 
     if (!employer.is_verified) {
-      document.getElementById("cqc-id").value = employer.cqc_provider_id || "";
-      document.getElementById("ch-no").value = (latestRequest && latestRequest.companies_house_no) || "";
+      document.getElementById("ch-no").value = employer.companies_house_no || "";
+      document.getElementById("care-regulator").value = employer.regulator || "";
+      document.getElementById("regulator-reg-no").value = employer.regulator_reg_number || "";
+      syncRegulatorRegField();
     }
   }
 
@@ -305,15 +331,23 @@ function icareRequireAuth(signInPath) {
       // Non-fatal — the generic greeting still reads fine without a name.
     });
 
+  document.getElementById("care-regulator").addEventListener("change", syncRegulatorRegField);
+
   document.querySelector("[data-verify-form]").addEventListener("submit", function (e) {
     e.preventDefault();
-    var cqcId = document.getElementById("cqc-id").value.trim();
     var chNo = document.getElementById("ch-no").value.trim();
+    var regulator = document.getElementById("care-regulator").value;
+    var regulatorRegNo = document.getElementById("regulator-reg-no").value.trim();
     var statusEl = document.querySelector("[data-verify-form-status]");
     var submitBtn = document.querySelector("[data-verify-submit]");
 
-    if (!cqcId && !chNo) {
-      statusEl.textContent = "Provide a CQC provider ID or Companies House number.";
+    if (!chNo) {
+      statusEl.textContent = "Companies House number is required.";
+      statusEl.className = "form-status is-visible err";
+      return;
+    }
+    if (regulator && !regulatorRegNo) {
+      statusEl.textContent = "Add your registration number, or clear the care regulator field.";
       statusEl.className = "form-status is-visible err";
       return;
     }
@@ -325,7 +359,7 @@ function icareRequireAuth(signInPath) {
     icareAuthFetch("/employers/me/verification-requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cqc_provider_id: cqcId, companies_house_no: chNo }),
+      body: JSON.stringify({ companies_house_no: chNo, regulator: regulator, regulator_reg_number: regulatorRegNo }),
     })
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
       .then(function (result) {

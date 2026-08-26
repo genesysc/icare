@@ -1,12 +1,16 @@
 import { Hono } from "hono";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
+import { sendTransactionalEmail } from "./email";
+import { candidateProfilePublishedEmail } from "./emails/candidate-profile-published";
 
 type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
   MEDIA: R2Bucket;
   AI: Ai;
+  SENDER_API_KEY?: string;
+  SENDER_FROM_EMAIL?: string;
 };
 
 type Variables = {
@@ -137,8 +141,21 @@ candidates.post("/me/onboarding/complete", async (c) => {
 });
 
 candidates.post("/me/publish", async (c) => {
-  const { data, error } = await c.get("supabase").rpc("publish_my_profile");
+  const supabase = c.get("supabase");
+  const { data, error } = await supabase.rpc("publish_my_profile");
   if (error) return c.json({ error: error.message }, 400);
+
+  if (data) {
+    const { data: account } = await supabase.from("accounts").select("full_name, email").eq("id", c.get("userId")).single();
+    if (account) {
+      const { subject, html } = candidateProfilePublishedEmail({
+        fullName: account.full_name,
+        dashboardUrl: new URL(c.req.url).origin + "/dashboard",
+      });
+      await sendTransactionalEmail(c.env, account.email, subject, html);
+    }
+  }
+
   return c.json({ published: data });
 });
 

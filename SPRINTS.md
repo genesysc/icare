@@ -382,16 +382,34 @@ reviewing/completing that request, not creating it from scratch.
   there's no unique constraint on `employer_id` confirming multiple rows
   per employer is the intended design.
   - `GET /employers/me` — the employer's own row (`org_name`,
-    `cqc_provider_id`, `is_verified`) plus their full verification-
-    request history, newest first.
+    `companies_house_no`, `regulator`, `regulator_reg_number`,
+    `is_verified`) plus their full verification-request history, newest
+    first.
   - `POST /employers/me/verification-requests` — submits (or
-    re-submits) for review. Requires at least one of CQC provider ID /
-    Companies House number. `submitted_org_name`/`submitted_email` are
-    stamped server-side from the employer's own current record, never
-    trusted from the client (same philosophy as the DBS route's
-    server-stamped `consent_given_at`). If a CQC provider ID is
-    supplied, also updates the current `employers.cqc_provider_id` so
-    the "claimed" value and the latest submission stay in sync.
+    re-submits) for review. **Companies House number is required**; a
+    care regulator + registration number are optional supplementary
+    evidence, required together if either is given. `submitted_org_name`/
+    `submitted_email` are stamped server-side from the employer's own
+    current record, never trusted from the client (same philosophy as
+    the DBS route's server-stamped `consent_given_at`). Always updates
+    the current `employers.companies_house_no` (and `regulator`/
+    `regulator_reg_number` if given) so the "claimed" values and the
+    latest submission stay in sync.
+
+  **⚠️ Correction, 2026-08-26** (superseding the original design above):
+  shipped CQC-only — "at least one of CQC provider ID or Companies House
+  number." Founder feedback the same day: not every UK care employer is
+  CQC-registered (Scotland's Care Inspectorate, Northern Ireland's RQIA,
+  Wales's CIW cover the same ground in their nations), and region-
+  specific agency-licensing checks were explicitly deprioritised —
+  "carry them on as long as they are a UK based company with companies
+  house registration." Migration `0012_employer_verification_multi_
+  regulator` renamed `cqc_provider_id` → `regulator_reg_number` and
+  added a `regulator` enum (`cqc` / `care_inspectorate_scotland` /
+  `rqia` / `ciw`) on both `employers` and `employer_verification_
+  requests`, plus a new `companies_house_no` column directly on
+  `employers`. Companies House number is now the required field; the
+  bullets above already reflect the corrected behavior.
 - **UI** (`src/employer-home.html`, replacing the Sprint 6 static
   "pending" line): a real verification card driven by `GET
   /employers/me` — a distinct visual state (and copy) for no-identifier-

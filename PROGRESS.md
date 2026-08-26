@@ -1471,6 +1471,118 @@ they aren't lost:
     didn't change) was re-run and still passes end-to-end.
   - Committed and pushed to the branch. Not yet its own PR — will fold
     into whichever PR comes next unless asked to ship separately.
+- **PR #16 merged** (squash into `main`, `mergeable_state` confirmed
+  `clean`), the user asked directly for the merge. CI deploy run #17
+  (https://github.com/genesysc/icare/actions/runs/33004189020)
+  confirmed `success`. Branch restarted from `main` per convention.
+  Directly answered a question about CQC verification the user asked in
+  the same turn: it's currently fully manual (submit → pending →
+  human confirms via a raw Supabase dashboard edit), and CQC's public
+  API existence is unverified in any session so far — flagged rather
+  than guessed at.
+- **Supabase migrations mirrored to the repo, employer verification
+  corrected to multi-regulator, and stage-completion email templates
+  written** — three pieces of follow-up work from one founder message
+  covering emails, migrations, employer verification scope, and asking
+  for a status check.
+  - **Migration mirroring**: fetched all 11 then-existing migrations'
+    real SQL verbatim from `supabase_migrations.schema_migrations`
+    (its `statements` array column holds the exact text each migration
+    ran) and wrote them to `supabase/migrations/<version>_<name>.sql`,
+    matching the exact filename convention the Supabase CLI itself
+    uses. Wrote migration `0001_init` directly to establish the
+    pattern, then delegated the mechanical repeat-11-times fetch-and-
+    write work for `0002`-`0011` to a background agent — a
+    well-defined, judgment-free task, so protecting this session's own
+    context for the two more involved pieces below was the right call.
+    The agent completed cleanly, correctly noticed and left alone the
+    `0012` migration (below) that hadn't existed when it was briefed,
+    and flagged that instead of silently working around it.
+  - **Employer verification generalised beyond CQC**: the founder's
+    message pointed out two real gaps in Sprint 7's original design in
+    one breath — deprioritising Northern-Ireland-specific agency
+    licensing entirely ("carry them on as long as they are a UK based
+    company with companies house registration"), and that CQC isn't
+    universal across the UK ("Scotland's Care Inspectorate and N.
+    Ireland's RQIA"). Read this as: Companies House registration is the
+    real minimum bar going forward, not region-specific care-regulator
+    licensing — and added Wales's CIW to the enum for completeness
+    (the product is UK-wide; flagged this addition explicitly since the
+    user only named three of the four home nations' regulators).
+    Migration `0012_employer_verification_multi_regulator`: renamed
+    `cqc_provider_id` → `regulator_reg_number` on both `employers` and
+    `employer_verification_requests` (same generalised meaning, just
+    correctly named), added a `care_regulator` enum (`cqc` /
+    `care_inspectorate_scotland` / `rqia` / `ciw`) on both, and added
+    `companies_house_no` directly on `employers` (mirroring the
+    existing "current claimed value on employers, audit trail on
+    requests" pattern the old `cqc_provider_id` column already used).
+    `src/employers.ts`'s `POST /me/verification-requests` now requires
+    `companies_house_no` and treats `regulator`/`regulator_reg_number`
+    as optional-but-paired (reject if only one of the two is given).
+    `employer-home.html`'s form reordered to put Companies House number
+    first, added a care-regulator `<select>` with a
+    registration-number field that only appears once a regulator is
+    picked. **A real bug caught by re-running the Playwright suite
+    against the new form**: setting the HTML `required` attribute on
+    the conditionally-required registration-number field triggered the
+    browser's own native constraint-validation UI, which intercepts
+    form submission *before* the page's JS `submit` handler ever runs —
+    meaning the custom, branded error messages (matching how every
+    other form in this app validates) were silently unreachable dead
+    code. Fixed by dropping the native `required` attributes and
+    relying entirely on the existing JS validation path, consistent
+    with the rest of the codebase. Re-verified: all 8 Playwright
+    scenarios (four render states, the regulator-reveals-field toggle,
+    three submit-validation paths including the newly-fixed one) pass,
+    plus a 5-viewport overflow audit on the longest-content state.
+  - **Stage-completion emails**: the founder pushed back specifically on
+    *how* — not *whether* — CV parsing used an LLM (a separate
+    conversation this session), and separately asked to "check if you
+    can build and customize emails for each stage completion." Wrote
+    three new templates in `src/emails/` (`candidate-profile-
+    published.ts`, `employer-verification-submitted.ts`,
+    `employer-verified.ts`), matching the existing
+    `waitlist-welcome.ts` pattern (a typed data object in, `{subject,
+    html}` out, inline-styled table-based HTML for email-client
+    compatibility) and each page's own design system (candidate
+    plum/teal vs. employer purple/teal). Wired the two with a genuine
+    trigger point at their call sites, using the existing safe no-op
+    `sendTransactionalEmail()` so nothing breaks with sending still
+    off: `POST /candidates/me/publish` now emails the candidate once
+    `publish_my_profile()` actually returns true, and `POST /employers/
+    me/verification-requests` now emails a submission confirmation
+    with the exact Companies House number and (if given) regulator
+    that was recorded. `employer-verified.ts` is written but
+    **deliberately not wired** — flagged rather than silently built
+    as if it worked: `employers.is_verified` is only ever flipped by a
+    manual Supabase dashboard edit today, with no API call behind it to
+    hook a send into; firing this automatically needs either a Postgres
+    database webhook or a real admin review route, a decision for the
+    founder, not assumed here.
+    **Genuinely tried to fill in the actual Sender.net API call** in
+    `src/email.ts` (not just left the stub alone) and hit two real,
+    independent blockers: the Sender MCP connector had disconnected
+    mid-session (confirmed via `ToolSearch` returning no matches, and
+    the disconnect notice earlier in the transcript), so the live
+    account (verified domains, templates, workflows) couldn't be
+    inspected; and `WebFetch` to `api.sender.net`, `www.sender.net`,
+    and `developers.sender.net` all returned `EGRESS_BLOCKED` from this
+    sandbox's network proxy — the same class of restriction that blocks
+    `*.supabase.co` and `api.anthropic.com` elsewhere in this build.
+    Did not guess Sender.net's request shape to route around this —
+    that would have violated the exact "don't guess API usage, verify
+    it" discipline this session has followed for Supabase RLS, Cloudflare
+    Workers AI, and everything else. `src/email.ts`'s comment documents
+    both blockers precisely so the next person picking this up doesn't
+    waste time re-discovering them.
+  - **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly throughout. The three new email templates were
+    sanity-checked directly in Node (via `npx tsx`) — confirmed each
+    renders without throwing, correctly substitutes the given data, and
+    the conditional regulator block in the verification-submitted email
+    renders correctly both with and without a regulator present.
+  - Committed and pushed to the branch. Not yet its own PR.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

@@ -1,10 +1,14 @@
 import { Hono } from "hono";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
+import { sendTransactionalEmail } from "./email";
+import { employerVerificationSubmittedEmail } from "./emails/employer-verification-submitted";
 
 type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
+  SENDER_API_KEY?: string;
+  SENDER_FROM_EMAIL?: string;
 };
 
 type Variables = {
@@ -29,16 +33,35 @@ employers.use("*", requireAuth);
 // submission is a new row, not an edit of a previous one. Review itself
 // stays manual (Supabase dashboard) for now, same as Sprint 3's
 // qualifications/registrations — no admin UI in this sprint.
+//
+// Founder decision, 2026-08-26 (superseding the original CQC-only design):
+// not every UK care employer is CQC-registered — Scotland has its own Care
+// Inspectorate, Northern Ireland has RQIA, Wales has CIW — and the founder
+// explicitly deprioritised region-specific agency-licensing checks. The
+// real minimum bar is a Companies House number (proof of being a genuine
+// UK-registered company), which is now REQUIRED to submit for verification.
+// A care-regulator registration (regulator + regulator_reg_number) is
+// OPTIONAL supplementary evidence, collected only when the employer
+// actually has one — required together if either is given, never required
+// on its own.
+
+const CARE_REGULATORS = ["cqc", "care_inspectorate_scotland", "rqia", "ciw"] as const;
+const CARE_REGULATOR_LABELS: Record<string, string> = {
+  cqc: "CQC (England)",
+  care_inspectorate_scotland: "Care Inspectorate (Scotland)",
+  rqia: "RQIA (Northern Ireland)",
+  ciw: "CIW (Wales)",
+};
 
 employers.get("/me", async (c) => {
   const supabase = c.get("supabase");
   const userId = c.get("userId");
 
   const [employerResult, requestsResult] = await Promise.all([
-    supabase.from("employers").select("id, org_name, cqc_provider_id, is_verified, created_at").eq("id", userId).single(),
+    supabase.from("employers").select("id, org_name, companies_house_no, regulator, regulator_reg_number, is_verified, created_at").eq("id", userId).single(),
     supabase
       .from("employer_verification_requests")
-      .select("id, submitted_org_name, submitted_email, cqc_provider_id, companies_house_no, status, reviewer_note, reviewed_at, created_at")
+      .select("id, submitted_org_name, submitted_email, companies_house_no, regulator, regulator_reg_number, status, reviewer_note, reviewed_at, created_at")
       .eq("employer_id", userId)
       .order("created_at", { ascending: false }),
   ]);
@@ -53,31 +76,41 @@ employers.get("/me", async (c) => {
   });
 });
 
-// Submits (or re-submits) for verification review. Requires at least one
-// identifier. submitted_org_name/submitted_email are stamped server-side
-// from the employer's own current record — never trusted from the
-// client — same philosophy as the DBS route's server-stamped
-// consent_given_at.
+// Submits (or re-submits) for verification review. Companies House number is
+// required; regulator + regulator_reg_number are optional but must be given
+// together. submitted_org_name/submitted_email are stamped server-side from
+// the employer's own current record — never trusted from the client — same
+// philosophy as the DBS route's server-stamped consent_given_at.
 employers.post("/me/verification-requests", async (c) => {
   const body = await c.req.json();
-  const cqcProviderId = typeof body.cqc_provider_id === "string" ? body.cqc_provider_id.trim() : "";
   const companiesHouseNo = typeof body.companies_house_no === "string" ? body.companies_house_no.trim() : "";
+  const regulator = typeof body.regulator === "string" ? body.regulator.trim() : "";
+  const regulatorRegNumber = typeof body.regulator_reg_number === "string" ? body.regulator_reg_number.trim() : "";
 
-  if (!cqcProviderId && !companiesHouseNo) {
-    return c.json({ error: "Provide a CQC provider ID or Companies House number" }, 400);
+  if (!companiesHouseNo) {
+    return c.json({ error: "Companies House number is required" }, 400);
+  }
+  if (regulator && !(CARE_REGULATORS as readonly string[]).includes(regulator)) {
+    return c.json({ error: "Unrecognised care regulator" }, 400);
+  }
+  if ((regulator && !regulatorRegNumber) || (!regulator && regulatorRegNumber)) {
+    return c.json({ error: "Provide both a care regulator and a registration number, or leave both blank" }, 400);
   }
 
   const supabase = c.get("supabase");
   const userId = c.get("userId");
 
-  if (cqcProviderId) {
-    const { error: updateError } = await supabase.from("employers").update({ cqc_provider_id: cqcProviderId }).eq("id", userId);
-    if (updateError) return c.json({ error: updateError.message }, 400);
+  const employerUpdate: Record<string, string | null> = { companies_house_no: companiesHouseNo };
+  if (regulator) {
+    employerUpdate.regulator = regulator;
+    employerUpdate.regulator_reg_number = regulatorRegNumber;
   }
+  const { error: updateError } = await supabase.from("employers").update(employerUpdate).eq("id", userId);
+  if (updateError) return c.json({ error: updateError.message }, 400);
 
   const [employerResult, accountResult] = await Promise.all([
     supabase.from("employers").select("org_name").eq("id", userId).single(),
-    supabase.from("accounts").select("email").eq("id", userId).single(),
+    supabase.from("accounts").select("full_name, email").eq("id", userId).single(),
   ]);
   if (employerResult.error) return c.json({ error: employerResult.error.message }, 400);
   if (accountResult.error) return c.json({ error: accountResult.error.message }, 400);
@@ -88,13 +121,24 @@ employers.post("/me/verification-requests", async (c) => {
       employer_id: userId,
       submitted_org_name: employerResult.data.org_name,
       submitted_email: accountResult.data.email,
-      cqc_provider_id: cqcProviderId || null,
-      companies_house_no: companiesHouseNo || null,
+      companies_house_no: companiesHouseNo,
+      regulator: regulator || null,
+      regulator_reg_number: regulatorRegNumber || null,
     })
-    .select("id, submitted_org_name, submitted_email, cqc_provider_id, companies_house_no, status, reviewer_note, reviewed_at, created_at")
+    .select("id, submitted_org_name, submitted_email, companies_house_no, regulator, regulator_reg_number, status, reviewer_note, reviewed_at, created_at")
     .single();
 
   if (error) return c.json({ error: error.message }, 400);
+
+  const { subject, html } = employerVerificationSubmittedEmail({
+    fullName: accountResult.data.full_name,
+    orgName: employerResult.data.org_name,
+    companiesHouseNo,
+    regulatorLabel: regulator ? CARE_REGULATOR_LABELS[regulator] : null,
+    homeUrl: new URL(c.req.url).origin + "/employer/home",
+  });
+  await sendTransactionalEmail(c.env, accountResult.data.email, subject, html);
+
   return c.json({ verification_request: data });
 });
 
