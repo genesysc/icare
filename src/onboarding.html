@@ -49,6 +49,12 @@
     --err: #b23a24;
     --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
   }
+  @media (prefers-reduced-motion: no-preference) {
+    ::view-transition-old(root), ::view-transition-new(root) {
+      animation-duration: 0.32s;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0; min-height: 100vh;
@@ -70,7 +76,7 @@
   .wrap { max-width: 600px; margin: 0 auto; padding: 12px 24px 80px; }
 
   .steps { display: flex; gap: 8px; margin-bottom: 32px; }
-  .step-dot { flex: 1; height: 4px; border-radius: 999px; background: var(--line); }
+  .step-dot { flex: 1; height: 4px; border-radius: 999px; background: var(--line); transition: background-color 0.3s ease; }
   .step-dot.is-done { background: var(--teal-500); }
   .step-dot.is-current { background: var(--plum-800); }
   .step-current-label {
@@ -120,13 +126,15 @@
   @media (max-width: 480px) { .two-col { grid-template-columns: 1fr; } }
 
   .actions { margin-top: 30px; display: flex; gap: 12px; justify-content: space-between; }
-  .btn { padding: 13px 24px; border-radius: 999px; font-weight: 700; font-size: 15px; cursor: pointer; border: none; transition: background 0.2s ease; }
+  .btn { padding: 13px 24px; border-radius: 999px; font-weight: 700; font-size: 15px; cursor: pointer; border: none; transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease; }
   .btn-primary { background: var(--teal-500); color: var(--white); }
-  .btn-primary:hover { background: var(--teal-700); }
-  .btn-primary:disabled { opacity: 0.6; cursor: default; }
+  .btn-primary:hover { background: var(--teal-700); transform: translateY(-1px); box-shadow: 0 10px 22px -12px rgba(14, 140, 127, 0.55); }
+  .btn-primary:active { transform: translateY(0) scale(0.98); }
+  .btn-primary:disabled { opacity: 0.6; cursor: default; transform: none; box-shadow: none; }
   .btn-ghost { background: transparent; color: var(--ink-faint); }
   .btn-ghost:hover { color: var(--plum-950); }
   .btn-ghost:disabled { visibility: hidden; }
+  @media (prefers-reduced-motion: reduce) { .btn { transition: background 0.2s ease; } .btn-primary:hover { transform: none; } }
 
   .status { margin-top: 14px; font-size: 13.5px; display: none; }
   .status.is-visible { display: block; }
@@ -144,7 +152,9 @@
   .record-card {
     border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px;
     display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 12px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
+  .record-card:hover { border-color: var(--teal-500); box-shadow: 0 10px 26px -18px rgba(36, 21, 51, 0.3); }
   .record-main { flex: 1 1 180px; min-width: 0; }
   .record-title { font-size: 14.5px; font-weight: 700; color: var(--plum-950); }
   .record-sub { margin-top: 3px; font-size: 13px; color: var(--ink-faint); }
@@ -167,17 +177,23 @@
   .add-record-btn {
     margin-top: 14px; background: none; border: 1.5px dashed var(--line); border-radius: 12px;
     padding: 12px; width: 100%; text-align: center; font-weight: 600; font-size: 14px;
-    color: var(--teal-700); cursor: pointer;
+    color: var(--teal-700); cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease;
   }
   .add-record-btn:hover { border-color: var(--teal-500); background: var(--teal-100); }
 
-  .record-form { display: none; margin-top: 16px; padding: 16px; border-radius: 12px; background: var(--paper-dim); }
-  .record-form.is-open { display: block; }
+  .record-form {
+    max-height: 0; opacity: 0; overflow: hidden; margin-top: 0; padding: 0 16px;
+    border-radius: 12px; background: var(--paper-dim);
+    transition: max-height 0.4s ease, opacity 0.3s ease, margin-top 0.35s ease, padding 0.35s ease;
+  }
+  .record-form.is-open { max-height: 900px; opacity: 1; margin-top: 16px; padding: 16px; }
+  @media (prefers-reduced-motion: reduce) { .record-form { transition: none; } }
   .record-form-actions { margin-top: 16px; display: flex; gap: 10px; }
-  .btn-small { padding: 9px 18px; border-radius: 999px; font-weight: 700; font-size: 13.5px; cursor: pointer; border: none; }
+  .btn-small { padding: 9px 18px; border-radius: 999px; font-weight: 700; font-size: 13.5px; cursor: pointer; border: none; transition: background 0.2s ease, transform 0.15s ease; }
   .btn-small.btn-primary { background: var(--teal-500); color: var(--white); }
-  .btn-small.btn-primary:hover { background: var(--teal-700); }
-  .btn-small.btn-primary:disabled { opacity: 0.6; cursor: default; }
+  .btn-small.btn-primary:hover { background: var(--teal-700); transform: translateY(-1px); }
+  .btn-small.btn-primary:active { transform: translateY(0) scale(0.98); }
+  .btn-small.btn-primary:disabled { opacity: 0.6; cursor: default; transform: none; }
   .btn-small.btn-ghost { background: transparent; color: var(--ink-faint); }
   .btn-small.btn-ghost:hover { color: var(--plum-950); }
   .form-err { margin-top: 10px; font-size: 13px; color: var(--err); display: none; }
@@ -216,16 +232,18 @@
   @media (max-width: 480px) { .cv-choice { grid-template-columns: 1fr; } }
   .cv-choice-btn {
     text-align: left; padding: 18px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--white);
-    cursor: pointer; font-family: inherit;
+    cursor: pointer; font-family: inherit; transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
   }
-  .cv-choice-btn:hover { border-color: var(--teal-500); background: var(--teal-100); }
+  .cv-choice-btn:hover { border-color: var(--teal-500); background: var(--teal-100); transform: translateY(-2px); box-shadow: 0 14px 30px -20px rgba(36, 21, 51, 0.35); }
+  @media (prefers-reduced-motion: reduce) { .cv-choice-btn:hover { transform: none; } }
   .cv-choice-btn.is-primary { border-color: var(--teal-500); background: var(--teal-100); }
   .cv-choice-title { font-size: 15.5px; font-weight: 700; color: var(--plum-950); }
   .cv-choice-sub { margin-top: 4px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; }
-  .cv-upload-zone { display: none; margin-top: 22px; }
-  .cv-upload-zone.is-open { display: block; }
-  .cv-parsing { display: none; margin-top: 22px; text-align: center; padding: 30px 0; }
-  .cv-parsing.is-visible { display: block; }
+  .cv-upload-zone { max-height: 0; opacity: 0; overflow: hidden; margin-top: 0; transition: max-height 0.4s ease, opacity 0.3s ease, margin-top 0.35s ease; }
+  .cv-upload-zone.is-open { max-height: 400px; opacity: 1; margin-top: 22px; }
+  .cv-parsing { max-height: 0; opacity: 0; overflow: hidden; text-align: center; transition: max-height 0.4s ease, opacity 0.3s ease, margin-top 0.35s ease, padding 0.35s ease; margin-top: 0; padding: 0; }
+  .cv-parsing.is-visible { max-height: 200px; opacity: 1; margin-top: 22px; padding: 30px 0; }
+  @media (prefers-reduced-motion: reduce) { .cv-upload-zone, .cv-parsing { transition: none; } }
   .cv-spinner {
     width: 28px; height: 28px; margin: 0 auto; border-radius: 999px; border: 3px solid var(--line);
     border-top-color: var(--teal-500); animation: cv-spin 0.8s linear infinite;
@@ -871,7 +889,15 @@ function icareRequireAuth(signInPath) {
     5: "Qualifications", 6: "Registration", 7: "DBS & consent",
     8: "References", 9: "Your own words", 10: "Photo", 11: "Review & publish",
   };
-  function showStep(step) {
+  function withTransition(fn) {
+    var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (document.startViewTransition && !reduced) {
+      document.startViewTransition(fn);
+    } else {
+      fn();
+    }
+  }
+  function applyStep(step) {
     currentStep = step;
     document.querySelectorAll("[data-panel]").forEach(function (p) {
       p.classList.toggle("is-active", p.getAttribute("data-panel") === String(step));
@@ -886,6 +912,9 @@ function icareRequireAuth(signInPath) {
     if (step === 10) renderPhotoPreview();
     if (step === 11) loadReviewSummary();
     window.scrollTo(0, 0);
+  }
+  function showStep(step) {
+    withTransition(function () { applyStep(step); });
   }
 
   function renderProfessions(selectedIds, primaryId) {
@@ -992,15 +1021,19 @@ function icareRequireAuth(signInPath) {
   };
 
   function showCvIntro() {
-    document.querySelector("[data-cv-intro]").style.display = "block";
-    document.querySelector("[data-cv-review]").style.display = "none";
-    document.querySelector("[data-wizard-shell]").style.display = "none";
+    withTransition(function () {
+      document.querySelector("[data-cv-intro]").style.display = "block";
+      document.querySelector("[data-cv-review]").style.display = "none";
+      document.querySelector("[data-wizard-shell]").style.display = "none";
+    });
   }
   function showWizardShell(resumeStep) {
-    document.querySelector("[data-cv-intro]").style.display = "none";
-    document.querySelector("[data-cv-review]").style.display = "none";
-    document.querySelector("[data-wizard-shell]").style.display = "block";
-    showStep(resumeStep);
+    withTransition(function () {
+      document.querySelector("[data-cv-intro]").style.display = "none";
+      document.querySelector("[data-cv-review]").style.display = "none";
+      document.querySelector("[data-wizard-shell]").style.display = "block";
+      applyStep(resumeStep);
+    });
   }
   function resetCvIntroState() {
     document.querySelector("[data-cv-choice]").style.display = "grid";
@@ -1025,9 +1058,11 @@ function icareRequireAuth(signInPath) {
   }
 
   function showCvReview(parsed, sensitiveFound) {
-    document.querySelector("[data-cv-intro]").style.display = "none";
-    document.querySelector("[data-wizard-shell]").style.display = "none";
-    document.querySelector("[data-cv-review]").style.display = "block";
+    withTransition(function () {
+      document.querySelector("[data-cv-intro]").style.display = "none";
+      document.querySelector("[data-wizard-shell]").style.display = "none";
+      document.querySelector("[data-cv-review]").style.display = "block";
+    });
 
     var notice = document.querySelector("[data-cv-sensitive-notice]");
     if (sensitiveFound && sensitiveFound.length) {
