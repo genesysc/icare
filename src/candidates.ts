@@ -1,13 +1,12 @@
 import { Hono } from "hono";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import Anthropic from "@anthropic-ai/sdk";
 import { requireAuth } from "./middleware";
 
 type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
   MEDIA: R2Bucket;
-  ANTHROPIC_API_KEY: string;
+  AI: Ai;
 };
 
 type Variables = {
@@ -704,6 +703,16 @@ candidates.post("/me/close-account", async (c) => {
 // --- CV import (upload a PDF, parse it into a draft, candidate reviews and
 // confirms before anything is saved to their profile) ---
 //
+// Runs entirely on Workers AI (env.AI) rather than a metered third-party API
+// — no separate vendor account or API key, and it draws from the same
+// Cloudflare account's free daily Neuron allocation. Two calls:
+// (1) env.AI.toMarkdown() extracts plain text from the PDF (this step alone
+//     doesn't invoke a model for text-based PDFs — only embedded-image
+//     description would, and that's explicitly turned off below so an
+//     embedded photo is never described or reasoned about at all);
+// (2) env.AI.run() on a text model (@cf/meta/llama-3.3-70b-instruct-fp8-fast)
+//     extracts structured JSON from that text via JSON mode.
+//
 // Non-negotiable #5: AI never auto-applies a parse — this route only ever
 // writes to cv_imports. The candidate's own review screen calls the SAME
 // existing routes above (PATCH /me, PUT /me/professions, POST /me/
@@ -714,12 +723,17 @@ candidates.post("/me/close-account", async (c) => {
 // Non-negotiable #6: the model is explicitly told never to extract DOB,
 // nationality, immigration status, marital status, gender, religion,
 // ethnicity, health info, or NI numbers — only to note that a category was
-// present (sensitive_found), never the value.
+// present (sensitive_found), never the value. Disabling embedded-image
+// conversion (above) is the same principle applied to an embedded photo.
 //
-// profession_ids/skill_ids/qualification type_id are constrained by the
-// tool schema's enum to the real reference-table ids (fetched fresh on
-// every parse), so the model can only pick from what actually exists —
-// no separate fuzzy-matching step needed on the way back in.
+// profession_ids/skill_ids/qualification type_id are listed in the prompt
+// as the only allowed values, but — unlike Claude's forced tool-use with a
+// strict enum-constrained schema — an open-weight model's JSON mode isn't
+// guaranteed to honor that constraint. sanitizeParsed() below is the actual
+// guarantee: every id the model returns is checked against the real
+// reference-table ids (fetched fresh on every parse) and dropped if it
+// doesn't match, so invalid/hallucinated ids can never reach cv_imports,
+// regardless of what the model actually output.
 
 const SENSITIVE_CATEGORIES = [
   "date_of_birth",
@@ -735,6 +749,156 @@ const SENSITIVE_CATEGORIES = [
 ] as const;
 
 const REGULATORS = ["nmc", "hcpc", "gdc", "gmc", "gphc", "swe", "goc"] as const;
+const CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
+
+function asString(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+function asArray(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
+}
+function filterAllowedIds(v: unknown, allowed: Set<string>): string[] {
+  return asArray(v).filter((id): id is string => typeof id === "string" && allowed.has(id));
+}
+
+// Defense-in-depth sanitizer — see the comment block above. Never trusts the
+// model's output shape; every field is individually validated/coerced, and
+// anything that doesn't hold up is dropped rather than passed through.
+function sanitizeParsed(raw: Record<string, unknown>, professionIds: Set<string>, skillIds: Set<string>, qualTypeIds: Set<string>) {
+  const employmentHistory = asArray(raw.employment_history)
+    .map((item) => {
+      if (typeof item !== "object" || item === null) return null;
+      const rec = item as Record<string, unknown>;
+      const employer = asString(rec.employer);
+      const jobTitle = asString(rec.job_title);
+      if (!employer || !jobTitle) return null;
+      return {
+        employer,
+        job_title: jobTitle,
+        setting: asString(rec.setting),
+        started_on: asString(rec.started_on),
+        ended_on: asString(rec.ended_on),
+        is_current: rec.is_current === true,
+        description: asString(rec.description),
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  const qualifications = asArray(raw.qualifications)
+    .map((item) => {
+      if (typeof item !== "object" || item === null) return null;
+      const rec = item as Record<string, unknown>;
+      const title = asString(rec.title);
+      if (!title) return null;
+      const typeId = asString(rec.type_id);
+      return {
+        type_id: typeId && qualTypeIds.has(typeId) ? typeId : null,
+        title,
+        awarding_body: asString(rec.awarding_body),
+        awarded_on: asString(rec.awarded_on),
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  let registration: { regulator: string; reg_number: string; register_name: string | null } | null = null;
+  if (raw.registration && typeof raw.registration === "object") {
+    const rec = raw.registration as Record<string, unknown>;
+    const regulator = asString(rec.regulator);
+    const regNumber = asString(rec.reg_number);
+    if (regulator && regNumber && (REGULATORS as readonly string[]).includes(regulator)) {
+      registration = { regulator, reg_number: regNumber, register_name: asString(rec.register_name) };
+    }
+  }
+
+  const sensitiveFound = asArray(raw.sensitive_categories_noticed).filter(
+    (cat): cat is string => typeof cat === "string" && (SENSITIVE_CATEGORIES as readonly string[]).includes(cat),
+  );
+
+  const confidence = asString(raw.overall_confidence);
+  const overallConfidence = confidence && (CONFIDENCE_LEVELS as readonly string[]).includes(confidence) ? confidence : "low";
+
+  return {
+    headline: asString(raw.headline),
+    about: asString(raw.about),
+    town: asString(raw.town),
+    profession_ids: filterAllowedIds(raw.profession_ids, professionIds),
+    skill_ids: filterAllowedIds(raw.skill_ids, skillIds),
+    employment_history: employmentHistory,
+    qualifications,
+    registration,
+    sensitive_categories_noticed: sensitiveFound,
+    overall_confidence: overallConfidence,
+  };
+}
+
+const CV_EXTRACT_SCHEMA = {
+  type: "object",
+  required: [
+    "headline",
+    "about",
+    "town",
+    "profession_ids",
+    "skill_ids",
+    "employment_history",
+    "qualifications",
+    "registration",
+    "sensitive_categories_noticed",
+    "overall_confidence",
+  ],
+  properties: {
+    headline: { type: ["string", "null"], description: "A short professional headline, e.g. their most recent job title + years of experience. Null if not inferable." },
+    about: { type: ["string", "null"], description: "A short first-person-style summary, only if the CV has a personal statement/summary section to draw from. Null otherwise — never invent one." },
+    town: { type: ["string", "null"], description: "Town/city only, from any address on the CV. Never the full address or postcode." },
+    profession_ids: { type: "array", items: { type: "string" }, description: "0-3 closest-matching profession ids from the allowed list below, most senior/recent first. Empty array if nothing matches reasonably." },
+    skill_ids: { type: "array", items: { type: "string" }, description: "Clinical skill ids from the allowed list below that the CV clearly evidences. Empty array if none." },
+    employment_history: {
+      type: "array",
+      description: "Every distinct role found, most recent first.",
+      items: {
+        type: "object",
+        required: ["employer", "job_title", "setting", "started_on", "ended_on", "is_current", "description"],
+        properties: {
+          employer: { type: "string" },
+          job_title: { type: "string" },
+          setting: { type: ["string", "null"], description: "e.g. 'Nursing home', 'Hospital ward' — only if inferable." },
+          started_on: { type: ["string", "null"], description: "YYYY-MM-DD. Use the 1st of the month if only month/year is given. Null if unknown." },
+          ended_on: { type: ["string", "null"], description: "YYYY-MM-DD, or null if this is their current role or the end date isn't stated." },
+          is_current: { type: "boolean" },
+          description: { type: ["string", "null"] },
+        },
+      },
+    },
+    qualifications: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["type_id", "title", "awarding_body", "awarded_on"],
+        properties: {
+          type_id: { type: ["string", "null"] },
+          title: { type: "string" },
+          awarding_body: { type: ["string", "null"] },
+          awarded_on: { type: ["string", "null"], description: "YYYY-MM-DD, null if unknown." },
+        },
+      },
+    },
+    registration: {
+      type: ["object", "null"],
+      description: "Only if the CV explicitly states a professional registration number (e.g. NMC PIN, HCPC number). Null otherwise — never guess a number.",
+      required: ["regulator", "reg_number", "register_name"],
+      properties: {
+        regulator: { type: "string", enum: REGULATORS as unknown as string[] },
+        reg_number: { type: "string" },
+        register_name: { type: ["string", "null"] },
+      },
+    },
+    sensitive_categories_noticed: {
+      type: "array",
+      items: { type: "string", enum: SENSITIVE_CATEGORIES as unknown as string[] },
+      description: "Which of these categories appear ANYWHERE on the CV — list the category only, never the actual value, and never let a spotted value influence any other field above.",
+    },
+    overall_confidence: { type: "string", enum: CONFIDENCE_LEVELS as unknown as string[] },
+  },
+};
 
 candidates.post("/me/cv", async (c) => {
   const contentType = c.req.header("Content-Type");
@@ -768,142 +932,72 @@ candidates.post("/me/cv", async (c) => {
   await c.env.MEDIA.put(key, body, { httpMetadata: { contentType: "application/pdf" } });
   await supabase.from("cv_imports").update({ storage_path: key }).eq("id", importRow.id);
 
-  const [professionsResult, skillsResult, qualTypesResult] = await Promise.all([
-    supabase.from("professions").select("id, name"),
-    supabase.from("clinical_skills").select("id, label"),
-    supabase.from("qualification_types").select("id, label"),
-  ]);
-  const professionIds = (professionsResult.data || []).map((p) => p.id);
-  const skillIds = (skillsResult.data || []).map((s) => s.id);
-  const qualTypeIds = (qualTypesResult.data || []).map((q) => q.id);
-
-  const professionCatalogue = (professionsResult.data || []).map((p) => `${p.id}: ${p.name}`).join("\n");
-  const skillCatalogue = (skillsResult.data || []).map((s) => `${s.id}: ${s.label}`).join("\n");
-  const qualTypeCatalogue = (qualTypesResult.data || []).map((q) => `${q.id}: ${q.label}`).join("\n");
-
-  const extractTool: Anthropic.Tool = {
-    name: "extract_cv_data",
-    description: "Extract structured profile data from a healthcare/social-care candidate's CV.",
-    strict: true,
-    input_schema: {
-      type: "object",
-      additionalProperties: false,
-      required: [
-        "headline",
-        "about",
-        "town",
-        "profession_ids",
-        "skill_ids",
-        "employment_history",
-        "qualifications",
-        "registration",
-        "sensitive_categories_noticed",
-        "overall_confidence",
-      ],
-      properties: {
-        headline: { type: ["string", "null"], description: "A short professional headline, e.g. their most recent job title + years of experience. Null if not inferable." },
-        about: { type: ["string", "null"], description: "A short first-person-style summary, only if the CV has a personal statement/summary section to draw from. Null otherwise — never invent one." },
-        town: { type: ["string", "null"], description: "Town/city only, from any address on the CV. Never the full address or postcode." },
-        profession_ids: { type: "array", items: { type: "string", enum: professionIds.length ? professionIds : ["__none__"] }, description: "0-3 closest-matching profession ids from the allowed list, most senior/recent first. Empty array if nothing matches reasonably." },
-        skill_ids: { type: "array", items: { type: "string", enum: skillIds.length ? skillIds : ["__none__"] }, description: "Clinical skill ids from the allowed list that the CV clearly evidences. Empty array if none." },
-        employment_history: {
-          type: "array",
-          description: "Every distinct role found, most recent first.",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            required: ["employer", "job_title", "setting", "started_on", "ended_on", "is_current", "description"],
-            properties: {
-              employer: { type: "string" },
-              job_title: { type: "string" },
-              setting: { type: ["string", "null"], description: "e.g. 'Nursing home', 'Hospital ward' — only if inferable." },
-              started_on: { type: ["string", "null"], description: "YYYY-MM-DD. Use the 1st of the month if only month/year is given. Null if unknown." },
-              ended_on: { type: ["string", "null"], description: "YYYY-MM-DD, or null if this is their current role or the end date isn't stated." },
-              is_current: { type: "boolean" },
-              description: { type: ["string", "null"] },
-            },
-          },
-        },
-        qualifications: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            required: ["type_id", "title", "awarding_body", "awarded_on"],
-            properties: {
-              type_id: { type: ["string", "null"], enum: qualTypeIds.length ? [...qualTypeIds, null] : [null] },
-              title: { type: "string" },
-              awarding_body: { type: ["string", "null"] },
-              awarded_on: { type: ["string", "null"], description: "YYYY-MM-DD, null if unknown." },
-            },
-          },
-        },
-        registration: {
-          type: ["object", "null"],
-          description: "Only if the CV explicitly states a professional registration number (e.g. NMC PIN, HCPC number). Null otherwise — never guess a number.",
-          additionalProperties: false,
-          required: ["regulator", "reg_number", "register_name"],
-          properties: {
-            regulator: { type: "string", enum: REGULATORS as unknown as string[] },
-            reg_number: { type: "string" },
-            register_name: { type: ["string", "null"] },
-          },
-        },
-        sensitive_categories_noticed: {
-          type: "array",
-          items: { type: "string", enum: SENSITIVE_CATEGORIES as unknown as string[] },
-          description: "Which of these categories appear ANYWHERE on the CV — list the category only, never the actual value, and never let a spotted value influence any other field above.",
-        },
-        overall_confidence: { type: "string", enum: ["high", "medium", "low"] },
-      },
-    },
-  };
-
-  const systemPrompt =
-    "You extract structured data from a healthcare/social-care candidate's CV for a draft the candidate will review and edit themselves before anything is saved — never treat this as final. " +
-    "Extract only what the document actually states; leave a field null or an array empty rather than guessing or inferring beyond what's written. " +
-    "Never fill in, estimate, or infer: date of birth, nationality, immigration/visa status, marital status, gender, religion, ethnicity, health information, National Insurance number, or a photo — if any of these appear on the CV, add the matching category to sensitive_categories_noticed and do not transcribe the value anywhere in your output, including inside free-text fields like about or description.\n\n" +
-    "Allowed professions (id: name):\n" + professionCatalogue + "\n\n" +
-    "Allowed clinical skills (id: label):\n" + skillCatalogue + "\n\n" +
-    "Allowed qualification types (id: label):\n" + qualTypeCatalogue;
-
   try {
-    const anthropic = new Anthropic({ apiKey: c.env.ANTHROPIC_API_KEY });
-    const base64Pdf = btoa(String.fromCharCode(...new Uint8Array(body)));
+    const conversion = await c.env.AI.toMarkdown(
+      { name: originalName || "cv.pdf", blob: new Blob([body], { type: "application/pdf" }) },
+      { conversionOptions: { pdf: { images: { convert: false } } } },
+    );
 
-    const response = await anthropic.messages.create({
-      model: "claude-opus-5",
-      max_tokens: 8000,
-      system: systemPrompt,
-      tools: [extractTool],
-      tool_choice: { type: "tool", name: "extract_cv_data" },
+    if (conversion.format === "error" || !conversion.data || !conversion.data.trim()) {
+      const detail = conversion.format === "error" ? conversion.error : "No extractable text found — this may be a scanned/image-only PDF";
+      await supabase.from("cv_imports").update({ status: "unreadable", error_detail: detail }).eq("id", importRow.id);
+      return c.json({ cv_import: { ...importRow, status: "unreadable", error_detail: detail } });
+    }
+
+    const [professionsResult, skillsResult, qualTypesResult] = await Promise.all([
+      supabase.from("professions").select("id, name"),
+      supabase.from("clinical_skills").select("id, label"),
+      supabase.from("qualification_types").select("id, label"),
+    ]);
+    const professionIds = new Set((professionsResult.data || []).map((p) => p.id));
+    const skillIds = new Set((skillsResult.data || []).map((s) => s.id));
+    const qualTypeIds = new Set((qualTypesResult.data || []).map((q) => q.id));
+
+    const professionCatalogue = (professionsResult.data || []).map((p) => `${p.id}: ${p.name}`).join("\n");
+    const skillCatalogue = (skillsResult.data || []).map((s) => `${s.id}: ${s.label}`).join("\n");
+    const qualTypeCatalogue = (qualTypesResult.data || []).map((q) => `${q.id}: ${q.label}`).join("\n");
+
+    const systemPrompt =
+      "You extract structured data from a healthcare/social-care candidate's CV for a draft the candidate will review and edit themselves before anything is saved — never treat this as final. " +
+      "Extract only what the document actually states; leave a field null or an array empty rather than guessing or inferring beyond what's written. " +
+      "Never fill in, estimate, or infer: date of birth, nationality, immigration/visa status, marital status, gender, religion, ethnicity, health information, National Insurance number, or a photo — if any of these appear on the CV, add the matching category to sensitive_categories_noticed and do not transcribe the value anywhere in your output, including inside free-text fields like about or description. " +
+      "Only use ids from the allowed lists below for profession_ids, skill_ids, and qualification type_id — never invent one. Respond with only the JSON object, no other text.\n\n" +
+      "Allowed professions (id: name):\n" + professionCatalogue + "\n\n" +
+      "Allowed clinical skills (id: label):\n" + skillCatalogue + "\n\n" +
+      "Allowed qualification types (id: label):\n" + qualTypeCatalogue;
+
+    const result = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
       messages: [
-        {
-          role: "user",
-          content: [
-            { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64Pdf } },
-            { type: "text", text: "Extract this CV into the extract_cv_data tool." },
-          ],
-        },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: "Extract this CV into structured data:\n\n" + conversion.data },
       ],
+      response_format: { type: "json_schema", json_schema: CV_EXTRACT_SCHEMA },
+      max_tokens: 3000,
     });
 
-    const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
-    if (!toolUse) {
+    const rawResponse = typeof result === "object" && result !== null && "response" in result ? (result as { response?: string }).response : undefined;
+    if (!rawResponse) {
       await supabase.from("cv_imports").update({ status: "unreadable", error_detail: "Model did not return structured data" }).eq("id", importRow.id);
       return c.json({ cv_import: { ...importRow, status: "unreadable" } });
     }
 
-    const parsed = toolUse.input as Record<string, unknown>;
-    const sensitiveFound = Array.isArray(parsed.sensitive_categories_noticed) ? parsed.sensitive_categories_noticed : [];
+    let rawParsed: Record<string, unknown>;
+    try {
+      rawParsed = JSON.parse(rawResponse) as Record<string, unknown>;
+    } catch {
+      await supabase.from("cv_imports").update({ status: "unreadable", error_detail: "Model response wasn't valid JSON" }).eq("id", importRow.id);
+      return c.json({ cv_import: { ...importRow, status: "unreadable" } });
+    }
+
+    const parsed = sanitizeParsed(rawParsed, professionIds, skillIds, qualTypeIds);
 
     const { data: updated, error: updateError } = await supabase
       .from("cv_imports")
       .update({
         status: "parsed",
         parsed,
-        confidence: { overall: parsed.overall_confidence || null },
-        sensitive_found: sensitiveFound,
+        confidence: { overall: parsed.overall_confidence },
+        sensitive_found: parsed.sensitive_categories_noticed,
         parsed_at: new Date().toISOString(),
       })
       .eq("id", importRow.id)

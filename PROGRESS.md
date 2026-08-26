@@ -1322,6 +1322,155 @@ they aren't lost:
     both its sign-in and sign-up states — zero horizontal overflow
     anywhere.
   - Not yet pushed as a PR.
+- **PR #15 opened, merged, and deployed** (squash-merged into `main`,
+  `mergeable_state` confirmed `clean` before merging): bundles all three
+  pieces above — the professions/DBS review-pause fixes, CV import, and
+  Sprint 6 (employer sign-up/sign-in) — now live on `main`. CI run #16
+  (https://github.com/genesysc/icare/actions/runs/33000995853) confirmed
+  `success`. Branch restarted from `main` per convention. The
+  `ANTHROPIC_API_KEY` provisioning blocker for CV import is called out in
+  the PR body as follow-up work, not silently dropped.
+- **Sprint 7: employer verification flow** — the employer track's second
+  sprint. Checked the real schema before writing anything, same
+  discipline as every prior sprint, and it surfaced the actual shape of
+  the gate: `employers.is_verified` (not `employer_verification_requests
+  .status`) is what the **existing** `is_verified_employer()` RPC
+  checks, and a DB trigger (`lock_employer_verification()`) enforces
+  that only `service_role` can ever flip it — reading its real SQL
+  first confirmed the app layer can never accidentally grant
+  verification, even by bug. `employer_verification_requests` itself is
+  append-only by RLS (INSERT + SELECT only, confirmed no UPDATE policy
+  exists, and no unique constraint on `employer_id`) — each submission
+  is a new audit row, not an edit of a previous one, matching the
+  `evidence_status` enum's own `submitted → under_review →
+  accepted/rejected/expired` lifecycle.
+  - **New `src/employers.ts`** router, mounted at `/employers`:
+    - `GET /employers/me` — the employer's own row
+      (`org_name`/`cqc_provider_id`/`is_verified`) plus their full
+      verification-request history (newest first), so the UI can show
+      not just current status but why a rejection happened.
+    - `POST /employers/me/verification-requests` — submits or
+      re-submits for review. Requires at least one of a CQC provider ID
+      or Companies House number (validated server-side, not just in the
+      UI). `submitted_org_name`/`submitted_email` are stamped
+      server-side from the employer's own current `employers`/
+      `accounts` rows rather than trusted from the client — same
+      philosophy as the DBS route's server-stamped `consent_given_at`
+      from Sprint 4. When a CQC provider ID is supplied, also updates
+      the live `employers.cqc_provider_id` so the "currently claimed"
+      value and the latest submission never drift out of sync.
+    - A `PATCH /employers/me` general-profile-edit route was drafted
+      and then deliberately removed before committing — nothing in this
+      sprint's UI called it (the verification POST route already keeps
+      `cqc_provider_id` current), and adding an unused route wasn't
+      warranted by this sprint's actual scope.
+  - **UI** (`src/employer-home.html`, replacing Sprint 6's static
+    "Verification: pending" line with a real, data-driven card): four
+    distinct visual states, each with its own copy and status-row
+    color — no identifier submitted yet (amber, prompts for one),
+    submitted/under review (amber), rejected (red, shows the
+    `reviewer_note` verbatim if present), and verified (teal, the form
+    disappears entirely — nothing left to submit). The CQC ID field
+    pre-fills from the employer's current claimed value on every load,
+    so resubmitting after a rejection doesn't mean retyping it.
+  - Review stays entirely manual via the Supabase dashboard for now —
+    same reasoning as Sprint 3's qualifications/registrations — no admin
+    review UI in this sprint.
+  - **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly (~1.52MB / 316KB gzip). Exercised with headless
+    Chromium against mocked `GET /employers/me` responses covering all 4
+    states plus a live form submission: confirmed the exact POST body
+    sent, the success message, and that submitting with both fields
+    blank is caught client-side before any network call. 5-viewport
+    overflow audit on the rejected state (longest content on the page,
+    including a long reviewer note) — zero horizontal overflow anywhere.
+  - Pushed to the branch; **PR #16 opened** (not yet merged — user asked
+    to open it, hasn't asked to merge yet).
+- **CV import: switched off the Claude API to Cloudflare Workers AI** —
+  the founder's response on seeing the Anthropic API is metered: "not
+  willing to do that... can we use other tools instead?" Presented three
+  real alternatives rather than picking one unilaterally — Cloudflare
+  Workers AI (no new vendor, free daily allowance, needs a PDF-to-text
+  step since its models don't read PDFs natively like Claude), Google
+  Gemini's free tier (closest to the existing architecture, PDF-native,
+  but a new vendor and a rate-limited trial allowance not a guarantee),
+  or dropping the LLM entirely for regex parsing (free but genuinely
+  poor quality on real CVs). The founder picked Workers AI.
+  - **Researched the real API shape before writing anything** — same
+    discipline as every schema check this session, just aimed at
+    Cloudflare's docs instead of Supabase's: confirmed via
+    `search_cloudflare_documentation` and the installed
+    `@cloudflare/workers-types` definitions (not guessed) that (a)
+    `env.AI.toMarkdown()` extracts PDF text natively — no separate PDF
+    library needed — and that Cloudflare's own docs state image
+    conversion (not plain text extraction) is the part that invokes
+    billed models, so a text-based CV's extraction step is effectively
+    free; (b) `env.AI.run()` accepts a `response_format: {type:
+    "json_schema", json_schema}` parameter directly (OpenAI-compatible
+    JSON mode), confirmed against the real
+    `Ai_Cf_Meta_Llama_3_3_70B_Instruct_Fp8_Fast_Messages` type, not the
+    OpenAI-SDK-wrapper examples the docs mostly show; (c)
+    `@cf/meta/llama-3.3-70b-instruct-fp8-fast` is free-plan-eligible
+    (some newer models like Kimi K2.7/GLM-5.2 now require Workers Paid —
+    checked the current list before picking a model, since it had
+    changed since training) and supports function calling / JSON mode.
+  - **Rebuilt `POST /candidates/me/cv`** (`src/candidates.ts`): removed
+    `@anthropic-ai/sdk` entirely (`npm uninstall`), removed the
+    `nodejs_compat` compatibility flag (only ever needed for the
+    Anthropic SDK's credential-chain module — confirmed nothing else in
+    the codebase needs Node builtins before removing it), added
+    `"ai": {"binding": "AI"}` to `wrangler.jsonc`. Two Workers AI calls
+    now replace the single Claude call: `env.AI.toMarkdown()` (PDF →
+    text, with `conversionOptions.pdf.images.convert: false` explicitly
+    turned off — a deliberate, not default, choice: without it, an
+    embedded CV photo would get run through an object-detection +
+    image-to-text model and described in the output, which is exactly
+    what non-negotiable #6 (data minimisation) forbids for photos; this
+    is the same principle Sprint 5's design already applied to text
+    fields, just extended to catch an image path the Claude version
+    never had to think about since it never auto-converted embedded
+    images at all) followed by `env.AI.run("@cf/meta/llama-3.3-70b-
+    instruct-fp8-fast", {messages, response_format})` for the structured
+    extraction itself.
+  - **The one real trade-off, faced head-on rather than glossed over**:
+    Claude's forced tool-use with `strict: true` guaranteed every
+    returned profession/skill/qualification-type id was real, because
+    the API itself enforced the schema's `enum`. Workers AI's JSON mode
+    on an open-weight model doesn't come with that same guarantee. Built
+    a new `sanitizeParsed()` function that replaces the guarantee
+    explicitly and server-side: every id/regulator/category the model
+    returns is checked against a `Set` of the real, freshly-fetched
+    reference-table values (or the fixed regulator/sensitive-category
+    lists) and dropped — not coerced, not guessed — if it doesn't match;
+    malformed nested objects (wrong type, missing required sub-fields)
+    are dropped per-entry rather than corrupting the whole parse; total
+    garbage input degrades to a safe, fully-null/empty shape rather than
+    throwing. This is arguably a stronger guarantee than before, since
+    it's explicit, auditable code instead of trusting the model
+    provider's schema-adherence claims.
+  - **Verified without a live model call** (this sandbox still has no
+    live Cloudflare auth, same limitation as before — `wrangler dev`
+    requires real Cloudflare auth for Workers AI even locally, per
+    Cloudflare's own docs: "Using Workers AI always accesses your
+    Cloudflare account... even in local development"): `tsc --noEmit`
+    clean, `wrangler deploy --dry-run` bundles cleanly (1521KB → 1099KB
+    after dropping the Anthropic SDK, no `nodejs_compat` warning after
+    removing the flag), and — since `sanitizeParsed()` is pure logic
+    with no I/O — reimplemented it standalone in plain Node and ran it
+    against 10 adversarial inputs (hallucinated profession/skill ids
+    mixed with real ones, an invalid qualification `type_id` on an
+    otherwise-valid entry, a qualification missing its required title,
+    an invalid registration regulator, a valid registration, an
+    employment entry missing `job_title`, invalid sensitive-category
+    values mixed with real ones, a nonsense `overall_confidence` string,
+    a fully empty object, and non-array/non-object garbage for every
+    array field) — all 10 passed, confirming the safety net holds
+    regardless of what a real model call would actually return. The
+    existing frontend Playwright test (`cv-import-check.js`, unchanged
+    since the frontend contract — the `parsed` JSON's field names —
+    didn't change) was re-run and still passes end-to-end.
+  - Committed and pushed to the branch. Not yet its own PR — will fold
+    into whichever PR comes next unless asked to ship separately.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

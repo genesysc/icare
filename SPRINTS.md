@@ -369,18 +369,45 @@ reviewing/completing that request, not creating it from scratch.
   new/changed pages (including the employer-themed form in both sign-in
   and sign-up mode) — zero horizontal overflow anywhere.
 
-### Sprint 7 — Employer verification flow
+### Sprint 7 — Employer verification flow ✅ Shipped
 
-- **New routes needed** for `employer_verification_requests` (submit
-  CQC provider ID / Companies House number / org email — see
-  `HANDOVER.md` §12 on what "verified employer" should require; CQC
-  provider ID is the strongest signal available, email-domain match the
-  weakest).
-- UI: a verification form + a "pending verification" gate — no candidate
-  search until `employers.is_verified = true` (checked via the
-  **existing** `is_verified_employer()` RPC).
+- **New `src/employers.ts`** router, mounted at `/employers`. Checked
+  the real schema before writing anything: `employers.is_verified` is
+  the actual gate the **existing** `is_verified_employer()` RPC checks,
+  and it can only be flipped by `service_role` — a DB trigger
+  (`lock_employer_verification()`) enforces this, read its real SQL
+  first rather than assumed. `employer_verification_requests` is
+  append-only by RLS (INSERT + SELECT only, no UPDATE policy exists) —
+  each submission is a new audit row, not an edit of a previous one, and
+  there's no unique constraint on `employer_id` confirming multiple rows
+  per employer is the intended design.
+  - `GET /employers/me` — the employer's own row (`org_name`,
+    `cqc_provider_id`, `is_verified`) plus their full verification-
+    request history, newest first.
+  - `POST /employers/me/verification-requests` — submits (or
+    re-submits) for review. Requires at least one of CQC provider ID /
+    Companies House number. `submitted_org_name`/`submitted_email` are
+    stamped server-side from the employer's own current record, never
+    trusted from the client (same philosophy as the DBS route's
+    server-stamped `consent_given_at`). If a CQC provider ID is
+    supplied, also updates the current `employers.cqc_provider_id` so
+    the "claimed" value and the latest submission stay in sync.
+- **UI** (`src/employer-home.html`, replacing the Sprint 6 static
+  "pending" line): a real verification card driven by `GET
+  /employers/me` — a distinct visual state (and copy) for no-identifier-
+  yet, submitted/under-review, rejected (shows `reviewer_note`), and
+  verified (form hides entirely once `is_verified` is true). No
+  candidate search exists yet to actually gate — that's Sprint 8 — so
+  this sprint's scope is the verification flow itself, not the gate.
 - Review is manual (Supabase dashboard) for now, same reasoning as
   Sprint 3's qualifications/registrations — no admin UI in this sprint.
+- **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+  bundles cleanly. Exercised with headless Chromium against mocked
+  `GET /employers/me` responses covering all 4 states (no-identifier,
+  under-review, rejected-with-note, verified) plus a live form
+  submission (confirmed the POST body and success/validation messaging).
+  5-viewport overflow audit on the rejected state (longest content, incl.
+  a long reviewer note) — zero horizontal overflow anywhere.
 
 ### Sprint 8 — Chat infrastructure + candidate search
 
