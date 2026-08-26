@@ -430,13 +430,22 @@ which is where the v2 landing page above came from. That doc also contains
 product-wide decisions that go beyond the landing page — recorded here so
 they aren't lost:
 
-- **Candidate self-expression posts (phase 2, not built)**: candidates
-  will be able to post freely (not just structured CV fields). Consent is
-  **per-post and revocable**: each post is (a) visible to other candidates
-  only, (b) included in the employer-facing AI summary/search pool, or
-  (c) private. Default must be the most restrictive; inclusion in
-  employer-facing AI search is opt-in, never opt-out. Candidates must be
-  able to see their current AI summary and retract consent at any time.
+- **Candidate self-expression posts — ⚠️ Correction, 2026-08-26 (later same
+  day)**: this brief originally called for **per-post, revocable consent**
+  (private / candidates-only / employer-AI-searchable, default private,
+  employer-search inclusion opt-in never opt-out). A same-day founder chat
+  (after this doc was written) explicitly superseded that: posts are now
+  open by default — publish = immediately visible to verified employers in
+  chat search, no separate opt-in step. Founder's framing: a LinkedIn-style
+  professional voice, "an avenue for voices to be heard," explicitly
+  choosing openness over gatekeeping when asked to confirm this overrode
+  the brief above. Moderation is report-then-manual (a verified employer
+  can flag a post; a human unpublishes via the existing manual-review
+  pattern already used for qualifications/registrations/employer
+  verification) rather than pre-publish review or a consent gate. Built —
+  see "Done" below. Same supersession pattern as the CQC→multi-regulator
+  correction elsewhere in this doc: explicit founder confirmation
+  overriding an earlier written spec, not a silent judgment call.
 - **Employer conversational AI search (phase 2, not built)**: natural-
   language search, not form filters. Two hard constraints from the brief:
   1. **Descriptive, not evaluative** — the AI may say things like
@@ -1471,16 +1480,307 @@ they aren't lost:
     didn't change) was re-run and still passes end-to-end.
   - Committed and pushed to the branch. Not yet its own PR — will fold
     into whichever PR comes next unless asked to ship separately.
+- **PR #16 merged** (squash into `main`, `mergeable_state` confirmed
+  `clean`), the user asked directly for the merge. CI deploy run #17
+  (https://github.com/genesysc/icare/actions/runs/33004189020)
+  confirmed `success`. Branch restarted from `main` per convention.
+  Directly answered a question about CQC verification the user asked in
+  the same turn: it's currently fully manual (submit → pending →
+  human confirms via a raw Supabase dashboard edit), and CQC's public
+  API existence is unverified in any session so far — flagged rather
+  than guessed at.
+- **Supabase migrations mirrored to the repo, employer verification
+  corrected to multi-regulator, and stage-completion email templates
+  written** — three pieces of follow-up work from one founder message
+  covering emails, migrations, employer verification scope, and asking
+  for a status check.
+  - **Migration mirroring**: fetched all 11 then-existing migrations'
+    real SQL verbatim from `supabase_migrations.schema_migrations`
+    (its `statements` array column holds the exact text each migration
+    ran) and wrote them to `supabase/migrations/<version>_<name>.sql`,
+    matching the exact filename convention the Supabase CLI itself
+    uses. Wrote migration `0001_init` directly to establish the
+    pattern, then delegated the mechanical repeat-11-times fetch-and-
+    write work for `0002`-`0011` to a background agent — a
+    well-defined, judgment-free task, so protecting this session's own
+    context for the two more involved pieces below was the right call.
+    The agent completed cleanly, correctly noticed and left alone the
+    `0012` migration (below) that hadn't existed when it was briefed,
+    and flagged that instead of silently working around it.
+  - **Employer verification generalised beyond CQC**: the founder's
+    message pointed out two real gaps in Sprint 7's original design in
+    one breath — deprioritising Northern-Ireland-specific agency
+    licensing entirely ("carry them on as long as they are a UK based
+    company with companies house registration"), and that CQC isn't
+    universal across the UK ("Scotland's Care Inspectorate and N.
+    Ireland's RQIA"). Read this as: Companies House registration is the
+    real minimum bar going forward, not region-specific care-regulator
+    licensing — and added Wales's CIW to the enum for completeness
+    (the product is UK-wide; flagged this addition explicitly since the
+    user only named three of the four home nations' regulators).
+    Migration `0012_employer_verification_multi_regulator`: renamed
+    `cqc_provider_id` → `regulator_reg_number` on both `employers` and
+    `employer_verification_requests` (same generalised meaning, just
+    correctly named), added a `care_regulator` enum (`cqc` /
+    `care_inspectorate_scotland` / `rqia` / `ciw`) on both, and added
+    `companies_house_no` directly on `employers` (mirroring the
+    existing "current claimed value on employers, audit trail on
+    requests" pattern the old `cqc_provider_id` column already used).
+    `src/employers.ts`'s `POST /me/verification-requests` now requires
+    `companies_house_no` and treats `regulator`/`regulator_reg_number`
+    as optional-but-paired (reject if only one of the two is given).
+    `employer-home.html`'s form reordered to put Companies House number
+    first, added a care-regulator `<select>` with a
+    registration-number field that only appears once a regulator is
+    picked. **A real bug caught by re-running the Playwright suite
+    against the new form**: setting the HTML `required` attribute on
+    the conditionally-required registration-number field triggered the
+    browser's own native constraint-validation UI, which intercepts
+    form submission *before* the page's JS `submit` handler ever runs —
+    meaning the custom, branded error messages (matching how every
+    other form in this app validates) were silently unreachable dead
+    code. Fixed by dropping the native `required` attributes and
+    relying entirely on the existing JS validation path, consistent
+    with the rest of the codebase. Re-verified: all 8 Playwright
+    scenarios (four render states, the regulator-reveals-field toggle,
+    three submit-validation paths including the newly-fixed one) pass,
+    plus a 5-viewport overflow audit on the longest-content state.
+  - **Stage-completion emails**: the founder pushed back specifically on
+    *how* — not *whether* — CV parsing used an LLM (a separate
+    conversation this session), and separately asked to "check if you
+    can build and customize emails for each stage completion." Wrote
+    three new templates in `src/emails/` (`candidate-profile-
+    published.ts`, `employer-verification-submitted.ts`,
+    `employer-verified.ts`), matching the existing
+    `waitlist-welcome.ts` pattern (a typed data object in, `{subject,
+    html}` out, inline-styled table-based HTML for email-client
+    compatibility) and each page's own design system (candidate
+    plum/teal vs. employer purple/teal). Wired the two with a genuine
+    trigger point at their call sites, using the existing safe no-op
+    `sendTransactionalEmail()` so nothing breaks with sending still
+    off: `POST /candidates/me/publish` now emails the candidate once
+    `publish_my_profile()` actually returns true, and `POST /employers/
+    me/verification-requests` now emails a submission confirmation
+    with the exact Companies House number and (if given) regulator
+    that was recorded. `employer-verified.ts` is written but
+    **deliberately not wired** — flagged rather than silently built
+    as if it worked: `employers.is_verified` is only ever flipped by a
+    manual Supabase dashboard edit today, with no API call behind it to
+    hook a send into; firing this automatically needs either a Postgres
+    database webhook or a real admin review route, a decision for the
+    founder, not assumed here.
+    **Genuinely tried to fill in the actual Sender.net API call** in
+    `src/email.ts` (not just left the stub alone) and hit two real,
+    independent blockers: the Sender MCP connector had disconnected
+    mid-session (confirmed via `ToolSearch` returning no matches, and
+    the disconnect notice earlier in the transcript), so the live
+    account (verified domains, templates, workflows) couldn't be
+    inspected; and `WebFetch` to `api.sender.net`, `www.sender.net`,
+    and `developers.sender.net` all returned `EGRESS_BLOCKED` from this
+    sandbox's network proxy — the same class of restriction that blocks
+    `*.supabase.co` and `api.anthropic.com` elsewhere in this build.
+    Did not guess Sender.net's request shape to route around this —
+    that would have violated the exact "don't guess API usage, verify
+    it" discipline this session has followed for Supabase RLS, Cloudflare
+    Workers AI, and everything else. `src/email.ts`'s comment documents
+    both blockers precisely so the next person picking this up doesn't
+    waste time re-discovering them.
+  - **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly throughout. The three new email templates were
+    sanity-checked directly in Node (via `npx tsx`) — confirmed each
+    renders without throwing, correctly substitutes the given data, and
+    the conditional regulator block in the verification-submitted email
+    renders correctly both with and without a regulator present.
+  - Committed and pushed to the branch. Not yet its own PR.
+- **Sprint 8: chat infrastructure + candidate search** — the employer
+  track's foundation sprint, per the user's direct instruction to start
+  it. Built on Workers AI throughout, not the Claude API originally
+  specced in `SPRINTS.md` — the founder's cost preference from the
+  CV-import conversation is now a standing default, applied here without
+  re-asking.
+  - **Real schema check first**, same discipline as every sprint: listed
+    every `public` table before assuming anything was missing, and
+    found the original `candidate_search` view (from `0001_init`) had
+    **no verification gate at all** — its `WHERE` clause only checked
+    `is_published`, meaning any authenticated role able to query it saw
+    every published candidate regardless of `is_verified_employer()`.
+    This predates Sprint 8 but was latent until now, since no
+    employer-facing search UI existed to exploit it. Also confirmed
+    directly against `pg_policies` that `candidate_professions` and
+    `candidate_skills` already had `is_verified_employer()`-gated
+    read policies for employers (built ahead of this sprint,
+    apparently anticipating it) while `employment_history` and
+    `accounts` had none — informing the join-vs-RLS design below.
+  - **Migration `0013_employer_chat_and_search`**: dropped and rebuilt
+    `candidate_search` (a `CREATE OR REPLACE VIEW` can't reorder/insert
+    columns before existing ones — checked `pg_depend` first to confirm
+    nothing referenced the old column order before doing a clean
+    drop+recreate instead). The new view adds `accounts.full_name`
+    (never email/phone — those stay behind `candidate_contact` +
+    shortlist consent, untouched), the candidate's current
+    `employment_history` row via a `LATERAL` join, `total_experience_
+    months()` (an existing function from `0001_init`, not
+    reimplemented), and full `profession_ids`/`skill_ids` arrays — and,
+    critically, now requires `is_verified_employer()` in its own
+    `WHERE` clause, closing the gap above. Chose a view over RLS
+    policies on `accounts`/`employment_history` directly: views created
+    by the migration role run with that role's own table privileges
+    (confirmed this is why the original view worked with zero RLS
+    policies of its own), so the view's column list becomes the *only*
+    exposure surface — safer and more precise than broadening RLS on
+    two tables that also hold real contact/audit data. New
+    `employer_chat_messages` table (RLS self-only, `ALL USING (employer_
+    id = auth.uid())`) persists the conversation; a same-day follow-up
+    migration `0014` added a `results_snapshot jsonb` column so a page
+    reload replays real result cards, not just a count — added once it
+    became clear a bare count made for a worse reload experience,
+    rather than building it in from the start on spec.
+  - **`src/employer-chat-guardrail.ts`** (new): the protected-
+    characteristics guardrail non-negotiable #5 explicitly requires
+    ("a real validation layer, not just a prompt instruction"). Three
+    independent layers — structural (the tool schema has no field for
+    a protected characteristic at all), a deterministic keyword/
+    proximity regex check run in code before the model ever sees the
+    message, and a system-prompt instruction as pure defense-in-depth.
+    Wrote a 30-case test suite (Node, via `npx tsx`, no DB/model call
+    needed since it's pure logic) covering all nine Equality Act 2010
+    characteristics plus national origin/immigration status, and it
+    caught **two real bugs** before they shipped: (1) the first version
+    used strict word-adjacency (`\s+`) between a characteristic word and
+    a role noun, which "female care staff preferred" slipped straight
+    through (the word "care" sitting in between broke the match) — fixed
+    with a bounded-proximity match (up to 3 filler words) instead; (2)
+    fixing #1 by widening the match then let "people" as a trigger word
+    false-block "experience working with young people" and "supporting
+    older people at home" — both completely standard care-sector
+    phrasing describing the *client population* a candidate works with,
+    not the candidate's own age. Fixed by giving the age category its
+    own narrower qualifier-word list that excludes "people/person/
+    someone" entirely, rather than trying to patch the ambiguity with a
+    lookaround exemption. All 30 cases pass after both fixes.
+  - **`src/employer-chat.ts`** (new router, mounted at `/employers/
+    chat`): `POST /` — validates the employer is verified
+    (`is_verified_employer()` RPC, re-checked server-side even though
+    the UI already gates on it), persists the user message, runs the
+    guardrail (if blocked, the model is never called at all for that
+    message), fetches the live professions/skills catalogues, calls
+    Workers AI with the `search_candidates` tool definition and up to
+    10 recent messages for conversational continuity (safe to replay to
+    the model since assistant messages are always either a fixed
+    template sentence or a plain reply, never raw candidate data), then
+    either executes the deterministic Supabase query (via `.contains()`
+    for profession/skill array membership, `.ilike()` for town,
+    `.lte()`/`.eq()` for radius/availability) or — if the model didn't
+    call the tool — returns its plain conversational reply. Tool-call
+    arguments are sanitized against the live reference sets before use,
+    same pattern as CV import's `sanitizeParsed()`. `GET /` replays the
+    persisted thread.
+  - **UI** (`src/employer-home.html`): widened `.wrap` to 720px for the
+    chat card while keeping the verification card's own width pinned at
+    560px (`.card { max-width: 560px; margin: 0 auto; }`) so it doesn't
+    stretch oddly now that its container is wider. New chat section
+    (message thread + input) shown only once `employer.is_verified`;
+    result cards render name/role/location/experience/skills plus
+    grade-distinct badge chips (new public `GET /badges` route, same
+    pattern as `/professions`/`/skills`, feeding a `code → grade` map
+    client-side) — honoring non-negotiable #2 on the employer side, not
+    just the candidate dashboard where it was originally built. Removed
+    the "Chat-based candidate search — coming soon" line from the
+    roadmap list now that it's real; "Shortlisting & pipeline" (Sprint
+    9) is the only item left.
+  - **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly throughout. Guardrail test suite (30 cases) run
+    standalone. Full chat UI exercised with headless Chromium against
+    mocked responses: unverified employers never see the chat section;
+    a verified employer's persisted history (including snapshotted
+    result cards) replays correctly; sending a message posts the
+    correct body and renders the reply plus result cards; a guardrail
+    redirect renders with zero results; a zero-result search renders
+    zero cards. Re-ran the Sprint 7 verification-form suite afterward
+    specifically to check the layout changes hadn't regressed it, which
+    caught a third real bug: `loadChatHistory()` was the only fetch in
+    the file without a `.catch()`, throwing an unhandled rejection
+    whenever the request failed (visible as a stray `pageerror` in an
+    unrelated Sprint 7 test run that happened to also exercise the
+    verified-employer code path). Fixed by adding the same non-fatal
+    `.catch()` every other fetch in this file already uses. 5-viewport
+    overflow audit on the chat+results state, including a long
+    candidate name, a long job title/employer, and a long user message
+    — zero horizontal overflow anywhere.
+  - Committed and pushed to the branch. Not yet its own PR.
+- **Candidate self-expression posts (same day, 2026-08-26, following a
+  founder question about how "the totality of a candidate's identity" —
+  opinions, stories, experiences — would be searchable).** See the
+  "⚠️ Correction" note under "Product direction" above for the consent-model
+  decision (open by default, superseding the original per-post-consent
+  brief — explicit founder confirmation, not assumed).
+  - Migration `0015`: `candidate_posts` (candidate-owned, RLS self-manage
+    via `candidate_posts_self`), `candidate_post_search` view (same
+    bypass-RLS-via-view pattern as `candidate_search`: published, not
+    flagged, candidate published, `is_verified_employer()`), and
+    `flag_candidate_post()` — a security-definer RPC so a verified
+    employer can report a post without any direct UPDATE grant on the
+    table (RLS blocks that entirely; only the owning candidate can write
+    their own row).
+  - `src/candidates.ts`: `GET/POST/PATCH/DELETE /me/posts`, matching the
+    existing CRUD field-list convention. `src/employers.ts`:
+    `POST /posts/:id/report` — thin pass-through to the RPC.
+  - `src/employer-chat.ts`: `search_candidates` gained an optional
+    `post_topic` field. Post matching runs as its own deterministic
+    `ilike` query against `candidate_post_search` **before** the
+    candidate_search query, then intersects via `.in("id", ...)` — doing
+    it the other way round (filtering only within whatever 25 candidates
+    candidate_search happened to return first) would silently miss
+    relevant candidates whenever `post_topic` was the only real filter
+    given. A new stage 3 was added after the existing two: for up to 5
+    matched candidates, one **isolated** Workers AI call per candidate
+    (that candidate's post text only, never another candidate's data, no
+    comparison across candidates) produces a short factual, non-evaluative
+    summary — falls back to a deterministic truncated excerpt if the call
+    errors. This keeps non-negotiable #5 ("descriptive, not evaluative")
+    true by the same structural argument as the rest of Sprint 8: the
+    model that ever sees a post is never shown more than one candidate at
+    a time, so there is nothing for it to rank or compare even if
+    instructed to. `checkProtectedCharacteristics()` needed no change —
+    it runs on the employer's raw message before any tool argument exists,
+    so "find someone who posted about being pregnant" is already blocked
+    exactly like the structured-field version of the same request.
+  - `src/dashboard.html`: new "Your posts" card — compose form (optional
+    title, body up to 8000 chars, live character count), a one-line
+    confidentiality reminder shown at compose time ("don't name or make
+    identifiable any patient, service user, colleague, or employer" —
+    care workers are independently bound by their own professional
+    conduct rules here; this is a nudge, not a filter, matching the
+    founder's "no topic restriction" instruction), and a list of the
+    candidate's own posts with delete, showing a "Reported — under
+    review" state instead of delete once flagged.
+  - `src/employer-home.html`: result cards now show a `post_excerpt` block
+    (quoted, italic) with a "Report this post" action wired to the new
+    RPC-backed route.
+  - Tested: `tsc --noEmit` + `wrangler deploy --dry-run` clean. Headless
+    Chromium smoke tests for both new UI surfaces (posting, deleting, a
+    flagged post rendering its review state on the candidate side;
+    post-excerpt + report action on the employer side, including the
+    button's disabled/confirmed state after a successful report) — all
+    passed on the first pass, no bugs found this time. 2-viewport
+    (375/1920) overflow check on the new posts card with a long title and
+    a long body — zero overflow.
+  - Committed and pushed to the branch. Not yet its own PR.
 
 ## Not started yet
-- Employer-side API (profile, verification-request flow, browsing/
-  shortlisting published candidates) — deliberately deferred in favor of
-  candidate API first. Any employer search view must exclude photo/name/
-  video/CV per non-negotiable #4 above.
-- Candidate self-expression posts + per-post consent model, employer
-  conversational AI search + its protected-characteristics guardrail —
-  see "Product direction" above. Explicitly phase 2; the guardrail design
-  needs care before any of this is built.
+- ~~Employer-side API (profile, verification-request flow, browsing
+  published candidates)~~ — Sprints 6-8 shipped sign-up/sign-in,
+  verification, and chat-based search. **Shortlisting itself (Sprint 9)
+  is the one piece of this still not started** — an employer can find
+  candidates via chat but can't yet act on a result. Any employer
+  search/shortlist view must exclude photo/video/CV per non-negotiable
+  #4 (name, current job title, and location are the founder's dated
+  override — already shown in Sprint 8's chat results, not excluded).
+- ~~Candidate self-expression posts~~ — shipped this session (see "Done"
+  below and the "⚠️ Correction" note under "Product direction" above).
+  Not built: a peer-facing feed (posts are only ever candidate-authored/
+  employer-searchable right now, no "visible to other candidates" surface
+  exists) — not asked for, not started.
 - **Supabase email template fix** — the "Magic Link" template needs to
   reference `{{ .Token }}` for `verify-code` to work at all. Manual
   Dashboard step, not yet done (see Stack section). Untested end-to-end

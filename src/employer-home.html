@@ -9,13 +9,32 @@
   Sprint 7 replaced the static "verification pending" line with a real
   verification card: GET /employers/me loads the employer's own row plus
   their verification-request history, and — while not yet verified — a
-  form posts to POST /employers/me/verification-requests (CQC provider ID
-  and/or Companies House number). employers.is_verified itself can only
-  be flipped by service_role (a DB trigger enforces this, confirmed by
-  reading its real SQL before building this route), so review stays
-  manual via the Supabase dashboard for now, same as Sprint 3's
-  qualifications/registrations. Sprint 8 replaces the rest of this page's
-  body with the chat interface.
+  form posts to POST /employers/me/verification-requests. employers.
+  is_verified itself can only be flipped by service_role (a DB trigger
+  enforces this, confirmed by reading its real SQL before building this
+  route), so review stays manual via the Supabase dashboard for now,
+  same as Sprint 3's qualifications/registrations.
+
+  Sprint 8 adds the chat interface below the verification card, shown
+  only once employer.is_verified is true — POST /employers/chat sends a
+  message, GET /employers/chat replays the persisted thread on load.
+  The model (Workers AI, not the Claude API — see HANDOVER.md) never
+  sees search results; it only ever produces a search_candidates tool
+  call, and the app renders a fixed, deterministic summary sentence plus
+  result cards — never model-generated prose about who matched. Result
+  cards show name/current job title/location per the founder's
+  non-negotiable #4 override; photo, video, and CV stay excluded
+  pre-shortlist (candidate_search, migration 0013, already enforces
+  this — the view simply doesn't select those columns).
+
+  Founder decision, 2026-08-26: not every UK care employer is CQC-
+  registered (Scotland has its own Care Inspectorate, Northern Ireland
+  has RQIA, Wales has CIW), and region-specific agency-licensing checks
+  were explicitly deprioritised. Companies House number is now the
+  REQUIRED field — the real minimum bar is being a genuine UK-registered
+  company. A care regulator + registration number is OPTIONAL
+  supplementary evidence, shown/required together only when the
+  employer picks a regulator from the dropdown.
 -->
 <!doctype html>
 <html lang="en">
@@ -61,12 +80,14 @@
   .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
   .sign-out:hover { color: var(--teal-dark); }
 
-  .wrap { max-width: 560px; margin: 0 auto; padding: 40px 24px 80px; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 40px 24px 80px; }
 
   .card {
+    max-width: 560px; margin: 0 auto;
     background: var(--white); border-radius: 20px; border: 1px solid var(--line);
     box-shadow: var(--shadow-soft); padding: 36px 32px;
   }
+  .card.card-compact { padding: 22px 28px; }
   .eyebrow {
     font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
     letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal-dark);
@@ -92,11 +113,12 @@
   .field { margin-top: 16px; }
   .field:first-child { margin-top: 0; }
   .field label { display: block; font-size: 13px; font-weight: 600; color: var(--purple-dark); margin-bottom: 6px; }
-  .field input {
+  .field label .optional { font-weight: 500; color: var(--ink-faint); text-transform: none; letter-spacing: 0; }
+  .field input, .field select {
     width: 100%; padding: 11px 13px; border-radius: 10px; border: 1.5px solid var(--line);
     font-size: 14.5px; font-family: inherit; background: var(--white); color: var(--ink);
   }
-  .field input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-100); }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-100); }
   .field-hint { margin-top: 10px; font-size: 12.5px; color: var(--ink-faint); }
 
   .btn {
@@ -125,6 +147,51 @@
   .coming-item-sub { margin-top: 2px; color: var(--ink-faint); font-size: 13px; }
 
   .loading-note { font-size: 14px; color: var(--ink-faint); }
+
+  /* Chat */
+  .chat-card {
+    margin-top: 20px; background: var(--white); border-radius: 20px; border: 1px solid var(--line);
+    box-shadow: var(--shadow-soft); display: flex; flex-direction: column; overflow: hidden;
+  }
+  .chat-header { padding: 20px 24px; border-bottom: 1px solid var(--line); }
+  .chat-header h2 { font-size: 18px; }
+  .chat-header p { margin-top: 4px; font-size: 13px; color: var(--ink-faint); }
+
+  .chat-thread { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; max-height: 60vh; overflow-y: auto; }
+  .chat-empty-hint { font-size: 13.5px; color: var(--ink-faint); line-height: 1.6; }
+  .chat-empty-hint .example { display: block; margin-top: 8px; font-style: italic; color: var(--ink-soft); }
+
+  .chat-msg { max-width: 82%; padding: 11px 15px; border-radius: 14px; font-size: 14.5px; line-height: 1.5; }
+  .chat-msg-user { align-self: flex-end; background: var(--purple); color: var(--white); border-bottom-right-radius: 4px; }
+  .chat-msg-assistant { align-self: flex-start; background: var(--paper); color: var(--ink); border-bottom-left-radius: 4px; }
+  .chat-msg-guardrail { background: var(--amber-100); color: var(--amber-700); }
+
+  .chat-results { align-self: stretch; display: flex; flex-direction: column; gap: 10px; }
+  .result-card { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .result-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .result-name { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .result-location { font-size: 12.5px; color: var(--ink-faint); flex: none; }
+  .result-role { margin-top: 3px; font-size: 13px; color: var(--ink-soft); }
+  .result-meta { margin-top: 8px; font-size: 12px; color: var(--ink-faint); }
+  .result-badges { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .result-badge { display: inline-flex; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .result-badge.grade-verified { background: var(--teal); color: var(--white); }
+  .result-badge.grade-evidenced { background: var(--purple-dark); color: var(--white); }
+  .result-badge.grade-derived { background: transparent; color: var(--teal-dark); border: 1.5px solid var(--teal); }
+  .result-badge.grade-declared { background: transparent; color: var(--amber-700); border: 1.5px solid var(--amber-700); }
+  .result-post { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--paper); font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; font-style: italic; }
+  .result-post-report { margin-top: 6px; background: none; border: none; padding: 0; font-size: 11.5px; font-weight: 600; color: var(--ink-faint); cursor: pointer; text-decoration: underline; }
+  .result-post-report:hover { color: var(--purple-dark); }
+  .result-post-report[disabled] { cursor: default; text-decoration: none; }
+
+  .chat-form { display: flex; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--paper); }
+  .chat-form input {
+    flex: 1; padding: 11px 15px; border-radius: 999px; border: 1.5px solid var(--line);
+    font-size: 14.5px; font-family: inherit; background: var(--white); color: var(--ink);
+  }
+  .chat-form input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-100); }
+  .chat-send-btn { margin-top: 0; flex: none; padding: 11px 20px; }
+  .chat-typing { align-self: flex-start; font-size: 13px; color: var(--ink-faint); font-style: italic; }
 </style>
 </head>
 <body>
@@ -151,35 +218,55 @@
 
       <form class="verify-form" id="verify-form" data-verify-form>
         <div class="field">
-          <label for="cqc-id">CQC provider ID</label>
-          <input id="cqc-id" type="text" placeholder="e.g. 1-000000000" autocomplete="off" />
-        </div>
-        <div class="field">
           <label for="ch-no">Companies House number</label>
           <input id="ch-no" type="text" placeholder="e.g. 12345678" autocomplete="off" />
         </div>
-        <p class="field-hint">Provide at least one — a CQC provider ID is the strongest signal we can check.</p>
+        <div class="field">
+          <label for="care-regulator">Care regulator <span class="optional">(optional)</span></label>
+          <select id="care-regulator">
+            <option value="">Not registered with a care regulator</option>
+            <option value="cqc">CQC (England)</option>
+            <option value="care_inspectorate_scotland">Care Inspectorate (Scotland)</option>
+            <option value="rqia">RQIA (Northern Ireland)</option>
+            <option value="ciw">CIW (Wales)</option>
+          </select>
+        </div>
+        <div class="field" data-regulator-reg-field style="display:none;">
+          <label for="regulator-reg-no">Registration number</label>
+          <input id="regulator-reg-no" type="text" placeholder="e.g. 1-000000000" autocomplete="off" />
+        </div>
+        <p class="field-hint">Your Companies House number is required — it's what confirms you're a genuine UK-registered company. If you're also registered with a care regulator, add that too; not every care employer is.</p>
         <button type="submit" class="btn" data-verify-submit>Submit for verification</button>
       </form>
       <p class="form-status" data-verify-form-status></p>
     </div>
 
-    <div class="coming-list">
+    <div class="coming-list" data-coming-list>
       <div class="coming-item">
         <span class="coming-item-num">01</span>
-        <div>
-          <div class="coming-item-label">Chat-based candidate search</div>
-          <div class="coming-item-sub">Describe the role you're hiring for in plain language — no forms or filters.</div>
-        </div>
-      </div>
-      <div class="coming-item">
-        <span class="coming-item-num">02</span>
         <div>
           <div class="coming-item-label">Shortlisting &amp; pipeline</div>
           <div class="coming-item-sub">Move candidates through Shortlisted → Interview → Offer → Hired, all from chat.</div>
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="chat-card" data-chat-section style="display:none;">
+    <div class="chat-header">
+      <h2>Find candidates</h2>
+      <p>Describe the role in plain language — profession, skills, location, availability.</p>
+    </div>
+    <div class="chat-thread" data-chat-thread>
+      <p class="chat-empty-hint" data-chat-empty>
+        Nothing here yet — try something like:
+        <span class="example">"Registered nurse with dementia care experience within 10 miles of Belfast"</span>
+      </p>
+    </div>
+    <form class="chat-form" data-chat-form>
+      <input type="text" id="chat-input" placeholder="e.g. Nurse near Belfast…" autocomplete="off" />
+      <button type="submit" class="btn chat-send-btn" data-chat-send>Send</button>
+    </form>
   </div>
 </div>
 
@@ -230,6 +317,157 @@ function icareRequireAuth(signInPath) {
     expired: "Expired — please resubmit",
   };
 
+  // ---- Chat (Sprint 8) ----
+  var chatInitialized = false;
+  var badgeGradeByCode = {};
+  var skillLabelByCode = {};
+
+  function loadChatReferenceData() {
+    return Promise.all([
+      fetch("/badges").then(function (r) { return r.json(); }).catch(function () { return { badges: [] }; }),
+      fetch("/skills").then(function (r) { return r.json(); }).catch(function () { return { skills: [] }; }),
+    ]).then(function (results) {
+      (results[0].badges || []).forEach(function (b) { badgeGradeByCode[b.code] = { grade: b.grade, label: b.label }; });
+      (results[1].skills || []).forEach(function (s) { skillLabelByCode[s.id] = s.label; });
+    });
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str == null ? "" : String(str);
+    return div.innerHTML;
+  }
+
+  function formatExperience(months) {
+    if (!months || months < 1) return null;
+    var years = Math.floor(months / 12);
+    if (years < 1) return months + (months === 1 ? " month" : " months") + " experience";
+    return years + (years === 1 ? " year" : " years") + " experience";
+  }
+
+  function renderResultCard(r) {
+    var location = [r.town, r.postcode_district].filter(Boolean).join(", ");
+    var roleLine = r.current_job_title
+      ? r.current_job_title + (r.current_employer ? " at " + r.current_employer : "")
+      : r.primary_profession || "";
+    var badgesHtml = (r.badge_codes || []).map(function (code) {
+      var info = badgeGradeByCode[code];
+      var label = info ? info.label : code;
+      var gradeClass = info ? "grade-" + info.grade : "";
+      return '<span class="result-badge ' + gradeClass + '">' + escapeHtml(label) + "</span>";
+    }).join("");
+    var skillLabels = (r.skill_ids || []).map(function (id) { return skillLabelByCode[id] || id; });
+    var metaParts = [];
+    var exp = formatExperience(r.experience_months);
+    if (exp) metaParts.push(exp);
+    if (skillLabels.length) metaParts.push(skillLabels.join(", "));
+
+    var postHtml = r.post_excerpt
+      ? '<div class="result-post">"' + escapeHtml(r.post_excerpt) + '"' +
+        (r.post_id ? '<div><button type="button" class="result-post-report" data-report-post="' + escapeHtml(r.post_id) + '">Report this post</button></div>' : "") +
+        "</div>"
+      : "";
+
+    return (
+      '<div class="result-card">' +
+        '<div class="result-card-head">' +
+          '<span class="result-name">' + escapeHtml(r.full_name || "Candidate") + "</span>" +
+          (location ? '<span class="result-location">' + escapeHtml(location) + "</span>" : "") +
+        "</div>" +
+        (roleLine ? '<div class="result-role">' + escapeHtml(roleLine) + "</div>" : "") +
+        (metaParts.length ? '<div class="result-meta">' + escapeHtml(metaParts.join(" · ")) + "</div>" : "") +
+        (badgesHtml ? '<div class="result-badges">' + badgesHtml + "</div>" : "") +
+        postHtml +
+      "</div>"
+    );
+  }
+
+  function reportPost(postId, btn) {
+    btn.disabled = true;
+    btn.textContent = "Reporting…";
+    icareAuthFetch("/employers/posts/" + postId + "/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason: "Reported from search results" }),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        btn.textContent = result.ok ? "Reported — thank you" : (result.body.error || "Couldn't report this post");
+        if (!result.ok) btn.disabled = false;
+      })
+      .catch(function () {
+        btn.textContent = "Couldn't report this post";
+        btn.disabled = false;
+      });
+  }
+
+  function appendChatMessage(role, content, results) {
+    document.querySelector("[data-chat-empty]").style.display = "none";
+    var thread = document.querySelector("[data-chat-thread]");
+    var bubble = document.createElement("div");
+    bubble.className = "chat-msg " + (role === "user" ? "chat-msg-user" : "chat-msg-assistant");
+    bubble.textContent = content;
+    thread.appendChild(bubble);
+
+    if (results && results.length) {
+      var resultsWrap = document.createElement("div");
+      resultsWrap.className = "chat-results";
+      resultsWrap.innerHTML = results.map(renderResultCard).join("");
+      thread.appendChild(resultsWrap);
+    }
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  function loadChatHistory() {
+    return icareAuthFetch("/employers/chat")
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        if (!result.ok || !Array.isArray(result.body.messages)) return;
+        result.body.messages.forEach(function (m) {
+          appendChatMessage(m.role, m.content, m.results_snapshot);
+        });
+      })
+      .catch(function () {
+        // Non-fatal — the empty-thread hint stays visible and the input is
+        // still usable; a failed history load shouldn't block search.
+      });
+  }
+
+  function sendChatMessage(message) {
+    var thread = document.querySelector("[data-chat-thread]");
+    appendChatMessage("user", message);
+
+    var typing = document.createElement("p");
+    typing.className = "chat-typing";
+    typing.textContent = "Searching…";
+    thread.appendChild(typing);
+    thread.scrollTop = thread.scrollHeight;
+
+    return icareAuthFetch("/employers/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: message }),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        typing.remove();
+        if (!result.ok) {
+          appendChatMessage("assistant", result.body.error || "Something went wrong. Please try again.");
+          return;
+        }
+        appendChatMessage("assistant", result.body.reply, result.body.results);
+      })
+      .catch(function () {
+        typing.remove();
+        appendChatMessage("assistant", "Network error — please try again.");
+      });
+  }
+
+  function syncRegulatorRegField() {
+    var hasRegulator = !!document.getElementById("care-regulator").value;
+    document.querySelector("[data-regulator-reg-field]").style.display = hasRegulator ? "block" : "none";
+  }
+
   function renderVerification(employer, latestRequest) {
     document.querySelector("[data-verify-loading]").style.display = "none";
     document.querySelector("[data-verify-block]").style.display = "block";
@@ -242,14 +480,14 @@ function icareRequireAuth(signInPath) {
     statusRow.className = "status-row";
     reviewerNote.style.display = "none";
 
-    var hasIdentifier = latestRequest && (latestRequest.cqc_provider_id || latestRequest.companies_house_no);
+    var hasIdentifier = latestRequest && latestRequest.companies_house_no;
 
     if (employer.is_verified) {
       statusText.textContent = "Verified — your organisation is confirmed";
       form.style.display = "none";
     } else if (!hasIdentifier) {
       statusRow.classList.add("status-row-pending");
-      statusText.textContent = "Add your CQC provider ID or Companies House number to start verification";
+      statusText.textContent = "Add your Companies House number to start verification";
       form.style.display = "block";
     } else if (latestRequest.status === "rejected" || latestRequest.status === "expired") {
       statusRow.classList.add("status-row-rejected");
@@ -266,8 +504,16 @@ function icareRequireAuth(signInPath) {
     }
 
     if (!employer.is_verified) {
-      document.getElementById("cqc-id").value = employer.cqc_provider_id || "";
-      document.getElementById("ch-no").value = (latestRequest && latestRequest.companies_house_no) || "";
+      document.getElementById("ch-no").value = employer.companies_house_no || "";
+      document.getElementById("care-regulator").value = employer.regulator || "";
+      document.getElementById("regulator-reg-no").value = employer.regulator_reg_number || "";
+      syncRegulatorRegField();
+    }
+
+    document.querySelector("[data-chat-section]").style.display = employer.is_verified ? "flex" : "none";
+    if (employer.is_verified && !chatInitialized) {
+      chatInitialized = true;
+      loadChatReferenceData().then(loadChatHistory);
     }
   }
 
@@ -305,15 +551,23 @@ function icareRequireAuth(signInPath) {
       // Non-fatal — the generic greeting still reads fine without a name.
     });
 
+  document.getElementById("care-regulator").addEventListener("change", syncRegulatorRegField);
+
   document.querySelector("[data-verify-form]").addEventListener("submit", function (e) {
     e.preventDefault();
-    var cqcId = document.getElementById("cqc-id").value.trim();
     var chNo = document.getElementById("ch-no").value.trim();
+    var regulator = document.getElementById("care-regulator").value;
+    var regulatorRegNo = document.getElementById("regulator-reg-no").value.trim();
     var statusEl = document.querySelector("[data-verify-form-status]");
     var submitBtn = document.querySelector("[data-verify-submit]");
 
-    if (!cqcId && !chNo) {
-      statusEl.textContent = "Provide a CQC provider ID or Companies House number.";
+    if (!chNo) {
+      statusEl.textContent = "Companies House number is required.";
+      statusEl.className = "form-status is-visible err";
+      return;
+    }
+    if (regulator && !regulatorRegNo) {
+      statusEl.textContent = "Add your registration number, or clear the care regulator field.";
       statusEl.className = "form-status is-visible err";
       return;
     }
@@ -325,7 +579,7 @@ function icareRequireAuth(signInPath) {
     icareAuthFetch("/employers/me/verification-requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cqc_provider_id: cqcId, companies_house_no: chNo }),
+      body: JSON.stringify({ companies_house_no: chNo, regulator: regulator, regulator_reg_number: regulatorRegNo }),
     })
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
       .then(function (result) {
@@ -346,6 +600,26 @@ function icareRequireAuth(signInPath) {
         statusEl.textContent = "Network error — please try again.";
         statusEl.className = "form-status is-visible err";
       });
+  });
+
+  document.querySelector("[data-chat-form]").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var input = document.getElementById("chat-input");
+    var message = input.value.trim();
+    if (!message) return;
+    input.value = "";
+    var sendBtn = document.querySelector("[data-chat-send]");
+    sendBtn.disabled = true;
+    sendChatMessage(message).finally(function () {
+      sendBtn.disabled = false;
+      input.focus();
+    });
+  });
+
+  document.querySelector("[data-chat-thread]").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-report-post]");
+    if (!btn || btn.disabled) return;
+    reportPost(btn.getAttribute("data-report-post"), btn);
   });
 
   document.querySelector("[data-sign-out]").addEventListener("click", function () {
