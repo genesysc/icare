@@ -150,7 +150,9 @@ stop and ask the user — do not resolve it yourself.**
 | `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
 | `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
-| `src/verify.html` | OTP code entry, `/verify?email=...` |
+| `src/employer-sign-in.html` | Employer sign-up/sign-in (Sprint 6), mounted at both `/employer/sign-up` and `/employer/sign-in`, own purple/teal design system |
+| `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me` |
+| `src/employer-home.html` | Employer stub home (Sprint 6), `/employer/home` — non-broken landing target until Sprint 7+ builds the real thing |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
 | `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, account closure |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
@@ -278,6 +280,14 @@ row plus `candidates`+`candidate_contact` or `employers`+
   into the wizard for edits, account closure.
 - Sign-up/sign-in/verify (`src/sign-in.html`, `src/verify.html`, Sprint
   1): OTP-based, one entry point for both flows.
+- **Employer sign-up/sign-in** (`src/employer-sign-in.html`,
+  `src/employer-home.html`, Sprint 6): mirrors the candidate flow for
+  `role: "employer"`, own purple/teal design system matching
+  `employers.html`, collects an organisation name at signup. Lands on
+  the new `/employer/home` stub post-verify — `handle_new_user()`
+  already creates the `employers` row and an
+  `employer_verification_requests` row automatically, so this needed no
+  new backend routes.
 - Landing pages: candidate-primary (`src/landing.html`) and employer
   (`src/employers.html`, v2, built against a real design/copy brief).
   Both waitlist-first pre-launch pages, not the real signed-in product.
@@ -623,12 +633,31 @@ key value. The user (or CI, or an authenticated session) needs to run
 it against the real `icare` Worker. Until then the route deploys fine
 but 500s on the Claude call.
 
-**Next priorities**: Sprint 6 starts the employer track (per the
-revised Sprints 6-11 plan; iCompliance/Sprint 12 stays explicitly
-unscheduled). Sprint 8 (chat infrastructure, employer track) will need
-the same `ANTHROPIC_API_KEY` secret — see above, still not provisioned.
-Don't restart the domain/Sender.net work unless the user brings it back
-up.
+Sprint 6 (employer sign-up/sign-in UI) is now shipped — **the employer
+track has started.** `src/employer-sign-in.html` (own purple/teal design
+system, mirrors the candidate sign-in pattern, collects an organisation
+name at signup) and a new `src/employer-home.html` stub (the employer
+equivalent of Sprint 1's onboarding/dashboard stubs) round out the flow;
+`src/verify.html` is now shared by both audiences, branching the
+post-verify redirect on the account's real role from the existing
+`GET /auth/me` rather than duplicating the whole verification page.
+Reading `handle_new_user()`'s real SQL first (not assumed) showed it
+already creates both the `employers` row and an
+`employer_verification_requests` row automatically on employer
+signup — so this sprint needed zero new backend routes, and Sprint 7's
+job is reviewing/completing that request, not creating it. The
+`/employers` marketing page itself is untouched, same as the candidate
+landing page was left unlinked to `/sign-in` after Sprint 1 — pre-launch
+marketing and the real signed-in product stay separate for now. See
+PROGRESS.md's "Done" section for full detail, including how redirects
+were verified given `file://`'s navigation limitation in this sandbox.
+Not yet pushed as a PR.
+
+**Next priorities**: Sprint 7 (employer verification flow — CQC
+provider ID / Companies House number, gating search behind
+`is_verified_employer()`). Sprint 8 (chat infrastructure) will need an
+`ANTHROPIC_API_KEY` secret — see above, still not provisioned. Don't
+restart the domain/Sender.net work unless the user brings it back up.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.

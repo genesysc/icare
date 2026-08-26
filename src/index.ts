@@ -8,9 +8,11 @@ import employerLandingPage from "./employers.html";
 import privacyPage from "./privacy.html";
 import termsPage from "./terms.html";
 import signInPage from "./sign-in.html";
+import employerSignInPage from "./employer-sign-in.html";
 import verifyPage from "./verify.html";
 import onboardingPage from "./onboarding.html";
 import dashboardPage from "./dashboard.html";
+import employerHomePage from "./employer-home.html";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -30,9 +32,12 @@ app.get("/privacy", (c) => c.html(privacyPage));
 app.get("/terms", (c) => c.html(termsPage));
 app.get("/sign-in", (c) => c.html(signInPage));
 app.get("/sign-up", (c) => c.html(signInPage));
+app.get("/employer/sign-in", (c) => c.html(employerSignInPage));
+app.get("/employer/sign-up", (c) => c.html(employerSignInPage));
 app.get("/verify", (c) => c.html(verifyPage));
 app.get("/onboarding", (c) => c.html(onboardingPage));
 app.get("/dashboard", (c) => c.html(dashboardPage));
+app.get("/employer/home", (c) => c.html(employerHomePage));
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 

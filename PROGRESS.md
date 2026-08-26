@@ -1254,6 +1254,74 @@ they aren't lost:
     the Claude call until the secret exists).
   - Not yet pushed as a PR — same review-pause status as the professions/
     DBS fixes above.
+- **Sprint 6: employer sign-up / sign-in UI** — the employer track's
+  first sprint, resumed after the review pause. Read
+  `handle_new_user()`'s real SQL before assuming anything needed to be
+  built server-side, and it surfaced something useful: an employer
+  signup **already** creates both the `employers` row (`org_name`,
+  `is_verified: false`) and an `employer_verification_requests` row
+  (`submitted_org_name`, `submitted_email`) automatically — so Sprint 6
+  itself needs zero new backend routes, exactly as `SPRINTS.md` scoped
+  it, and Sprint 7's job is reviewing/completing that request, not
+  creating it from scratch.
+  - **`src/employer-sign-in.html`** (new): same one-file sign-up/sign-in
+    toggle pattern as `src/sign-in.html`, but re-themed to match
+    `employers.html`'s own purple/teal design system (`--purple:
+    #330072`, `--teal: #00a499`) rather than reusing the candidate
+    pages' plum/teal palette, and with an organisation-name field added
+    alongside name/email at signup. Posts the existing
+    `POST /auth/request-code` with `role: "employer"`. Mounted at both
+    `/employer/sign-up` and `/employer/sign-in`.
+  - **`src/verify.html`** (shared, not duplicated): gained an optional
+    `?role=` query hint, set by whichever sign-in page redirected here.
+    It only steers cosmetic bits — the "use a different email" link
+    target and the offline-fallback landing page if `/auth/me` can't be
+    reached — never the actual post-verify redirect, which now calls the
+    **existing** `GET /auth/me` first and branches on the account's real
+    `role`: employers go to the new `/employer/home`, candidates keep
+    the exact same `onboarding_done`-based `/onboarding` vs `/dashboard`
+    check as before. This was a deliberate choice over building a
+    separate `employer-verify.html` — one shared page, avoids
+    duplicating the whole verification form a second time.
+  - **`src/employer-home.html`** (new stub): the non-broken landing
+    target for a signed-in employer — the same role Sprint 1's
+    `onboarding.html`/`dashboard.html` stubs played for candidates
+    before later sprints replaced them. Deliberately minimal, matching
+    Sprint 6's actual scope: greets by name via the existing
+    `GET /auth/me` (no new route needed just to say hello), shows a
+    static "Verification: pending" status line and a 3-item roadmap
+    card (organisation verification → chat search → pipeline). Sprint 7
+    onward replaces its body outright, same as Sprint 2 replaced the
+    candidate stub.
+  - **Cross-links added both directions**: candidate sign-in now shows
+    "Hiring instead? Employer sign in", employer sign-in shows "Looking
+    for work instead? Candidate sign in" — someone who lands on the
+    wrong audience's page isn't stuck re-typing a URL.
+  - **Left alone on purpose**: the `/employers` marketing/waitlist page
+    itself — no CTA there points at the new real sign-up flow yet, same
+    as the candidate landing page was left unlinked to `/sign-in` after
+    Sprint 1. Pre-launch marketing and the real signed-in product stay
+    deliberately separate until the user decides to connect them.
+  - **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run`
+    bundles cleanly (~1.51MB / 314KB gzip). Exercised with headless
+    Chromium against mocked `/auth/verify-code` + `/auth/me` responses:
+    an employer login correctly redirects to `/employer/home` and
+    **never** calls `/candidates/me`; a candidate login is unaffected
+    (still redirects to `/onboarding` or `/dashboard` based on
+    `onboarding_done`, both branches re-confirmed as a regression
+    check); the unauthenticated `employer-home.html` guard correctly
+    redirects to `/employer/sign-in?next=...`; the signup form's actual
+    POST payload confirmed `role: "employer"` plus the typed
+    organisation name both reach the server correctly, unmodified.
+    (`window.location.href` navigation itself can't complete under
+    `file://` in this sandbox — there's no server behind those paths —
+    so redirects were verified via the attempted navigation request's
+    URL rather than the final loaded page; same limitation already
+    documented elsewhere in this file, not new.) 5-viewport overflow
+    audit across all 4 new/changed pages, including the employer form in
+    both its sign-in and sign-up states — zero horizontal overflow
+    anywhere.
+  - Not yet pushed as a PR.
 
 ## Not started yet
 - Employer-side API (profile, verification-request flow, browsing/

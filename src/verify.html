@@ -4,10 +4,16 @@
   Reads ?email= from the query string (set by sign-in.html's redirect).
   Posts to the EXISTING POST /auth/verify-code, stores the returned
   session via the Sprint 0 auth-client.js helper (copied inline per this
-  repo's no-build-step convention), then checks candidates.onboarding_done
-  via the EXISTING GET /candidates/me to decide where to land the user —
-  /onboarding (stub until Sprint 2 builds the real wizard) or /dashboard
-  (stub until Sprint 5).
+  repo's no-build-step convention).
+
+  Shared by both audiences (SPRINTS.md Sprint 6 added the employer side).
+  ?role= is only a hint from whichever sign-in page redirected here — it
+  steers the "use a different email" link and the offline fallback
+  landing page. The actual post-verify redirect is decided
+  authoritatively by the account's real role from the EXISTING
+  GET /auth/me: employers land on /employer/home (stub until Sprint 7+),
+  candidates check onboarding_done via the EXISTING GET /candidates/me to
+  land on /onboarding or /dashboard, same as before Sprint 6.
 -->
 <!doctype html>
 <html lang="en">
@@ -112,7 +118,7 @@
     <div class="links">
       <button type="button" data-resend>Resend code</button>
       &nbsp;·&nbsp;
-      <a href="/sign-in">Use a different email</a>
+      <a data-different-email href="/sign-in">Use a different email</a>
     </div>
   </div>
 </div>
@@ -137,11 +143,14 @@ function icareAuthFetch(url, options) {
 (function () {
   var params = new URLSearchParams(window.location.search);
   var email = params.get("email") || "";
+  var roleHint = params.get("role") === "employer" ? "employer" : "candidate";
+  var signInPath = roleHint === "employer" ? "/employer/sign-in" : "/sign-in";
   if (!email) {
-    window.location.href = "/sign-in";
+    window.location.href = signInPath;
     return;
   }
   document.querySelector("[data-email]").textContent = email;
+  document.querySelector("[data-different-email]").href = signInPath;
 
   var form = document.getElementById("verify-form");
   var statusEl = document.querySelector("[data-status]");
@@ -174,15 +183,28 @@ function icareAuthFetch(url, options) {
         }
         icareSetSession(result.body.session);
         setStatus("ok", "You're in — taking you to your account…");
-        return icareAuthFetch("/candidates/me")
+        // Which page to land on is decided by the account's real role
+        // (GET /auth/me, server-authoritative), never by the ?role= hint —
+        // that param only steered the "use a different email" link above.
+        return icareAuthFetch("/auth/me")
           .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
-          .then(function (candidateResult) {
-            var onboardingDone = candidateResult.ok && candidateResult.body.candidate && candidateResult.body.candidate.onboarding_done;
-            window.location.href = onboardingDone ? "/dashboard" : "/onboarding";
+          .then(function (meResult) {
+            var role = meResult.ok && meResult.body.account ? meResult.body.account.role : roleHint;
+            if (role === "employer") {
+              window.location.href = "/employer/home";
+              return;
+            }
+            return icareAuthFetch("/candidates/me")
+              .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+              .then(function (candidateResult) {
+                var onboardingDone = candidateResult.ok && candidateResult.body.candidate && candidateResult.body.candidate.onboarding_done;
+                window.location.href = onboardingDone ? "/dashboard" : "/onboarding";
+              });
           })
           .catch(function () {
-            // Couldn't confirm onboarding state — land on onboarding, it's the safe default.
-            window.location.href = "/onboarding";
+            // Couldn't confirm role/onboarding state — fall back to the
+            // hinted audience's safest default landing page.
+            window.location.href = roleHint === "employer" ? "/employer/home" : "/onboarding";
           });
       })
       .catch(function () {
