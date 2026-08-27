@@ -1908,6 +1908,55 @@ they aren't lost:
     long regulator label, long candidate/job-title/employer combination)
     — zero overflow everywhere.
   - Committed and pushed to the branch. Not yet its own PR.
+- **Debugging pass over Sprints 1-5 (candidate track), same day, on direct
+  founder instruction ("start debugging sprints 1-5").** No live browser/
+  network access to the deployed worker from this sandbox (`curl` to
+  `https://icare.icare-181.workers.dev` timed out — confirmed the egress
+  block isn't scoped to `*.supabase.co` alone), so this was the same
+  methodology as everything else: static cross-checks, then a live
+  headless-Chromium walkthrough against mocks shaped like the real,
+  current backend.
+  - Static checks (all clean, no drift found): every `jsend`/`jget` call
+    in `onboarding.html` cross-referenced against `candidates.ts`'s actual
+    current routes and `WRITABLE_FIELDS`/`EMPLOYMENT_FIELDS`/
+    `QUALIFICATION_FIELDS`/`REGISTRATION_FIELDS`/`DBS_FIELDS`; every
+    `getElementById()` call cross-referenced against real HTML `id`
+    attributes (Python regex diff, zero dangling references); every
+    `[data-*]` selector cross-referenced the same way (a few false
+    positives from dynamically-templated record-card markup, verified by
+    hand, not real bugs); `renderPublishChecklist()`'s 4 conditions
+    re-checked against `can_publish()`'s real SQL (`pg_get_functiondef`)
+    — still an exact match, no drift since Sprint 5.
+  - **Real bug found and fixed**: `onboarding.html`'s step 1 ("Basics") and
+    step 3 ("Availability & logistics") `PATCH /candidates/me` handlers
+    never captured the response back into the page's local `candidate`
+    variable — it was only ever assigned once, at initial page load. Every
+    downstream reader of that variable (`renderPublishChecklist()`,
+    `completenessPercent()`, `renderReviewSummary()`) kept reading the
+    stale, pre-save values for the rest of that session. Concretely: a
+    brand-new candidate filling out the wizard start-to-finish in one
+    sitting — the single most common real path through this product —
+    would hit a false "postcode missing" / "right-to-work missing" block
+    at step 11 and be unable to publish, even though both were correctly
+    entered and saved minutes earlier, until they reloaded the page (which
+    re-fetches `candidate` fresh and silently "fixes" it, which is likely
+    why this had never been caught by any test — the headless-Chromium
+    suites in Sprints 1-5 each tested individual steps/mocked states in
+    isolation, never one continuous unbroken session through all 11
+    steps). Fixed by assigning `candidate = result.body.candidate;` after
+    both successful `PATCH` calls — the route already returns the full
+    updated row (`select()` with no column list), so this is a safe full
+    replacement, not a partial merge. Confirmed via a full unbroken
+    11-step headless-Chromium walkthrough (fill basics → skills →
+    availability → add one employment record → skip quals/regs/DBS/refs/
+    prompts/photo → review → publish): checklist incorrectly blocking and
+    `published: false` before the fix, checklist clear and
+    `published: true` after, same script, same session, no reload.
+  - `dashboard.html` checked for the same anti-pattern — clean, it never
+    `PATCH`es `/candidates/me` at all (all edits route back into the
+    wizard), so there's no in-page mutation for its `candidate` variable
+    to go stale against.
+  - Committed and pushed to the branch. Not yet its own PR.
 
 ## Not started yet
 - ~~Employer-side API (profile, verification-request flow, browsing
