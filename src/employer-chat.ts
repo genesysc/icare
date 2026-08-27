@@ -227,8 +227,13 @@ employerChat.post("/", async (c) => {
 
   const guardrail = checkProtectedCharacteristics(message);
   if (guardrail.blocked) {
-    const assistantRow = await saveAssistantMessage(supabase, userId, GUARDRAIL_REDIRECT_MESSAGE);
-    return c.json({ reply: GUARDRAIL_REDIRECT_MESSAGE, results: null, message_id: assistantRow?.id });
+    // tool_call: { blocked: true } is a marker, not a real tool call — lets
+    // both the live response and history replay (GET / below) tell the
+    // frontend to render this with the distinct guardrail styling instead
+    // of a plain assistant bubble (a real UX gap found during a debugging
+    // pass: the CSS class existed, nothing ever applied it).
+    const assistantRow = await saveAssistantMessage(supabase, userId, GUARDRAIL_REDIRECT_MESSAGE, { tool_call: { blocked: true } });
+    return c.json({ reply: GUARDRAIL_REDIRECT_MESSAGE, results: null, message_id: assistantRow?.id, blocked: true });
   }
 
   // Recent history for conversational continuity. Safe to replay to the
@@ -601,7 +606,7 @@ employerChat.get("/", async (c) => {
   const { data, error } = await c
     .get("supabase")
     .from("employer_chat_messages")
-    .select("id, role, content, result_count, results_snapshot, created_at")
+    .select("id, role, content, tool_call, result_count, results_snapshot, created_at")
     .eq("employer_id", c.get("userId"))
     .order("created_at", { ascending: true });
 

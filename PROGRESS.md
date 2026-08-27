@@ -1957,6 +1957,41 @@ they aren't lost:
     wizard), so there's no in-page mutation for its `candidate` variable
     to go stale against.
   - Committed and pushed to the branch. Not yet its own PR.
+- **Debugging pass continued into Sprints 6-8 (employer track), same
+  session.** `employer-sign-in.html`, `verify.html`'s shared role-hint/
+  redirect logic, and `employer-home.html`'s verification-submit flow all
+  checked clean — the verification form specifically does NOT have the
+  Sprint 1-5 staleness bug's pattern, since it always calls
+  `loadVerification()` (a full fresh `GET /employers/me` re-render) after
+  a successful submit rather than hand-patching local state. Confirmed
+  live via an unbroken session: unverified → submit → (server-side flip,
+  matching how review actually works) → reload → chat/pipeline/org-
+  profile all correctly gated on the real `is_verified`.
+  - **Real bug found and fixed**: `.chat-msg-guardrail` (the amber
+    warning style for a protected-characteristics-guardrail redirect) was
+    defined in CSS but never actually applied anywhere in the JS — a
+    blocked message rendered as a plain, visually-identical assistant
+    reply, silently losing the "this was blocked for compliance reasons"
+    visual distinction the styling was clearly built for. Root cause: the
+    guardrail-blocked branch of `POST /employers/chat` never told the
+    frontend a message was a guardrail block at all — no such marker
+    existed in the API response or in what `GET /employers/chat` (history)
+    returned. Fixed by stamping `tool_call: { blocked: true }` on the
+    saved message (mirrors this codebase's existing tool_call-as-metadata
+    convention) — returned live as `blocked: true` in the POST response,
+    and now selected by `GET /employers/chat` for history replay — with
+    `appendChatMessage()` taking a new `blocked` param that adds the CSS
+    class. Verified both paths live: a fresh guardrail-triggered send and
+    a page-reload history replay both now render with the intended amber
+    styling.
+  - **Noted, not fixed (cosmetic, not a bug)**: `onboarding.html` has
+    three genuinely dead CSS classes (`.holding`, `.soon-tag`,
+    `.review-item-detail` + its textarea rule) — leftover from Sprint 2's
+    original "rest of the wizard — coming soon" holding screen, superseded
+    once Sprints 3-5 filled out the full 11 steps. Nothing references them
+    in markup or JS; harmless, just unused weight. Left alone since this
+    was a debugging pass, not a cleanup one — flagging in case a future
+    pass wants to remove them.
 
 ## Not started yet
 - ~~Employer-side API (profile, verification-request flow, browsing

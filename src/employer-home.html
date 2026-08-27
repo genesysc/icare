@@ -434,11 +434,12 @@ function icareRequireAuth(signInPath) {
       });
   }
 
-  function appendChatMessage(role, content, results) {
+  function appendChatMessage(role, content, results, blocked) {
     document.querySelector("[data-chat-empty]").style.display = "none";
     var thread = document.querySelector("[data-chat-thread]");
     var bubble = document.createElement("div");
     bubble.className = "chat-msg " + (role === "user" ? "chat-msg-user" : "chat-msg-assistant");
+    if (blocked) bubble.className += " chat-msg-guardrail";
     bubble.textContent = content;
     thread.appendChild(bubble);
 
@@ -552,7 +553,7 @@ function icareRequireAuth(signInPath) {
       .then(function (result) {
         if (!result.ok || !Array.isArray(result.body.messages)) return;
         result.body.messages.forEach(function (m) {
-          appendChatMessage(m.role, m.content, m.results_snapshot);
+          appendChatMessage(m.role, m.content, m.results_snapshot, !!(m.tool_call && m.tool_call.blocked));
         });
       })
       .catch(function () {
@@ -583,7 +584,7 @@ function icareRequireAuth(signInPath) {
           appendChatMessage("assistant", result.body.error || "Something went wrong. Please try again.");
           return;
         }
-        appendChatMessage("assistant", result.body.reply, result.body.results);
+        appendChatMessage("assistant", result.body.reply, result.body.results, !!result.body.blocked);
         loadPipeline();
       })
       .catch(function () {
