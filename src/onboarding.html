@@ -1622,6 +1622,7 @@ function icareRequireAuth(signInPath) {
     })
       .then(function (result) {
         if (!result.ok) throw new Error(result.body.error || "Couldn't save your details.");
+        candidate = result.body.candidate;
         return jsend("PUT", "/candidates/me/professions", { profession_ids: myProfessionIds, primary_id: primaryId || null });
       })
       .then(function (result) {
@@ -1701,6 +1702,7 @@ function icareRequireAuth(signInPath) {
     jsend("PATCH", "/candidates/me", payload)
       .then(function (result) {
         if (!result.ok) throw new Error(result.body.error || "Couldn't save your details.");
+        candidate = result.body.candidate;
         return advanceOnboarding(4, "availability_completed");
       })
       .then(function (result) {

@@ -107,6 +107,10 @@
   .status-row-rejected .status-dot { background: var(--err); }
 
   .reviewer-note { margin-top: 10px; font-size: 13px; color: var(--ink-faint); line-height: 1.5; }
+  .org-profile { margin-top: 14px; padding: 14px 16px; background: var(--paper); border-radius: 12px; }
+  .org-profile-row { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 13.5px; }
+  .org-profile-label { color: var(--ink-faint); }
+  .org-profile-row span:last-child { color: var(--ink); font-weight: 600; text-align: right; }
   .reviewer-note strong { color: var(--ink); }
 
   .verify-form { margin-top: 20px; }
@@ -201,6 +205,10 @@
   .pipeline-role { margin-top: 2px; font-size: 12.5px; color: var(--ink-soft); flex-basis: 100%; }
   .pipeline-location { font-size: 12px; color: var(--ink-faint); flex: none; }
   .pipeline-empty { padding: 16px 24px 24px; font-size: 13.5px; color: var(--ink-faint); }
+  .pipeline-unlocked { flex-basis: 100%; margin-top: 6px; display: flex; gap: 12px; }
+  .pipeline-media-btn { background: none; border: none; padding: 0; font-size: 12px; font-weight: 700; color: var(--teal); cursor: pointer; text-decoration: underline; }
+  .pipeline-media-btn:hover { color: var(--purple-dark); }
+  .pipeline-media-btn[disabled] { color: var(--ink-faint); cursor: default; text-decoration: none; }
   .chat-send-btn { margin-top: 0; flex: none; padding: 11px 20px; }
   .chat-typing { align-self: flex-start; font-size: 13px; color: var(--ink-faint); font-style: italic; }
 </style>
@@ -226,6 +234,12 @@
         <span data-verify-status-text>Verification status</span>
       </div>
       <p class="reviewer-note" data-verify-reviewer-note style="display:none;"></p>
+
+      <div class="org-profile" data-org-profile style="display:none;">
+        <div class="org-profile-row"><span class="org-profile-label">Organisation</span><span data-org-name></span></div>
+        <div class="org-profile-row"><span class="org-profile-label">Companies House no.</span><span data-org-ch-no></span></div>
+        <div class="org-profile-row" data-org-regulator-row><span class="org-profile-label">Care regulator</span><span data-org-regulator></span></div>
+      </div>
 
       <form class="verify-form" id="verify-form" data-verify-form>
         <div class="field">
@@ -329,6 +343,13 @@ function icareRequireAuth(signInPath) {
     expired: "Expired — please resubmit",
   };
 
+  var CARE_REGULATOR_LABELS = {
+    cqc: "CQC (England)",
+    care_inspectorate_scotland: "Care Inspectorate (Scotland)",
+    rqia: "RQIA (Northern Ireland)",
+    ciw: "CIW (Wales)",
+  };
+
   // ---- Chat (Sprint 8) ----
   var chatInitialized = false;
   var badgeGradeByCode = {};
@@ -413,11 +434,12 @@ function icareRequireAuth(signInPath) {
       });
   }
 
-  function appendChatMessage(role, content, results) {
+  function appendChatMessage(role, content, results, blocked) {
     document.querySelector("[data-chat-empty]").style.display = "none";
     var thread = document.querySelector("[data-chat-thread]");
     var bubble = document.createElement("div");
     bubble.className = "chat-msg " + (role === "user" ? "chat-msg-user" : "chat-msg-assistant");
+    if (blocked) bubble.className += " chat-msg-guardrail";
     bubble.textContent = content;
     thread.appendChild(bubble);
 
@@ -467,15 +489,51 @@ function icareRequireAuth(signInPath) {
         row.innerHTML =
           '<span class="pipeline-name"></span>' +
           (location ? '<span class="pipeline-location"></span>' : "") +
-          (roleLine ? '<span class="pipeline-role"></span>' : "");
+          (roleLine ? '<span class="pipeline-role"></span>' : "") +
+          (r.consented ? '<span class="pipeline-unlocked"></span>' : "");
         row.querySelector(".pipeline-name").textContent = cand.full_name || "Candidate";
         if (location) row.querySelector(".pipeline-location").textContent = location;
         if (roleLine) row.querySelector(".pipeline-role").textContent = roleLine;
+        if (r.consented) {
+          var unlocked = row.querySelector(".pipeline-unlocked");
+          unlocked.innerHTML =
+            '<button type="button" class="pipeline-media-btn" data-media="photo" data-media-candidate="' + r.candidate_id + '">Photo</button>' +
+            '<button type="button" class="pipeline-media-btn" data-media="video" data-media-candidate="' + r.candidate_id + '">Video</button>' +
+            '<button type="button" class="pipeline-media-btn" data-media="cv" data-media-candidate="' + r.candidate_id + '">CV</button>';
+        }
         group.appendChild(row);
       });
 
       body.appendChild(group);
     });
+  }
+
+  function openCandidateMedia(candidateId, mediaType, btn) {
+    var originalText = btn.textContent;
+    // Open the window synchronously, inside the click handler, so popup
+    // blockers see it as a direct result of the user gesture — navigating
+    // it later from inside the fetch's .then() would get silently blocked
+    // in stricter browsers.
+    var win = window.open("", "_blank", "noopener");
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+    icareAuthFetch("/employers/candidates/" + candidateId + "/" + mediaType)
+      .then(function (res) {
+        if (!res.ok) throw new Error("not available");
+        return res.blob();
+      })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        if (win) win.location = url;
+        else window.open(url, "_blank", "noopener");
+        btn.disabled = false;
+        btn.textContent = originalText;
+      })
+      .catch(function () {
+        if (win) win.close();
+        btn.disabled = false;
+        btn.textContent = "Not available";
+      });
   }
 
   function loadPipeline() {
@@ -495,7 +553,7 @@ function icareRequireAuth(signInPath) {
       .then(function (result) {
         if (!result.ok || !Array.isArray(result.body.messages)) return;
         result.body.messages.forEach(function (m) {
-          appendChatMessage(m.role, m.content, m.results_snapshot);
+          appendChatMessage(m.role, m.content, m.results_snapshot, !!(m.tool_call && m.tool_call.blocked));
         });
       })
       .catch(function () {
@@ -526,7 +584,7 @@ function icareRequireAuth(signInPath) {
           appendChatMessage("assistant", result.body.error || "Something went wrong. Please try again.");
           return;
         }
-        appendChatMessage("assistant", result.body.reply, result.body.results);
+        appendChatMessage("assistant", result.body.reply, result.body.results, !!result.body.blocked);
         loadPipeline();
       })
       .catch(function () {
@@ -554,9 +612,21 @@ function icareRequireAuth(signInPath) {
 
     var hasIdentifier = latestRequest && latestRequest.companies_house_no;
 
+    var orgProfile = document.querySelector("[data-org-profile]");
+    orgProfile.style.display = "none";
     if (employer.is_verified) {
       statusText.textContent = "Verified — your organisation is confirmed";
       form.style.display = "none";
+      orgProfile.style.display = "block";
+      document.querySelector("[data-org-name]").textContent = employer.org_name || "—";
+      document.querySelector("[data-org-ch-no]").textContent = employer.companies_house_no || "—";
+      var regulatorRow = document.querySelector("[data-org-regulator-row]");
+      if (employer.regulator) {
+        regulatorRow.style.display = "flex";
+        document.querySelector("[data-org-regulator]").textContent = CARE_REGULATOR_LABELS[employer.regulator] || employer.regulator;
+      } else {
+        regulatorRow.style.display = "none";
+      }
     } else if (!hasIdentifier) {
       statusRow.classList.add("status-row-pending");
       statusText.textContent = "Add your Companies House number to start verification";
@@ -688,6 +758,12 @@ function icareRequireAuth(signInPath) {
       sendBtn.disabled = false;
       input.focus();
     });
+  });
+
+  document.querySelector("[data-pipeline-body]").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-media]");
+    if (!btn || btn.disabled) return;
+    openCandidateMedia(btn.getAttribute("data-media-candidate"), btn.getAttribute("data-media"), btn);
   });
 
   document.querySelector("[data-chat-thread]").addEventListener("click", function (e) {

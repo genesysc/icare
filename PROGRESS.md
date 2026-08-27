@@ -1830,18 +1830,176 @@ they aren't lost:
     (375/1920) overflow check with a long name/role/employer combination
     — zero overflow.
   - Committed and pushed to the branch. Not yet its own PR.
+- **Sprints 9 (remainder), 10, and 11 (same day, 2026-08-26)** — on direct
+  founder instruction to "run the remaining sprints." Closes out the
+  employer track's roadmap in `SPRINTS.md` short of Sprint 12
+  (iCompliance, explicitly not scheduled, deliberately left alone) and
+  video interviews (a separate later initiative).
+  - **Sprint 9 remainder — candidate consent flow.** Migration `0017`:
+    `set_shortlist_consent(employer_id, consent)` — security-definer RPC,
+    same "one narrow audited action" pattern as `flag_candidate_post`,
+    since RLS can't restrict to a single column and a broad UPDATE policy
+    would've also let a candidate rewrite `employer_id`/`created_at` on
+    their own row. Revocable, matching `dbs_records.consent_to_check`'s
+    philosophy. Migration `0018`: candidates had no read access to
+    `employers` at all (`employers_self` was the only policy) — added a
+    narrow policy scoped to only employers who've actually shortlisted
+    that candidate, so `dashboard.html`'s new "Employer interest" card can
+    show who to consider consenting to. `src/candidates.ts`:
+    `GET /me/shortlists`, `POST /me/shortlists/:employerId/consent`.
+    Video upload didn't exist at all before this (`candidates.
+    intro_video_path` sat unused since `0001_init`) — added
+    `POST/GET/DELETE /me/video`, mirroring the existing photo routes
+    exactly. Employer side: `GET /employers/candidates/:id/{photo,video,
+    cv}`, gated by an explicit `shortlistConsented()` check (R2 has no RLS
+    of its own) — CV additionally goes through `cv_imports`' pre-existing
+    `cv_read_shortlisted` RLS policy as a second, independent check on the
+    same condition. Frontend: buttons, not plain `<a href>` links — this
+    app's auth is Bearer-token-in-header via `icareAuthFetch`, so a plain
+    anchor navigation would send no Authorization header and 401. Opens a
+    blank window synchronously inside the click handler, then navigates it
+    once the authenticated fetch resolves a blob — doing the `window.open`
+    only inside the `.then()` gets silently blocked by stricter popup
+    blockers since it's no longer a direct result of the user gesture.
+  - **Sprint 10 — `who_is_summary`.** Checked `pg_policy` directly before
+    designing anything: `employment_history` and `qualifications` had **no
+    employer-facing RLS policy at all** (candidate-self only) — unlike
+    `candidate_professions`/`candidate_skills` (published-gated) or
+    `registrations`/`dbs_records`/`candidate_contact` (shortlist+consent-
+    gated). Rather than bolt RLS onto five different tables for one
+    feature, migration `0019` adds a single security-definer
+    `get_candidate_dossier()` RPC, gated at shortlist+consent (the richer-
+    data gate, matching photo/video/CV, not the looser published-only
+    gate). Deliberately excludes candidate posts from the dossier even
+    though they now exist — noted in `SPRINTS.md` as a scope decision, not
+    an oversight. `SPRINTS.md` calls this tool "the sharpest edge of
+    non-negotiable #5 in the whole employer product," so it got two
+    independent controls instead of one: the system prompt (descriptive
+    only, explicit banned phrasing), and a new
+    `containsEvaluativeLanguage()` deterministic output-side scan in
+    `employer-chat-guardrail.ts` — if the model's output trips it anyway,
+    the reply falls back to `buildFallbackSummary()`, built only from
+    structured fields, rather than shipping evaluative prose on trust
+    alone. Tested standalone: 8 evaluative phrasings ("strong candidate,"
+    "great fit," "highly recommend," "stands out," "not suitable," etc.)
+    all correctly flagged; 6 legitimate factual candidate summaries
+    (experience, quals, employment history, a verbatim self-expression
+    prompt answer) all correctly passed through — zero false positives on
+    the first pass.
+  - **Sprint 11 — `bulk_move_stage` + a minimal dashboard piece.** The
+    bulk tool takes `from_stage`/`to_stage`/optional `since_days` — a
+    deterministic SQL filter (stage + how long they've been there), same
+    non-evaluative-selection principle as `shortlist_candidates` — never
+    the model picking who's "ready." Realized pipeline and shortlists
+    were already the same concept covered by Sprint 9's iRecruit card, so
+    the only genuinely missing "dashboard" piece was org profile, which
+    disappeared entirely once verified (the verification form hides on
+    `is_verified`, per Sprint 7). Added a small read-only "Organisation"
+    summary block in its place instead of a new page — keeps the chat-
+    first decision intact.
+  - Tested throughout: `tsc --noEmit` + `wrangler deploy --dry-run` clean
+    after every step. Headless Chromium: candidate shortlist card renders
+    the shortlisting employer's name and toggles consent correctly (RPC
+    call payload confirmed both directions); employer org profile shows
+    once verified with correct regulator label; iRecruit pipeline media
+    buttons render only for consented candidates and correctly fetch/open
+    a blob. 2-viewport (375/1920) overflow checks on the shortlist card
+    (long org name) and the org profile + pipeline media (long org name,
+    long regulator label, long candidate/job-title/employer combination)
+    — zero overflow everywhere.
+  - Committed and pushed to the branch. Not yet its own PR.
+- **Debugging pass over Sprints 1-5 (candidate track), same day, on direct
+  founder instruction ("start debugging sprints 1-5").** No live browser/
+  network access to the deployed worker from this sandbox (`curl` to
+  `https://icare.icare-181.workers.dev` timed out — confirmed the egress
+  block isn't scoped to `*.supabase.co` alone), so this was the same
+  methodology as everything else: static cross-checks, then a live
+  headless-Chromium walkthrough against mocks shaped like the real,
+  current backend.
+  - Static checks (all clean, no drift found): every `jsend`/`jget` call
+    in `onboarding.html` cross-referenced against `candidates.ts`'s actual
+    current routes and `WRITABLE_FIELDS`/`EMPLOYMENT_FIELDS`/
+    `QUALIFICATION_FIELDS`/`REGISTRATION_FIELDS`/`DBS_FIELDS`; every
+    `getElementById()` call cross-referenced against real HTML `id`
+    attributes (Python regex diff, zero dangling references); every
+    `[data-*]` selector cross-referenced the same way (a few false
+    positives from dynamically-templated record-card markup, verified by
+    hand, not real bugs); `renderPublishChecklist()`'s 4 conditions
+    re-checked against `can_publish()`'s real SQL (`pg_get_functiondef`)
+    — still an exact match, no drift since Sprint 5.
+  - **Real bug found and fixed**: `onboarding.html`'s step 1 ("Basics") and
+    step 3 ("Availability & logistics") `PATCH /candidates/me` handlers
+    never captured the response back into the page's local `candidate`
+    variable — it was only ever assigned once, at initial page load. Every
+    downstream reader of that variable (`renderPublishChecklist()`,
+    `completenessPercent()`, `renderReviewSummary()`) kept reading the
+    stale, pre-save values for the rest of that session. Concretely: a
+    brand-new candidate filling out the wizard start-to-finish in one
+    sitting — the single most common real path through this product —
+    would hit a false "postcode missing" / "right-to-work missing" block
+    at step 11 and be unable to publish, even though both were correctly
+    entered and saved minutes earlier, until they reloaded the page (which
+    re-fetches `candidate` fresh and silently "fixes" it, which is likely
+    why this had never been caught by any test — the headless-Chromium
+    suites in Sprints 1-5 each tested individual steps/mocked states in
+    isolation, never one continuous unbroken session through all 11
+    steps). Fixed by assigning `candidate = result.body.candidate;` after
+    both successful `PATCH` calls — the route already returns the full
+    updated row (`select()` with no column list), so this is a safe full
+    replacement, not a partial merge. Confirmed via a full unbroken
+    11-step headless-Chromium walkthrough (fill basics → skills →
+    availability → add one employment record → skip quals/regs/DBS/refs/
+    prompts/photo → review → publish): checklist incorrectly blocking and
+    `published: false` before the fix, checklist clear and
+    `published: true` after, same script, same session, no reload.
+  - `dashboard.html` checked for the same anti-pattern — clean, it never
+    `PATCH`es `/candidates/me` at all (all edits route back into the
+    wizard), so there's no in-page mutation for its `candidate` variable
+    to go stale against.
+  - Committed and pushed to the branch. Not yet its own PR.
+- **Debugging pass continued into Sprints 6-8 (employer track), same
+  session.** `employer-sign-in.html`, `verify.html`'s shared role-hint/
+  redirect logic, and `employer-home.html`'s verification-submit flow all
+  checked clean — the verification form specifically does NOT have the
+  Sprint 1-5 staleness bug's pattern, since it always calls
+  `loadVerification()` (a full fresh `GET /employers/me` re-render) after
+  a successful submit rather than hand-patching local state. Confirmed
+  live via an unbroken session: unverified → submit → (server-side flip,
+  matching how review actually works) → reload → chat/pipeline/org-
+  profile all correctly gated on the real `is_verified`.
+  - **Real bug found and fixed**: `.chat-msg-guardrail` (the amber
+    warning style for a protected-characteristics-guardrail redirect) was
+    defined in CSS but never actually applied anywhere in the JS — a
+    blocked message rendered as a plain, visually-identical assistant
+    reply, silently losing the "this was blocked for compliance reasons"
+    visual distinction the styling was clearly built for. Root cause: the
+    guardrail-blocked branch of `POST /employers/chat` never told the
+    frontend a message was a guardrail block at all — no such marker
+    existed in the API response or in what `GET /employers/chat` (history)
+    returned. Fixed by stamping `tool_call: { blocked: true }` on the
+    saved message (mirrors this codebase's existing tool_call-as-metadata
+    convention) — returned live as `blocked: true` in the POST response,
+    and now selected by `GET /employers/chat` for history replay — with
+    `appendChatMessage()` taking a new `blocked` param that adds the CSS
+    class. Verified both paths live: a fresh guardrail-triggered send and
+    a page-reload history replay both now render with the intended amber
+    styling.
+  - **Noted, not fixed (cosmetic, not a bug)**: `onboarding.html` has
+    three genuinely dead CSS classes (`.holding`, `.soon-tag`,
+    `.review-item-detail` + its textarea rule) — leftover from Sprint 2's
+    original "rest of the wizard — coming soon" holding screen, superseded
+    once Sprints 3-5 filled out the full 11 steps. Nothing references them
+    in markup or JS; harmless, just unused weight. Left alone since this
+    was a debugging pass, not a cleanup one — flagging in case a future
+    pass wants to remove them.
 
 ## Not started yet
 - ~~Employer-side API (profile, verification-request flow, browsing
-  published candidates)~~ — Sprints 6-8 shipped sign-up/sign-in,
-  verification, and chat-based search; Sprint 9 (shortlist + pipeline via
-  chat) shipped same day as this doc's last update — see "Done" above.
-  **Still not built**: the candidate-side consent-to-unlock flow (photo/
-  video/CV after shortlist) — `shortlists.candidate_consented_at` exists
-  in the schema but nothing sets it yet. Any employer search/shortlist
-  view must exclude photo/video/CV per non-negotiable #4 (name, current
-  job title, and location are the founder's dated override — already
-  shown in Sprint 8's chat results, not excluded).
+  published candidates, shortlisting, pipeline, consent-gated media, "who
+  is X" summaries, bulk pipeline actions)~~ — Sprints 6-11 all shipped
+  2026-08-26, closing the employer track short of Sprint 12 (iCompliance,
+  not scheduled) and video interviews (separate later initiative). See
+  "Done" above for Sprints 9's remainder/10/11.
 - ~~Candidate self-expression posts~~ — shipped this session (see "Done"
   below and the "⚠️ Correction" note under "Product direction" above).
   Not built: a peer-facing feed (posts are only ever candidate-authored/

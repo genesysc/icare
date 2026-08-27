@@ -535,45 +535,66 @@ The foundation everything else in this track sits on.
     the employer-facing chat + pipeline-view half only. `shortlists.
     candidate_consented_at` already exists in the schema (from `0001_init`)
     but nothing sets it yet.
-- **Still open — candidate-side, adjusted for the Sprint 8 override**: see
-  incoming shortlists, consent to unlock (`shortlists.candidate_consented_at`).
-  Name/job title/location are already visible from search (per the
-  founder override), so consent now unlocks **photo, video, and CV**
-  specifically. Full contact details and the DBS certificate number stay
-  separately gated — Reg 22 territory (non-negotiable #7), confirmed
-  before an actual placement, not just on shortlist.
+- ✅ **Remainder shipped 2026-08-26** — candidate-side consent flow
+  (`set_shortlist_consent()` RPC, migration `0017`; `GET/POST
+  /candidates/me/shortlists*`; a candidate-facing "Employer interest" card
+  on `dashboard.html`), plus employer-facing consent-gated
+  `GET /employers/candidates/:id/{photo,video,cv}` routes, wired into the
+  iRecruit pipeline card. Candidate video upload (`POST/GET/DELETE
+  /candidates/me/video`) built alongside this, since `intro_video_path`
+  existed in the schema but nothing ever wrote to it. Migration `0018`
+  adds a narrow `employers` read policy so a candidate can see who
+  shortlisted them (needed to decide whether to consent — `employers` had
+  no candidate-facing read policy at all before this).
 
-### Sprint 10 — "Who is [name]" AI summary
+### Sprint 10 — "Who is [name]" AI summary ✅ Shipped 2026-08-26
 
 - **New tool — `who_is_summary`**: for a shortlisted + consented
   candidate only, an AI-generated descriptive summary combining
-  structured profile data
-  (experience, skills, qualifications, employment history,
-  `candidate_prompts`). **Deliberately v1-scoped to structured data
-  only** — the brief's fuller vision also draws on candidate self-
-  expression posts, which don't exist yet (still phase 2, §9). Don't
-  wait for posts to ship this.
-- Strict compliance, same family as the search guardrail: descriptive
-  only — no "strong candidate," "good fit," or other evaluative
-  language. This is the sharpest edge of non-negotiable #5 in the whole
-  employer product; get a second look on the actual prompt before
-  shipping, not just at review time.
+  structured profile data (experience, skills, qualifications,
+  employment history, `candidate_prompts`). Backed by a new
+  `get_candidate_dossier()` security-definer RPC (migration `0019`) —
+  `employment_history`/`qualifications` had **no employer-facing RLS
+  policy at all** (checked `pg_policy` directly, not assumed), so one
+  narrow, audited RPC replaces what would've been RLS policies bolted
+  onto five different tables.
+- **Deliberately v1-scoped to structured data only** — candidate posts
+  (which now exist, shipped same day as Sprint 8) are intentionally
+  excluded: synthesizing a candidate's own narrative posts into a
+  combined "who is this person" summary is a more evaluative-shaped
+  framing than the isolated single-post excerpt search already does, and
+  needs its own compliance look before folding in, not a silent decision
+  made inside this sprint.
+- **Two independent controls, not one** — same "real check, not just a
+  prompt instruction" standard as the search guardrail: (1) the system
+  prompt instructs strictly descriptive output — no "strong candidate,"
+  "good fit," or similar; (2) a new deterministic
+  `containsEvaluativeLanguage()` output-side scan (`employer-chat-
+  guardrail.ts`) — if the model's output trips it anyway, the reply falls
+  back to a template built only from structured fields, never ships
+  evaluative prose on trust that the prompt worked. Verified against 8
+  evaluative + 6 legitimate-descriptive test cases, all correct.
 
-### Sprint 11 — Bulk chat commands + employer dashboard
+### Sprint 11 — Bulk chat commands + employer dashboard ✅ Shipped 2026-08-26
 
-- **New tool — bulk pipeline actions**: compound commands like "send an
+- **New tool — `bulk_move_stage`**: compound commands like "send an
   offer to everyone successful in the last two weeks" (pipeline stage +
-  date range → bulk stage transition). Builds on Sprint 9's stage
-  column.
-- A minimal employer dashboard/history view — chat is the primary
-  interface, but a lightweight fallback view of shortlists, pipeline,
-  and org profile is still needed (not a reversal of the chat-first
-  decision, just a supporting view).
+  optional `since_days` → bulk stage transition, deterministic SQL
+  filter, never the model picking individuals). Builds on Sprint 9's
+  `stage`/`stage_updated_at` columns.
+- **Minimal employer dashboard piece**: pipeline and shortlists were
+  already covered by Sprint 9's iRecruit card (a shortlist row *is* a
+  pipeline entry — no separate concept to build); what was actually
+  missing was org profile, which disappeared entirely once verified (the
+  verification form hides on `is_verified`). Added a small read-only
+  "Organisation" summary block shown in its place — not a new page, chat
+  stays the primary interface.
 
-**→ Employer track complete here (excluding Sprint 12, not scheduled —
-see below, and video interviews, tracked separately).** A verified
-employer can search and manage their pipeline entirely through chat,
-compliantly, and (with candidate consent) see enough to make contact.
+**→ Employer track complete here as of 2026-08-26 (excluding Sprint 12,
+not scheduled — see below, and video interviews, tracked separately).**
+A verified employer can search and manage their pipeline entirely
+through chat, compliantly, and (with candidate consent) see photo,
+video, and CV, and get a descriptive profile summary.
 
 ### Sprint 12 — iCompliance (not scheduled)
 
