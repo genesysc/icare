@@ -2001,13 +2001,24 @@ they aren't lost:
   branch from `origin/main` first (prior PR #19 had already merged).
   Added `routes` to `wrangler.jsonc` — `icareltd.com` and
   `www.icareltd.com`, both `custom_domain: true` — pointing the existing
-  `icare` Worker at the domain (no separate landing-page Worker; no
-  landing page exists yet either, see below). Validated with
-  `wrangler deploy --dry-run` (config parses, correct bindings listed);
-  real activation depends on the CI deploy after this is pushed — not
-  confirmed live yet, since this sandbox has no network egress to the
-  deployed Worker to check directly (same restriction noted throughout
-  this doc). User also set up `info@icareltd.com` on Zoho Mail this
+  `icare` Worker at the domain (one Worker serves both landing page and
+  app — see the landing-page correction below). Validated with
+  `wrangler deploy --dry-run`, then opened and merged PR #20. Deploy
+  failed twice before going green: (1) the `CLOUDFLARE_API_TOKEN` GitHub
+  secret lacked Zone-scoped `Workers Routes: Edit` (+ `Zone: Read`)
+  permission — account-level `Workers Scripts: Edit` alone was enough for
+  the original no-routes deploy but not for Custom Domain creation; user
+  fixed the token's permissions (after one false start editing the wrong
+  token). (2) Two leftover DNS records survived Cloudflare's GoDaddy
+  import scan — an A record on the root and one on `www` — both being
+  externally-managed records blocked Custom Domain creation
+  (`[code: 100117]`) until the user deleted them from the Cloudflare DNS
+  records page. Confirmed live: `deploy.yml` run succeeded (`conclusion:
+  success`) after the third `workflow_dispatch` retrigger. This sandbox
+  still can't reach the deployed Worker directly to double-check
+  end-to-end (no network egress, same restriction noted throughout this
+  doc) — CI's own success signal is the confirmation here. User also set
+  up `info@icareltd.com` on Zoho Mail this
   session (MX/SPF/DKIM records talked through, added to the Cloudflare
   zone by the user directly — not done via any tool here). Confirmed
   with the user: Sender.net remains the intended SMTP relay for outbound
@@ -2043,11 +2054,19 @@ they aren't lost:
 - Employer verification review flow (`employer_verification_requests`,
   `is_verified`) — who reviews these and how is undecided.
 - ~~Custom domain for iCare~~ — resolved 2026-08-28, see "Done" above.
-  `icareltd.com` is wired to the Worker via `wrangler.jsonc` routes on
-  this branch; live activation not yet confirmed post-deploy.
-- No dedicated marketing landing page for `icareltd.com` — root path
-  currently serves straight into the candidate app. Flagged to the user
-  as an open decision 2026-08-28, not yet answered.
+  `icareltd.com` and `www.icareltd.com` are both live Custom Domains on
+  the `icare` Worker — confirmed via a successful `deploy.yml` run
+  (PR #20 merged, two follow-up fixes needed: a Cloudflare API token
+  permissions gap, then two leftover GoDaddy DNS records on the root and
+  `www` hostnames blocking Custom Domain creation — both resolved by the
+  user, deploy succeeded on the third retry).
+- ~~No dedicated marketing landing page for `icareltd.com`~~ — this was
+  wrong, corrected same day: `src/landing.html` already exists and is
+  already served at `/` (see the "old landing page draft"/"new
+  waitlist-first page" note just above — this doc already had it right
+  there, the domain-item edit earlier today just contradicted it).
+  `icareltd.com` is now live showing this real landing page, not the
+  candidate app.
 - Auth-email templates (signup confirmation, magic link/OTP, invite) —
   not designed or written yet. The domain blocker is cleared; still
   blocked on Sender.net API access (see below). (No password reset
