@@ -419,11 +419,14 @@ deploy confirmation yet.
    (`src/email.ts`'s `sendTransactionalEmail` is a documented no-op until
    a verified sending domain exists — Sender.net SMTP-relay work is still
    parked per §12, now unblocked on the domain side only), (c) no more
-   `workers.dev` for the public-facing app. There is **no dedicated
-   marketing landing page yet** — `icareltd.com` currently serves straight
-   into the candidate app (`/` → whatever `src/index.ts` routes today);
-   the user was asked about a separate landing page vs. straight-into-app
-   and hasn't decided yet, flagged as an open question below.
+   `workers.dev` for the public-facing app. **Correction, same day**: an
+   earlier note here claimed no landing page existed — wrong. `/` in
+   `src/index.ts` already serves `src/landing.html`, a real
+   waitlist-capture landing page (candidate-primary copy from
+   `LANDING_PAGE_COPY.md`, live `GET /waitlist/count`, "coming soon" tags
+   on unbuilt features). `icareltd.com` is serving this page live as of
+   2026-08-28, confirmed via the successful deploy (see §10) — not the
+   raw candidate app.
 2. **Supabase email template fix** (`{{ .Token }}`) — see §6. Manual
    Dashboard step.
 3. **Sender.net API integration itself** — `src/email.ts` has a stub with
@@ -557,10 +560,9 @@ the hard constraints this must respect.
 - ~~`icare` domain — not yet purchased/chosen~~ — resolved 2026-08-28:
   `icareltd.com` purchased, DNS moved to Cloudflare, Custom Domain routes
   added to `wrangler.jsonc`. See §8 item 1.
-- **Marketing landing page vs. straight-into-app on `icareltd.com`** —
-  new open question as of 2026-08-28. No landing page exists in the repo;
-  the root path currently serves the candidate app directly. User hasn't
-  decided yet.
+- ~~Marketing landing page vs. straight-into-app on `icareltd.com`~~ —
+  moot, corrected 2026-08-28: a real landing page (`src/landing.html`)
+  already exists and is already what `/` serves. No decision needed.
 - **Sender.net vs an alternative** for transactional email — decided in
   principle (Sender.net, as SMTP relay behind Supabase Auth for auth
   emails; direct API for stage-completion emails), not yet executed. See

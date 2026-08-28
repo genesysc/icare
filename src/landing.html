@@ -1,463 +1,334 @@
-<!--
-  iCare landing page — v2, rebuilt against the copy/design brief
-  (LANDING_PAGE_COPY.md + landingpage.pdf mockup).
-
-  Key differences from v1: candidate-primary (employer messaging is
-  supporting context only, no separate employer CTA — a dedicated
-  employer page is a later, separate piece of work), waitlist-capture
-  flow instead of live account creation, and copy taken verbatim from
-  the brief. "Coming soon" tags mark roadmap features (self-expression
-  posts, AI-assisted discovery, impact stats) so nothing here overstates
-  what's live today. The waitlist counter is real (GET /waitlist/count)
-  and starts at 0 — no fabricated social-proof numbers.
-
-  Motion techniques (epic-design catalogue), kept restrained for a
-  healthcare/editorial tone: word-by-word headline fade-rise, scroll
-  reveal-on-enter, cascading card stack for the feature list, float
-  loop on the hero cards. Full prefers-reduced-motion and coarse-pointer
-  fallbacks.
--->
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en-GB">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>iCare — You're not a list of skills</title>
-<meta name="description" content="iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile that shows your skills and experience — and, if you choose, the person behind them too." />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iCare — the professional network for UK health and care</title>
+<meta name="description" content="iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile that shows your skills and experience — and, if you choose, the person behind them too.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Public+Sans:ital,wght@0,300..800;1,300..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --plum-950: #241533;
-    --plum-800: #382349;
-    --ink-soft: #5b5670;
-    --ink-faint: #8a8599;
-    --teal-700: #0e8c7f;
-    --teal-500: #16b8a6;
-    --teal-100: #e3faf6;
-    --amber-600: #b8791f;
-    --amber-100: #faedd4;
-    --paper: #fefefc;
-    --paper-dim: #f8f6f1;
-    --line: #e7e3da;
-    --white: #ffffff;
-    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
-    --ease: cubic-bezier(0.16, 1, 0.3, 1);
-  }
+:root{
+  --ink:#1C0F33;
+  --purple:#330072;
+  --purple-dk:#25004F;
+  --teal:#00A499;
+  --teal-dk:#00726B;
+  --paper:#F4F1F8;
+  --card:#fff;
+  --mute:#6B6280;
+  --hair:rgba(28,15,51,.10);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:'Public Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+img{max-width:100%;display:block}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--teal);outline-offset:3px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto}}
 
-  * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    margin: 0;
-    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: var(--paper);
-    color: var(--ink-soft);
-    -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
-  }
-  h1, h2, h3 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; }
-  p { margin: 0; }
-  a { color: inherit; }
-  button { font-family: inherit; }
-  em { font-style: italic; color: var(--teal-700); }
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+.skip{position:absolute;left:-9999px;background:var(--purple);color:#fff;padding:12px 18px;border-radius:6px}
+.skip:focus{left:16px;top:16px;z-index:99}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 
-  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
-  .divider { border: none; border-top: 1px solid var(--line); margin: 0; }
+/* ---------- nav ---------- */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 0}
+.logo{font-family:'Fraunces',serif;font-weight:800;font-size:22px;letter-spacing:-.02em;text-decoration:none}
+.logo span{color:var(--teal)}
+.navlink{font-size:14px;text-decoration:none;font-weight:600;color:var(--purple)}
 
-  .label {
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--teal-700);
-  }
+/* ---------- shared type ---------- */
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--teal-dk);margin:0 0 18px;display:flex;align-items:center;gap:10px}
+.eyebrow::before{content:'';width:26px;height:1px;background:var(--teal);flex:none}
+.btn{display:inline-block;background:var(--purple);color:#fff;text-decoration:none;font-weight:700;
+  padding:16px 28px;border-radius:100px;font-size:16px;border:0;cursor:pointer;
+  transition:transform .15s,box-shadow .15s,background .15s;
+  box-shadow:0 8px 22px -10px var(--purple)}
+.btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px -12px var(--purple);background:var(--purple-dk)}
+.btn:disabled{opacity:.6;cursor:default;transform:none}
 
-  /* ---------- Accessibility & performance ---------- */
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
-  .reveal { opacity: 0; transform: translateY(24px); }
-  .reveal.is-visible { opacity: 1; transform: translateY(0); transition: opacity 0.85s var(--ease), transform 0.85s var(--ease); }
-  .no-js .reveal, .reduced-motion .reveal { opacity: 1; transform: none; }
+/* ---------- hero ---------- */
+.hero{padding:26px 0 56px}
+.hero h1{font-family:'Fraunces',serif;font-weight:700;font-size:clamp(38px,8.5vw,76px);line-height:1.02;
+  letter-spacing:-.03em;margin:0 0 20px;max-width:15ch}
+.hero h1 em{font-style:italic;color:var(--purple)}
+.hero h1 u{text-decoration:none;background:linear-gradient(transparent 62%,rgba(0,164,153,.35) 62%)}
+.lede{font-size:clamp(17px,2.2vw,20px);line-height:1.55;color:var(--mute);max-width:46ch;margin:0 0 28px}
+.ctarow{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.rolestag{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--purple);
+  background:rgba(0,164,153,.14);padding:8px 14px;border-radius:100px;font-weight:500}
 
-  /* ---------- Nav ---------- */
-  .nav { display: flex; align-items: center; justify-content: space-between; padding: 22px 24px; max-width: 760px; margin: 0 auto; }
-  .logo { display: flex; align-items: baseline; gap: 1px; font-family: "Fraunces", serif; font-weight: 600; font-size: 21px; color: var(--plum-950); text-decoration: none; }
-  .logo em { font-style: normal; color: var(--teal-500); }
-  .nav-links { display: flex; align-items: center; gap: 20px; }
-  .nav-link { font-size: 14.5px; font-weight: 600; color: var(--ink-faint); text-decoration: none; }
-  .nav-link:hover { color: var(--teal-700); }
-  .nav-cta { font-size: 14.5px; font-weight: 600; color: var(--ink-faint); text-decoration: none; background: none; border: none; cursor: pointer; padding: 8px 4px; }
-  .nav-cta:hover { color: var(--teal-700); }
+.deck{margin-top:44px;position:relative}
+.ivt{background:var(--card);border-radius:18px;padding:20px;margin-bottom:-12px;position:relative;
+  box-shadow:0 18px 40px -24px rgba(28,15,51,.45);border:1px solid rgba(28,15,51,.07);
+  transform-origin:top center;animation:rise .7s cubic-bezier(.2,.8,.3,1) backwards}
+.ivt:nth-child(1){transform:rotate(-1.4deg) scale(.955);animation-delay:.05s;z-index:1}
+.ivt:nth-child(2){transform:rotate(.9deg) scale(.978);animation-delay:.18s;z-index:2}
+.ivt:nth-child(3){transform:rotate(-.3deg);animation-delay:.31s;z-index:3;margin-bottom:0}
+@keyframes rise{from{opacity:0;transform:translateY(26px) rotate(0) scale(.94)}}
+.ivt-top{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.avatar{width:42px;height:42px;border-radius:12px;flex:none;
+  background:linear-gradient(140deg,var(--purple),var(--teal));display:grid;place-items:center;
+  color:#fff;font-weight:700;font-size:15px;font-family:'Fraunces',serif}
+.ivt-org{font-weight:700;font-size:15px;line-height:1.25}
+.ivt-meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute)}
+.ivt-role{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 6px}
+.ivt-line{font-size:14px;color:var(--mute);margin:0 0 16px;line-height:1.5}
+.ivt-acts{display:flex;gap:8px}
+.mini{font-size:13px;font-weight:700;padding:10px 16px;border-radius:100px;border:0;cursor:pointer;
+  font-family:inherit}
+.mini.yes{background:var(--teal);color:#04231F}
+.mini.no{background:rgba(28,15,51,.06);color:var(--mute)}
+.stamp{position:absolute;top:16px;right:18px;font-family:'IBM Plex Mono',monospace;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal-dk)}
+@media (min-width:900px){
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:70px;align-items:center;padding:60px 0 90px}
+  .deck{margin-top:0}
+}
 
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; padding: 13px 24px; font-weight: 700; font-size: 15px; cursor: pointer; text-decoration: none; transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), background 0.25s var(--ease), border-color 0.25s var(--ease); white-space: nowrap; }
-  .btn:active { transform: translateY(1px); }
-  .btn-ghost { background: transparent; color: var(--plum-950); border: 1.5px solid var(--plum-950); }
-  .btn-ghost:hover { background: var(--plum-950); color: var(--white); }
-  .btn-teal { background: var(--teal-500); color: var(--white); border: none; box-shadow: 0 14px 30px -14px rgba(22, 184, 166, 0.55); }
-  .btn-teal:hover { background: var(--teal-700); }
-  .btn:disabled { opacity: 0.6; cursor: default; }
+/* ---------- purple band ---------- */
+.band{background:var(--purple);color:#fff;padding:54px 0}
+.band .wrap{display:grid;gap:26px}
+.band h2{font-family:'Fraunces',serif;font-size:clamp(26px,4vw,38px);line-height:1.15;margin:0;
+  letter-spacing:-.02em;max-width:20ch}
+.band p{margin:0;color:rgba(255,255,255,.78);line-height:1.6;max-width:52ch}
+.band strong{color:#5FE0D6;font-weight:600}
+@media (min-width:900px){.band .wrap{grid-template-columns:1fr 1fr;gap:60px;align-items:start}}
 
-  /* ---------- Hero ---------- */
-  .hero { padding: 40px 0 60px; }
-  .eyebrow { display: inline-block; }
-  .hero-title { font-size: clamp(30px, 5vw, 44px); line-height: 1.16; font-weight: 600; letter-spacing: -0.02em; margin-top: 18px; }
-  .hero-title em { font-family: "Fraunces", serif; font-style: italic; font-weight: 500; }
-  .word { display: inline-block; opacity: 0; transform: translateY(0.35em); }
-  .word.is-visible { opacity: 1; transform: translateY(0); transition: opacity 0.65s var(--ease), transform 0.65s var(--ease); }
+/* ---------- three columns ---------- */
+.why{padding:70px 0 64px}
+.why h2{font-family:'Fraunces',serif;font-weight:400;font-size:clamp(27px,4.4vw,44px);
+  letter-spacing:-.025em;line-height:1.16;margin:0 0 46px;max-width:22ch}
+.why h2 em{font-style:italic;color:var(--purple)}
+.cols{display:grid;gap:34px}
+.col .lbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--teal-dk);padding-bottom:12px;margin-bottom:16px;
+  border-bottom:1px solid rgba(0,164,153,.35)}
+.col h3{font-family:'Fraunces',serif;font-size:21px;font-weight:600;margin:0 0 10px}
+.col p{color:var(--mute);line-height:1.65;margin:0;font-size:15px}
+@media (min-width:820px){.cols{grid-template-columns:repeat(3,1fr);gap:48px}}
 
-  .hero-sub { margin-top: 22px; font-size: 17px; line-height: 1.7; color: var(--ink-soft); max-width: 58ch; }
-  .hero-actions { margin-top: 30px; }
-  .hero-note { margin-top: 18px; font-size: 14px; color: var(--ink-faint); }
-  .hero-note strong { color: var(--plum-950); }
+/* ---------- badges ---------- */
+.badges{background:var(--ink);color:#fff;padding:66px 0}
+.badges h2{font-family:'Fraunces',serif;font-size:clamp(25px,4vw,38px);margin:0 0 10px;letter-spacing:-.025em;max-width:22ch}
+.badges .sub{color:rgba(255,255,255,.66);margin:0 0 34px;max-width:50ch;line-height:1.6}
+.grades{display:grid;gap:1px;background:rgba(255,255,255,.16);
+  border:1px solid rgba(255,255,255,.16);border-radius:14px;overflow:hidden}
+.grade{background:var(--ink);padding:24px 20px}
+.gname{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;margin-bottom:11px}
+.g1 .gname{color:#5FE0D6}
+.g2 .gname{color:#B79BE8}
+.g3 .gname,.g4 .gname{color:rgba(255,255,255,.55)}
+.grade p{margin:0;font-size:14.5px;line-height:1.6;color:rgba(255,255,255,.7)}
+@media (min-width:820px){.grades{grid-template-columns:repeat(4,1fr)}}
+.note{margin:24px 0 0;font-size:13.5px;color:rgba(255,255,255,.62);line-height:1.65;max-width:64ch}
 
-  .hero-visual { position: relative; margin-top: 48px; }
-  .float-loop { animation: floaty 10s ease-in-out infinite; }
-  @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+/* ---------- never do ---------- */
+.promise{background:var(--purple);color:#fff;padding:60px 0}
+.promise h2{font-family:'Fraunces',serif;font-size:clamp(26px,3.9vw,38px);margin:0 0 26px;
+  letter-spacing:-.022em;max-width:14ch}
+.plist{list-style:none;padding:0;margin:0;display:grid;gap:16px}
+.plist li{display:flex;gap:13px;color:rgba(255,255,255,.8);line-height:1.6;font-size:15.5px}
+.plist b{color:#fff;font-weight:700}
+.pk{color:#5FE0D6;font-weight:800;flex:none;margin-top:1px}
+@media (min-width:900px){
+  .promise .wrap{display:grid;grid-template-columns:.85fr 1.15fr;gap:60px;align-items:start}
+  .promise h2{margin:0}
+}
 
-  .visual-glow { position: absolute; width: 300px; height: 300px; border-radius: 50%; top: -50px; left: -40px; background: radial-gradient(circle, var(--teal-100), transparent 70%); filter: blur(6px); z-index: 0; }
+/* ---------- final ---------- */
+.final{background:var(--ink);color:#fff;padding:84px 0;text-align:center;
+  border-top:1px solid rgba(255,255,255,.08)}
+.final h2{font-family:'Fraunces',serif;font-weight:300;font-style:italic;
+  font-size:clamp(30px,5.6vw,54px);letter-spacing:-.03em;line-height:1.12;
+  margin:0 auto 20px;max-width:17ch}
+.final p{color:rgba(255,255,255,.7);margin:0 auto 30px;max-width:42ch;line-height:1.65}
+.final .btn{background:var(--teal);color:#04231F;box-shadow:none}
+.final .btn:hover{background:#00C4B6;box-shadow:none}
 
-  .profile-card { position: relative; z-index: 1; width: 100%; max-width: 340px; background: var(--white); border-radius: 20px; box-shadow: var(--shadow-soft); border: 1px solid var(--line); padding: 24px; }
-  .verify-name { font-family: "Fraunces", serif; font-weight: 600; font-size: 18px; color: var(--plum-950); }
-  .verify-role { font-size: 13px; color: var(--ink-faint); margin-top: 2px; }
-  .verify-tags { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; }
-  .verify-tag { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; font-weight: 600; }
-  .verify-tag.t-verified { color: var(--teal-700); }
-  .verify-tag.t-evidenced { color: var(--plum-800); }
-  .verify-tag.t-derived { color: var(--amber-600); }
-  .verify-tag.t-declared { color: var(--ink-faint); }
+/* ---------- waitlist form ---------- */
+.join-form{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;
+  margin:0 auto 14px;max-width:560px}
+.join-form input{flex:1 1 190px;padding:15px 20px;border-radius:100px;border:1px solid rgba(255,255,255,.16);
+  font-family:inherit;font-size:15px;background:rgba(255,255,255,.06);color:#fff}
+.join-form input::placeholder{color:rgba(255,255,255,.45)}
+.join-form input:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.join-form .btn{flex:none}
+.join-status{min-height:20px;font-size:14px;margin:0 0 6px;color:rgba(255,255,255,.7)}
+.join-status.err{color:#FF9B9B}
+.join-status.ok{color:#5FE0D6}
+.join-note{font-size:13px;color:rgba(255,255,255,.5);margin:0 0 20px}
+.join-success{display:none;margin:8px auto 20px;max-width:440px}
+.join-success.is-visible{display:block}
+.join-success h3{font-family:'Fraunces',serif;font-size:22px;margin:0 0 8px;color:#fff;font-style:normal}
+.join-success p{color:rgba(255,255,255,.72);margin:0;line-height:1.6}
+.counter-row{font-family:'IBM Plex Mono',monospace;font-size:13px;color:rgba(255,255,255,.55)}
+.counter-num{font-weight:700;color:#5FE0D6;font-size:16px}
+@media (max-width:560px){.join-form{flex-direction:column;align-items:stretch}}
 
-  .profile-card-head { display: flex; align-items: center; gap: 14px; }
-  .profile-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1px solid var(--line); }
-
-  .profile-card-stats { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; gap: 20px; }
-  .stat-num { font-family: "Fraunces", serif; font-weight: 600; font-size: 18px; color: var(--plum-950); }
-  .stat-label { font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
-
-  .visual-caption { margin-top: 14px; font-size: 12px; color: var(--ink-faint); font-style: italic; }
-
-  /* ---------- Section shells ---------- */
-  .section { padding: 64px 0; }
-  .section-label-block { margin-bottom: 18px; }
-  .section-title { margin-top: 10px; font-size: clamp(24px, 3.4vw, 32px); font-weight: 600; letter-spacing: -0.015em; line-height: 1.2; }
-  .body-text { margin-top: 18px; font-size: 16.5px; line-height: 1.75; color: var(--ink-soft); }
-  .body-text strong { color: var(--plum-950); font-weight: 700; }
-
-  /* ---------- Feature cards (stacked, single column) ---------- */
-  .feature-list { margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; align-items: start; }
-  .feature-card { border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; background: var(--white); }
-  .feature-title { margin-top: 8px; font-size: 19px; font-weight: 600; }
-  .feature-text { margin-top: 10px; font-size: 15px; line-height: 1.65; color: var(--ink-soft); }
-  .soon-tag { display: inline-flex; margin-top: 16px; font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--amber-600); background: var(--amber-100); padding: 5px 10px; border-radius: 999px; }
-
-  /* ---------- Pull quote ---------- */
-  .quote-wrap { padding: 76px 0; }
-  .quote-mark { font-family: "Fraunces", serif; font-size: 48px; color: var(--teal-500); line-height: 0.5; }
-  blockquote { margin: 18px 0 0; border-left: 2px solid var(--teal-100); padding-left: 24px; }
-  .quote-text { font-family: "Fraunces", serif; font-style: italic; font-weight: 500; font-size: clamp(19px, 2.6vw, 25px); line-height: 1.5; color: var(--plum-950); }
-
-  /* ---------- Waitlist CTA ---------- */
-  .join-headline { margin-top: 10px; }
-  .join-form { margin-top: 30px; display: grid; gap: 12px; max-width: 420px; }
-  .join-form input {
-    width: 100%; padding: 13px 16px; border-radius: 12px; border: 1.5px solid var(--line);
-    font-size: 15px; font-family: inherit; background: var(--white); color: var(--plum-950);
-  }
-  .join-form input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
-  .join-form-optional { font-size: 12px; color: var(--ink-faint); }
-  .join-note { margin-top: 16px; font-size: 14px; color: var(--ink-faint); }
-  .join-note strong { color: var(--plum-950); font-weight: 700; }
-  .join-status { margin-top: 14px; font-size: 14px; display: none; }
-  .join-status.is-visible { display: block; }
-  .join-status.ok { color: var(--teal-700); }
-  .join-status.err { color: #b23a24; }
-
-  .join-success { display: none; max-width: 460px; }
-  .join-success.is-visible { display: block; }
-  .join-success-title { font-family: "Fraunces", serif; font-weight: 600; font-size: 22px; color: var(--plum-950); }
-  .join-success-text { margin-top: 10px; font-size: 15px; line-height: 1.6; color: var(--ink-soft); }
-  .share-row { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; }
-  .share-btn {
-    display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: 999px;
-    background: var(--plum-950); color: var(--white); font-size: 13.5px; font-weight: 700;
-    text-decoration: none; border: none; cursor: pointer; font-family: inherit;
-  }
-  .share-btn:hover { background: var(--teal-700); }
-
-  .counter-row { margin-top: 40px; display: flex; gap: 40px; }
-  .counter-num { font-family: "Fraunces", serif; font-weight: 600; font-size: 30px; color: var(--plum-950); }
-  .counter-label { font-size: 13px; color: var(--ink-faint); margin-top: 4px; }
-
-  /* ---------- Footer ---------- */
-  .footer { padding: 40px 0 56px; }
-  .footer-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; }
-  .footer-tag { font-size: 13px; color: var(--ink-faint); }
-
-  @media (max-width: 480px) {
-    .visual-glow { width: 220px; height: 220px; top: -30px; left: -20px; }
-  }
+footer{background:var(--ink);color:rgba(255,255,255,.5);padding:0 0 32px;text-align:center}
+footer .wrap{border-top:1px solid rgba(255,255,255,.1);padding-top:26px}
+footer p{margin:0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.06em}
 </style>
 </head>
-<body class="no-js">
+<body>
+<a class="skip" href="#main">Skip to content</a>
 
-<header class="nav" aria-label="Primary">
-  <a href="#top" class="logo">i<em>Care</em></a>
-  <div class="nav-links">
-    <a class="nav-link" href="/employers">For employers</a>
-    <button class="nav-cta" data-scroll-to="#join">Join the waitlist</button>
-  </div>
-</header>
+<div class="wrap">
+  <header class="topbar">
+    <a class="logo" href="#">i<span>Care</span></a>
+    <a class="navlink" href="#">For employers →</a>
+  </header>
+</div>
 
-<hr class="divider" />
-
-<main id="top">
+<main id="main">
 
   <!-- HERO -->
-  <section class="hero wrap">
-    <span class="label eyebrow">Now building — United Kingdom</span>
-    <h1 class="hero-title" id="hero-title">You're not a list of skills. You're <em>who</em> a patient trusts.</h1>
-    <p class="hero-sub reveal">
-      iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile
-      that shows your skills and experience — and, if you choose, the person behind them too. Because
-      some of the best carers we know don't interview well. They just are who they are. Now employers
-      can see that, before they ever meet you.
-    </p>
-    <div class="hero-actions reveal">
-      <button class="btn btn-ghost" data-scroll-to="#join">Join the Waitlist</button>
-    </div>
-    <p class="hero-note reveal"><strong>Free to join.</strong>&nbsp;Candidates are never charged, for anything.</p>
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">For everyone who works in health and care</p>
+        <h1>One profile. Every healthcare employer <u>looking for you.</u></h1>
+        <p class="lede">Put your registrations, experience and availability in one place. Employers search it, send you an invite, and see nothing more until you accept.</p>
+        <div class="ctarow">
+          <a class="btn" href="#join">Join the waiting list</a>
+          <span class="rolestag">Nursing · Medicine · AHPs · Care · Practice teams</span>
+        </div>
+      </div>
 
-    <div class="hero-visual reveal" aria-hidden="true">
-      <div class="visual-glow"></div>
-      <div class="profile-card float-loop">
-        <div class="profile-card-head">
-          <img class="profile-avatar" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAUEBAYFBQUGBgYHCQ4JCQgICRINDQoOFRIWFhUSFBQXGiEcFxgfGRQUHScdHyIjJSUlFhwpLCgkKyEkJST/2wBDAQYGBgkICREJCREkGBQYJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCT/wAARCADwAPADASIAAhEBAxEB/8QAHAAAAAcBAQAAAAAAAAAAAAAAAAEDBAUGBwII/8QAQBAAAgEDAgQCCAUCBAQHAQAAAQIDAAQRBSEGEjFBE1EHImFxgZGhsRQyQsHRI1IVYuHwJDNyghYlNENTovGS/8QAGwEAAgMBAQEAAAAAAAAAAAAAAAQBAgMFBgf/xAAuEQACAgICAgEDAgUFAQAAAAAAAQIRAyEEMRJBIgUTMlFxFEJhsdEjM0NEgZH/2gAMAwEAAhEDEQA/ANgxQo6LFBICKPGaGKFAAoYo6FABYo8UdDpQAQo8UeKb3t9Bp1s9xcSJHGgJLMcACgBZmVRlmAFUji70qaPw2Wt0lNxdDbw4sHB8iaoXHHpVutXeS00h2trPJUz49eX2L3ArOnKwc00zcrHqWOW+J7e4Vm5/oaKH6lo4g9JvEutu6xzjT4D0RDhj+5qm3F65kL3F1LLITuXbc1G6hxEoYxW0fMfdjP8Av21Hl76feV0iU78oXJPwFRsta9E//iyR4wSf+tM/Wn1prqxzrLAxjckZCt6r++qj4aoc805PtbH0paOXlOQzAjs2/wBetRYGuWfpn1PR7hJWtEnhYcoRic4znr8/hVw0H096DfusV+s9lK22XXMYPvH8V56t9Tl/ELFKOeEkkZ+1OdRhIjWT8vN0B2qybKNI9jWOo2+pQJPazRzRsMgoc5pzjyrydwF6StU4MvI0cyT2JIDW7t0Gf0HsfZXpzh3iaw4m06K/sJ1likHXoQfIjsaunZVqiU99ERXeKIipIOMUKM0VABUCK6xRECgDk9KLFdUWCBQARFERR/WgaAF8UKOhQAVCjo6ACoUeN6PFAHIFHjNHjFAkKpYnYUAJXNxFaQPPM6xxxqWZmOwArAuP+O5+Kr57e2LJpsZwkYO8xHc+yrF6X+M2lkOgWcmEXBumU9T2T+ay92FpbmaT8zbAD6AfGsZz9I3xw9sQu51tV5iOaVthj7DyHtqs3t3LfS8iNkdMKdlHffyp9eSS3HMmcknDY+ij/fWhFapZxeIwDMxwgPRiO59g/wB9qOv3B/L9hgLeGwUO4zI3TzP8femdzdTNn1SgPYEL/qacXMryTFYyTIfzPjLE/tUlpHBGoakwdom5T3bcmhyUdsFFy1FFbQPKcYY+zORTmGzujsFYrnG9apofozdfWKZHm67GrdFwBbrEA8QY/I1hLlQQxDhzZhUtnLa2kfiBkLPnrg1IGFJLRWxgAdDWk8U8DCS3IjABXfPLWaX1tfaVN4c65iGw5V6fCr48yn0Z5cEodkZMAhPKDjup6GrV6OOPrjgzVhIWeTT5iFuIc9B/cPaPPvVblkRl5sjlJ/Mu3zFNZU8Jgw2J6MOhrUxPbOk6jBqtjDd20qyxSoHR16MD3p0etef/AEE8eNZ3P/h+8kxDKea3LH8jd09x6ivQCsJFDCtE7RnJUwjRY2o8ChjapIC6UXtroiioA5oUZFAjFAHOKHSusZrnFADjFDFHQoAGKGKGKMCgAqPFHR4oAIDNV7jbiROGdCuL7KmRRyxKf1SHp/PwqwSeqp8/OsP9LOuHV+IU0pHxa2ABf2yEZPyFUyS8UXxx8nRSUD3tzJc3LsxJLsx6kncn/f7VBajdtf3wjTKxoeRAOx7n4dPfnyqW1O6/CWfJHhWcZA9mcAfuag9OjxEZzklzypvufb9z8axxr2b5H/KhxDZrLMIk25fVB7DzNMdRnMrAxfq9SIeS9B89zU1NH4FgeT1ZblvCXHZT1PypXgvRBxBr6Ny5hRvVGOw2H2+tVnPxTky2PG5NRXsm+APRubpEu7iP8xyMjpWwaZwhb2qhWUt7D0+VTeh6ElpbRooxgbYFTH4IINh8aQflPbOpHwxrxRBDTkiHqoMAY91Iz2XIAVAqfktwoz3plNFjbFYzhRvCdlcvbESqSRsazfi/hdZFd40yMEkCtduo/UNVnVLYMCSM+VVhJwdonJBTVM856rpzaezYB2OCp7io+FUc/h3IMcn5Cex/1+la1xfwml/aNJF6jgZBrHJY5bS7e1nHI4O2fOuvhyrJH+pxM+F45f0HNtLcaXeK6OyTQsGDDY7bg+8V6z9G/FsfF3DsF5kLcAckyDs46n3HY15TuAbq0S6X86YDg/v9viKv3oT4u/wLiFLGV8Wl+QuCfySdv4+VaxkYSjo9NYoGhGQ6g0eN62MTmhRkChigg5NEa660VBJzQoz0oUAL0BR4ojtQAYFHiiBo6AAKPFFXXagCP1rUE0zT7m8cjlgjZ9/YK8zajdSXF07u58e6kMjt8ck/78q2j0r6v+E0NrVT6104GM/pG5+ZwPnXn7Ub45dgfWnYxJ7I1/MfjSuV3JRGcKqPkNdWuTdyty7Kx5U9mdh/9fvT21ty1zHAoPLEAuAe+2f2+VRtviS/QNuiEyN8P/yrLwxEGnkupOiEsSfMb/v9Ks34xCK8pDTX5PCvZAmeWzt2I/6sY++avfoX0YJCk7jes3vJTeXFwRk+M4X4DH8mt79G2mfg9HhHLglaS5EqionQ4kbk5GkWTBYwO9Lu5I2FNbRcY606ZPVOTRBui01sbOC2RmmU6dafkgkjoaRnVQvtNUlGy8HRCXIJBG9Q13CHyBVkuIge1Rd1HBHvI6J/1GlnBjKmir6paKbcjlrD/SPovJKLqJMMNzivQV8YJ4HMEscuOvKc4rMuM9O/GWM6qvr7kVtx5uEti3Kh5xMn0S9V8o+6SjlYf5sfuPtS6pJp96pQkEMHRx5jcGoPnNpeFfyqx3HkRVkjI1G25c4mjGQf7h/v710pad+jlR2v6nqv0fcSLxPw1aXhOZeQCQf5hsfrVmIrAvQPxI1nqE2kTN/Tm/qR57MNmH2Nb7kEZFbwlaMJqmc4oHejoVYoc4oYo6KgkLFDFCjoAW70KPGKKgA6FCj7UAACikOEowDSN9OltC0zsFSNSzE9hjrQBh3pl1gyaslnEwzDGEHsc/wN6yJ7gXF3PKP/AE9rF4ae7ufecfWrFx9rX4y+ub7JzMSyg+R6fT71UWR4dLit1/597IfltSkdybG3qKQ709+RWlbrICfh1q1WzfgeHfW2klUZ/wC9sfYE1WreITTLCm6lxEntA/3/APapXXbzNq8SHbDFflyL+5om70TjVbEdHjN7q1jCo/Phj8ST/FejtG1rSdKso4nuUHIuDy7isB4Q0iTVOJYbZH8OJNnkHUKABgfWt9j0Xh2ys1Wa0tztvJMcn50rlpy2PYfJQ0SEfpH4ahJU3b5/6KlLHiaw1bezuUkGM7bbVneq6Hww78ggEZY5zGrinWiaVbadKlzY3DSRg9jnbyqJSSWi0YNvZoXjbEj500ubtUVnZtlBJ91HZFrmLK77VXOJ79tPhbJzzbAVi5OjZJWVTiHjnWL26e002No03HMg3PvNNbDhHU9UKz6pqM4XqVUkn5mn9w8VjEnKMyvguyrzEE9FUd2J2Aqj8Rca65C4is5IIGklkgEElwXuF8M7swGygnb4VvBSkviL5JRg/ky+ScLWVtGTa3d3FMOj+Jneq3qMVwBJBdcrSj9ajAcefsNV1eM+I9He0l1QCe0uVDo6kkYPmOoPzFW8yf4pamZdxjmU47VScJQ/ItCcZr4nn/jKyNhqsgUYDN4i+yhot+QU5TiRd1HmO4/32zVu9JukB4EuUXfcZ+v81m1pI0coAYqcgqR2PnXQx/PGjl5F9vIzSdH1FtK1O11e0zyq4Mijt5/MZr1bomoR6ppltdxsGWaNXBHfIrxto2oBgTgA/llj7e8ez7V6L9Cuufi9Ek05pCzWbYXPXkbdT88j5VGJ1LxYZVcfJGmYoiK6ojTIuFRUdCgDkUDR0XWgBxQxmgRQ7UEAFCjoCgA6q/H934OjG15/DN2wgLeSkFnPwRW+dWkVlfpw1R7GysoYmAknSdFBP6mCr9iarN1EvBXI8/a7P/iWqMVGIVfPKPt7hsKZiQ3Gps0Yz4C+FHj+47Z+/wAqV1EiwlmxkchO7bEkbff7V1otlJFbq+D48x9UeRP8D70tHSsZlt0S+kW4Ry64Phjw0PYue/w3PwFI3BW7uQR/y2kHKP8AIvT50sW8OP8ADwEesCiN7P1P+wpKBQ8ckqdG/oxfz9zWUpezaMfRZ+AC8N7+JAOWJJPvOalIr7WeNdcuLUXh022j5uSQnlZiBsqk/lz3PepX0ecPC4gLOv8ATO3wrR4dAtrfJFtG4btyg/el45Up20OSxScKTMIGgag91YhbTURJGpFxcPMzCR+fywOQAbdT51rWhaRLbXjQW8009mWwJHGHX3n9Q+tT3+Cczf0reGFfPGT8qk7LSFsk52bLDpmrzyeRXHi8PY50si1JXtVS42j/ABEkajpmrZGcSjsDVf4nhzJECOhOaXb0bqOyPtNJjkuIb9HlEkKhY0CqQnmd+586iNa4S0rUr2W7nQLcSks5KsOYnqcAgb1ZdJmMThTuD3qdFvFOAcYq8ZuqREsabtozSThK1uwqRRtLygAO42UDoAKko9Hi0+Hk5FwR78VdprZIUPKMVXNTPITtkGqSk32XjjSVoyb0hWanT59to2DfDP8ArWFyoY5mXoQfV/ivQXpBjY6XcY/UvL9awa/5ecdyGK5FdHiP40cnmx+VjizuGjdZl2K7N7R/vate9D/EqaXxHb88mLe6Hgvn+1iMH4Nisft0yqsD19U5HnVl4Ru1tNQgE2fBDg+3lzhx8v2rTIqdoxxu14s9oIxZASN+9ddahuEr977Swkz89xbOYJT/AHEdG/7l5T8amzW6di71o4xREV0dqKpIOaFHRdKCRxQos0YoIBRihmgKAAdhtWJelK9GocYRMwaSz0iNgMDIe4AVivyI+RrbJX8ONn68oLY929YZ6QoIrf0Y2F87ZvL25N2W7ln5ix9wBH0rPJ0aY+zEL931XVXiVifFlJZvJR1P3qdaWOBRGikuV5VUdVXy957/ACqM0+2/CI87byy7ICNlXPX4/tTu1Zp2/wCHHNk4aT+4+QPl50rJ3obivYo6SvJ+Fj3nmwr4/Qv9o+5NOvHt4723tI2BVMgY7tj+P2plf38HD8EiK6yXjj+o3ZAeg/071C6JNPc3aXpbmVWycncHP75NR4WrZbzqVLs9R8FWi2ul26qP0g1eLSDxh0FUzhWVXsbcgj8gwPhVytblYVFIwry2deW46Fzbch2GKRuZIkHKzZbyFNtU1sQxs3MBio3TzNdQm7kPrNuqHuK0k10jKMXVyJOPMsg5Rv2pnrlqWjZ5F37ZqNXieZb4qtjPCkZwZDjHy6014i4mZrWREclubHtNVSVFtpkdayS2Qe5D84RjlD0Iq16fqcF1GGUgE4PsrM4b7U545IX8EK23qA7fPrU/p0r28SAHDKNvbVHovHZdJ5Ayk9qrurYKtnalo9VWaI74ddiPKobVL31Tvk0XbLdIpfG459OZCM5YCsQ4qtEtLyKOJcLyge8jvW18XXlvaaW91eNywow5iR0ycVh+v6rFrGqB7cEQR+qhI3bzNP8AFTu/RyOa117FLCMPBjuQfmBn9qkLVSLxRjHPhh7/AP8ADTDSmzMM/l5unzqWVGWS3cAZAA+pH8UxkehTGj0p6L9Z/HQ2kobe6tAkg8pYvVOfbykfKtFrF/RiH0ni+bRif6RX8bb+xXjGR9q2g71pjdozyKpHJoqM0VXMwUXejodTQSK4oUeKPFBAQo6LFdCgAiARgjI7j2VgnpJlMWjW+iSH+rpxe1wwz/74w3/8BT8a3ztmsV9Ommxw31rqS7fiI/CfzJU+qfiDj4Vlm/GzXD+VGNTxJdTOWbltUPJzNsHx2ApK/wBZFpGbXT15JSuGmYY8NfYO1d38h/EkA4jiHKqjoO5P0quszGXmbdpXy3sHlS0I32NTlXRH6hK87uMkgZOT1J8z7amuCXhlla3kkVDnOGOOYVHy2pWT1h165qLniMDsrZ2+hplx8o+IspOEvI9acIXudItJo2505AvMpznG1WpdTHh5zjFZP6AtXj1DhM2DuDJZytHjvyn1h9z8q1NLISqY22NcbLFwm0d/BkUsaZF/iJNcv/Dj/wDTxN67E4BPlVsgwI1Tbp0FVaXR76ztGh00xi4TnZBLnkZicjOKjuG7jiLU7+40/W71NPuY29SOKPCyrjOzZ3Oxq2OLl0Tkml+ReprSGVv6nKu3UnFQN9oFihMtw8Yyc5JH0qai4GlYOy6rK3rqFJUZKHGfjStz6OLV7xUk1G5ktwhY7KG5tttu38Vv9hmP8RhXciiPNptoTmQDHflOMUwu+JtLtd2vYUAPVthVu1PhnhrRkaS9lEjJOpAkfmYLkYXHXG/lWf69ottxHqa2yQi3s4ZmduVQDLhjj/t3qHhS7LLMp/7aJrTrr/HPDuLMhkDBfEXowJxS2qWhhlCE5JbFT+gWtvYwxwxRrHHEmQoGMVD30nj3bynoucUo+9G3rZmXpilWHhOZNgZZo0Hzz+1YhbrvnsN60/01aus09npMbAkMZ5PZ2X96ziGL1CcbHYV1uMqxnD5b8sroktJi5nj7czfsas2jWxu9SsYiM+K8e3vcH7ZqJ0y2yEAG4RyfZk8v7GrbwkkKcSaWZiBEkqMx8lyN/hmonK2EI0jUbOHwPSzZrbqB+BtJI5cdOTxSij5EVrysCoIOxrNOA7Y6lfapxLIMtqt8sNvn/wCGMkk/EjNaUowoHltTGPoXydhk0XWjrnpWhmA0VA5oUAL0dF3ozQAO9GKKhnFAHMkgRSWOFAyST2rz76SuIjxTqd28B/4K09SJs7OwI6fEmtM9J+tzWWnxaVayiO71EsnP/wDFEozI/wAth7TWGardpLKYbWMi0sQCBn8zdh7STuaXzy9DOCPsrkyFpZ9/z8wX3co/k1D6ZZG4SRSPWXLD3gZqwLHyW0c7jPJ1FL22npYzPIR/SxzKR+peo+Yz8QRWEXWjdxvZXdTgWOI7eum+PMdv4qLvrLxYRIN2GxB7jsamtWCJePFzgqMgN2ZTuP2ppaxm4sXQ4LIOT5dP3reEtGM47odeini7/wAH8TobklLS7xDNnohz6rfA/Q16vtrmOeFZozk4ztXiq+tyvrkYDd/I1unoQ43ubrSDp9/IXNq/hJIx35cbA+7pmluZitfcQzwc1P7bNwR1leOUYx0NN9a0yO7HOmBJjAOOo8qTs50WXr6r1JKOYFT16ikYSo6d07RB2N3PZzGOe6urdSVJYFip5RgfDYU4u9auHfLarcON/wAgC5z7qkHhLAqVBHtphNpvUrEPPpTKyuqJ/wBNu3H+xWb3mu5WMEbNI2zTSbsfj1orWxjgbAyX/UasD2TKvQAeymxtlhDO2KynNvRaUr66EVuPw9vPISc8vKKrOu6zBpGmTXVxIERFLufIU+1K+z/T5ts8xrE/S5xM98I9Ot3PgB8uR+sjt7hRhxec0hbPm8ItlK1LUpuIdYuNQmzzTNkL/ao6D4DFdoowgXbem1svhQEj8xAFSNnB4ox1I6fb966j0tHHim3sm9PUQ2xPTMSr8x/r9ac29wYZIJD1JPN7F7/emQ9TSC/YoFJ+n8VJ6XCLxoA5C+LIqE4yBzEA/UfWsGMI9I+jwwXOjWfhY8OzgESAHqW3LfH+at4OQffWG8A61ecGaudF1P8ApK0pSMsdub+3PdW6g+dbdbzJcQrKnRhnBprG7VCeWNOzs4FFnFGa5rQzBQoUDQAvQoDrR7UAAUfTeioMQoyaAMa9LGoNbcUsSd49KJTzLNKRt7sD5Cs8hhhtdDPOA2WyScgs2+evy+Htq7enC4tU1ixmbJljiKeHnHMvNkZ+IqjXFlffgDc3SKniJ+ITm25YxvzY7A7ADqcik57k0O49RTIETMJpY5NonQeID0RmwEHv7+409m1JbfTRDMGIgbkYD8yg9CPMdQR7BTDTIZb+VVVWaGJzM3MM87+Z89zSV7aSSSsmTzSYyOpCKe/t3+1UlVl432R1wpnuuUYZVTBYdCAMimmi3JW5DHo5Ice/p9qktRi/B28rEYdh4Y9mdz9Kg9JcNexnosjYHsHatMe4spk1JIWvUVJ7iA7xZLxnyz293Wrb6HpfB1G8gYgqxU+/qKrN4g8YK22XKKT0znapn0csbLiGRcEcwG3u/wB4qMu8bJxKsqZv9rfy2QCS5aE9HHVatGmamtxg84LAfMedV3T0S7tQMZyKbG2udNn54WOAc4rlJnXZoyYJDLjBoXOAo86q1jxQoULMfDbuG6Gnc+uQyYIkXB9tbqeivjbHV0uxINV7Wr9YISmRt1rvUuJ4IlIWQEjsKo2tarLeZG6p9TVXss5UiJ1/WZJOeOJiCw9Zh2HlWP8AGLZuoh2Gdq026X+m7msu4uPNfLjtmmuN+RzuX+AhbJzQI/XLD7VIaXILe5xKcI7hQT5mmmlDxYEjHUb/AC3+1PLu1LwpjbnTIPtB3pl90xWPVotVvpqOklrJ6qSBip8s9R8NqQ00TWA8Nk/r2z5Iz1AII+oz8aS0fWDNaKsmBPFtufzAdPiPqKfG9ivZkY4ScDAJ/WPI1i7XZuqfRrl9pVl6UODINU0ps6jbJhkBwWYblD5HO4Pu9tSXok43bWbaXSr9sX9phX5tjIvQPjscjDDsRWZ6Vd6zwDfw8RaUj3Gl3YVbqHoObfKMM7EEEhv5qdtb+wm42bijRXIt5ZbaSZCMECc+HJG3tDANW8ZdMXlHTRvJFc4okPMu/bajNMCwXShmgetFQA4o6KjoAArmTPLt1OwrvFER6w+lAHmbiGG8499IGqxQyKsluHitEY4DGP8AQMjHMdz76iRqcuqwNo92GSWCJofW9VvVYFi39o2wScn31d/SHwjf8McTy67YI/8Ah9xOs7SRjJt5QSQxHlkke0HBqL4yutP1iccRWSw2l5cFY7yJdyxG+R2GTjfvt5UpPV/qOQ3X6EMtsltbLBaRlEx6zFcEj+4jrv0Vep6mlZdNi0q28ZgrXcw5gG6RqO59g395pqL0QmO5kX+ipzFGf/cfzPfA+tVvifimW4E0KP6zHlZh5/6Dt2zS6i5uhjyUFZC8S6ktzL4cLHw0BVc9Wz1Y+85+lR2nqR4LqPyuuPnTOd5DOXOcZKgVM2NsQExuqkN8sU5SjGkJ25Stj3X7Qf4W8gO6Sk59+P4pTh26ZdWtrgn1pEUk+Z6ZpfV2Q6HL32R/eCSB9qi9PDxXVmVO/h8oP/cay7hRstTTPTPDE4ktonzswG3lVhltFlQnAOfpVH4DvhdafCw6EYYeTd60C39eMEGuU1ujrp6sg7jTFfPqg1E3WlbnGRVwkgVyexO9NJ7VsEbN8arsnRSZdO5KhtSj5fVHervqFqyqcACqpcW5luDtkLVosiSKzqqiG3PurKuJE8S45vI4rVuJfUjKDcms04hg5BjG7Zp7jOnZz+SrVEVo0/h3IYflJGAfh/OKt8Nh+KsJGhHM8B8VAe69/wBqplknISp9uKtWhas9vGrjBaNhkHow6EfEU1kXtCmN+mMPD8G8MsPrQzKWx/ae4+lLLMswUkgq3Q5xv7+xrvUYhp96s0OWtpjzxk/b3io8/wBCdomz+GkOx8vI+8VV72WWtF20Ti++0W0uNLvVN3p9ymHRwCyeTDzwe4qz8A2cWoa2LKzkLWFxeR3LIBsqJ6ynPvyMewVmtrdlI206/wAhkw9vL7Pf5Ed/h7r96HxfJqxvLMh2gPr2p/8AdXByR5MPkfZmoiqaCTVM9JjHKMURNJWdwt3axzJnDqGGetKGnBMHei3o6GN6AHAoxRUYoAOikkCLzY37UNx5H31W+NLma10ySdWkcRhikMSFvEcghQcdsmobolKypekfj1DbXGk6Rm4umYQSSouY4i5wVLHYt7B0xWNTxwrc+NM6iGPC+Eu/M2PPz+2avXER1rUuHYLGz0lrCyjCvzSr/UeXqXPkST9az2OznMk7xkNJHGeYMejHb+aWyQk5bQzjyQUdMjr3UnvLiW4zgDKxp2QDPb5VU7hHlVnIORIST7anYg0Ts4TxCr5ZV3yD1/and5pEU8Dz2TGWMj+qi4MkZ6glf3FRH4MtL5orqwrcNtjmT7dc08s5hyiNRklSo+f7jFR0niwS8obIAwGHQjt8tqktLgeJjqEv5sYjX/N5+4fxVpaRWO2P9TIMdxbq3qqI7fPbK7t9SaZ2Q8aWWUZEcRXl/wCnGM/c0nKWMfICTsQSe5PU/wC/M1PaFpYNtOGBB5SCPLb+azfxibR+UjSOArkwXDR5wGwxHmfP9/nWs2UoaMb/AArF+C3ZhYyjZniGfgR+xrYNNysShjsK5uRbOlj/ABJBlBGelIy55e1Ls2F/imsjDB3rMuiJ1EFlOxzUDJaCNHkbqaslwnik4qM1iLwrRsDG1SiWZlrINzdsvZapHEFrzyTOB6qeoP3rRIrUyySykZ32qn8TWxisZQoOXkb7mm8TpiWWNooELD8SFHTm9WpQN+E9cg+FJsQPI0zFqY5FbH5G392dqd3B57HwsbjOM+w10Ozn9DyG7WWJ7W49ZOp/y+TCuJrZhC8TYZhggj9Q/wB71FWc5aRVbJZDgZ6lTt9Mipm8zBaJ4gLDCHK/mQ47fSs5KmXi7QnM73lnbRxoGliZgB+rGc/ua3z0V6Bb2/8A5pFlVs7ZUGRgySlSX+G4H/5WCWCs90PWG2SHBxvWicFaLJBqKXN5qtzFHkARxs3hnzzg+fsq+OLb0jPJOMVt0ejrSMx20cZI5lUA0qaZaRLFLZp4M8c6j9aOWz78nNPTmmBe7Bmi70VCgB2KFFnl3JxTO5vjukPuJq8IOT0Z5MsYK2L3NzDbj1jlvKoe5nkum3HKo6A9qMhmbLEk+2hyHmwacx4VHZzcvJlPXSI27s45Y2R1OGGMnfFYjxjoFzoOpT30MMj2FyxD9QVBOd/rv7a3+aFTE3c47VVeLfw1lpsst2fVC+qB3ONh9qM2NSjb1RXj5XCVJXfowfV7m1mt44NOtSiKp53YAfD21UpmvIZv6LNGw9Ulc5Ps9oq0ajeC5Li3jAj5iMgbZ9nn/vamlpiwInmVWuXBEUZ3VPJm8z3rjym27Z6KGOMV4o60/h9pVa81IxLyjLHoV9mfP7fSozUtUjaUR2qAqPVV8YUD/Lnc0Wu6lPL/AMIjssCDLHqW33J9pJpto1p+MXw3JWQZaN235vMGqKP8zLuX8qJvS9GaeLLgkuAMn31aY7M2uj3N6i+tgxhf7tgBj25pK1IGmokePFkHIoz0z1/en8vPdSQaTZf1HUjnK7qh75Pcj7+6n5YouNHMjmnGfl1X9iR4DjDPHv6sCiMe05yT9q13TwGjGcZqlaRwodKiiKE8pwGPk3n8attoksSgZrg8nHLFNxkj0nEywz41ODJfwj4ZqMlbDlc9Kfx3DIuW3GKib2XE/Ohzmlm0NKLHUNvzAHrUZxXD4WmuRsSMVNafKpUHrTbiK2/Fxog/LmrerK07ooFrYeHCCRsRmqnxJppa4EXL6rczgee24+9aW1oYwVA2FQ+taJ+MgyPUlT1o3A/Kf4q8J0yssVoxm/0Z2DGIevCpLADcrUMYzKphkJWU/kY9Ce38Vq66aiCRr+M2s0Y5Y5gpMbdyCQNuneqTxHp1uW/pMgByfUOeX5dq7OGF4lM4OfIlneMreiae99qQGCqxKTIT2GKktRniuXlLMEQI0aHsXJwB9PpSEup/hbR4oDiWX/mOBhj7aj1JuyiSDEaD1Qn6SO9Z1btmt+KpElotm80kcTRsxLZfHUCtK0TR5IQjLqF2F/s5gRjy6ZFUvQdE1S3VJ7O4ilXAwrjGR760zRIp2gQzoqv0wKe4+JXbRy+XndVFlh02aW2KvDI8bj9SnB/1q3abxS/qx3q8w6eIowfiO9Va0i26U9WLPSnZYlJbOdjzyg9MvsM0dxGJIZFdT3Bro1SrO8m0+cSxMQP1L2Ye2rhaXcd7Asyd9iPI+VJ5MTgdPDnWT9xy0niZ7DtTKaPB58e8Dyp2cAe6k3+lOQVdHMyScnbGzoeXIpKOQSEg7MO1OYiMmM9unupreQlD48fVeoHetDGzpXG6NVY420F9S0a9SPJmeIhD1x3AHl0qd8YTYcdafRATxYYdsVEopqmWhNxdo8t6HYiSK4WVCrQFiynqNqYNo95eFtR8N2TlOMfpXpW28V8DQW99JqNrHyeMOWULsCPMij0bhmGG08JArRnz8vKk/wCDb0zoP6go/JdswaXTzJCzcuZGBBHfPQgfIGuNMmtLSBknblkU80e3UjsRWw6/6N1lnee1IRWOWQ9P9Ko1xwVN/iRiurdvCJwsoG9Kvj5MbodXLw5Vd7GWl6dfX8wNpzpG+AQp3+Fa5wfwrHYQq3hhGO+ep+dMOCeGW0wqkx8RequNvpWj21qqKABt2ro4MKgr9nI5XJlkdLo6itU8LwyoKkYI86SjQwuYX3IGVY/qH81IJGAOlJXlv48fqnlkXdG8jWXO4qzw12ujf6bzXxsm/wAX3/kQZfU8qi7mLmY486fQSmZSCCrqcMvkaTmTm6HevJTjTpnusck1aG9pM8ZwfninryiRMmmfJy7/ADrtW5R7aqi7QzuUGSRTKcYTp8qkZsEnfApjMGOy9WOB76suyJOlY3SxWSxAdNpWL/sPtVU17heJ/wDlW4QE5L46+wVoQjETiI7xgBR8KTurVCjRkYyMqa9rhwqOKMH6R84z8hzzSyL2zz1xFwZdWk34mBC+csVA39uKb6Xo0Oo4iMLxTf3Y2Purf7rRoJ7U88YyB5VEQ8NW6N4iRgZOelYy4icrQxDnyUafZUOG+G57A4aRmjPQHsau1lZkAbU8g00RkYWpK3ssHptTGPGoKkJ5czyO2ILD4UOcdacwxAgUeoJ4cSjzIpxbR5QVf2UGl0nJv51IaDe+Be+Axwk2wHk3amOrN4fhL/c2KQuZDGwlQ4ZCGB9xrPJDyi0bYcnhNMvhpLnWTKjqK6ZsU3zhwwqUQ2cSP4ZDn9J393elkKnKHvSE+OdlPSuLVjgEndfVPwq3ozumMb6FrSbmX8p3p5YTBgN6Wv4fHg6dqi7JzFJyNtihEvTJi8tkuoWRlBBFVZIm0y6MZ/5ZO3sq3RtzLUbqtiJ0JA37UJhJWNljSZRkAiuH0WCbdkFI2kzRt4bdRUvC+RUsqhtHpccSjlXGKcRjHqGna9KbXClTzAdDUFhQb++ixtXMb8wDDrXZIIzUkEbqMBhJu4wdh/UUdx5+8fakeYOoII371LEg7Y2qEmi/AXJj3EEm8Z/tPdf4rg/VeH/zQ/8Af8np/on1D/r5H+3+ASKQMn70mRzKfZ5UswySc70mVwfWGRXBPT2N5lOD5jYUnbRh7hSeieufh0+tLSA+Vd2aiOJpGGfEbHwH+tPfT8P3M8V6Wzm/VuR9njSft6/+ihUAc3Ve9csnNiP8wJyD5UsqsgLKOZfKuYlXxOZT6p3A8q9gfP6BJEGgb3Go+1TMY26HFTLJ6jYHWouyAJdfJjVS9DhYRgH206jjHYVwg7U7iXapsiiI1n1RGP8ANTu0GYx7qaa3vNEvtp/aL6gqESyI4ibw5bP2yY+lIynxLaVvIUpxefDitJAPyzj6gikyR+AfH9pofQL8kf/Z" alt="" width="52" height="52" />
-          <div class="profile-card-name">
-            <div class="verify-name">Emily R.</div>
-            <div class="verify-role">Healthcare Assistant · Belfast</div>
+      <div class="deck" aria-label="Example invites">
+        <article class="ivt">
+          <div class="ivt-top">
+            <div class="avatar" aria-hidden="true">SG</div>
+            <div><div class="ivt-org">St Gabriel's Trust</div><div class="ivt-meta">Acute · Enfield · 3.2 mi</div></div>
           </div>
+          <h3 class="ivt-role">Band 6 Physiotherapist</h3>
+          <p class="ivt-line">Rotational post across stroke and respiratory. Full time.</p>
+          <div class="ivt-acts"><button class="mini yes">Accept</button><button class="mini no">Not for me</button></div>
+        </article>
+        <article class="ivt">
+          <div class="ivt-top">
+            <div class="avatar" aria-hidden="true">MH</div>
+            <div><div class="ivt-org">Meadowvale Health Group</div><div class="ivt-meta">Primary care · Barnet · 5.8 mi</div></div>
+          </div>
+          <h3 class="ivt-role">Practice Nurse</h3>
+          <p class="ivt-line">Weekdays, no weekends. Long-term conditions clinics.</p>
+          <div class="ivt-acts"><button class="mini yes">Accept</button><button class="mini no">Not for me</button></div>
+        </article>
+        <article class="ivt">
+          <span class="stamp">New</span>
+          <div class="ivt-top">
+            <div class="avatar" aria-hidden="true">BH</div>
+            <div><div class="ivt-org">Beechwood House</div><div class="ivt-meta">Residential · Waltham Cross · 2.1 mi</div></div>
+          </div>
+          <h3 class="ivt-role">Senior Care Assistant</h3>
+          <p class="ivt-line">Nights, 3 on 4 off. Dementia experience welcome.</p>
+          <div class="ivt-acts"><button class="mini yes">Accept</button><button class="mini no">Not for me</button></div>
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <!-- BAND -->
+  <section class="band">
+    <div class="wrap">
+      <h2>You are better at this job than you are at applying for it.</h2>
+      <p>Healthcare roles are won and lost on a CV that can't hold the important bits — that you're the one colleagues come to, that you stayed late, that you're calm when it matters. iCare gives you somewhere to put all of that, and puts it in front of the people hiring. <strong>Nursing, medicine, allied health, care and support, healthcare science, practice and admin teams.</strong></p>
+    </div>
+  </section>
+
+  <!-- THREE COLUMNS -->
+  <section class="why">
+    <div class="wrap">
+      <h2>A CV is a list of places you left. It says almost <em>nothing</em> about how you work.</h2>
+      <div class="cols">
+        <div class="col">
+          <div class="lbl">What we hold</div>
+          <h3>The whole record</h3>
+          <p>Registrations, specialties, settings, training and the hours that fit around your life. Written once, kept current, yours to edit.</p>
         </div>
-        <div class="verify-tags">
-          <span class="verify-tag t-verified">verified</span>
-          <span class="verify-tag t-evidenced">evidenced</span>
-          <span class="verify-tag t-derived">derived</span>
-          <span class="verify-tag t-declared">declared</span>
+        <div class="col">
+          <div class="lbl">What changes</div>
+          <h3>They come to you</h3>
+          <p>Employers search for what they need. If that's you, they send an invite — you choose whether to open the door.</p>
         </div>
-        <div class="profile-card-stats">
-          <div><div class="stat-num">248</div><div class="stat-label">profile views</div></div>
-          <div><div class="stat-num">6</div><div class="stat-label">years experience</div></div>
-          <div><div class="stat-num">3</div><div class="stat-label">shortlists</div></div>
+        <div class="col">
+          <div class="lbl">Who it's for</div>
+          <h3>The whole workforce</h3>
+          <p>Nursing, medicine, allied health, care and support, healthcare science, practice management and admin. One network, not a dozen job boards.</p>
         </div>
       </div>
-      <p class="visual-caption">Illustrative example profile — not a real person</p>
     </div>
   </section>
 
-  <hr class="divider" />
-
-  <!-- WHAT WE'RE BUILDING -->
-  <section class="section wrap">
-    <div class="section-label-block reveal">
-      <span class="label">What we're building</span>
-    </div>
-    <p class="body-text reveal">
-      Most job platforms reduce you to a CV. We think that's the wrong way round.
-      <strong>iCare gives you a real profile</strong> — your skills, your experience, and, entirely on
-      your terms, your own voice. Share what matters to you, professionally or personally, and build a
-      presence that shows employers who you really are. Whether you want flexible shift work or a
-      stable, permanent role, employers are actively searching for people like you, right now.
-    </p>
-  </section>
-
-  <hr class="divider" />
-
-  <!-- WHY JOIN -->
-  <section class="section wrap">
-    <div class="section-label-block reveal">
-      <span class="label">Why join</span>
-      <h2 class="section-title">Everything you need to be seen — for the right reasons.</h2>
-    </div>
-
-    <div class="feature-list">
-      <div class="feature-card reveal">
-        <span class="label">Identity</span>
-        <h3 class="feature-title">Your identity, not just your CV</h3>
-        <p class="feature-text">Build a profile that shows your real experience and expertise — evidenced, verified, and trusted, not just typed in a box.</p>
+  <!-- BADGES -->
+  <section class="badges">
+    <div class="wrap">
+      <h2>We show employers what's checked — and what isn't.</h2>
+      <p class="sub">Every line on your profile carries a label so nobody has to guess how much weight to give it. Honest beats impressive.</p>
+      <div class="grades">
+        <div class="grade g1"><div class="gname">Verified</div><p>Checked by us directly at source.</p></div>
+        <div class="grade g2"><div class="gname">Evidenced</div><p>You've uploaded a document that supports it.</p></div>
+        <div class="grade g3"><div class="gname">Derived</div><p>Worked out from other things on your profile.</p></div>
+        <div class="grade g4"><div class="gname">Declared</div><p>You've told us, and we've said so plainly.</p></div>
       </div>
-      <div class="feature-card reveal">
-        <span class="label">Demand</span>
-        <h3 class="feature-title">Found by employers who need you now</h3>
-        <p class="feature-text">From urgent locum cover to permanent posts, employers are searching iCare every day for people ready to work.</p>
-      </div>
-      <div class="feature-card reveal">
-        <span class="label">Your voice</span>
-        <h3 class="feature-title">Say what you want, share what you choose</h3>
-        <p class="feature-text">Post your thoughts, your experiences, whatever feels true to who you are. You decide exactly what's private, what's shared with other carers, and what employers can see. Nothing is used without your say-so.</p>
-        <span class="soon-tag">Coming soon</span>
-      </div>
-      <div class="feature-card reveal">
-        <span class="label">Discovery</span>
-        <h3 class="feature-title">Let your character do the talking</h3>
-        <p class="feature-text">Employers search in plain English — "an experienced carer, great with dementia patients, based near Reading." Our AI helps them find people like you, drawing only on what you've chosen to share.</p>
-        <span class="soon-tag">Coming soon</span>
-      </div>
-      <div class="feature-card reveal">
-        <span class="label">Visibility</span>
-        <h3 class="feature-title">See your own impact</h3>
-        <p class="feature-text">Know how many employers and peers have viewed your profile, so you can see, in real numbers, that you're being noticed.</p>
-        <span class="soon-tag">Coming soon</span>
-      </div>
+      <p class="note">We don't claim to verify DBS certificates. Your employer runs their own pre-employment checks, as they must — we just make sure nothing on your profile pretends to be more solid than it is.</p>
     </div>
   </section>
 
-  <hr class="divider" />
-
-  <!-- PULL QUOTE -->
-  <section class="quote-wrap wrap">
-    <div class="reveal">
-      <span class="quote-mark" aria-hidden="true">&rdquo;</span>
-      <blockquote>
-        <p class="quote-text">You've been searching for a long time. It's time to stop being one CV in a stack, and start being someone employers actually find — for exactly who you are.</p>
-      </blockquote>
+  <!-- NEVER DO -->
+  <section class="promise">
+    <div class="wrap">
+      <h2>What we will never do</h2>
+      <ul class="plist">
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Score or rank you.</b> No hidden rating decides who sees you. Employers get plain, explainable reasons for every match.</span></li>
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Show your details before you say yes.</b> Your name, photo and contact details stay hidden until you accept an invite.</span></li>
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Keep the door open after.</b> When a role closes or you withdraw, that employer's access to your profile ends.</span></li>
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Share what you've kept private.</b> You set what's public, what's for employers, and what nobody sees — and you can change it whenever.</span></li>
+      </ul>
     </div>
   </section>
 
-  <hr class="divider" />
-
-  <!-- WAITLIST CTA -->
-  <section class="section wrap" id="join">
-    <div class="reveal">
-      <span class="label">Early access</span>
-      <h2 class="section-title join-headline">Be one of the first to be seen.</h2>
-      <p class="body-text">
-        Join the iCare waitlist today. The first people to sign up will be first in line when we launch —
-        the sooner your profile is live, the sooner employers can find you.
-      </p>
+  <!-- FINAL / WAITLIST -->
+  <section class="final" id="join">
+    <div class="wrap">
+      <h2>The right people should already know your name.</h2>
+      <p>We're opening to healthcare professionals across the UK shortly. Add your email and we'll bring you in early.</p>
 
       <form class="join-form" id="waitlist-form" novalidate>
-        <label for="wl-name" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Full name</label>
-        <input id="wl-name" name="full_name" type="text" placeholder="Your name" autocomplete="name" required />
-        <label for="wl-email" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Email address</label>
-        <input id="wl-email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required />
-        <label for="wl-phone" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Phone number (optional)</label>
-        <input id="wl-phone" name="phone" type="tel" placeholder="Phone (optional)" autocomplete="tel" />
-        <span class="join-form-optional">We'll only use these to let you know when iCare is live.</span>
-        <button type="submit" class="btn btn-teal">Join the waitlist</button>
+        <label for="wl-name" class="sr-only">Full name</label>
+        <input id="wl-name" name="full_name" type="text" placeholder="Your name" autocomplete="name" required>
+        <label for="wl-email" class="sr-only">Email address</label>
+        <input id="wl-email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required>
+        <button type="submit" class="btn">Join the waiting list</button>
       </form>
       <p class="join-status" data-status></p>
-
-      <p class="join-note"><strong>Free to join and build your profile.</strong>&nbsp;You always control what you share, and with whom.</p>
+      <p class="join-note">Free to join. We'll only use this to let you know when iCare is live.</p>
 
       <div class="join-success" id="waitlist-success" aria-live="polite">
-        <h3 class="join-success-title" data-success-title>You're on the list.</h3>
-        <p class="join-success-text" data-success-text>We'll email you the moment iCare is live.</p>
-        <div class="share-row">
-          <a class="share-btn" data-share="twitter" href="#" target="_blank" rel="noopener">Share on X</a>
-          <a class="share-btn" data-share="linkedin" href="#" target="_blank" rel="noopener">Share on LinkedIn</a>
-          <a class="share-btn" data-share="facebook" href="#" target="_blank" rel="noopener">Facebook</a>
-          <a class="share-btn" data-share="whatsapp" href="#" target="_blank" rel="noopener">WhatsApp</a>
-          <button class="share-btn" type="button" data-share="copy">Copy link</button>
-        </div>
+        <h3 data-success-title>You're on the list.</h3>
+        <p data-success-text>We'll email you the moment iCare is live.</p>
       </div>
 
       <div class="counter-row">
-        <div>
-          <div class="counter-num" data-waitlist-count>—</div>
-          <div class="counter-label">on the waitlist</div>
-        </div>
+        <span class="counter-num" data-waitlist-count>—</span> people on the waiting list
       </div>
     </div>
   </section>
-
 </main>
 
-<hr class="divider" />
-
-<footer class="footer wrap">
-  <div class="footer-inner">
-    <a href="#top" class="logo">i<em>Care</em></a>
-    <p class="footer-tag">Hiring instead? <a href="/employers" style="color:var(--teal-700);font-weight:600;">See the employer page</a> · <a href="/privacy" style="color:inherit;">Privacy</a> · <a href="/terms" style="color:inherit;">Terms</a> · &copy; 2026 iCare</p>
-  </div>
+<footer>
+  <div class="wrap"><p>iCare · The professional network for UK health and care</p></div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
 <script>
 (function () {
-  document.body.classList.remove("no-js");
-
-  var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var canAnimate = window.gsap && !reducedMotion;
-
-  if (canAnimate) {
-    gsap.registerPlugin(ScrollTrigger);
-  } else {
-    document.body.classList.add("reduced-motion");
-  }
-
-  // ---- Headline word-by-word entrance ----
-  var titleEl = document.getElementById("hero-title");
-  if (titleEl) {
-    var html = titleEl.innerHTML;
-    var wrapped = html.replace(/(<em>.*?<\/em>|[^\s<]+)/g, function (match) {
-      if (match.indexOf("<em>") === 0) return '<span class="word">' + match + "</span>";
-      return '<span class="word">' + match + "</span>";
-    });
-    titleEl.innerHTML = wrapped.split(/(\s+)/).map(function (part) {
-      return part;
-    }).join(" ");
-    var words = titleEl.querySelectorAll(".word");
-    if (canAnimate) {
-      gsap.to(words, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.045, delay: 0.1 });
-    } else {
-      words.forEach(function (w) { w.classList.add("is-visible"); });
-    }
-  }
-
-  // ---- Generic reveal-on-scroll ----
-  var reveals = document.querySelectorAll(".reveal");
-  if (canAnimate) {
-    reveals.forEach(function (el) {
-      ScrollTrigger.create({
-        trigger: el,
-        start: "top 88%",
-        once: true,
-        onEnter: function () { el.classList.add("is-visible"); },
-      });
-    });
-
-    gsap.utils.toArray(".feature-card").forEach(function (card, i) {
-      ScrollTrigger.create({
-        trigger: card,
-        start: "top 90%",
-        once: true,
-        onEnter: function () {
-          gsap.fromTo(card, { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", delay: i * 0.06 });
-        },
-      });
-    });
-  } else {
-    reveals.forEach(function (el) { el.classList.add("is-visible"); });
-  }
-
-  // ---- Scroll-to helpers ----
-  document.querySelectorAll("[data-scroll-to]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      var target = document.querySelector(btn.getAttribute("data-scroll-to"));
-      if (target) target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
-      var emailInput = document.getElementById("wl-email");
-      if (emailInput) setTimeout(function () { emailInput.focus(); }, reducedMotion ? 0 : 500);
-    });
-  });
-
-  // ---- Live waitlist counter (real — starts at 0, no fabricated numbers) ----
+  // ---- Live waitlist counter (real — GET /waitlist/count) ----
   var counterEl = document.querySelector("[data-waitlist-count]");
   if (counterEl) {
     fetch("/waitlist/count")
@@ -466,51 +337,15 @@
       .catch(function () { counterEl.textContent = "0"; });
   }
 
-  // ---- Waitlist form submit ----
+  // ---- Waitlist form submit (real — POST /waitlist) ----
   var form = document.getElementById("waitlist-form");
-  var statusEl = form.querySelector("[data-status]");
+  if (!form) return;
+  var statusEl = form.parentElement.querySelector("[data-status]");
   var successPanel = document.getElementById("waitlist-success");
+
   function setStatus(kind, message) {
     statusEl.textContent = message;
-    statusEl.className = "join-status is-visible " + kind;
-  }
-
-  function wireShareLinks(isEarlySupporter) {
-    var pageUrl = window.location.href.split("#")[0];
-    var text = "I just joined the iCare waitlist — a new platform for carers, nurses and healthcare professionals. Worth a look:";
-    var encodedUrl = encodeURIComponent(pageUrl);
-    var encodedText = encodeURIComponent(text);
-    var urls = {
-      twitter: "https://twitter.com/intent/tweet?text=" + encodedText + "&url=" + encodedUrl,
-      linkedin: "https://www.linkedin.com/sharing/share-offsite/?url=" + encodedUrl,
-      facebook: "https://www.facebook.com/sharer/sharer.php?u=" + encodedUrl,
-      whatsapp: "https://wa.me/?text=" + encodedText + "%20" + encodedUrl,
-    };
-    successPanel.querySelectorAll("[data-share]").forEach(function (el) {
-      var key = el.getAttribute("data-share");
-      if (key === "copy") {
-        el.addEventListener("click", function () {
-          navigator.clipboard.writeText(pageUrl).then(function () {
-            var original = el.textContent;
-            el.textContent = "Copied!";
-            setTimeout(function () { el.textContent = original; }, 1800);
-          });
-        });
-      } else if (urls[key]) {
-        el.setAttribute("href", urls[key]);
-      }
-    });
-
-    var titleEl = successPanel.querySelector("[data-success-title]");
-    var textEl = successPanel.querySelector("[data-success-text]");
-    if (isEarlySupporter) {
-      titleEl.textContent = "You're in — and one of our first " + "100.";
-      textEl.textContent = "That means you'll be near the very front of the queue when we launch. We'll email you the moment iCare is live.";
-    } else {
-      titleEl.textContent = "You're on the list.";
-      textEl.textContent = "We'll email you the moment iCare is live.";
-    }
-    successPanel.classList.add("is-visible");
+    statusEl.className = "join-status " + kind;
   }
 
   form.addEventListener("submit", function (e) {
@@ -518,7 +353,6 @@
     var submitBtn = form.querySelector('button[type="submit"]');
     var fullName = document.getElementById("wl-name").value.trim();
     var email = document.getElementById("wl-email").value.trim();
-    var phone = document.getElementById("wl-phone").value.trim();
     if (!fullName || !email) return;
 
     submitBtn.disabled = true;
@@ -527,12 +361,12 @@
     fetch("/waitlist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ full_name: fullName, email: email, phone: phone || undefined }),
+      body: JSON.stringify({ full_name: fullName, email: email }),
     })
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
       .then(function (result) {
         submitBtn.disabled = false;
-        submitBtn.textContent = "Join the waitlist";
+        submitBtn.textContent = "Join the waiting list";
         if (!result.ok) {
           setStatus("err", result.body.error || "Something went wrong. Please try again.");
           return;
@@ -541,17 +375,21 @@
           setStatus("ok", "You're already on the list — we'll be in touch.");
         } else {
           form.style.display = "none";
-          wireShareLinks(!!result.body.is_early_supporter);
+          if (result.body.is_early_supporter) {
+            successPanel.querySelector("[data-success-title]").textContent = "You're in — and one of our first 100.";
+            successPanel.querySelector("[data-success-text]").textContent = "That means you'll be near the very front of the queue when we launch. We'll email you the moment iCare is live.";
+          }
+          successPanel.classList.add("is-visible");
+          if (counterEl) {
+            var current = parseInt(counterEl.textContent, 10);
+            if (!isNaN(current)) counterEl.textContent = String(current + 1);
+          }
         }
         form.reset();
-        if (counterEl && !result.body.already_joined) {
-          var current = parseInt(counterEl.textContent, 10);
-          if (!isNaN(current)) counterEl.textContent = String(current + 1);
-        }
       })
       .catch(function () {
         submitBtn.disabled = false;
-        submitBtn.textContent = "Join the waitlist";
+        submitBtn.textContent = "Join the waiting list";
         setStatus("err", "Network error — please try again.");
       });
   });
