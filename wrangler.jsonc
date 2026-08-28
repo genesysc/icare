@@ -4,6 +4,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "account_id": "181e44a6963cb30381a30edbd56a4b46",
+  "routes": [
+    { "pattern": "icareltd.com", "custom_domain": true },
+    { "pattern": "www.icareltd.com", "custom_domain": true }
+  ],
   "vars": {
     "SUPABASE_URL": "https://blflbiwqflidltqflwew.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_Ply3rrROmY-6gNxnppBwvg_eXI-z5pd"

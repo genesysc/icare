@@ -406,11 +406,24 @@ deploy confirmation yet.
 
 **Blocking real usage**
 
-1. **Custom `icare` domain** — blocks three things: (a) Supabase Auth
-   custom SMTP via Sender.net for auth emails, (b) the waitlist welcome
-   email (`src/email.ts`'s `sendTransactionalEmail` is a documented
-   no-op until this exists), (c) cosmetic only, Cloudflare is fine on
-   `workers.dev` for now. This is the single highest-leverage unblock.
+1. **Custom `icare` domain** — **resolved 2026-08-28**: user purchased
+   `icareltd.com` (still registered at GoDaddy, DNS moved to Cloudflare —
+   nameservers confirmed live via direct NS lookup:
+   `chan.ns.cloudflare.com` / `jermaine.ns.cloudflare.com`). Attached to
+   the Worker via `wrangler.jsonc` `routes` (`custom_domain: true` for
+   both `icareltd.com` and `www.icareltd.com`) on this branch — deploy
+   confirmation still pending (see §10). `info@icareltd.com` mailboxes
+   are hosted on Zoho Mail (MX/SPF/DKIM records added to the Cloudflare
+   zone by the user). This unblocks: (a) Supabase Auth custom SMTP via
+   Sender.net for auth emails, (b) the waitlist welcome email
+   (`src/email.ts`'s `sendTransactionalEmail` is a documented no-op until
+   a verified sending domain exists — Sender.net SMTP-relay work is still
+   parked per §12, now unblocked on the domain side only), (c) no more
+   `workers.dev` for the public-facing app. There is **no dedicated
+   marketing landing page yet** — `icareltd.com` currently serves straight
+   into the candidate app (`/` → whatever `src/index.ts` routes today);
+   the user was asked about a separate landing page vs. straight-into-app
+   and hasn't decided yet, flagged as an open question below.
 2. **Supabase email template fix** (`{{ .Token }}`) — see §6. Manual
    Dashboard step.
 3. **Sender.net API integration itself** — `src/email.ts` has a stub with
@@ -541,12 +554,32 @@ the hard constraints this must respect.
 
 ## 12. Open questions for the founder
 
-- **`icare` domain** — not yet purchased/chosen. Blocks §8 item 1.
+- ~~`icare` domain — not yet purchased/chosen~~ — resolved 2026-08-28:
+  `icareltd.com` purchased, DNS moved to Cloudflare, Custom Domain routes
+  added to `wrangler.jsonc`. See §8 item 1.
+- **Marketing landing page vs. straight-into-app on `icareltd.com`** —
+  new open question as of 2026-08-28. No landing page exists in the repo;
+  the root path currently serves the candidate app directly. User hasn't
+  decided yet.
 - **Sender.net vs an alternative** for transactional email — decided in
   principle (Sender.net, as SMTP relay behind Supabase Auth for auth
   emails; direct API for stage-completion emails), not yet executed. See
   §8 item 3 — the actual send call is still blocked on reaching
-  Sender.net's docs/account at all, not just the domain.
+  Sender.net's docs/account at all — the domain blocker is now cleared,
+  the Sender.net API-access blocker is not.
+- **Multi-vertical brand architecture** (iRecruit as B2B umbrella +
+  candidate-facing verticals iCare/iBuilt/iHost/iFinance/iTech-or-iCode/
+  iLaw/iTeach, each on its own proper domain, not a subdomain) — decided
+  in a 2026-08-27 strategy session, not yet merged in full detail into
+  this document. Confirms **no job postings will ever exist** (see the
+  employer chat/`search_candidates` architecture in §2/§4, which already
+  matches this). Also confirmed: candidates can never pay for
+  ranking/visibility (Employment Agencies Act 1973) — an "Analytics tier"
+  (viewer identity, search-appearance counts, comparative benchmarking
+  framed as improvement score not ranking, skills-gap insight, saved
+  search alerts) was selected as the priority B2C paid feature, not yet
+  built. Parent/holding company name (must include "work") and the tech
+  vertical's final name (iTech vs. iCode) are still undecided.
 - ~~Whether to mirror Supabase migrations as files in this repo~~ —
   resolved 2026-08-26: yes, done. See §4.
 - ~~What "verified employer" actually requires~~ — resolved 2026-08-26,
