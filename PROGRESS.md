@@ -2026,6 +2026,29 @@ they aren't lost:
   yet" below) — domain is no longer the blocker there, Sender.net
   account/API access is.
 
+- **2026-08-28: New landing page live (PR #21).** User supplied a new
+  landing page design (purple/teal palette, invite-deck hero,
+  verification-badge explainer, "what we will never do" section) to
+  replace the previous waitlist page. Swapped in `src/landing.html`
+  keeping every visual detail of the new design; the new design's "Join
+  the waiting list" CTA in the final section had no form behind it
+  (just `<a href="#">`) — added a real `<form id="waitlist-form">`
+  restyled to the new dark final-section palette, using the same proven
+  submit logic as the page it replaced: `POST /waitlist`, live
+  `GET /waitlist/count`, `already_joined` handling, error states.
+  Verified directly against live Supabase schema (not assumed) that the
+  `waitlist` table and `waitlist_count` RPC already match what
+  `src/waitlist.ts` expects — no backend changes needed. Tested in a
+  headless browser against mocked API responses: successful signup
+  (correct POST body, form hides, success panel shows, counter
+  increments), `already_joined` (status message, form stays visible),
+  400 error (message surfaced, button re-enabled), and empty-field
+  submit (blocked client-side by native `required`, no request sent).
+  `wrangler deploy --dry-run` and `tsc --noEmit` both clean before
+  pushing. PR #21 merged, `deploy.yml` confirmed `conclusion: success`.
+  User said they'll pick the Sender.net email-testing work back up
+  later — not resumed this session past this point.
+
 ## Not started yet
 - ~~Employer-side API (profile, verification-request flow, browsing
   published candidates, shortlisting, pipeline, consent-gated media, "who
