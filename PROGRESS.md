@@ -1993,6 +1993,28 @@ they aren't lost:
     was a debugging pass, not a cleanup one — flagging in case a future
     pass wants to remove them.
 
+- **2026-08-28: Custom domain connected.** User purchased `icareltd.com`
+  (registrar stays GoDaddy) and moved DNS to Cloudflare — confirmed live
+  via a direct `dns.resolveNs()` lookup from this sandbox (Node, no
+  external DNS tool available):  nameservers are
+  `chan.ns.cloudflare.com` / `jermaine.ns.cloudflare.com`. Restarted this
+  branch from `origin/main` first (prior PR #19 had already merged).
+  Added `routes` to `wrangler.jsonc` — `icareltd.com` and
+  `www.icareltd.com`, both `custom_domain: true` — pointing the existing
+  `icare` Worker at the domain (no separate landing-page Worker; no
+  landing page exists yet either, see below). Validated with
+  `wrangler deploy --dry-run` (config parses, correct bindings listed);
+  real activation depends on the CI deploy after this is pushed — not
+  confirmed live yet, since this sandbox has no network egress to the
+  deployed Worker to check directly (same restriction noted throughout
+  this doc). User also set up `info@icareltd.com` on Zoho Mail this
+  session (MX/SPF/DKIM records talked through, added to the Cloudflare
+  zone by the user directly — not done via any tool here). Confirmed
+  with the user: Sender.net remains the intended SMTP relay for outbound
+  mail, still parked pending Sender.net API access (see "Not started
+  yet" below) — domain is no longer the blocker there, Sender.net
+  account/API access is.
+
 ## Not started yet
 - ~~Employer-side API (profile, verification-request flow, browsing
   published candidates, shortlisting, pipeline, consent-gated media, "who
@@ -2020,15 +2042,16 @@ they aren't lost:
   moot until there's a real post-launch flow.
 - Employer verification review flow (`employer_verification_requests`,
   `is_verified`) — who reviews these and how is undecided.
-- **Custom domain for iCare — now blocking three things**: (1) auth emails
-  via Sender.net SMTP relay, (2) the waitlist welcome email
-  (`sendTransactionalEmail` in `src/email.ts` is a no-op until this
-  exists), (3) cosmetic only — Cloudflare is fine on the free
-  `workers.dev` subdomain for now. This is the single next concrete
-  unblock that matters most.
+- ~~Custom domain for iCare~~ — resolved 2026-08-28, see "Done" above.
+  `icareltd.com` is wired to the Worker via `wrangler.jsonc` routes on
+  this branch; live activation not yet confirmed post-deploy.
+- No dedicated marketing landing page for `icareltd.com` — root path
+  currently serves straight into the candidate app. Flagged to the user
+  as an open decision 2026-08-28, not yet answered.
 - Auth-email templates (signup confirmation, magic link/OTP, invite) —
-  not designed or written yet, blocked on the domain above. (No password
-  reset template needed — there are no passwords.)
+  not designed or written yet. The domain blocker is cleared; still
+  blocked on Sender.net API access (see below). (No password reset
+  template needed — there are no passwords.)
 - Sender.net API integration itself — `src/email.ts` has a documented
   stub but the actual transactional-send API call was never looked up/
   written, since sending is blocked on the domain anyway.
