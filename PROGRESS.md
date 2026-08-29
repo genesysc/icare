@@ -2049,6 +2049,124 @@ they aren't lost:
   User said they'll pick the Sender.net email-testing work back up
   later — not resumed this session past this point.
 
+- **2026-08-28/29: B2B recruitment workflow handover + dossier v2 mockup
+  received and filed — planning material, no code changes.** User uploaded
+  two new reference documents, saved into the repo (not just summarized
+  here, unlike earlier session docs) since they're substantial enough to
+  need direct reference later:
+  - `docs/iCare_B2B_Recruitment_Workflow_Handover.md` — addendum to
+    `HANDOVER.md` and `iCare_Group_Strategy_Handover.md`, covering the
+    employer-side search → bookmark → invite → interview flow in full.
+    Explicitly **not yet merged into `HANDOVER.md`** — the doc itself
+    says that merge should happen "once the employer-side build actually
+    starts," and this project is still candidate-side-first. Key
+    decisions captured, none built yet:
+    - Full workflow: NL prompt → count + summary (chat is search-only,
+      never renders scrollable results itself) → separate card/list
+      browse UI, neutral non-ranked sort → **two distinct save actions**
+      (private Bookmark vs. commitment-triggering Send Invite) → invite
+      → candidate Interested/Not interested (binary, no partial states)
+      → on accept, full profile unlocks *scoped to that job's pipeline
+      only* → Decline or Invite to Interview → async self-scheduled
+      video interview (transcribed/summarised for time, explicitly
+      **not scored/ranked** — extends the existing no-AI-scoring
+      non-negotiable to video) → next stage TBD.
+    - **Search exclusion is scoped to (company × job), not company-wide**,
+      and only triggers on Send Invite, never Bookmark. Rejection is not
+      permanent suppression — candidate returns to that company's
+      searchable pool with a visible history flag. The one true permanent
+      block is candidate-initiated "do not contact me again."
+    - **New `jobs` module, required before any invite can be sent** — Send
+      Invite is hard-gated on a job record existing (no free-text
+      one-off-hire fallback, by design, for GDPR/Conduct Regs
+      auditability). Same propose/confirm split as the CV parser: AI
+      drafts the narrative body, employer explicitly confirms all
+      structured fields (title, location, pay, hours, contract type,
+      notice period, quals, H&S risks). New **mandatory three-state
+      sponsorship field** (no sponsorship / can sponsor an existing
+      Health & Care Worker visa transfer / can sponsor a new applicant) —
+      option 3 must be platform-*enforced* as unselectable for Care
+      Worker and Senior Care Worker job classifications specifically, not
+      left to employer honesty. Pipelines scope to jobs, not companies —
+      a candidate can legitimately sit in more than one pipeline at the
+      same company at once. New entities implied: `jobs`,
+      `job_pipelines`/`pipeline_candidates`, `bookmarks`, `invites`
+      (must snapshot job details at send-time, not just FK — so a later
+      pay/hours edit can't retroactively change what was consented to),
+      `profile_summaries`, `interviews`.
+    - **New non-negotiable, on par with the existing list: profile access
+      is pipeline-scoped and revocable, never a standing grant.** Full
+      profile access granted on candidate acceptance ties to that
+      specific job pipeline's lifetime — closes/rejects/withdraws →
+      access actively revokes, candidate drops back to the standard
+      gated view for that employer. Implementation implication flagged
+      explicitly: access checks must be "is there a currently-active
+      pipeline," not "was access ever granted."
+    - **Two separate, visually distinct AI summaries** shown to employers
+      (never blended): factual (pulled directly from profile data, no
+      interpretation) and descriptive-character (drawn only from
+      employer-consented posts, strictly descriptive per the existing
+      evaluative-language ban — doc gives a worked good/bad example pair).
+      Both **generate once, at invite acceptance, frozen for that
+      pipeline's lifetime** even if the candidate's live profile changes
+      — a fresh pipeline gets a fresh generation.
+    - **DBS verification — three-state model, exact copy specified:**
+      "Not Yet Verified" (default — cert number + upload on file, pending)
+      → "Current — no new information" (confirmed via DBS Update Service)
+      → "New information reported" (flagged, distinct urgent state, own
+      red treatment). Explicit and load-bearing: a certificate number
+      plus an uploaded scan is **never** sufficient to claim verification
+      (matches the existing non-negotiable) — the only legitimate
+      mechanism is an online DBS Update Service status check, and even
+      that has an unresolved gap (DBS's own guidance wants the *original
+      physical certificate* viewed too, which doesn't have a clean answer
+      for a remote-first platform — flagged for legal input, not decided).
+      Whether the confirmed-state check is a real Update Service API
+      integration vs. manual staff portal lookups is also unresolved,
+      with real scaling implications either way.
+    - Referee consent is flagged as a real open gap, not an assumed-safe
+      default: a nominated referee hasn't agreed to anything, and their
+      name/relationship being shown to an employer is third-party
+      personal data under UK GDPR that needs its own consent design,
+      separate from the candidate's own consent framework.
+  - `docs/mockups/candidate-profile-dossier-v2.html` — static design
+    mockup (not wired to any route, not imported anywhere — deliberately
+    kept out of `src/` so it can't accidentally get bundled/served as a
+    live page) of the employer-facing full-profile "dossier" view once a
+    candidate accepts an invite. Three-column desktop-first layout
+    (recruiters on large monitors, explicitly not a mobile priority for
+    this screen): sticky left ID column (photo in a "verification scan"
+    ring, trust-grade badges as a status-light readout, a standalone
+    non-badge DBS status element per the three-state model above,
+    deliberately visually separated from the four-tier
+    Verified/Evidenced/Derived/Declared badge system given the
+    safeguarding stakes); middle column with References (nominated
+    referees, contact details withheld until a reference request is
+    formally sent — the placeholder safeguard for the unresolved referee-
+    consent question), Employment history (new `employment_history`
+    entity, timeline view), Qualifications; right column with the
+    descriptive-summary quote, a Media grid (uploaded photos/video,
+    new), and consented Posts. Three-typeface system (Libre Caslon Text
+    reserved for the candidate's name + descriptive quote only, Courier
+    Prime for paper-sheet body content, Space Grotesk for dark-chrome UI)
+    — branding/exact colours not yet reconciled with the live iCare
+    brand system, explicitly a layout/density exploration pass, not a
+    final build target.
+  - Both files copied as-is into the repo (previous session-upload docs
+    like `LANDING_PAGE_COPY.md` and the Group Strategy handover were only
+    ever summarized into `HANDOVER.md`/this file, never saved as raw
+    files — this is the first time raw reference docs have been
+    committed, per this session's explicit request).
+  - **Nothing in `src/` changed.** No `jobs`/`pipelines`/`bookmarks`/
+    `invites` tables exist yet, no employer-side UI for any of this workflow
+    exists yet. This is planning material for a future B2B-workflow build
+    phase, consistent with the project remaining candidate-side-first per
+    the existing non-negotiables. Don't start building against this
+    without the user explicitly kicking off that phase — several pieces
+    (sponsorship field copy, DBS mechanism, referee consent model) are
+    explicitly flagged in the source doc as needing legal sign-off before
+    they're build-ready, not just engineering-ready.
+
 ## Not started yet
 - ~~Employer-side API (profile, verification-request flow, browsing
   published candidates, shortlisting, pipeline, consent-gated media, "who

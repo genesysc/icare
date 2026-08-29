@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iCare — Candidate File (Employer View)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#12141A;
+    --panel:#1B1E24;
+    --panel-line:#2B2F38;
+    --paper:#F3EEDF;
+    --paper-line:#DCD3B4;
+    --ink:#211C13;
+    --ink-soft:#6B6350;
+    --signal:#35D6A0;
+    --signal-dim:#1E5B49;
+    --amber:#E0A526;
+    --danger:#E0523D;
+    --danger-dim:#5C2018;
+    --grey-light:#B8AF98;
+    --text-on-dark:#E9E6DC;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:var(--void);
+    color:var(--text-on-dark);
+    font-family:'Courier Prime',monospace;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ===== Header stack (UI chrome — Space Grotesk) ===== */
+  .crumb{
+    padding:10px 40px;
+    font-family:'Space Grotesk',sans-serif;
+    font-size:11.5px;
+    color:var(--grey-light);
+    letter-spacing:.03em;
+    border-bottom:1px solid var(--panel-line);
+  }
+  .crumb .current{color:var(--signal);}
+  .crumb span.sep{opacity:.4;margin:0 6px;}
+
+  .filebar{
+    background:var(--panel);
+    border-bottom:1px solid var(--panel-line);
+    padding:16px 40px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    position:sticky;
+    top:0;
+    z-index:20;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  .filebar-left{display:flex;align-items:center;gap:22px;}
+  .file-id{font-size:12px;color:var(--grey-light);}
+  .file-id strong{color:var(--text-on-dark);letter-spacing:.03em;}
+  .status-pill{
+    font-size:11px;
+    padding:4px 10px;
+    border:1px solid var(--signal);
+    color:var(--signal);
+    border-radius:3px;
+    letter-spacing:.04em;
+  }
+  .status-pill::before{content:"● ";}
+  .filebar-actions{display:flex;gap:10px;}
+  .btn{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:13.5px;
+    font-weight:600;
+    padding:9px 18px;
+    border-radius:5px;
+    cursor:pointer;
+    border:1.5px solid transparent;
+  }
+  .btn-decline{background:transparent;border-color:var(--panel-line);color:var(--grey-light);}
+  .btn-invite{background:var(--signal);color:#0A1F18;}
+
+  /* ===== Layout ===== */
+  .stage{
+    max-width:1880px;
+    margin:0 auto;
+    padding:28px 40px 80px;
+    display:grid;
+    grid-template-columns:300px 1fr 1fr;
+    gap:24px;
+    align-items:start;
+  }
+
+  /* Folder-tab card wrapper */
+  .file-card{margin-top:22px;}
+  .file-card:first-child{margin-top:0;}
+  .tab{
+    display:inline-block;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:10.5px;
+    letter-spacing:.09em;
+    text-transform:uppercase;
+    color:var(--void);
+    background:var(--paper);
+    padding:6px 14px 5px;
+    border-radius:5px 5px 0 0;
+    border:1px solid var(--paper-line);
+    border-bottom:none;
+    position:relative;
+    top:1px;
+  }
+  .sheet{
+    background:var(--paper);
+    color:var(--ink);
+    border:1px solid var(--paper-line);
+    border-radius:0 6px 6px 6px;
+    padding:20px 22px;
+  }
+
+  /* ===== LEFT: ID column ===== */
+  .id-col{position:sticky;top:88px;}
+  .id-photo-wrap{
+    background:var(--panel);
+    border:1px solid var(--panel-line);
+    border-radius:8px;
+    padding:24px;
+    text-align:center;
+  }
+  .scan-ring{
+    width:150px;height:150px;
+    margin:0 auto 6px;
+    border-radius:50%;
+    position:relative;
+    display:flex;align-items:center;justify-content:center;
+    background:
+      radial-gradient(circle at center, transparent 62px, var(--signal-dim) 63px, var(--signal-dim) 64px, transparent 65px),
+      radial-gradient(circle at center, transparent 70px, var(--panel-line) 71px, var(--panel-line) 72px, transparent 73px);
+  }
+  .photo-core{
+    width:118px;height:118px;
+    border-radius:50%;
+    background:linear-gradient(135deg,#2A2D33,#1B1E24);
+    border:1px solid var(--signal-dim);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Libre Caslon Text',serif;
+    font-weight:700;
+    font-size:36px;
+    color:var(--signal);
+  }
+  .cand-name{
+    font-family:'Libre Caslon Text',serif;
+    font-weight:700;
+    font-size:23px;
+    color:var(--text-on-dark);
+    margin-top:16px;
+  }
+  .cand-role{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:11px;
+    color:var(--grey-light);
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    margin-top:4px;
+  }
+
+  .dbs-status{
+    margin-top:14px;
+    background:rgba(224,165,38,.14);
+    border:1px solid var(--amber);
+    border-radius:6px;
+    padding:10px 14px;
+    display:flex;
+    align-items:flex-start;
+    gap:9px;
+    font-family:'Space Grotesk',sans-serif;
+    text-align:left;
+  }
+  .dbs-status .flag-ic{font-size:14px;flex-shrink:0;margin-top:1px;}
+  .dbs-status-text{text-align:left;}
+  .dbs-status-label{
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--amber);
+    display:block;
+  }
+  .dbs-status-value{
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--text-on-dark);
+    display:block;
+    margin-top:1px;
+  }
+  .dbs-status-caption{
+    font-size:9.5px;
+    color:var(--grey-light);
+    line-height:1.4;
+    margin-top:4px;
+    display:block;
+  }
+  .dbs-status.confirmed{
+    background:rgba(53,214,160,.14);
+    border-color:var(--signal);
+  }
+  .dbs-status.confirmed .dbs-status-label{color:var(--signal);}
+  .dbs-status.flagged{
+    background:rgba(224,82,61,.16);
+    border-color:var(--danger);
+  }
+  .dbs-status.flagged .dbs-status-label{color:var(--danger);}
+  .dbs-status.flagged .dbs-status-value{color:var(--danger);}
+
+  .scan-readout{
+    background:var(--panel);
+    border:1px solid var(--panel-line);
+    border-top:none;
+    border-radius:0 0 8px 8px;
+    padding:14px 20px 18px;
+    margin-top:-8px;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  .scan-row{
+    display:flex;
+    align-items:flex-start;
+    gap:9px;
+    padding:7px 0;
+    font-size:12px;
+    border-bottom:1px solid var(--panel-line);
+  }
+  .scan-row:last-child{border-bottom:none;}
+  .dot{width:7px;height:7px;border-radius:50%;margin-top:4px;flex-shrink:0;}
+  .dot.v{background:var(--signal);}
+  .dot.e{background:var(--amber);}
+  .dot.d{background:var(--grey-light);}
+  .dot.c{background:#6B6350;}
+  .scan-row .grade{
+    font-size:9.5px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--grey-light);
+    display:block;
+  }
+  .scan-row .item{color:var(--text-on-dark);font-size:12.5px;font-weight:500;}
+
+  .facts-block{
+    background:var(--panel);
+    border:1px solid var(--panel-line);
+    border-radius:8px;
+    margin-top:16px;
+    padding:16px 20px;
+    font-family:'Space Grotesk',sans-serif;
+  }
+  .fact{
+    display:flex;justify-content:space-between;
+    font-size:12.5px;
+    padding:7px 0;
+    border-bottom:1px dashed var(--panel-line);
+  }
+  .fact:last-child{border-bottom:none;}
+  .fact .k{font-size:10.5px;color:var(--grey-light);text-transform:uppercase;letter-spacing:.05em;padding-top:1px;}
+  .fact .v{font-weight:600;color:var(--text-on-dark);text-align:right;}
+  .fact.flag .v{color:var(--amber);}
+
+  .legend{
+    margin-top:14px;
+    font-family:'Space Grotesk',sans-serif;
+    font-size:9.5px;
+    color:var(--grey-light);
+    line-height:1.8;
+    padding:0 4px;
+  }
+  .legend b{color:var(--text-on-dark);}
+
+  /* ===== Middle column ===== */
+  h3.sheet-title{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:12.5px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    margin-bottom:14px;
+    color:var(--ink);
+  }
+  .note{
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-bottom:14px;
+    padding-bottom:12px;
+    border-bottom:1px dashed var(--paper-line);
+  }
+
+  .ref-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    padding:12px 0;
+    border-bottom:1px solid var(--paper-line);
+    gap:12px;
+  }
+  .ref-row:last-child{border-bottom:none;}
+  .ref-name{font-weight:700;font-size:14px;}
+  .ref-role{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+  .ref-status{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    padding:4px 9px;
+    border-radius:20px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .ref-status.confirmed{background:rgba(53,214,160,.15);color:#1E7A5C;}
+  .ref-status.nominated{background:rgba(224,165,38,.18);color:#8A6A0E;}
+
+  .timeline{margin-top:2px;}
+  .tl-row{
+    display:flex;
+    gap:16px;
+    padding:13px 0;
+    border-bottom:1px solid var(--paper-line);
+  }
+  .tl-row:last-child{border-bottom:none;}
+  .tl-dates{
+    font-family:'Courier Prime',monospace;
+    font-weight:700;
+    font-size:11px;
+    color:var(--ink-soft);
+    width:118px;
+    flex-shrink:0;
+    padding-top:2px;
+  }
+  .tl-body strong{font-size:14px;display:block;}
+  .tl-body span{font-size:12.5px;color:var(--ink-soft);}
+  .tl-body p{font-size:13px;margin-top:4px;color:var(--ink);}
+
+  .tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .tag{
+    font-size:11.5px;
+    background:#fff;
+    border:1px solid var(--paper-line);
+    padding:4px 10px;
+    border-radius:4px;
+  }
+  .qual-group{margin-bottom:14px;}
+  .qual-group:last-child{margin-bottom:0;}
+  .qual-group h4{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:11.5px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    color:var(--ink-soft);
+    font-weight:600;
+    margin-bottom:6px;
+  }
+
+  /* ===== Right column ===== */
+  .sheet-descriptive{background:#FBF6E7;}
+  .sheet-descriptive p{
+    font-family:'Libre Caslon Text',serif;
+    font-style:italic;
+    font-size:16.5px;
+    line-height:1.65;
+    color:var(--ink);
+  }
+  .source-note{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:10px;
+    color:var(--ink-soft);
+    margin-top:12px;
+    padding-top:10px;
+    border-top:1px dashed var(--paper-line);
+  }
+
+  .media-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .media-tile{
+    aspect-ratio:4/3;
+    background:linear-gradient(135deg,#E4DEC6,#F3EEDF);
+    border:1px solid var(--paper-line);
+    border-radius:5px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    font-family:'Space Grotesk',sans-serif;
+    font-size:10px;
+    color:var(--ink-soft);
+    text-align:center;
+    padding:8px;
+  }
+  .media-tile .ic{font-size:20px;}
+
+  .post{
+    padding:12px 0;
+    border-bottom:1px solid var(--paper-line);
+  }
+  .post:last-child{border-bottom:none;}
+  .post-date{font-family:'Courier Prime',monospace;font-weight:700;font-size:10px;color:var(--ink-soft);}
+  .post p{font-size:13.5px;margin-top:4px;}
+
+  @media (max-width:1400px){
+    .stage{grid-template-columns:280px 1fr;}
+    .col-right{grid-column:1/-1;}
+  }
+  @media (max-width:860px){
+    .stage{grid-template-columns:1fr;}
+    .id-col{position:static;}
+  }
+</style>
+</head>
+<body>
+
+  <div class="crumb">
+    Riverside Care Group <span class="sep">/</span> Theatre Nurse — Ward 4 <span class="sep">/</span> <span class="current">Shortlisted · Full profile</span>
+  </div>
+
+  <div class="filebar">
+    <div class="filebar-left">
+      <div class="file-id">FILE <strong>ICR-2026-08417</strong> · opened 28 Aug 2026</div>
+      <div class="status-pill">Active — Frozen for this pipeline</div>
+    </div>
+    <div class="filebar-actions">
+      <button class="btn btn-decline">Decline</button>
+      <button class="btn btn-invite">Invite to Interview →</button>
+    </div>
+  </div>
+
+  <div class="stage">
+
+    <!-- LEFT: ID column -->
+    <div class="id-col">
+      <div class="id-photo-wrap">
+        <div class="scan-ring">
+          <div class="photo-core">AB</div>
+        </div>
+        <div class="cand-name">Aisha Bello</div>
+        <div class="cand-role">Registered Nurse · Theatre</div>
+        <div class="dbs-status">
+          <span class="flag-ic">⚠</span>
+          <div class="dbs-status-text">
+            <span class="dbs-status-label">DBS Check</span>
+            <span class="dbs-status-value">Not Yet Verified</span>
+            <span class="dbs-status-caption">Certificate number and copy on file — pending DBS Update Service confirmation</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="scan-readout">
+        <div class="scan-row">
+          <span class="dot v"></span>
+          <div><span class="grade">Verified</span><span class="item">Right to work</span></div>
+        </div>
+        <div class="scan-row">
+          <span class="dot e"></span>
+          <div><span class="grade">Evidenced</span><span class="item">NMC PIN · ILS certification</span></div>
+        </div>
+        <div class="scan-row">
+          <span class="dot d"></span>
+          <div><span class="grade">Derived</span><span class="item">5 yrs theatre experience</span></div>
+        </div>
+        <div class="scan-row">
+          <span class="dot c"></span>
+          <div><span class="grade">Declared</span><span class="item">Available immediately</span></div>
+        </div>
+        <div class="scan-row">
+          <span class="dot c"></span>
+          <div><span class="grade">Declared</span><span class="item">Requires sponsorship</span></div>
+        </div>
+      </div>
+
+      <div class="facts-block">
+        <div class="fact"><span class="k">Location</span><span class="v">Brighton, BN1</span></div>
+        <div class="fact"><span class="k">Notice</span><span class="v">2 weeks</span></div>
+        <div class="fact"><span class="k">Seeking</span><span class="v">Permanent / Locum</span></div>
+        <div class="fact"><span class="k">Contact</span><span class="v">Unlocked</span></div>
+      </div>
+
+      <div class="legend">
+        <b>Verified</b> — checked against an official register.<br>
+        <b>Evidenced</b> — document uploaded by candidate.<br>
+        <b>Derived</b> — calculated from profile data.<br>
+        <b>Declared</b> — stated by candidate, unconfirmed.
+      </div>
+    </div>
+
+    <!-- MIDDLE: References, Employment, Quals -->
+    <div class="col-mid">
+
+      <div class="file-card">
+        <span class="tab">References</span>
+        <div class="sheet">
+          <h3 class="sheet-title">Nominated referees</h3>
+          <div class="note">Referee contact details release once a reference request is sent — they haven't yet consented to being contacted by an employer.</div>
+
+          <div class="ref-row">
+            <div>
+              <div class="ref-name">Dr. Helen Okafor</div>
+              <div class="ref-role">Theatre Lead, St. Bartholomew's NHS Trust</div>
+            </div>
+            <span class="ref-status confirmed">Confirmed · 3d ago</span>
+          </div>
+          <div class="ref-row">
+            <div>
+              <div class="ref-name">James Whitfield</div>
+              <div class="ref-role">Ward Manager, Meridian Care Home</div>
+            </div>
+            <span class="ref-status nominated">Nominated</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="file-card">
+        <span class="tab">Employment history</span>
+        <div class="sheet">
+          <div class="timeline">
+            <div class="tl-row">
+              <div class="tl-dates">Mar 2022 —<br>Present</div>
+              <div class="tl-body">
+                <strong>St. Bartholomew's NHS Trust</strong>
+                <span>Theatre Nurse, Perioperative</span>
+                <p>General and orthopaedic surgical lists, 400-bed acute trust.</p>
+              </div>
+            </div>
+            <div class="tl-row">
+              <div class="tl-dates">Jun 2019 —<br>Feb 2022</div>
+              <div class="tl-body">
+                <strong>Meridian Care Home</strong>
+                <span>Surgical Ward Nurse</span>
+                <p>Post-operative recovery and surgical ward care.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="file-card">
+        <span class="tab">Qualifications</span>
+        <div class="sheet">
+          <div class="qual-group">
+            <h4>Registrations</h4>
+            <div class="tag-row">
+              <span class="tag">RN Adult — NMC registered</span>
+              <span class="tag">ILS certified</span>
+              <span class="tag">Scrub &amp; circulating competent</span>
+            </div>
+          </div>
+          <div class="qual-group">
+            <h4>Availability</h4>
+            <p style="font-size:13px;">Immediate start, 2-week notice on current role. Open to permanent or long-term locum, full-time.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Descriptive, Media, Posts -->
+    <div class="col-right">
+
+      <div class="file-card">
+        <span class="tab">Descriptive summary</span>
+        <div class="sheet sheet-descriptive">
+          <p>"Aisha writes regularly about theatre workflow and infection control, and has posted several times about mentoring newly qualified scrub nurses through their first solo lists."</p>
+          <div class="source-note">Based only on posts Aisha has chosen to share with employers · descriptive, not an assessment</div>
+        </div>
+      </div>
+
+      <div class="file-card">
+        <span class="tab">Media</span>
+        <div class="sheet">
+          <div class="media-grid">
+            <div class="media-tile"><span class="ic">▶</span>Intro video · 0:42</div>
+            <div class="media-tile"><span class="ic">🖼</span>Theatre setup, photo</div>
+            <div class="media-tile"><span class="ic">📄</span>Certificate scan</div>
+            <div class="media-tile"><span class="ic">▶</span>Team drill, 1:10</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="file-card">
+        <span class="tab">Posts</span>
+        <div class="sheet">
+          <div class="post">
+            <div class="post-date">14 Aug 2026</div>
+            <p>Shared a checklist for handover between scrub and circulating roles during long lists.</p>
+          </div>
+          <div class="post">
+            <div class="post-date">2 Jul 2026</div>
+            <p>Wrote about supporting a newly qualified colleague through their first solo theatre list.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+</html>
