@@ -353,6 +353,10 @@ footer p{margin:0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-
     var fullName = document.getElementById("wl-name").value.trim();
     var email = document.getElementById("wl-email").value.trim();
     if (!fullName || !email) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setStatus("err", "Please enter a valid email address.");
+      return;
+    }
 
     submitBtn.disabled = true;
     submitBtn.textContent = "Joining…";

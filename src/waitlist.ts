@@ -24,6 +24,9 @@ waitlist.post("/", async (c) => {
     role === "employer" && ["temp", "permanent", "both"].includes(body?.hiring_for) ? body.hiring_for : null;
 
   if (!email) return c.json({ error: "email is required" }, 400);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return c.json({ error: "Please enter a valid email address" }, 400);
+  }
   if (!fullName) return c.json({ error: "full_name is required" }, 400);
   if (role === "employer" && !orgName) return c.json({ error: "org_name is required" }, 400);
 
