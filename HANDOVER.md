@@ -985,3 +985,147 @@ the domain question at all.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.
+
+---
+
+## 14. Group strategy, revised B2B workflow spec & Next.js reference track — uploaded 2026-08-30, reconciliation needed before employer-track work continues
+
+The founder uploaded four documents this session, now stored under `docs/`
+(not wired into the live Worker — reference material only):
+
+- `docs/iCare_Group_Strategy_Handover.md` — brand architecture + B2B/B2C
+  pricing, dated 27 Aug 2026.
+- `docs/iCare_B2B_Recruitment_Workflow_Handover.md` — already existed in
+  the repo (added on a prior PR); confirmed unchanged.
+- `docs/iCare_NextJS_Candidate_Track_Handover.md` — a fuller, more current
+  handover for the **separate Next.js candidate-side build** referenced
+  elsewhere in this doc (§1, §3's "architecture note"). Supersedes the
+  fragments of that build previously summarised here.
+- `docs/mockups/jobseeker-wireframes.html` and
+  `docs/mockups/employer-wireframes.html` — the click-through wireframes
+  the Next.js track and the workflow spec were designed against.
+- `docs/icare-jobseeker-app-code/icare-jobseeker-app/` — the actual
+  Next.js/Tailwind source for the candidate side (28 files: `lib/types.ts`,
+  `app/*/page.tsx`, `components/**/*.tsx`), pushed straight to `main` by
+  the founder outside any PR. Wireframe-fidelity, mock-data-only, no
+  Supabase wiring, no auth — a UI/logic reference, not a runnable app
+  (`layout.tsx`, `package.json`, etc. weren't included). Onboarding step 3
+  is the only fully-built step; steps 1/2/4–7 are placeholders.
+
+**Why this matters:** these describe the *same product* this repo
+(Cloudflare Workers) is building, but the candidate-side has now been
+built twice in two different stacks, and the employer-side workflow spec
+here is **materially different** from what Sprints 6–11 already shipped
+in this repo. Nothing below is broken — both are internally consistent —
+but they don't agree with each other, and only the founder can say which
+is authoritative going forward.
+
+### Group strategy — summary (full detail in the stored file)
+
+- **Brand architecture**: iRecruit becomes the single B2B/employer brand
+  across verticals; iCare is the health & social care candidate-facing
+  vertical (current build), with iBuilt/iHost/iFinance/iTech-or-iCode/
+  iLaw/iTeach as future verticals, each its own domain. Parent/holding
+  company name (must include "work") still undecided.
+- **B2C**: paid visibility/ranking boosts confirmed **blocked pending legal
+  review** (Employment Agencies Act 1973) — consistent with non-negotiable
+  #1 above. An **analytics tier** (viewer identity, search-appearance
+  counts, comparative benchmarking framed as improvement not ranking,
+  skills-gap insight, saved-search alerts) was selected as the priority
+  paid feature — not built. Pricing: ~£5–£10/mo or a £4.99/7-day burst
+  pass.
+- **B2B pricing — finalised for two of three segments** (not yet built
+  anywhere, no pricing page exists):
+  - **In-house teams**: flat tiers gated by *concurrent active pipelines*
+    (not seats, not search volume): Starter £99/mo (1 pipeline), Growth
+    £169/mo (5, "Most Popular"), Scale £229/mo (unlimited + analytics).
+  - **Agencies**: tiers gated by *client accounts held* (not pipelines —
+    agencies bill clients a retainer regardless of hiring activity):
+    Starter £249/mo (≤3 clients), Growth £419/mo (≤10), Scale £549/mo
+    (unlimited). Unlimited users/search/pipelines in every tier — the
+    per-client (not per-seat) model is flagged as a real differentiator
+    vs. Bullhorn/Vincere/ATSpro.
+  - **White label**: setup fee £1,000–£2,000 agreed; ongoing monthly fee
+    **still open**, parked for a follow-up session.
+- **Confirmed: no traditional job postings/apply flow, ever** — the
+  employer's natural-language search *is* the discovery mechanism. This
+  does **not** conflict with the "job module" below — see next section.
+
+### Revised B2B workflow — what's different from what's already built here
+
+The workflow handover (`docs/iCare_B2B_Recruitment_Workflow_Handover.md`)
+and the wireframes describe employer-side mechanics that don't match
+Sprints 6–11 as shipped in this repo. Concretely:
+
+| Area | What this repo already built (Sprints 6–11) | What the new spec describes |
+|---|---|---|
+| Save/shortlist action | One action — `shortlist_candidates` chat tool creates a `shortlists` row directly | **Two distinct actions**: private **Bookmark** (no pipeline, zero candidate-visibility effect) vs. **Send Invite** (the real consent-request event, creates the pipeline entry) |
+| Pipeline stages | `shortlists.stage` check-constrained to `shortlisted`/`interview`/`offer`/`hired`/`rejected` | Six stages: **Shortlisted → Invited for Interview → Pending Interview Result → Successful/Rejected → Onboarding** — matches the wireframes and `lib/types.ts`'s `PipelineStage` exactly |
+| Job record | No `jobs`/vacancy entity exists — deliberately, per the "no job postings" decision | A `jobs` table **is required** (never public/browsable, no apply button — doesn't reopen "no postings") because a valid consent invite needs specific, informed role details (UK GDPR + Conduct Regs 2003: pay, hours, contract type, notice period, H&S risks). **Hard gate: Send Invite is disabled until a job record exists.** New mandatory 3-state sponsorship field on the job record too (no sponsorship / can sponsor existing visa-holder switching / can sponsor new applicant — option 3 blocked for Care Worker/Senior Care Worker per the existing immigration non-negotiable). |
+| Profile access on accept | `set_shortlist_consent()` — a boolean consent flag unlocking photo/video/CV, no documented expiry-on-close mechanic | **Scoped and revocable**: full access is tied to that specific pipeline's life and must **actively revoke** when the pipeline closes (rejected/withdrawn/job closed) — "has an active pipeline" must be checked live, not "was ever granted." Also: the **AI profile summary generates once, at acceptance, and freezes for the pipeline's lifetime** (not live) — a new mechanic, not built anywhere here. |
+| Search exclusion scope | Not explicitly documented as scoped | Exclusion from a company's future searches is scoped to **(company × job)**, only triggers on Send Invite (never on Bookmark), and is **not permanent** — a declined/rejected candidate returns to that company's pool for future jobs with a visible history flag. The one permanent block is candidate-initiated "do not contact me again." |
+| Interview stage | Not built yet in this repo (pipeline stages stop at `offer`/`hired`) | Async self-scheduled video interview, system transcribes + summarises **for time only, never scored/ranked** — extends non-negotiable #5 explicitly to video. |
+| Candidate consent response | Not documented as binary | Binary only: **Interested / Not interested** — no partial states. |
+| Profile UI | No employer-facing candidate-detail screen built yet | A "dossier" concept exists in two mockup passes, current one at `docs/mockups/candidate-profile-dossier-v2.html` — three-column desktop-first layout, References/Employment history/Qualifications columns are **new profile sections with no data model here yet** (`employment_history` already exists in this repo's schema; a dedicated `references`-as-nominated-referees flow with its own third-party-consent question does not). Type system: Libre Caslon Text (name + descriptive-summary quote only) / Courier Prime (body) / Space Grotesk (chrome) — already noted as the planned employer-dossier system in §5 above; now there's a real mockup to build against. |
+
+**Not a contradiction, just not built yet — new fields confirmed by both
+sources**: candidates declaring their own sponsorship need (already
+reflected in §12 above) now has a concrete home (onboarding step 1) and a
+counterpart on the job record (previous paragraph); DBS mechanism detail
+(Update Service subscription is the *only* legitimate "confirmed" path,
+open question whether an online check alone is sufficient vs. the
+employer must also view the physical certificate — needs legal input)
+sharpens, doesn't change, non-negotiable #3.
+
+### What this means practically — flag to the founder, don't resolve silently
+
+1. **Candidate side is now built twice**, in two different stacks
+   (Cloudflare Workers + vanilla HTML, live and deployed here; Next.js +
+   Tailwind, mock-data reference, pushed to `docs/` on `main`). They're
+   functionally aligned (same non-negotiables, same field set, same
+   pipeline stage names even) but are not the same codebase and will
+   drift if both are treated as live. **Needs a founder decision**: is
+   the Next.js code purely a design/logic reference (as the original
+   architecture note in §3 already decided for the *first* Next.js
+   handover), or does the founder want a real migration to Next.js? Default
+   assumption, unless told otherwise: **stays a reference — Cloudflare
+   Workers remains the one deployed candidate-side app**, same as the
+   standing 2026-08-25 decision.
+2. **Employer-side pipeline stage names have to be decided** before more
+   employer-track work ships: keep the shipped `shortlisted/interview/
+   offer/hired/rejected` model, or migrate to the six-stage model the
+   wireframes/workflow spec/Next.js types all independently agree on. The
+   fact that three separate documents converge on the six-stage naming
+   (not something invented for this note) is a strong signal the newer
+   spec is the intended target — but it's a schema migration
+   (`shortlists.stage`'s check constraint) plus chat-tool and UI changes,
+   not a copy edit, so it shouldn't happen without confirming first.
+3. **Bookmark vs. Invite is a genuine gap**, not a naming difference —
+   this repo has no private, no-consequence "save for comparison" action
+   at all today; `shortlist_candidates` already does what the new spec
+   calls "Send Invite." Building Bookmark as a new, separate action (not
+   renaming shortlist) is a small, low-risk addition regardless of how
+   #2 above resolves.
+4. **The `jobs` module is a real, unstarted piece of scope** — nothing in
+   Sprints 6–11 built it, and per the new spec it's a hard prerequisite
+   for sending any invite. This is probably the single biggest concrete
+   gap between what's live and what the new spec requires.
+5. **Scoped/revocable/frozen-at-acceptance profile access** is a
+   meaningfully different (stronger-privacy) model than the current
+   `set_shortlist_consent()` boolean — needs its own design pass
+   (probably a `pipeline_id`-scoped grant with a revoke-on-close trigger,
+   plus a cached/frozen `profile_summaries` snapshot per the workflow
+   doc's proposed schema) before building.
+
+Recommended order, if/when the founder confirms the six-stage/job-module
+direction: (a) `jobs` table + hard-gate Send Invite on it, (b) migrate
+`shortlists.stage` to the six-stage enum, (c) split Bookmark out as its
+own action, (d) rework profile-access grant to be pipeline-scoped +
+revocable + frozen-at-acceptance, (e) interview stage (async video +
+transcription-only), (f) the dossier UI. Not started — planning only,
+this session.
+
+**Wireframe testing links** (candidate + employer click-throughs, all 19
+screens combined across both) were also published as private Claude
+Artifacts this session for the founder to review visually — not part of
+the repo, not live, links given directly to the founder in chat.

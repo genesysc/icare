@@ -2215,3 +2215,81 @@ they aren't lost:
 - Sender.net API integration itself — `src/email.ts` has a documented
   stub but the actual transactional-send API call was never looked up/
   written, since sending is blocked on the domain anyway.
+
+## 2026-08-30 — Wireframe review links + Next.js/workflow reference docs filed, reconciliation flagged
+
+Founder uploaded `jobseeker-wireframes.html` and `employer-wireframes.html`
+(the candidate-side icareltd.com and employer-side iRecruit click-through
+wireframes referenced throughout this doc and HANDOVER.md) and asked for
+separate, non-live testing links to review them visually and check the
+fields. Published both as private Claude Artifacts (not part of this repo,
+not deployed anywhere) — a sitemap-nav'd click-through of every screen on
+each side, verbatim from the uploaded HTML (no redesign — these were
+already fully art-directed, so the job was publishing them faithfully, not
+improving them). Links given directly to the founder in chat, not recorded
+here since they're ephemeral to this session.
+
+Founder then uploaded four more documents and asked that they be read,
+stored, and folded into `HANDOVER.md`/`PROGRESS.md`:
+
+- `iCare_Group_Strategy_Handover.md` (27 Aug 2026) — brand architecture
+  (iRecruit umbrella + candidate-facing verticals) and B2B/B2C pricing,
+  most of it new detail beyond what HANDOVER.md §12 already had (full
+  pricing tables for in-house/agency tiers, white-label status).
+- `iCare_B2B_Recruitment_Workflow_Handover.md` — already existed in
+  `docs/` from a prior PR (6557f53); confirmed byte-identical, nothing new
+  to store, but its content is now cross-referenced properly in
+  HANDOVER.md §14 rather than sitting unlinked.
+- A newer, fuller `handover.md` for the **separate Next.js candidate-side
+  build** — stored as `docs/iCare_NextJS_Candidate_Track_Handover.md`
+  (distinct name from this repo's own `HANDOVER.md` to avoid confusion).
+  This is a more current version of the "earlier Next.js build" handover
+  this repo's own HANDOVER.md §1/§3 already referenced fragments of.
+- `candidate-profile-dossier-v2.html` — also already existed in
+  `docs/mockups/` from the same prior PR; confirmed byte-identical.
+
+All four (two new, two already-present-and-confirmed-identical) are now
+under `docs/` — reference material, not wired into the Worker.
+
+Mid-session, the founder separately pushed the actual **Next.js/Tailwind
+source code** for the candidate-side reference build straight to `main`
+(commit `12f0b2c`, outside any PR) at
+`docs/icare-jobseeker-app-code/icare-jobseeker-app/` — 28 files (`lib/
+types.ts`, `app/*/page.tsx`, `components/**/*.tsx`). Fast-forward merged
+into this session's branch. Read all of it: wireframe-fidelity, all mock
+data, no Supabase wiring, no auth, only onboarding step 3 fully built
+(steps 1/2/4–7 are placeholders). `lib/types.ts` hardcodes the same
+compliance-locked values already enforced in this repo's own schema/routes
+(three DBS strings, the five always-hidden-pre-acceptance fields, six
+fixed decline reasons) — independently consistent with this repo's
+non-negotiables, just in a different stack.
+
+**Found, on reading the workflow spec against what's actually shipped
+here**: the employer-side mechanics in the new workflow doc/wireframes/
+`lib/types.ts` diverge materially from Sprints 6–11 as built in this repo
+— different pipeline stage names (six-stage `shortlisted/invited_for_
+interview/pending_interview_result/successful/rejected/onboarding` vs.
+this repo's `shortlisted/interview/offer/hired/rejected`), a Bookmark-vs-
+Invite distinction this repo doesn't have (one `shortlist_candidates` tool
+does what the spec now splits into two actions), a `jobs` module the spec
+requires as a hard gate on sending any invite (doesn't exist here — Sprint
+scoping had explicitly assumed "no job postings" meant no job entity at
+all, which the new spec clarifies isn't the same thing: no *candidate-
+facing* postings, but an internal, never-public job record is required),
+and a scoped/revocable/frozen-at-acceptance profile-access model
+materially stronger than the current boolean `set_shortlist_consent()`.
+Wrote all of this up as HANDOVER.md §14, with a comparison table and five
+concrete open items, rather than silently reconciling or silently building
+against the newer spec — this is a genuine "which spec wins" architecture
+question (candidate side now built in two stacks; employer-side pipeline
+naming disagrees across three independent documents that all *agree with
+each other* but not with what's live) that only the founder can resolve,
+not something to guess past. No employer-track code touched this session.
+
+**Not done this session**: no code changes to `src/`, no migrations, no
+deploys. Everything above was documentation intake, filing, and a gap
+analysis — the founder's own message asked to "plan for execution," and
+the plan (comparison table + recommended build order: `jobs` table → gate
+Send Invite on it → migrate pipeline stage enum → split Bookmark out →
+scoped/revocable/frozen profile access → interview stage → dossier UI) is
+in HANDOVER.md §14, pending confirmation before any of it starts.
