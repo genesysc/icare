@@ -2417,3 +2417,129 @@ exclusion isn't meaningful to build until it is; flagged in `SPRINTS.md`
 and `HANDOVER.md` §14 rather than faked with something that looks right
 but isn't. Sprints 15–17 (profile-access rework, interview stage, dossier
 UI) untouched. Not yet pushed as a PR.
+
+## 2026-08-30 (same day, continued) — Sprint 15: Scoped, revocable, frozen-at-acceptance profile access
+
+User said "go on and finish" after Sprint 14 landed — continued straight
+into Sprint 15, the "single biggest privacy-model change" flagged in
+`SPRINTS.md`'s own scope note for it.
+
+**Migration `0023_pipeline_scoped_access_and_frozen_summaries`**: new
+`shortlists.closed_at`. Two existing `SECURITY DEFINER` functions
+rewritten to require it: `set_shortlist_consent()` (also re-scoped from
+`(p_employer_id, p_consent)` to `(p_shortlist_id, p_consent)` — Postgres
+won't let `CREATE OR REPLACE` rename a parameter even with an identical
+signature, so this needed an explicit `DROP FUNCTION` first, and its
+`anon` revoke from migration `0017` had to be reapplied since a fresh
+`CREATE FUNCTION` resets grants to the public-executable default — caught
+by testing `has_function_privilege()` directly rather than trusting the
+revoke silently carried over) and `get_candidate_dossier()`. New
+`profile_summaries` table: `factual` jsonb + `descriptive` text, RLS with
+candidate and employer SELECT policies but **no UPDATE/DELETE policy
+anywhere** — the absence is the actual "frozen, immutable audit record"
+guarantee, same pattern this repo already used for `employer_verification_
+requests`' append-only design.
+
+**Real bug #1, found while writing this migration, not anticipated**:
+`set_shortlist_consent()` still matched by `(employer_id, candidate_id)`
+alone even after Sprint 14 made multiple pipelines per employer possible
+— meaning consenting to *one* job's invite would have silently consented
+(or withdrawn) *every* pipeline that candidate has with that employer.
+Same bug class as Sprint 14's `move_candidate_stage` fix, just missed
+there and caught now. Fixed by re-scoping to `p_shortlist_id`.
+
+**`src/candidates.ts`**: consent route re-scoped to `/me/shortlists/:id/
+consent`. On first `consent: true`, generates and freezes the profile
+summary — `buildFrozenProfileSummary()` pulls factual data directly via
+the candidate's own existing RLS access (no new RPC needed; considered
+reusing `get_candidate_dossier()` but it's gated on being called by the
+*employer* with consent, not the candidate themselves, so duplicating the
+handful of `select`s in TypeScript was simpler than forking the SQL
+function), then one Workers AI call over the candidate's recent
+published, non-flagged posts for the descriptive text, reusing
+`containsEvaluativeLanguage()` from `employer-chat-guardrail.ts` as the
+same output-side check `who_is_summary` already relied on — an
+evaluative descriptive summary never gets frozen into the permanent
+record just because the model didn't follow the prompt once. New `POST
+/me/shortlists/:id/withdraw`.
+
+**`src/employer-chat.ts`**: `who_is_summary` re-keyed from `candidate_id`
+to `pipeline_id` (same reasoning as Sprint 14's `move_candidate_stage`
+fix — a candidate can have more than one pipeline with this employer, so
+`candidate_id` alone is ambiguous for "which consent, which summary").
+Reads the frozen `profile_summaries` row when one exists; falls back to
+the original live-generation path for a pre-Sprint-15 row that was
+consented before this existed, and best-effort backfills the result so
+the next call reads frozen. `move_candidate_stage`/`bulk_move_stage` now
+set `closed_at` when moving to Rejected and refuse to act on an
+already-closed pipeline (`bulk_move_stage` also gained `.is("closed_at",
+null)` on its `from_stage` match, so it can't accidentally "move" — i.e.
+reopen — an already-closed row sharing that stage).
+
+**Real bug #2, found while wiring the backfill insert**: `who_is_
+summary`'s fallback insert into `profile_summaries` runs under the
+*employer's* own RLS-scoped client, but only a candidate-scoped INSERT
+policy existed on that table from migration `0023` — the backfill would
+have silently failed RLS on every single call (not an error the user
+would see, since it was wrapped `.then(() => {}, () => {})` as
+"best-effort"; would just never actually persist). Fixed with a small
+follow-up migration, `0024_profile_summaries_employer_insert`, adding an
+employer INSERT policy scoped to exactly the three conditions `who_is_
+summary` itself already checks (employer of record, candidate consented,
+pipeline open) — can't be used to fabricate a summary for a
+non-consented candidate.
+
+**Real bug #3, found while auditing `employers.ts` for anything else
+Sprint 14 might have broken**: `shortlistConsented()` (gates the photo/
+video/CV routes) used `.maybeSingle()` keyed by `(employer_id,
+candidate_id)` — which throws once a candidate has more than one
+shortlist row with an employer, a state Sprint 14 made possible. Fixed
+to check for any currently open (`closed_at is null`), consented row —
+media access isn't job-specific, so "any" is the correct semantics, not
+"a specific one." `src/jobs.ts`'s close route now cascades `closed_at`
+to that job's still-open pipelines, matching the workflow handover's
+third closure trigger (candidate rejected / candidate withdraws / job
+closes). `dashboard.html`'s consent toggle re-keyed to the shortlist row
+id and now hides entirely (with a plain "this role is closed" note)
+once a pipeline closes, rather than offering a button that would just
+error; `employer-home.html`'s pipeline rows do the same for the photo/
+video/CV buttons.
+
+**Verified directly against the real schema**, and for the first time
+this reconciliation genuinely needed to simulate `auth.uid()` per role
+rather than just insert/delete checks, since this sprint's correctness
+lives inside `SECURITY DEFINER` function logic: used `select set_config
+('request.jwt.claim.sub', '<uuid>', true)` to impersonate first the
+candidate then the employer within the same session. Confirmed consent
+granted → `get_candidate_dossier` accessible; **first attempt** at
+testing the closed-pipeline path was itself a real lesson, not just a
+verification step — combined the reject+close UPDATE and the subsequent
+`get_candidate_dossier` denial-check in one multi-statement call, the
+denial raised as expected, but that raised exception rolled back the
+*entire* call including the UPDATE that was supposed to persist,
+producing a false read on the next query. Redid it with the UPDATE
+committed on its own first, then confirmed in separate calls: `get_
+candidate_dossier` correctly denied post-close, `set_shortlist_consent`
+correctly raises "This pipeline is closed" rather than silently
+succeeding. All test rows (1 job, 1 shortlist) deleted afterward, all
+four affected tables (`jobs`/`shortlists`/`bookmarks`/`profile_
+summaries`) confirmed back at 0 rows. `get_advisors` re-run after each
+migration — no new findings either time, only the same pre-existing
+accepted-risk items already present before this session (e.g. several
+`SECURITY DEFINER` functions remaining `anon`-executable at the grant
+level despite an explicit `revoke ... from anon` — traced this down for
+`set_shortlist_consent` specifically via `has_function_privilege()` and
+confirmed it's a *pre-existing* gap dating to migration `0017`, not
+something this session introduced: the revoke only removes the specific
+grant to `anon`, not the default `PUBLIC` grant every function gets on
+creation, and every function's own internal `auth.uid() is null` check is
+the actual, already-relied-upon gate — flagging honestly rather than
+scope-creeping into an unrelated repo-wide grants audit). `tsc --noEmit`
+clean, `wrangler deploy --dry-run` bundles cleanly (1185 KiB / 243 KiB
+gzip).
+
+**Not done this session**: Sprints 16 (async video interview) and 17
+(employer-facing dossier UI) — both flagged in `SPRINTS.md` as needing
+their own scoping/design pass before building, not started. Employer
+track reconciliation (Sprints 13–15) is now complete and pushed to
+`claude/jobseeker-employer-wireframes-rc5uss`, not yet opened as a PR.

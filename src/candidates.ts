@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
 import { sendTransactionalEmail } from "./email";
 import { candidateProfilePublishedEmail } from "./emails/candidate-profile-published";
+import { containsEvaluativeLanguage } from "./employer-chat-guardrail";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -833,7 +834,7 @@ candidates.get("/me/shortlists", async (c) => {
   const { data, error } = await c
     .get("supabase")
     .from("shortlists")
-    .select("id, employer_id, job_id, job_snapshot, stage, created_at, candidate_consented_at, employers(org_name)")
+    .select("id, employer_id, job_id, job_snapshot, stage, created_at, candidate_consented_at, closed_at, employers(org_name)")
     .eq("candidate_id", c.get("userId"))
     .order("created_at", { ascending: false });
 
@@ -841,16 +842,140 @@ candidates.get("/me/shortlists", async (c) => {
   return c.json({ shortlists: data });
 });
 
-candidates.post("/me/shortlists/:employerId/consent", async (c) => {
+// Sprint 15 (2026-08-30) — workflow handover §5/§6: full profile access is
+// scoped to a specific pipeline, not a standing grant, and the entire
+// profile view (factual + descriptive summary) generates ONCE, at the
+// moment of acceptance, frozen for that pipeline's lifetime. "Consent" here
+// *is* the acceptance event — see HANDOVER.md §14.
+//
+// Re-scoped from :employerId to :id (the shortlist row itself) — Sprint 14
+// made multiple pipelines per employer possible, so employer_id alone can
+// no longer address a single pipeline's consent unambiguously (a real bug,
+// fixed alongside set_shortlist_consent()'s own RPC signature — see
+// migration 0023).
+const POST_DESCRIPTIVE_SUMMARY_SYSTEM_PROMPT =
+  "You are given a healthcare/social-care candidate's own posts from their professional profile. Write a short, factual, descriptive summary (2-3 sentences) of what they write about — topics, recurring themes, who they mention helping or mentoring. " +
+  "Quote or paraphrase what's actually there. Never evaluate, rate, rank, or recommend — never say or imply they are 'dedicated', 'a strong team player', 'impressive', or similar, and never comment on whether they'd be a good hire. Describe, don't judge. " +
+  "If there's nothing substantive to describe, say so plainly rather than inventing detail. Respond with only the summary, no other text.";
+
+async function buildFrozenProfileSummary(
+  supabase: SupabaseClient,
+  env: Bindings,
+  candidateId: string,
+): Promise<{ factual: Record<string, unknown>; descriptive: string | null }> {
+  const [accountResult, candidateResult, professionsResult, skillsResult, qualsResult, historyResult, promptsResult, postsResult, experienceResult] =
+    await Promise.all([
+      supabase.from("accounts").select("full_name").eq("id", candidateId).single(),
+      supabase.from("candidates").select("headline, about, town").eq("id", candidateId).single(),
+      supabase.from("candidate_professions").select("professions(name)").eq("candidate_id", candidateId),
+      supabase.from("candidate_skills").select("clinical_skills(label)").eq("candidate_id", candidateId),
+      supabase.from("qualifications").select("title, awarding_body, awarded_on").eq("candidate_id", candidateId),
+      supabase
+        .from("employment_history")
+        .select("employer, job_title, setting, started_on, ended_on, is_current, description")
+        .eq("candidate_id", candidateId)
+        .order("started_on", { ascending: false }),
+      supabase.from("candidate_prompts").select("answer, prompts(label)").eq("candidate_id", candidateId),
+      supabase
+        .from("candidate_posts")
+        .select("title, body")
+        .eq("candidate_id", candidateId)
+        .eq("is_published", true)
+        .eq("is_flagged", false)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase.rpc("total_experience_months", { p_candidate: candidateId }),
+    ]);
+
+  const factual = {
+    full_name: accountResult.data?.full_name ?? null,
+    headline: candidateResult.data?.headline ?? null,
+    about: candidateResult.data?.about ?? null,
+    town: candidateResult.data?.town ?? null,
+    experience_months: typeof experienceResult.data === "number" ? experienceResult.data : null,
+    professions: (professionsResult.data || []).map((p) => (p.professions as unknown as { name: string } | null)?.name).filter(Boolean),
+    skills: (skillsResult.data || []).map((s) => (s.clinical_skills as unknown as { label: string } | null)?.label).filter(Boolean),
+    qualifications: qualsResult.data || [],
+    employment_history: historyResult.data || [],
+    prompts: (promptsResult.data || []).map((p) => ({ label: (p.prompts as unknown as { label: string } | null)?.label, answer: p.answer })),
+  };
+
+  const posts = postsResult.data || [];
+  let descriptive: string | null = null;
+  if (posts.length) {
+    const postsText = posts.map((p) => (p.title ? `${p.title}: ${p.body}` : p.body)).join("\n\n");
+    try {
+      const result = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+        messages: [
+          { role: "system", content: POST_DESCRIPTIVE_SUMMARY_SYSTEM_PROMPT },
+          { role: "user", content: postsText.slice(0, 4000) },
+        ],
+        max_tokens: 200,
+      });
+      const text = typeof result === "object" && result !== null && "response" in result ? (result as { response?: string }).response : undefined;
+      // Same guardrail already used for who_is_summary in employer-chat.ts —
+      // an evaluative response never gets frozen into the permanent record
+      // just because the model didn't follow the prompt this one time.
+      if (text && text.trim() && !containsEvaluativeLanguage(text)) descriptive = text.trim();
+    } catch {
+      // Leave descriptive null — factual data alone is still a valid,
+      // honest snapshot; nothing forces a descriptive summary to exist.
+    }
+  }
+
+  return { factual, descriptive };
+}
+
+candidates.post("/me/shortlists/:id/consent", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+  const shortlistId = c.req.param("id");
   const body = await c.req.json().catch(() => ({}));
   const consent = body?.consent !== false;
 
-  const { error } = await c.get("supabase").rpc("set_shortlist_consent", {
-    p_employer_id: c.req.param("employerId"),
-    p_consent: consent,
-  });
+  const { error } = await supabase.rpc("set_shortlist_consent", { p_shortlist_id: shortlistId, p_consent: consent });
   if (error) return c.json({ error: error.message }, 400);
+
+  if (consent) {
+    // Generate the frozen snapshot exactly once per pipeline — check first
+    // rather than relying solely on the unique constraint, so a second
+    // consent=true call (e.g. re-toggling) doesn't need to handle a
+    // duplicate-key error path at all.
+    const { data: existing } = await supabase.from("profile_summaries").select("id").eq("shortlist_id", shortlistId).maybeSingle();
+    if (!existing) {
+      const { data: shortlistRow } = await supabase.from("shortlists").select("employer_id").eq("id", shortlistId).single();
+      if (shortlistRow) {
+        const { factual, descriptive } = await buildFrozenProfileSummary(supabase, c.env, userId);
+        await supabase.from("profile_summaries").insert({
+          shortlist_id: shortlistId,
+          employer_id: shortlistRow.employer_id,
+          candidate_id: userId,
+          factual,
+          descriptive,
+        });
+      }
+    }
+  }
+
   return c.json({ consented: consent });
+});
+
+// Candidate-initiated withdrawal — workflow handover §5: closing a pipeline
+// (rejected, withdrawn, or job closed) revokes access. This is the
+// candidate's own half of that; the employer-side half (moving to
+// Rejected) is in employer-chat.ts, and job closure cascades in jobs.ts.
+candidates.post("/me/shortlists/:id/withdraw", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("shortlists")
+    .update({ closed_at: new Date().toISOString() })
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"))
+    .is("closed_at", null)
+    .select()
+    .single();
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ shortlist: data });
 });
 
 // --- Badges (SPRINTS.md Sprint 5) ---

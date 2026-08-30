@@ -178,16 +178,20 @@ const PIPELINE_STATUS_TOOL = {
 // more evaluative-shaped framing than the isolated single-post excerpt
 // search already does, and deserves its own compliance look before it's
 // folded in — not a decision to make silently inside an unrelated sprint.
+// Sprint 15: keyed by pipeline_id, not candidate_id — same reason as
+// move_candidate_stage (Sprint 14). Also now reads the frozen snapshot
+// generated at acceptance (workflow handover §6) when one exists, rather
+// than always regenerating live.
 const WHO_IS_TOOL = {
   name: "who_is_summary",
   description:
-    "Give a factual, descriptive summary of one shortlisted-and-consented candidate's profile (experience, skills, qualifications, employment history, their own prompt answers). " +
-    "Only use a candidate_id from the employer's current pipeline list in the system prompt, and only for a candidate marked consented there — never invent one, never use it for a candidate who hasn't consented.",
+    "Give a factual, descriptive summary of one consented, still-open pipeline entry's candidate profile (experience, skills, qualifications, employment history, their own prompt answers). " +
+    "Only use a pipeline_id from the employer's current pipeline list in the system prompt, and only for one marked consented there — never invent one, never use it for a candidate who hasn't consented or a pipeline that's closed.",
   parameters: {
     type: "object",
-    required: ["candidate_id"],
+    required: ["pipeline_id"],
     properties: {
-      candidate_id: { type: "string", description: "The candidate's id, copied exactly from the pipeline list in the system prompt." },
+      pipeline_id: { type: "string", description: "The pipeline entry's id, copied exactly from the pipeline list in the system prompt." },
     },
   },
 };
@@ -303,7 +307,7 @@ employerChat.post("/", async (c) => {
     supabase.from("professions").select("id, name, family"),
     supabase.from("clinical_skills").select("id, label, family"),
     supabase.from("qualification_types").select("id, label"),
-    supabase.from("shortlists").select("id, candidate_id, job_id, job_snapshot, stage, candidate_consented_at").eq("employer_id", userId),
+    supabase.from("shortlists").select("id, candidate_id, job_id, job_snapshot, stage, candidate_consented_at, closed_at").eq("employer_id", userId),
     // Sprint 14: active jobs, the catalogue send_invite resolves job_id
     // against — never trust a model-supplied job_id without checking it's
     // one of this employer's own active jobs, same pattern as profession/
@@ -345,7 +349,8 @@ employerChat.post("/", async (c) => {
       .map((r) => {
         const jobTitle = (r.job_snapshot as { title?: string } | null)?.title;
         const stageLabel = PIPELINE_STAGE_LABEL[r.stage as string] || (r.stage as string);
-        return `${r.id}: ${pipelineNameById.get(r.candidate_id as string) || "Candidate"}${jobTitle ? " — " + jobTitle : ""} (${stageLabel}${r.candidate_consented_at ? ", consented" : ""})`;
+        const tags = [r.candidate_consented_at ? "consented" : null, r.closed_at ? "closed — access revoked" : null].filter(Boolean).join(", ");
+        return `${r.id}: ${pipelineNameById.get(r.candidate_id as string) || "Candidate"}${jobTitle ? " — " + jobTitle : ""} (${stageLabel}${tags ? ", " + tags : ""})`;
       })
       .join("\n") || "(empty — nobody invited yet)";
 
@@ -523,15 +528,25 @@ employerChat.post("/", async (c) => {
       return c.json({ reply, results: null, message_id: assistantRow?.id });
     }
 
-    const { error: moveError } = await supabase
-      .from("shortlists")
-      .update({ stage, stage_updated_at: new Date().toISOString() })
-      .eq("id", pipelineId)
-      .eq("employer_id", userId);
+    if (pipelineRow.closed_at) {
+      const reply = "That pipeline is already closed — its access has been revoked and it can't be moved any further.";
+      const assistantRow = await saveAssistantMessage(supabase, userId, reply);
+      return c.json({ reply, results: null, message_id: assistantRow?.id });
+    }
+
+    // Sprint 15: moving to Rejected closes the pipeline, which is what
+    // actually revokes access (get_candidate_dossier / photo/video/CV
+    // checks all now require closed_at is null) — not just a relabel.
+    const updatePayload: Record<string, unknown> = { stage, stage_updated_at: new Date().toISOString() };
+    if (stage === "rejected") updatePayload.closed_at = new Date().toISOString();
+
+    const { error: moveError } = await supabase.from("shortlists").update(updatePayload).eq("id", pipelineId).eq("employer_id", userId);
     if (moveError) return c.json({ error: moveError.message }, 400);
 
     const candidateName = pipelineNameById.get(pipelineRow.candidate_id as string) || "the candidate";
-    const reply = `Moved ${candidateName} to ${PIPELINE_STAGE_LABEL[stage] || stage}.`;
+    const reply =
+      `Moved ${candidateName} to ${PIPELINE_STAGE_LABEL[stage] || stage}.` +
+      (stage === "rejected" ? " Your access to this candidate's full profile is now revoked." : "");
     const assistantRow = await saveAssistantMessage(supabase, userId, reply, { tool_call: { pipeline_id: pipelineId, stage } });
     return c.json({ reply, results: null, message_id: assistantRow?.id });
   }
@@ -548,11 +563,19 @@ employerChat.post("/", async (c) => {
       return c.json({ reply, results: null, message_id: assistantRow?.id });
     }
 
+    // Sprint 15: same close-on-rejected rule as move_candidate_stage, plus
+    // excludes already-closed pipelines from the from_stage match — a
+    // closed pipeline keeps whatever stage it had when it closed, so
+    // without this a bulk command could otherwise "move" (i.e. reopen) one.
+    const bulkUpdatePayload: Record<string, unknown> = { stage: toStage, stage_updated_at: new Date().toISOString() };
+    if (toStage === "rejected") bulkUpdatePayload.closed_at = new Date().toISOString();
+
     let bulkQuery = supabase
       .from("shortlists")
-      .update({ stage: toStage, stage_updated_at: new Date().toISOString() })
+      .update(bulkUpdatePayload)
       .eq("employer_id", userId)
-      .eq("stage", fromStage);
+      .eq("stage", fromStage)
+      .is("closed_at", null);
     if (sinceDays) {
       const cutoff = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString();
       bulkQuery = bulkQuery.gte("stage_updated_at", cutoff);
@@ -565,7 +588,8 @@ employerChat.post("/", async (c) => {
     const reply =
       movedCount === 0
         ? `Nobody at "${PIPELINE_STAGE_LABEL[fromStage] || fromStage}"${sinceDays ? ` in the last ${sinceDays} days` : ""} to move.`
-        : `Moved ${movedCount} candidate${movedCount === 1 ? "" : "s"} from ${PIPELINE_STAGE_LABEL[fromStage] || fromStage} to ${PIPELINE_STAGE_LABEL[toStage] || toStage}.`;
+        : `Moved ${movedCount} candidate${movedCount === 1 ? "" : "s"} from ${PIPELINE_STAGE_LABEL[fromStage] || fromStage} to ${PIPELINE_STAGE_LABEL[toStage] || toStage}.` +
+          (toStage === "rejected" ? " Your access to their full profiles is now revoked." : "");
 
     const assistantRow = await saveAssistantMessage(supabase, userId, reply, {
       tool_call: { from_stage: fromStage, to_stage: toStage, since_days: sinceDays },
@@ -592,18 +616,38 @@ employerChat.post("/", async (c) => {
 
   if (toolCall.name === "who_is_summary") {
     const whoArgs = toolCall.arguments || {};
-    const candidateId = typeof whoArgs.candidate_id === "string" ? whoArgs.candidate_id : null;
+    const pipelineId = typeof whoArgs.pipeline_id === "string" ? whoArgs.pipeline_id : null;
+    const pipelineRow = pipelineId ? pipelineById.get(pipelineId) : undefined;
 
-    if (!candidateId || !pipelineCandidateIdSet.has(candidateId) || !pipelineConsentedById.get(candidateId)) {
-      const reply = "I can only summarize a candidate's profile once they've consented to share more detail — check your pipeline, or ask them to consent first.";
+    if (!pipelineId || !pipelineRow || !pipelineRow.candidate_consented_at || pipelineRow.closed_at) {
+      const reply = "I can only summarize a candidate's profile for a consented, still-open pipeline entry — check your pipeline, or ask them to consent first.";
       const assistantRow = await saveAssistantMessage(supabase, userId, reply);
       return c.json({ reply, results: null, message_id: assistantRow?.id });
+    }
+
+    const candidateId = pipelineRow.candidate_id as string;
+    const candidateName = pipelineNameById.get(candidateId) || "This candidate";
+
+    // Sprint 15: prefer the frozen snapshot generated at acceptance
+    // (candidates.ts, at consent time) over a live regeneration — workflow
+    // handover §6. A pre-Sprint-15 row that was consented before this
+    // existed falls through to the same live-generation path this always
+    // used, and gets persisted so the next call reads the frozen version.
+    const { data: frozen } = await supabase
+      .from("profile_summaries")
+      .select("factual, descriptive")
+      .eq("shortlist_id", pipelineId)
+      .maybeSingle();
+
+    if (frozen) {
+      const summary = frozen.descriptive || buildFallbackSummary(candidateName, frozen.factual);
+      const assistantRow = await saveAssistantMessage(supabase, userId, summary, { tool_call: { pipeline_id: pipelineId } });
+      return c.json({ reply: summary, results: null, message_id: assistantRow?.id });
     }
 
     const { data: dossier, error: dossierError } = await supabase.rpc("get_candidate_dossier", { p_candidate_id: candidateId });
     if (dossierError) return c.json({ error: dossierError.message }, 400);
 
-    const candidateName = pipelineNameById.get(candidateId) || "This candidate";
     let summary = buildFallbackSummary(candidateName, dossier);
     try {
       const summaryResult = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
@@ -624,7 +668,19 @@ employerChat.post("/", async (c) => {
       // Fall back to the deterministic summary already assigned above.
     }
 
-    const assistantRow = await saveAssistantMessage(supabase, userId, summary, { tool_call: { candidate_id: candidateId } });
+    // Best-effort backfill so this pipeline reads frozen from here on —
+    // never blocks the reply on failure (e.g. a rare race with another
+    // call writing the same row first, caught by profile_summaries'
+    // unique shortlist_id constraint).
+    await supabase
+      .from("profile_summaries")
+      .insert({ shortlist_id: pipelineId, employer_id: userId, candidate_id: candidateId, factual: dossier, descriptive: summary })
+      .then(
+        () => {},
+        () => {},
+      );
+
+    const assistantRow = await saveAssistantMessage(supabase, userId, summary, { tool_call: { pipeline_id: pipelineId } });
     return c.json({ reply: summary, results: null, message_id: assistantRow?.id });
   }
 

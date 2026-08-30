@@ -394,6 +394,7 @@ function icareRequireAuth(signInPath) {
 
     rows.forEach(function (row) {
       var consented = !!row.candidate_consented_at;
+      var closed = !!row.closed_at;
       var item = document.createElement("div");
       item.className = "shortlist-item";
       var jobTitle = row.job_snapshot && row.job_snapshot.title;
@@ -401,16 +402,27 @@ function icareRequireAuth(signInPath) {
         '<div class="shortlist-org"></div>' +
         (jobTitle ? '<div class="shortlist-job"></div>' : "") +
         '<div class="shortlist-stage"></div>' +
-        '<div class="shortlist-consent-row">' +
-          '<button type="button" class="btn ' + (consented ? "btn-outline is-consented" : "btn-outline") + '" data-consent-toggle="' + row.employer_id + '" data-consented="' + consented + '"></button>' +
-        "</div>" +
-        '<p class="shortlist-consent-note">' + (consented ? "They can now see your photo, video, and CV." : "Unlock your photo, video, and CV for this employer.") + "</p>";
+        // Sprint 15: a closed pipeline's access is already revoked
+        // server-side — hide the consent toggle entirely rather than show
+        // a button that would just error, and say plainly what happened.
+        (closed
+          ? ""
+          : '<div class="shortlist-consent-row">' +
+            '<button type="button" class="btn ' + (consented ? "btn-outline is-consented" : "btn-outline") + '" data-consent-toggle="' + row.id + '" data-consented="' + consented + '"></button>' +
+            "</div>") +
+        '<p class="shortlist-consent-note">' +
+          (closed
+            ? "This role is closed — they no longer have access to your profile."
+            : consented
+              ? "They can now see your photo, video, and CV."
+              : "Unlock your photo, video, and CV for this employer.") +
+        "</p>";
       item.querySelector(".shortlist-org").textContent = (row.employers && row.employers.org_name) || "An employer";
       // Sprint 14: a candidate can now hold more than one invite from the
       // same employer (one per job) — the job title tells them apart.
       if (jobTitle) item.querySelector(".shortlist-job").textContent = jobTitle;
       item.querySelector(".shortlist-stage").textContent = STAGE_LABELS[row.stage] || row.stage;
-      item.querySelector("[data-consent-toggle]").textContent = consented ? "Withdraw consent" : "Consent to unlock";
+      if (!closed) item.querySelector("[data-consent-toggle]").textContent = consented ? "Withdraw consent" : "Consent to unlock";
       list.appendChild(item);
     });
   }

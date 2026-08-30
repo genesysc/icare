@@ -203,6 +203,8 @@
   }
   .pipeline-name { font-size: 14px; font-weight: 700; color: var(--ink); }
   .pipeline-job { font-size: 12px; font-weight: 600; color: var(--plum-700, var(--ink-soft)); flex: none; }
+  .pipeline-row-closed { opacity: 0.65; }
+  .pipeline-closed-note { font-size: 11.5px; color: var(--ink-faint); flex-basis: 100%; }
   .pipeline-role { margin-top: 2px; font-size: 12.5px; color: var(--ink-soft); flex-basis: 100%; }
   .pipeline-location { font-size: 12px; color: var(--ink-faint); flex: none; }
   .pipeline-empty { padding: 16px 24px 24px; font-size: 13.5px; color: var(--ink-faint); }
@@ -498,14 +500,21 @@ function icareRequireAuth(signInPath) {
           ? cand.current_job_title + (cand.current_employer ? " at " + cand.current_employer : "")
           : cand.primary_profession || "";
 
+        // Sprint 15: access is revoked once a pipeline closes even if it
+        // was consented — the media buttons must not appear for a closed
+        // row, since the server (shortlistConsented(), employers.ts) now
+        // rejects the request anyway.
+        var mediaUnlocked = r.consented && !r.closed;
+
         var row = document.createElement("div");
-        row.className = "pipeline-row";
+        row.className = "pipeline-row" + (r.closed ? " pipeline-row-closed" : "");
         row.innerHTML =
           '<span class="pipeline-name"></span>' +
           (r.job_title ? '<span class="pipeline-job"></span>' : "") +
           (location ? '<span class="pipeline-location"></span>' : "") +
           (roleLine ? '<span class="pipeline-role"></span>' : "") +
-          (r.consented ? '<span class="pipeline-unlocked"></span>' : "");
+          (r.closed ? '<span class="pipeline-closed-note">Closed — access revoked</span>' : "") +
+          (mediaUnlocked ? '<span class="pipeline-unlocked"></span>' : "");
         row.querySelector(".pipeline-name").textContent = cand.full_name || "Candidate";
         // Sprint 14: a candidate can now sit in more than one pipeline for
         // this employer (one per job) — the job title is what tells them
@@ -513,7 +522,7 @@ function icareRequireAuth(signInPath) {
         if (r.job_title) row.querySelector(".pipeline-job").textContent = r.job_title;
         if (location) row.querySelector(".pipeline-location").textContent = location;
         if (roleLine) row.querySelector(".pipeline-role").textContent = roleLine;
-        if (r.consented) {
+        if (mediaUnlocked) {
           var unlocked = row.querySelector(".pipeline-unlocked");
           unlocked.innerHTML =
             '<button type="button" class="pipeline-media-btn" data-media="photo" data-media-candidate="' + r.candidate_id + '">Photo</button>' +

@@ -226,15 +226,26 @@ jobs.patch("/:id", async (c) => {
 // closes" into the same access-revocation path as a rejected/withdrawn
 // pipeline (HANDOVER.md §14's scoped-and-revocable profile access).
 jobs.patch("/:id/close", async (c) => {
-  const { data, error } = await c
-    .get("supabase")
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+  const jobId = c.req.param("id");
+
+  const { data, error } = await supabase
     .from("jobs")
     .update({ status: "closed", updated_at: new Date().toISOString() })
-    .eq("id", c.req.param("id"))
-    .eq("employer_id", c.get("userId"))
+    .eq("id", jobId)
+    .eq("employer_id", userId)
     .select()
     .single();
   if (error) return c.json({ error: error.message }, 400);
+
+  // Sprint 15 (HANDOVER.md §14): "the employer's access... revokes" when
+  // "the job closes" is one of the three ways a pipeline can close, same
+  // as candidate rejected/withdrawn — cascade it here rather than leaving
+  // stale open pipelines pointing at a job that no longer exists to invite
+  // against.
+  await supabase.from("shortlists").update({ closed_at: new Date().toISOString() }).eq("job_id", jobId).is("closed_at", null);
+
   return c.json({ job: data });
 });
 

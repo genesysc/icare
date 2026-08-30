@@ -718,18 +718,65 @@ itself job-scoped, a bigger UX change than this sprint's stated scope.
 Revisit when/if the founder wants search itself tied to a specific job
 rather than general-purpose. Not yet pushed as a PR.
 
-### Sprint 15 — Scoped, revocable, frozen-at-acceptance profile access
+### Sprint 15 — Scoped, revocable, frozen-at-acceptance profile access ✅ Shipped 2026-08-30
 
-Replaces `set_shortlist_consent()`'s standing boolean with a grant tied to
-the specific pipeline's life: access checks become "is there a currently-
+Replaced `set_shortlist_consent()`'s standing boolean with a grant tied to
+the specific pipeline's life: access checks are now "is there a currently-
 active pipeline," not "was ever granted," and a closed/rejected/withdrawn
-pipeline actively revokes rather than just failing to renew. New
-`profile_summaries` table (or similar) caches the AI profile view once,
-at the moment of acceptance, frozen for that pipeline's lifetime even if
-the candidate's live profile changes underneath it — a fresh generation
-only happens if the same candidate is invited to a different pipeline.
-The single biggest privacy-model change in this reconciliation; needs its
-own careful RLS/trigger design, not a bolt-on.
+pipeline actively revokes rather than just failing to renew.
+
+**Shipped**: migrations `0023_pipeline_scoped_access_and_frozen_summaries`
+(new `shortlists.closed_at`; `set_shortlist_consent()` re-scoped from
+`(p_employer_id, p_consent)` to `(p_shortlist_id, p_consent)` — a real bug
+found while building this, not planned: Sprint 14 made multiple pipelines
+per employer possible but this RPC still matched by employer_id alone, so
+consenting to one job's invite would have silently consented/withdrawn
+*every* pipeline with that employer; `get_candidate_dossier()` gained the
+same `closed_at is null` check; new `profile_summaries` table — frozen
+`factual` jsonb + AI-generated `descriptive` text, RLS with candidate/
+employer SELECT but no UPDATE/DELETE policy anywhere, since the absence
+*is* the "frozen" guarantee) and `0024_profile_summaries_employer_insert`
+(a second real gap found mid-build: `who_is_summary`'s live-generation
+fallback runs as the employer, but only a candidate-scoped INSERT policy
+existed — the backfill would have silently failed RLS every time).
+
+`src/candidates.ts`: consent route re-scoped to `/me/shortlists/:id/
+consent` (was `:employerId/consent`); on first `consent: true`, generates
+and freezes the profile summary (factual data via direct RLS-scoped reads
+across the candidate's own tables, descriptive text via one Workers AI
+call over their recent published posts, reusing `containsEvaluativeLanguage()`
+from `employer-chat-guardrail.ts` as the same output-side guardrail
+`who_is_summary` already used). New `POST /me/shortlists/:id/withdraw`.
+
+`src/employer-chat.ts`: `who_is_summary` re-keyed to `pipeline_id` (same
+"candidate_id alone is ambiguous once multiple pipelines exist" fix
+already applied to `move_candidate_stage` in Sprint 14), reads the frozen
+snapshot when one exists, falls back to live generation + best-effort
+backfill for any pre-Sprint-15 row. `move_candidate_stage`/`bulk_move_
+stage` now set `closed_at` when moving to Rejected, and refuse to act on
+an already-closed pipeline.
+
+`src/employers.ts`: fixed a real regression Sprint 14 introduced but this
+sprint caught — `shortlistConsented()`'s `.maybeSingle()` would throw the
+moment a candidate held two pipelines with one employer; changed to check
+for any open, consented row. `/pipeline` and the two static HTML pages
+(`dashboard.html`, `employer-home.html`) updated to show/hide access
+correctly once a pipeline closes. `src/jobs.ts`'s close route cascades
+`closed_at` to that job's open pipelines.
+
+**Verified directly against the real schema**, simulating `auth.uid()`
+per role via `set_config('request.jwt.claim.sub', ...)` (not just
+insert/delete checks this time, since this sprint's correctness lives
+inside `SECURITY DEFINER` function logic, not just constraints): consent
+granted → `get_candidate_dossier` accessible as the employer; pipeline
+rejected+closed (in its own committed statement, learned the hard way
+after an earlier combined test rolled back on itself) → `get_candidate_
+dossier` correctly denied, `set_shortlist_consent` correctly raises "This
+pipeline is closed" rather than silently succeeding. All test rows (1
+job, 1 shortlist) deleted afterward, all four affected tables confirmed
+back at 0 rows. `get_advisors` re-run — no new findings. `tsc --noEmit`
+clean, `wrangler deploy --dry-run` bundles cleanly (1185 KiB / 243 KiB
+gzip). Not yet pushed as a PR.
 
 ### Sprint 16 — Async video interview stage
 
