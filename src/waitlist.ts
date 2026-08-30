@@ -13,6 +13,36 @@ type Bindings = {
 
 const waitlist = new Hono<{ Bindings: Bindings }>();
 
+// Format validation alone lets through anything shaped like word@word.word,
+// which includes plausible-looking typos (e.g. "gmail.comgdd") that a
+// regex can never distinguish from a real domain. The only real check is
+// whether the domain can actually receive mail — done here via a live MX
+// lookup through Cloudflare's own DNS-over-HTTPS resolver, no guessed API
+// shape, just a standard DoH JSON query.
+async function domainAcceptsMail(email: string): Promise<boolean> {
+  const domain = email.split("@")[1];
+  if (!domain) return false;
+  try {
+    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=MX`, {
+      headers: { accept: "application/dns-json" },
+    });
+    if (!res.ok) return true; // resolver hiccup — don't block signups over it
+    const data = await res.json<{ Answer?: unknown[]; Status?: number }>();
+    if (Array.isArray(data.Answer) && data.Answer.length > 0) return true;
+    // No MX records — some domains rely on an A/AAAA record as an implicit
+    // mail target instead (rare, but valid per RFC 5321). Fall back to that
+    // before rejecting outright.
+    const aRes = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(domain)}&type=A`, {
+      headers: { accept: "application/dns-json" },
+    });
+    if (!aRes.ok) return true;
+    const aData = await aRes.json<{ Answer?: unknown[] }>();
+    return Array.isArray(aData.Answer) && aData.Answer.length > 0;
+  } catch {
+    return true; // network hiccup on our end — don't block signups over it
+  }
+}
+
 waitlist.post("/", async (c) => {
   const body = await c.req.json().catch(() => null);
   const email = typeof body?.email === "string" ? body.email.trim() : "";
@@ -29,6 +59,10 @@ waitlist.post("/", async (c) => {
   }
   if (!fullName) return c.json({ error: "full_name is required" }, 400);
   if (role === "employer" && !orgName) return c.json({ error: "org_name is required" }, 400);
+
+  if (!(await domainAcceptsMail(email))) {
+    return c.json({ error: "We couldn't find a mail server for that email's domain — please check for a typo" }, 400);
+  }
 
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
   const { error } = await supabase.from("waitlist").insert({
