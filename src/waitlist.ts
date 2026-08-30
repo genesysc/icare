@@ -13,6 +13,53 @@ type Bindings = {
 
 const waitlist = new Hono<{ Bindings: Bindings }>();
 
+// Common consumer providers a UK candidate is likely to actually use.
+// Deliberately short — this is for catching near-miss typos of well-known
+// names, not a general "is this a real provider" check.
+const COMMON_EMAIL_DOMAINS = [
+  "gmail.com",
+  "yahoo.com",
+  "yahoo.co.uk",
+  "outlook.com",
+  "hotmail.com",
+  "hotmail.co.uk",
+  "icloud.com",
+  "live.com",
+  "aol.com",
+  "btinternet.com",
+  "sky.com",
+  "virginmedia.com",
+  "protonmail.com",
+];
+
+function levenshtein(a: string, b: string): number {
+  const dp: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+// A domain that isn't itself a known provider but is 1-2 edits away from one
+// (e.g. "gmai.com" vs "gmail.com") is very likely a typo, not a deliberately
+// different address — even if the typo'd domain happens to be real and
+// mail-accepting (typo-catching domains genuinely exist and have live MX
+// records, which is exactly why domainAcceptsMail() alone can't catch this).
+function likelyTypoOfKnownProvider(domain: string): string | null {
+  if (COMMON_EMAIL_DOMAINS.includes(domain)) return null;
+  for (const known of COMMON_EMAIL_DOMAINS) {
+    if (Math.abs(domain.length - known.length) > 2) continue;
+    if (levenshtein(domain, known) <= 2) return known;
+  }
+  return null;
+}
+
 // Format validation alone lets through anything shaped like word@word.word,
 // which includes plausible-looking typos (e.g. "gmail.comgdd") that a
 // regex can never distinguish from a real domain. The only real check is
@@ -59,6 +106,15 @@ waitlist.post("/", async (c) => {
   }
   if (!fullName) return c.json({ error: "full_name is required" }, 400);
   if (role === "employer" && !orgName) return c.json({ error: "org_name is required" }, 400);
+
+  const emailDomain = email.split("@")[1] ?? "";
+  const suggestedDomain = likelyTypoOfKnownProvider(emailDomain.toLowerCase());
+  if (suggestedDomain) {
+    return c.json(
+      { error: `That doesn't look right — did you mean @${suggestedDomain}? Please double-check your email address.` },
+      400
+    );
+  }
 
   if (!(await domainAcceptsMail(email))) {
     return c.json({ error: "We couldn't find a mail server for that email's domain — please check for a typo" }, 400);
