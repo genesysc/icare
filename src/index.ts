@@ -4,6 +4,7 @@ import auth from "./auth";
 import candidates from "./candidates";
 import employersApi from "./employers";
 import employerChat from "./employer-chat";
+import jobs from "./jobs";
 import waitlist from "./waitlist";
 import landingPage from "./landing.html";
 import employerLandingPage from "./employers.html";
@@ -28,6 +29,7 @@ app.route("/auth", auth);
 app.route("/candidates", candidates);
 app.route("/employers", employersApi);
 app.route("/employers/chat", employerChat);
+app.route("/employers/jobs", jobs);
 app.route("/waitlist", waitlist);
 
 app.get("/", (c) => c.html(landingPage));

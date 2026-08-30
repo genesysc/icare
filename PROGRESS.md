@@ -2286,10 +2286,58 @@ naming disagrees across three independent documents that all *agree with
 each other* but not with what's live) that only the founder can resolve,
 not something to guess past. No employer-track code touched this session.
 
-**Not done this session**: no code changes to `src/`, no migrations, no
-deploys. Everything above was documentation intake, filing, and a gap
-analysis — the founder's own message asked to "plan for execution," and
-the plan (comparison table + recommended build order: `jobs` table → gate
-Send Invite on it → migrate pipeline stage enum → split Bookmark out →
-scoped/revocable/frozen profile access → interview stage → dossier UI) is
-in HANDOVER.md §14, pending confirmation before any of it starts.
+Founder then confirmed the direction via `AskUserQuestion`: **migrate now**,
+with the six-stage mapping `interview → invited_for_interview`, `offer →
+pending_interview_result`, `hired → successful` (`shortlisted`/`rejected`
+unchanged, `onboarding` new). Sequenced the reconciliation as five sprints
+in `SPRINTS.md` (13–17, dependency-ordered, one PR per sprint per this
+repo's usual convention rather than one giant migration) and built the
+first one this session.
+
+**Sprint 13 (Jobs module) shipped.** Read `shortlists`'/`employers`' real
+schema and RLS conventions first (`*_self` policy pattern, text+check
+constraints instead of native enums for extensible fixed lists, the CV
+parser's propose/confirm pattern) rather than inventing new conventions.
+Migration `0020_jobs` (applied via `apply_migration` against the real
+`care-register` project, then mirrored to `supabase/migrations/` per this
+repo's archive convention — see HANDOVER.md §4): new `jobs` table,
+employer-owned, never public/candidate-facing (doesn't reopen "no job
+postings" — see HANDOVER.md §14). Structured fields are explicit employer
+input; `description_body` is the one AI-drafted field. Mandatory 3-state
+`sponsorship_offered` (none / can-sponsor-existing-visa-holder-switching /
+can-sponsor-new-applicant) — the third state is blocked at the DB layer
+(`jobs_sponsorship_restricted_roles` check) for `care_assistant`/
+`senior_carer` (this schema's ids for what non-negotiable #8 calls Care
+Worker/Senior Care Worker), not left to employer honesty, same standard
+the badge/DBS non-negotiables already hold the app to.
+
+New `src/jobs.ts`, mounted at `/employers/jobs`: `POST /draft` (Workers
+AI drafts `description_body` from title/location/hours/pay — plain-text
+completion, no JSON-mode needed for one free-text field, unlike the CV
+parser's multi-field extraction), `POST /`, `GET /`, `GET /:id`,
+`PATCH /:id` (blocked once closed), `PATCH /:id/close`.
+`validateJobInput()` duplicates the DB constraint as a friendly 400 —
+same belt-and-braces pattern as `sanitizeParsed()` in `candidates.ts`
+rather than relying solely on a raw Postgres constraint-violation error
+reaching the client.
+
+**Verification, given this sandbox still can't reach Supabase from
+`wrangler dev`**: `get_advisors` (security) run immediately after the
+migration — no new findings attributable to `jobs`, only pre-existing
+ones. Then tested directly against the real schema via `execute_sql`: a
+`new_applicant` + `senior_carer` insert correctly rejected by the check
+constraint (error text confirmed the right constraint name), a
+`transitional_switch_only` + `senior_carer` insert correctly succeeded,
+test row deleted, `select count(*) from jobs` confirmed back at 0 — same
+insert-then-delete-then-recount pattern this doc already used to verify
+the `hiring_for`/hiring_for check constraint back in the employer landing
+page work. `npm install` (fresh checkout, no `node_modules` yet this
+session), `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+cleanly (1167 KiB / 239 KiB gzip).
+
+**Not done this session**: Sprints 14–17 (the six-stage pipeline
+migration, Bookmark/Send Invite split + the actual hard gate on
+`job_id`, scoped/revocable/frozen profile access, the interview stage,
+the dossier UI) — planned in `SPRINTS.md` with full scope per sprint, not
+built. `shortlist_candidates` in `employer-chat.ts` still doesn't require
+a `job_id` — that lands with Sprint 14. Not yet pushed as a PR.

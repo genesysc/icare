@@ -605,6 +605,109 @@ user asking for it first; it's captured here so the scope isn't lost.
 
 ---
 
+## Employer-track reconciliation, 2026-08-30 — Sprints 13–17
+
+Three independently-uploaded documents (the B2B workflow handover, the
+jobseeker/employer wireframes, and the Next.js reference app's
+`lib/types.ts`) all describe employer-side mechanics that diverge from
+what Sprints 6–11 above actually shipped — see `HANDOVER.md` §14 for the
+full comparison table and reasoning. Founder confirmed 2026-08-30: migrate
+now, not later. Stage mapping for in-flight data:
+`interview → invited_for_interview`, `offer → pending_interview_result`,
+`hired → successful` (`shortlisted` and `rejected` keep their names,
+`onboarding` is new). Sequenced as five sprints, in dependency order —
+each is its own PR, not one giant migration, per this repo's usual
+convention:
+
+### Sprint 13 — Jobs module ✅ Shipped 2026-08-30
+
+The actual prerequisite for everything below: nothing else in this
+reconciliation can happen until a job record can exist. New `jobs` table
+(employer-owned, never public/candidate-facing/browsable — does **not**
+reopen the "no job postings" decision, see `HANDOVER.md` §14). Structured
+fields are explicit employer input (title, location, pay range, hours,
+contract type, notice period, qualifications required, H&S risks); the
+description body is AI-drafted from those, employer-confirmed before
+saving — same propose/confirm pattern as CV import. Mandatory three-state
+`sponsorship_offered` field (none / can sponsor an existing Health & Care
+Worker visa holder switching employer / can sponsor a new applicant) —
+the third option is **DB-enforced unblocked only for professions other
+than `care_assistant`/`senior_carer`** (this schema's ids for what the
+immigration non-negotiable calls Care Worker/Senior Care Worker), not
+left to employer honesty. `shortlist_candidates` (renamed conceptually to
+Send Invite once Sprint 14 lands) will require a `job_id` — until then,
+this sprint alone just makes job records creatable and listable; it does
+not yet touch the chat tool.
+
+**Shipped**: migration `0020_jobs` (table + `jobs_sponsorship_restricted_
+roles` check constraint + `jobs_employer_self` RLS policy, applied to the
+real project and mirrored to `supabase/migrations/`), new `src/jobs.ts`
+(mounted at `/employers/jobs`): `POST /draft` (Workers AI drafts
+`description_body` from title/location/hours/pay, plain-text completion,
+no JSON mode needed for a single free-text field), `POST /`, `GET /`,
+`GET /:id`, `PATCH /:id` (blocked once `status = 'closed'`), `PATCH /:id/
+close`. `validateJobInput()` duplicates the DB check as a friendly 400,
+same belt-and-braces pattern as `sanitizeParsed()` in `candidates.ts`.
+Verified directly against the real schema (this sandbox still can't reach
+Supabase from `wrangler dev`): a `new_applicant` + `senior_carer` insert
+correctly rejected by the check constraint, a `transitional_switch_only` +
+`senior_carer` insert correctly succeeded, test row deleted, table back to
+0 rows. `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles cleanly.
+Not yet pushed as a PR.
+
+### Sprint 14 — Bookmark/Send Invite split + six-stage pipeline
+
+Two changes that are easiest to land together since they both touch
+`shortlists`/the chat tools in the same places: (1) split today's single
+`shortlist_candidates` action into a new private, no-consequence
+`bookmark_candidates` tool (own table, no pipeline entry, zero effect on
+searchability) and a `send_invite` tool that does what `shortlist_
+candidates` does today, now requiring a `job_id` from Sprint 13 (hard
+gate — the tool call fails without one) and snapshotting the job's
+details onto the invite so a later edit to pay/hours can't retroactively
+change what a candidate consented to; (2) migrate `shortlists.stage`'s
+check constraint from the five-value set to the six-stage set
+(`shortlisted`/`invited_for_interview`/`pending_interview_result`/
+`successful`/`rejected`/`onboarding`), backfilling existing rows per the
+mapping above. Update `move_candidate_stage`/`bulk_move_stage`/`get_
+pipeline_status`'s stage lists and the system prompt to match. Also:
+search exclusion scoped to (company × job) per `HANDOVER.md` §14, not
+flat per-company.
+
+### Sprint 15 — Scoped, revocable, frozen-at-acceptance profile access
+
+Replaces `set_shortlist_consent()`'s standing boolean with a grant tied to
+the specific pipeline's life: access checks become "is there a currently-
+active pipeline," not "was ever granted," and a closed/rejected/withdrawn
+pipeline actively revokes rather than just failing to renew. New
+`profile_summaries` table (or similar) caches the AI profile view once,
+at the moment of acceptance, frozen for that pipeline's lifetime even if
+the candidate's live profile changes underneath it — a fresh generation
+only happens if the same candidate is invited to a different pipeline.
+The single biggest privacy-model change in this reconciliation; needs its
+own careful RLS/trigger design, not a bolt-on.
+
+### Sprint 16 — Async video interview stage
+
+Candidate self-schedules, answers pre-set questions on video, submits;
+system transcribes + summarises for the recruiter's time only, explicitly
+never scored or ranked (extends non-negotiable #5 to video content
+specifically). New infrastructure (video capture/storage, transcription)
+— needs its own scoping pass on top of this note before it's built.
+
+### Sprint 17 — Candidate dossier UI for employers
+
+Build the employer-facing full-profile screen against
+`docs/mockups/candidate-profile-dossier-v2.html`'s three-column layout
+(References/Employment history/Qualifications; Descriptive summary/Media/
+Posts) and type system (Libre Caslon Text / Courier Prime / Space
+Grotesk) — reconciled with the iCare brand system first, per that
+mockup's own note. Needs the `employment_history`/`references` new-entity
+questions from `HANDOVER.md` §14 resolved first (referee third-party
+consent in particular still needs legal input).
+
+---
+
 ## Explicitly not scheduled above (known, deliberately deferred)
 
 - **Admin review tooling** for qualifications/registrations/employer
