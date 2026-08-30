@@ -211,7 +211,7 @@ employers.get("/pipeline", async (c) => {
 
   const { data: shortlistRows, error } = await supabase
     .from("shortlists")
-    .select("candidate_id, stage, created_at, stage_updated_at, candidate_consented_at")
+    .select("id, candidate_id, job_id, job_snapshot, stage, created_at, stage_updated_at, candidate_consented_at")
     .eq("employer_id", userId)
     .order("stage_updated_at", { ascending: false });
   if (error) return c.json({ error: error.message }, 400);
@@ -228,7 +228,10 @@ employers.get("/pipeline", async (c) => {
   }
 
   const pipeline = (shortlistRows || []).map((r) => ({
+    id: r.id,
     candidate_id: r.candidate_id,
+    job_id: r.job_id,
+    job_title: (r.job_snapshot as { title?: string } | null)?.title || null,
     stage: r.stage,
     created_at: r.created_at,
     stage_updated_at: r.stage_updated_at,
@@ -237,6 +240,52 @@ employers.get("/pipeline", async (c) => {
   }));
 
   return c.json({ pipeline });
+});
+
+// --- Bookmarks (Sprint 14) — read-only supporting view for the same reason
+// /pipeline exists: bookmark_candidates in employer-chat.ts is the primary
+// interface, this just lets the employer see what chat has built. Genuinely
+// private — no candidate-facing equivalent exists anywhere, and none should.
+employers.get("/bookmarks", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+
+  const { data: bookmarkRows, error } = await supabase
+    .from("bookmarks")
+    .select("candidate_id, created_at")
+    .eq("employer_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) return c.json({ error: error.message }, 400);
+
+  const candidateIds = (bookmarkRows || []).map((r) => r.candidate_id);
+  const candidatesById: Record<string, unknown> = {};
+  if (candidateIds.length) {
+    const { data: candidateRows, error: candidatesError } = await supabase
+      .from("candidate_search")
+      .select("id, full_name, primary_profession, current_job_title, town, postcode_district")
+      .in("id", candidateIds);
+    if (candidatesError) return c.json({ error: candidatesError.message }, 400);
+    for (const cand of candidateRows || []) candidatesById[cand.id] = cand;
+  }
+
+  const bookmarks = (bookmarkRows || []).map((r) => ({
+    candidate_id: r.candidate_id,
+    created_at: r.created_at,
+    candidate: candidatesById[r.candidate_id as string] || null,
+  }));
+
+  return c.json({ bookmarks });
+});
+
+employers.delete("/bookmarks/:candidateId", async (c) => {
+  const { error } = await c
+    .get("supabase")
+    .from("bookmarks")
+    .delete()
+    .eq("employer_id", c.get("userId"))
+    .eq("candidate_id", c.req.param("candidateId"));
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
 });
 
 // --- Report a candidate post (Sprint 8 follow-up: candidate posts) ---

@@ -655,24 +655,68 @@ correctly rejected by the check constraint, a `transitional_switch_only` +
 0 rows. `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles cleanly.
 Not yet pushed as a PR.
 
-### Sprint 14 — Bookmark/Send Invite split + six-stage pipeline
+### Sprint 14 — Bookmark/Send Invite split + six-stage pipeline ✅ Shipped 2026-08-30
 
-Two changes that are easiest to land together since they both touch
-`shortlists`/the chat tools in the same places: (1) split today's single
-`shortlist_candidates` action into a new private, no-consequence
-`bookmark_candidates` tool (own table, no pipeline entry, zero effect on
-searchability) and a `send_invite` tool that does what `shortlist_
-candidates` does today, now requiring a `job_id` from Sprint 13 (hard
-gate — the tool call fails without one) and snapshotting the job's
-details onto the invite so a later edit to pay/hours can't retroactively
-change what a candidate consented to; (2) migrate `shortlists.stage`'s
-check constraint from the five-value set to the six-stage set
-(`shortlisted`/`invited_for_interview`/`pending_interview_result`/
-`successful`/`rejected`/`onboarding`), backfilling existing rows per the
-mapping above. Update `move_candidate_stage`/`bulk_move_stage`/`get_
-pipeline_status`'s stage lists and the system prompt to match. Also:
-search exclusion scoped to (company × job) per `HANDOVER.md` §14, not
-flat per-company.
+Two changes landed together since they both touch `shortlists`/the chat
+tools in the same places: (1) split the old single `shortlist_candidates`
+action into a private, no-consequence `bookmark_candidates` tool (own
+`bookmarks` table, no pipeline entry, zero effect on searchability) and a
+`send_invite` tool requiring a `job_id` from Sprint 13's jobs (hard gate —
+the tool call fails without a valid, active job) and snapshotting the
+job's details onto the invite (`shortlists.job_snapshot`, jsonb) so a
+later edit to pay/hours can't retroactively change what a candidate
+consented to; (2) migrated `shortlists.stage`'s check constraint from the
+five-value set to the six-stage set (`shortlisted`/`invited_for_
+interview`/`pending_interview_result`/`successful`/`rejected`/
+`onboarding`), per the founder-confirmed mapping.
+
+**Shipped**: migrations `0021_bookmarks_and_six_stage_pipeline` (bookmarks
+table, `shortlists` gains `job_id`/`job_snapshot`, stage constraint
+migrated) and `0022_shortlists_unique_per_job` — a real bug caught while
+building this, not planned in advance: the pre-existing uniqueness on
+`shortlists` was `(employer_id, candidate_id)` only, which made it
+*impossible* for a candidate to hold two pipelines at once with the same
+employer (one per job), directly contradicting the workflow handover's
+"the same candidate can legitimately sit in more than one pipeline at
+once for the same company." Fixed to `(employer_id, candidate_id,
+job_id)`.
+
+`src/employer-chat.ts` rewritten: `bookmark_candidates` and `send_invite`
+tools (replacing `shortlist_candidates`), `move_candidate_stage` now
+addresses pipeline entries by `pipeline_id` (the `shortlists` row's own
+id) rather than `candidate_id` — candidate_id alone became ambiguous the
+moment one candidate could have multiple pipelines with the same
+employer. System prompt gained an active-jobs catalogue so the model can
+resolve "invite them to the senior carer role" to a real `job_id`, and
+now explicitly distinguishes bookmark from invite so it doesn't guess
+wrong on an ambiguous "shortlist them." `get_pipeline_status`/
+`bulk_move_stage` updated to the six-stage set and human-readable labels.
+New `GET /employers/bookmarks` + `DELETE /employers/bookmarks/:candidateId`
+read routes (`src/employers.ts`); `/pipeline` now surfaces `job_title`
+per entry, since that's now the only thing distinguishing two pipelines
+for the same candidate. `src/candidates.ts`'s `/me/shortlists` and both
+`dashboard.html`/`employer-home.html`'s stage-label maps and pipeline/
+shortlist row rendering updated to match (job title shown, six-stage
+labels instead of raw slugs).
+
+**Verified directly against the real schema** (same reasoning as Sprint
+13 — this sandbox still can't reach Supabase from `wrangler dev`): two
+`send_invite`-shaped inserts for the *same* candidate against two
+*different* test jobs both succeeded (proving the old constraint really
+was the bug, and the fix works); a `move_candidate_stage`-shaped update
+by `pipeline_id` moved only the targeted entry, confirmed the sibling
+pipeline for the same candidate was untouched; a bookmark insert
+succeeded independently. All test rows (2 jobs, 2 shortlists, 1 bookmark)
+deleted afterward, all three tables confirmed back at 0 rows. `tsc
+--noEmit` clean, `wrangler deploy --dry-run` bundles cleanly (1177 KiB /
+241 KiB gzip).
+
+**Deferred, flagged rather than half-built**: search exclusion scoped to
+(company × job) — `search_candidates` doesn't take a job_id today, so
+true per-job exclusion isn't meaningful yet without also making search
+itself job-scoped, a bigger UX change than this sprint's stated scope.
+Revisit when/if the founder wants search itself tied to a specific job
+rather than general-purpose. Not yet pushed as a PR.
 
 ### Sprint 15 — Scoped, revocable, frozen-at-acceptance profile access
 

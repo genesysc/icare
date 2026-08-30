@@ -202,6 +202,7 @@
     display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap;
   }
   .pipeline-name { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .pipeline-job { font-size: 12px; font-weight: 600; color: var(--plum-700, var(--ink-soft)); flex: none; }
   .pipeline-role { margin-top: 2px; font-size: 12.5px; color: var(--ink-soft); flex-basis: 100%; }
   .pipeline-location { font-size: 12px; color: var(--ink-faint); flex: none; }
   .pipeline-empty { padding: 16px 24px 24px; font-size: 13.5px; color: var(--ink-faint); }
@@ -452,8 +453,21 @@ function icareRequireAuth(signInPath) {
     thread.scrollTop = thread.scrollHeight;
   }
 
-  var PIPELINE_STAGE_ORDER = ["shortlisted", "interview", "offer", "hired", "rejected"];
-  var PIPELINE_STAGE_LABELS = { shortlisted: "Shortlisted", interview: "Interview", offer: "Offer", hired: "Hired", rejected: "Rejected" };
+  // Sprint 14 (2026-08-30): six-stage pipeline, migration 0021 — see
+  // HANDOVER.md §14. Was ["shortlisted", "interview", "offer", "hired",
+  // "rejected"]; kept here as a plain array (not fetched from PIPELINE_
+  // STAGES in employer-chat.ts) since this file has no shared-module import
+  // mechanism, same reasoning as the rest of this repo's copy-not-import
+  // client-side convention.
+  var PIPELINE_STAGE_ORDER = ["shortlisted", "invited_for_interview", "pending_interview_result", "successful", "rejected", "onboarding"];
+  var PIPELINE_STAGE_LABELS = {
+    shortlisted: "Shortlisted",
+    invited_for_interview: "Invited for Interview",
+    pending_interview_result: "Pending Interview Result",
+    successful: "Successful",
+    rejected: "Rejected",
+    onboarding: "Onboarding",
+  };
 
   function renderPipeline(rows) {
     var body = document.querySelector("[data-pipeline-body]");
@@ -488,10 +502,15 @@ function icareRequireAuth(signInPath) {
         row.className = "pipeline-row";
         row.innerHTML =
           '<span class="pipeline-name"></span>' +
+          (r.job_title ? '<span class="pipeline-job"></span>' : "") +
           (location ? '<span class="pipeline-location"></span>' : "") +
           (roleLine ? '<span class="pipeline-role"></span>' : "") +
           (r.consented ? '<span class="pipeline-unlocked"></span>' : "");
         row.querySelector(".pipeline-name").textContent = cand.full_name || "Candidate";
+        // Sprint 14: a candidate can now sit in more than one pipeline for
+        // this employer (one per job) — the job title is what tells them
+        // apart, so it's shown even though it wasn't needed before.
+        if (r.job_title) row.querySelector(".pipeline-job").textContent = r.job_title;
         if (location) row.querySelector(".pipeline-location").textContent = location;
         if (roleLine) row.querySelector(".pipeline-role").textContent = roleLine;
         if (r.consented) {

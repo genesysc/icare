@@ -2335,9 +2335,85 @@ page work. `npm install` (fresh checkout, no `node_modules` yet this
 session), `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
 cleanly (1167 KiB / 239 KiB gzip).
 
-**Not done this session**: Sprints 14–17 (the six-stage pipeline
-migration, Bookmark/Send Invite split + the actual hard gate on
-`job_id`, scoped/revocable/frozen profile access, the interview stage,
-the dossier UI) — planned in `SPRINTS.md` with full scope per sprint, not
-built. `shortlist_candidates` in `employer-chat.ts` still doesn't require
-a `job_id` — that lands with Sprint 14. Not yet pushed as a PR.
+## 2026-08-30 (same day, continued) — Sprint 14: Bookmark/Send Invite split + six-stage pipeline
+
+User confirmed the earlier "read the uploaded jobs code" message actually
+meant continue building, not just report back — asked to "go on and
+finish." Picked up Sprint 14 directly from `SPRINTS.md`'s existing scope.
+
+**Migration `0021_bookmarks_and_six_stage_pipeline`** (applied, mirrored):
+new `bookmarks` table (employer-owned, deliberately **no candidate-read
+RLS policy at all** — that omission is the actual enforcement of "a
+candidate is never told they've been bookmarked," not just a UI choice);
+`shortlists` gains `job_id` (nullable — old rows predate the jobs module)
+and `job_snapshot` jsonb (same pattern as `employer_chat_messages.
+results_snapshot`); `shortlists.stage`'s check constraint migrated from
+the five-value set to the six-stage set, per the founder-confirmed
+mapping recorded in HANDOVER.md §14.
+
+**Real bug found while writing the migration, not anticipated in
+`SPRINTS.md`'s plan**: queried `shortlists`' actual constraints
+(`pg_constraint`) before writing the send_invite insert logic, rather
+than assuming, and found **two** separate unique constraints on
+`(employer_id, candidate_id)` — one inline from `0001_init`, one
+re-declared in `0016`. Both predate the jobs module and only ever
+contemplated one pipeline per employer/candidate pair. Under this
+constraint, a candidate invited to a second job at the same employer
+would hit a unique-violation — directly breaking the workflow handover's
+own stated requirement ("the same candidate can legitimately sit in more
+than one pipeline at once for the same company... for two different open
+roles"). Fixed with a second migration, `0022_shortlists_unique_per_job`,
+dropping both old constraints and adding one on `(employer_id,
+candidate_id, job_id)`. Caught this by reading the real schema before
+building against it, the same discipline this repo has used throughout —
+would have shipped a real, employer-visible bug otherwise (an employer
+trying to invite an already-shortlisted candidate to a second role would
+just get a opaque 23505 error).
+
+**`src/employer-chat.ts` rewritten**: `shortlist_candidates` split into
+`bookmark_candidates` (private, own table, no job) and `send_invite`
+(requires `job_id`, resolved against a new active-jobs catalogue added to
+the system prompt — same "never trust a model-supplied id without
+checking it against real reference data" pattern already used for
+profession/skill/qualification ids — snapshots the job onto the invite).
+`move_candidate_stage` re-keyed from `candidate_id` to `pipeline_id` (the
+`shortlists` row's own id) — a second real correctness issue found while
+building, not in the original plan: once a candidate can hold multiple
+pipelines with one employer, `candidate_id` alone can no longer address a
+single pipeline entry unambiguously; the old handler would have silently
+updated whichever row `.eq("candidate_id", ...)` matched, which is wrong
+the moment two exist. `get_pipeline_status`/`bulk_move_stage` moved to
+the six-stage set with human-readable labels (`PIPELINE_STAGE_LABEL`).
+
+**Supporting reads updated to match**: `src/candidates.ts`'s `/me/
+shortlists` and `src/employers.ts`'s `/pipeline` both now select
+`job_id`/`job_snapshot` and surface a job title (the only thing that
+distinguishes two pipelines for the same candidate now); new `GET
+/employers/bookmarks` + `DELETE /employers/bookmarks/:candidateId`.
+`dashboard.html` (candidate) and `employer-home.html` (employer) — both
+static, no-shared-import HTML pages — had their own hardcoded five-stage
+label maps and pipeline/shortlist row rendering; updated both to the
+six-stage labels and to show the job title per row, otherwise
+`employer-home.html`'s `PIPELINE_STAGE_ORDER.forEach` filter would have
+silently dropped any row in a stage it didn't recognise (a real,
+easy-to-miss bug: not a crash, just candidates vanishing from the
+employer's own pipeline view).
+
+**Verified directly against the real schema** (this sandbox still can't
+reach Supabase from `wrangler dev`): inserted two `send_invite`-shaped
+rows for the *same* candidate against two *different* jobs — both
+succeeded, proving the `0022` fix actually works (would have 23505'd
+under the old constraint); ran a `move_candidate_stage`-shaped update by
+`pipeline_id` and confirmed only the targeted row changed, the sibling
+pipeline for the same candidate untouched; inserted and confirmed a
+bookmark independently. Deleted all test rows (2 jobs, 2 shortlists, 1
+bookmark) afterward; `shortlists`/`bookmarks`/`jobs` all confirmed back
+at 0 rows. `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+cleanly (1177 KiB / 241 KiB gzip).
+
+**Deliberately deferred, not half-built**: (company × job) search
+exclusion — `search_candidates` isn't job-scoped yet, so real per-job
+exclusion isn't meaningful to build until it is; flagged in `SPRINTS.md`
+and `HANDOVER.md` §14 rather than faked with something that looks right
+but isn't. Sprints 15–17 (profile-access rework, interview stage, dossier
+UI) untouched. Not yet pushed as a PR.

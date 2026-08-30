@@ -148,8 +148,8 @@ stop and ask the user — do not resolve it yourself.**
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
 | `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5), incoming shortlists + consent (`/me/shortlists*`, Sprint 9), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
-| `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post; `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9); `GET /candidates/:id/{photo,video,cv}` — consent-gated media (Sprint 9) |
-| `src/employer-chat.ts` | Employer chat — six tools behind `POST /employers/chat` (guardrail → Workers AI tool call → deterministic DB action → persist), `GET /employers/chat` (replay thread): `search_candidates` (Sprint 8, extended for posts, `min_experience_years`, `qualification_type_id`), `shortlist_candidates`/`move_candidate_stage`/`get_pipeline_status` (Sprint 9), `bulk_move_stage` (Sprint 11), `who_is_summary` (Sprint 10) |
+| `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post; `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9, now with `job_title`); `GET /candidates/:id/{photo,video,cv}` — consent-gated media (Sprint 9); `GET /bookmarks`, `DELETE /bookmarks/:candidateId` (Sprint 14) |
+| `src/employer-chat.ts` | Employer chat — seven tools behind `POST /employers/chat` (guardrail → Workers AI tool call → deterministic DB action → persist), `GET /employers/chat` (replay thread): `search_candidates` (Sprint 8, extended for posts, `min_experience_years`, `qualification_type_id`), `bookmark_candidates`/`send_invite` (Sprint 14, replacing Sprint 9's `shortlist_candidates` — see §14), `move_candidate_stage` (Sprint 9, now keyed by `pipeline_id` not `candidate_id`, Sprint 14)/`get_pipeline_status` (Sprint 9), `bulk_move_stage` (Sprint 11), `who_is_summary` (Sprint 10) |
 | `src/employer-chat-guardrail.ts` | Protected-characteristics keyword/proximity guardrail — the deterministic layer behind the chat's non-negotiable #5 compliance, see §7 |
 | `src/jobs.ts` | Jobs module (Sprint 13, mounted at `/employers/jobs`): `POST /draft` (Workers AI drafts the description body), `POST /`, `GET /`, `GET /:id`, `PATCH /:id`, `PATCH /:id/close` — see §14 |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
@@ -1060,11 +1060,11 @@ Sprints 6–11 as shipped in this repo. Concretely:
 
 | Area | What this repo already built (Sprints 6–11) | What the new spec describes |
 |---|---|---|
-| Save/shortlist action | One action — `shortlist_candidates` chat tool creates a `shortlists` row directly | **Two distinct actions**: private **Bookmark** (no pipeline, zero candidate-visibility effect) vs. **Send Invite** (the real consent-request event, creates the pipeline entry) |
-| Pipeline stages | `shortlists.stage` check-constrained to `shortlisted`/`interview`/`offer`/`hired`/`rejected` | Six stages: **Shortlisted → Invited for Interview → Pending Interview Result → Successful/Rejected → Onboarding** — matches the wireframes and `lib/types.ts`'s `PipelineStage` exactly |
+| Save/shortlist action | ~~One action — `shortlist_candidates` chat tool creates a `shortlists` row directly~~ — **shipped 2026-08-30, Sprint 14**: `bookmark_candidates` (own `bookmarks` table, private, no pipeline) vs. `send_invite` (job-gated, creates the pipeline entry, snapshots the job) |
+| Pipeline stages | ~~`shortlists.stage` check-constrained to `shortlisted`/`interview`/`offer`/`hired`/`rejected`~~ — **migrated 2026-08-30, Sprint 14** (migration `0021`): **Shortlisted → Invited for Interview → Pending Interview Result → Successful/Rejected → Onboarding** — matches the wireframes and `lib/types.ts`'s `PipelineStage` exactly |
 | Job record | ~~No `jobs`/vacancy entity exists~~ — **shipped 2026-08-30, Sprint 13**: `jobs` table (migration `0020_jobs`) + `src/jobs.ts`, never public/browsable, no apply button (doesn't reopen "no postings"). Mandatory 3-state sponsorship field DB-enforced (option 3 blocked for `care_assistant`/`senior_carer`). **Send Invite is not yet gated on it** — that hard gate is Sprint 14. |
 | Profile access on accept | `set_shortlist_consent()` — a boolean consent flag unlocking photo/video/CV, no documented expiry-on-close mechanic | **Scoped and revocable**: full access is tied to that specific pipeline's life and must **actively revoke** when the pipeline closes (rejected/withdrawn/job closed) — "has an active pipeline" must be checked live, not "was ever granted." Also: the **AI profile summary generates once, at acceptance, and freezes for the pipeline's lifetime** (not live) — a new mechanic, not built anywhere here. |
-| Search exclusion scope | Not explicitly documented as scoped | Exclusion from a company's future searches is scoped to **(company × job)**, only triggers on Send Invite (never on Bookmark), and is **not permanent** — a declined/rejected candidate returns to that company's pool for future jobs with a visible history flag. The one permanent block is candidate-initiated "do not contact me again." |
+| Search exclusion scope | Not explicitly documented as scoped | **Not yet built** — true (company × job) exclusion needs `search_candidates` itself to be job-scoped, which it isn't yet; deliberately deferred out of Sprint 14 rather than half-built (see `SPRINTS.md`). Exclusion should only trigger on Send Invite (never on Bookmark), and should **not be permanent** — a declined/rejected candidate should return to that company's pool for future jobs with a visible history flag. The one permanent block is candidate-initiated "do not contact me again." |
 | Interview stage | Not built yet in this repo (pipeline stages stop at `offer`/`hired`) | Async self-scheduled video interview, system transcribes + summarises **for time only, never scored/ranked** — extends non-negotiable #5 explicitly to video. |
 | Candidate consent response | Not documented as binary | Binary only: **Interested / Not interested** — no partial states. |
 | Profile UI | No employer-facing candidate-detail screen built yet | A "dossier" concept exists in two mockup passes, current one at `docs/mockups/candidate-profile-dossier-v2.html` — three-column desktop-first layout, References/Employment history/Qualifications columns are **new profile sections with no data model here yet** (`employment_history` already exists in this repo's schema; a dedicated `references`-as-nominated-referees flow with its own third-party-consent question does not). Type system: Libre Caslon Text (name + descriptive-summary quote only) / Courier Prime (body) / Space Grotesk (chrome) — already noted as the planned employer-dossier system in §5 above; now there's a real mockup to build against. |
@@ -1124,13 +1124,17 @@ sharpens, doesn't change, non-negotiable #3.
 for in-flight data (`shortlists` had 0 rows at the time, so no real
 backfill risk): `interview → invited_for_interview`, `offer → pending_
 interview_result`, `hired → successful` (`shortlisted`/`rejected` keep
-their names, `onboarding` is new). Build order, now underway as Sprints
-13–17 in `SPRINTS.md`: (a) `jobs` table — **shipped, Sprint 13** — (b)
-split Bookmark out + migrate `shortlists.stage` to the six-stage enum +
-hard-gate Send Invite on a `job_id` (Sprint 14, not started), (c) rework
-profile-access grant to be pipeline-scoped + revocable + frozen-at-
-acceptance (Sprint 15), (d) interview stage (Sprint 16), (e) the dossier
-UI (Sprint 17). See `SPRINTS.md` for the full per-sprint scope.
+their names, `onboarding` is new). Build order, underway as Sprints 13–17
+in `SPRINTS.md`: (a) `jobs` table — **shipped, Sprint 13** — (b) split
+Bookmark out + migrate `shortlists.stage` to the six-stage enum +
+hard-gate Send Invite on a `job_id` — **shipped, Sprint 14** (also fixed a
+real bug found while building it: `shortlists`' old uniqueness on
+`(employer_id, candidate_id)` made multiple pipelines per candidate
+impossible, contradicting the workflow spec — see `SPRINTS.md` Sprint
+14) — (c) rework profile-access grant to be pipeline-scoped + revocable +
+frozen-at-acceptance (Sprint 15, not started), (d) interview stage
+(Sprint 16), (e) the dossier UI (Sprint 17). See `SPRINTS.md` for the
+full per-sprint scope.
 
 **Wireframe testing links** (candidate + employer click-throughs, all 19
 screens combined across both) were also published as private Claude

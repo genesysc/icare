@@ -833,7 +833,7 @@ candidates.get("/me/shortlists", async (c) => {
   const { data, error } = await c
     .get("supabase")
     .from("shortlists")
-    .select("employer_id, stage, created_at, candidate_consented_at, employers(org_name)")
+    .select("id, employer_id, job_id, job_snapshot, stage, created_at, candidate_consented_at, employers(org_name)")
     .eq("candidate_id", c.get("userId"))
     .order("created_at", { ascending: false });
 
