@@ -2843,3 +2843,76 @@ PR #29 — not yet merged).
 surface decision as the feed, not yet asked about), invite auto-expiry,
 real per-field visibility preferences, the DBS three-state confirmation
 flow, onboarding step-count reconciliation.
+
+## 2026-08-31 (same day, continued) — Sprint 23: Real Network (LinkedIn-style connections)
+
+Asked whether Home/Network/invite-auto-expiry were built (none were),
+then "Go and look" at Network specifically. Checked the schema before
+proposing anything — zero backend for connections/follows, and the
+wireframe's own screen 09 notes flag real unresolved questions (what
+does Connect actually do, is a connections list visible to anyone,
+does following an org opt you into its search). Reported that back
+plainly rather than guessing.
+
+Founder gave direct product instruction: LinkedIn-style send/accept/
+decline between candidates, org Follow deprioritised, then asked "is
+there anything I missed?" Answered with three design choices, each
+extending a mechanic already established elsewhere in the schema:
+(1) accepting reveals real names mutually — the same "hidden until
+explicit accept" rule as employer consent, applied peer-to-peer, photo
+reveal excluded this pass; (2) discovery by profession/location, not
+name, consistent with names not being searchable anywhere else either;
+(3) connections list private by default, per the wireframe's own
+job-hunting-outing warning. Proceeded without re-asking since these
+followed directly from Sprint 22's precedent.
+
+**Shipped**: migration `0027` (`connections` table + `candidate_
+discover` view, same `current_role_is('candidate')`-gated pattern as
+Sprint 22's peer feed). New routes: `GET /discover`, `GET /network`,
+`POST /network/request`, `POST /network/:id/accept`, `DELETE /network/
+:id`. `src/network.html` rebuilt from the Sprint 19 placeholder with
+Connections/Requests/Discover tabs.
+
+**Two real gaps found and fixed during live-schema testing, via their
+own follow-up migrations, not silently patched**:
+- `0028` — realized before writing the route that `candidate_discover`
+  had no actual way to reveal a connected peer's name, since
+  `accounts_read_self` RLS means a candidate can only read their OWN
+  account row. Fixed by folding the reveal condition into the view
+  itself rather than trusting a route to enforce it separately.
+- `0029` — the FIRST live-schema insert attempt failed outright: the
+  insert policy's "is the addressee published" check ran under the
+  requester's own RLS, and candidates RLS only lets a candidate read
+  their own row or lets a verified EMPLOYER read published rows — never
+  another candidate. Every request was silently blocked. Fixed with a
+  new `candidate_is_published()` security-definer helper.
+
+**Also caught before shipping** (reading my own code, not a test
+failure): the `/discover` search interpolated the raw `q` param
+directly into a `.or()` filter string — unlike `.ilike()`, which takes
+its value as a real parameter, `.or()` takes a raw filter string, so
+this was a real injection risk and inconsistent with this codebase's
+existing safer pattern (`employer-chat.ts`'s parameterised `.ilike()`
+calls). Fixed by stripping PostgREST filter-syntax characters from `q`
+first.
+
+**Verified end to end** with three test candidates: request (blocked
+first by the 0029 gap, then confirmed fixed) → visible correctly on
+both sides → reverse-direction duplicate correctly rejected by the
+unique index → accept → mutual name reveal confirmed both directions →
+a fourth uninvolved candidate confirmed to still see null names → a
+third party's attempt to accept someone else's request correctly
+blocked. All test rows deleted, tables confirmed back at 0.
+`get_advisors` showed exactly the two expected new findings, same
+accepted class as existing ones. `tsc --noEmit`/`wrangler deploy
+--dry-run` clean (1323.70 KiB / 265.91 KiB gzip); mock-shim click-
+through confirmed correct rendering including a discover profile
+correctly showing "Request sent" instead of a live Connect button.
+Pushed to the same branch/PR as Sprints 13–15/18–22
+(`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not yet
+merged).
+
+**Not done this session**: org Follow (deprioritised, not decided
+against), invite auto-expiry, real per-field visibility preferences,
+the DBS three-state confirmation flow, onboarding step-count
+reconciliation.

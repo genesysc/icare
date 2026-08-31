@@ -1,36 +1,68 @@
 <!--
-  iCare candidate Network — SPRINTS.md Sprint 19.
+  iCare candidate Network — SPRINTS.md Sprint 23.
 
-  Placeholder, same reasoning as home.html. The wireframe (screen 09)
-  itself flags this as "the part of the sitemap most likely to be phase
-  2" and designs the tab bar to survive its removal — real feature work
-  (connections, org follows, a discover surface, and the "does a visible
-  connection list out a job search" question the wireframe raises) that
-  wasn't asked for this sprint. Exists so the tab-bar shell's five
-  destinations all resolve honestly — see HANDOVER.md §14's Sprint 19
-  note.
+  Replaces the Sprint 19 placeholder ("Network is coming") now that the
+  founder gave direction: LinkedIn-style send/accept/decline connection
+  requests between candidates. Org "Follow" is explicitly deprioritised,
+  not built here.
+
+  Backed by migration 0027 (connections table) + 0028 (candidate_discover
+  view, with a name-reveal condition folded in) and new routes in
+  candidates.ts: GET /candidates/discover (search by profession/town —
+  not name, since names aren't visible pre-connection anywhere else in
+  this product), GET /candidates/network (incoming/outgoing/connections),
+  POST /candidates/network/request, POST /candidates/network/:id/accept,
+  DELETE /candidates/network/:id (covers cancel, decline, AND remove —
+  all three are just deleting the row, from either side).
+
+  Real name only ever appears in `profile.full_name` when the view
+  itself decided to reveal it (accepted connections only) — this page
+  never assumes a name is present and always falls back to the same
+  anonymised headline/profession/town shown everywhere else pre-consent.
+
+  Connections list is private by default (only the two parties in a row
+  can ever read it, per migration 0027's RLS) — nothing here makes any
+  candidate's connections visible to a third party, including other
+  connections.
 -->
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Network — iCare</title>
+<title>Your network — iCare</title>
 <meta name="robots" content="noindex" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --plum-950: #241533; --ink-soft: #5b5670; --ink-faint: #8a8599;
-    --teal-700: #0e8c7f; --teal-500: #16b8a6; --teal-100: #e3faf6;
-    --paper-dim: #f8f6f1; --line: #e7e3da; --white: #ffffff;
+    --plum-950: #241533;
+    --plum-800: #382349;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --amber-600: #b8791f;
+    --amber-100: #faedd4;
+    --paper: #fefefc;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --err: #b23a24;
     --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased; }
-  h1 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
   p { margin: 0; }
+  button { font-family: inherit; }
+  a { color: var(--teal-700); }
 
   .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
   .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
@@ -38,18 +70,65 @@
   .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
   .sign-out:hover { color: var(--teal-700); }
 
-  .tab-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; background: var(--white); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0); }
-  .tab-bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint); font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em; }
+  /* Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment */
+  .tab-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; background: var(--white); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-bar-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint);
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+  }
   .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
   .tab-bar-item.is-active { color: var(--teal-700); }
   .tab-bar-item .tab-bar-icon-wrap { position: relative; }
-  .tab-bar-dot { position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px; background: var(--teal-500); border: 1.5px solid var(--white); display: none; }
+  .tab-bar-dot {
+    position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px;
+    background: var(--teal-500); border: 1.5px solid var(--white); display: none;
+  }
   .tab-bar-dot.is-visible { display: block; }
 
   .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; }
-  .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 34px 28px; text-align: center; }
-  .card h1 { font-size: 21px; }
-  .card p { margin-top: 10px; font-size: 13.5px; color: var(--ink-faint); line-height: 1.6; max-width: 44ch; margin-left: auto; margin-right: auto; }
+
+  .page-head { margin-bottom: 18px; }
+  .page-head h1 { font-size: 24px; }
+  .page-head p { margin-top: 6px; font-size: 13.5px; color: var(--ink-faint); line-height: 1.5; }
+
+  .tabs { display: flex; gap: 4px; background: var(--white); border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin-bottom: 18px; }
+  .tab { flex: 1; text-align: center; padding: 9px 8px; border-radius: 999px; border: none; background: none; font-size: 13.5px; font-weight: 600; color: var(--ink-faint); cursor: pointer; position: relative; }
+  .tab.is-active { background: var(--plum-950); color: var(--white); }
+  .tab-count { font-family: "IBM Plex Mono", monospace; font-size: 10px; margin-left: 3px; }
+
+  .search-row { margin-bottom: 14px; }
+  .search-input { width: 100%; padding: 12px 16px; border-radius: 999px; border: 1.5px solid var(--line); font-family: inherit; font-size: 14px; color: var(--plum-950); background: var(--white); }
+  .search-input:focus { outline: none; border-color: var(--teal-500); }
+
+  .person-item { background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+  .person-avatar { width: 40px; height: 40px; border-radius: 999px; background: var(--paper-dim); border: 1.5px solid var(--line); flex: none; display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-faint); }
+  .person-meta { flex: 1; min-width: 0; }
+  .person-name { font-size: 14.5px; font-weight: 700; color: var(--plum-950); }
+  .person-sub { margin-top: 1px; font-size: 12.5px; color: var(--ink-faint); }
+  .person-actions { flex: none; display: flex; gap: 8px; }
+
+  .btn-sm { padding: 8px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 700; cursor: pointer; border: none; white-space: nowrap; }
+  .btn-sm-primary { background: var(--teal-500); color: var(--white); }
+  .btn-sm-primary:hover { background: var(--teal-700); }
+  .btn-sm-primary:disabled { opacity: 0.6; cursor: default; }
+  .btn-sm-outline { background: transparent; color: var(--ink-soft); border: 1.5px solid var(--line); }
+  .btn-sm-outline:hover { border-color: var(--ink-faint); }
+  .btn-sm-outline.danger { color: var(--err); }
+  .btn-sm-outline.danger:hover { border-color: var(--err); background: #fbe9e5; }
+  .btn-sm-sent { background: var(--paper-dim); color: var(--ink-faint); cursor: default; }
+
+  .empty-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 30px 0; }
+  .loading-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 40px 0; }
+  .status { margin-top: 10px; font-size: 13px; display: none; }
+  .status.is-visible { display: block; }
+  .status.err { color: var(--err); }
+
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -60,13 +139,47 @@
 </header>
 
 <div class="wrap">
-  <div class="card">
-    <h1>Network is coming</h1>
-    <p>Connections and organisation follows will live here. Nothing about your search visibility to employers
-      depends on this — that's controlled from your profile, not from who you're connected to.</p>
+  <p class="loading-note" data-loading>Loading your network…</p>
+
+  <div data-network-content hidden>
+    <div class="page-head">
+      <h1>Your network</h1>
+      <p>Connect with other healthcare professionals on iCare. Your connections list is private — only you can see
+        who you're connected to.</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab is-active" data-tab="connections">Connections</button>
+      <button class="tab" data-tab="requests">Requests<span class="tab-count" data-requests-count></span></button>
+      <button class="tab" data-tab="discover">Discover</button>
+    </div>
+
+    <div data-panel="connections">
+      <div data-connections-list></div>
+      <p class="empty-note" data-connections-empty hidden>No connections yet — try Discover to find people to
+        connect with.</p>
+    </div>
+
+    <div data-panel="requests" hidden>
+      <p class="empty-note" data-requests-empty hidden>No pending requests.</p>
+      <div data-incoming-list></div>
+      <div data-outgoing-list></div>
+    </div>
+
+    <div data-panel="discover" hidden>
+      <div class="search-row">
+        <input type="text" class="search-input" placeholder="Search by profession or location…" data-discover-search />
+      </div>
+      <div data-discover-list></div>
+      <p class="empty-note" data-discover-empty hidden>No one found. Try a different search, or check back later as
+        more people join.</p>
+    </div>
+
+    <p class="status" data-status></p>
   </div>
 </div>
 
+<!-- Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment -->
 <nav class="tab-bar" aria-label="Main">
   <a href="/home" class="tab-bar-item" data-tab="home">
     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -128,10 +241,234 @@ function icareRequireAuth(signInPath) {
   var session = icareRequireAuth();
   if (!session) return;
 
-  icareAuthFetch("/candidates/me/shortlists").then(function (res) { return res.json(); }).then(function (body) {
-    var hasNew = (body.shortlists || []).some(function (r) { return !r.candidate_consented_at && !r.closed_at; });
-    document.querySelector("[data-invites-dot]").classList.toggle("is-visible", hasNew);
-  }).catch(function () {});
+  function jget(url) {
+    return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+  function jpost(url, payload) {
+    return icareAuthFetch(url, { method: "POST", body: JSON.stringify(payload || {}) })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+  function jdelete(url) {
+    return icareAuthFetch(url, { method: "DELETE" }).then(function (res) { return { ok: res.ok, status: res.status }; });
+  }
+
+  function setStatus(text, isErr) {
+    var el = document.querySelector("[data-status]");
+    el.textContent = text;
+    el.className = text ? ("status is-visible" + (isErr ? " err" : "")) : "status";
+  }
+
+  function initials(text) {
+    if (!text) return "?";
+    var words = text.trim().split(/\s+/).slice(0, 2);
+    return words.map(function (w) { return w[0].toUpperCase(); }).join("");
+  }
+
+  function personLabel(profile) {
+    if (!profile) return { name: "A candidate", sub: "" };
+    if (profile.full_name) {
+      var subParts = [];
+      if (profile.headline) subParts.push(profile.headline);
+      if (profile.town) subParts.push(profile.town);
+      return { name: profile.full_name, sub: subParts.join(" · ") };
+    }
+    var name = profile.primary_profession || profile.headline || "A candidate";
+    var subParts2 = [];
+    if (profile.headline && profile.headline !== name) subParts2.push(profile.headline);
+    if (profile.town) subParts2.push(profile.town);
+    return { name: name, sub: subParts2.join(" · ") };
+  }
+
+  var latestNetwork = { incoming: [], outgoing: [], connections: [] };
+
+  function renderConnections() {
+    var list = document.querySelector("[data-connections-list]");
+    var empty = document.querySelector("[data-connections-empty]");
+    list.innerHTML = "";
+    if (latestNetwork.connections.length === 0) { empty.hidden = false; return; }
+    empty.hidden = true;
+    latestNetwork.connections.forEach(function (row) {
+      var label = personLabel(row.profile);
+      var item = document.createElement("div");
+      item.className = "person-item";
+      item.innerHTML =
+        '<div class="person-avatar"></div>' +
+        '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div></div>' +
+        '<div class="person-actions"><button type="button" class="btn-sm btn-sm-outline danger" data-remove="' + row.connection_id + '">Remove</button></div>';
+      item.querySelector(".person-avatar").textContent = initials(label.name);
+      item.querySelector(".person-name").textContent = label.name;
+      item.querySelector(".person-sub").textContent = label.sub;
+      list.appendChild(item);
+    });
+  }
+
+  function renderRequests() {
+    var incomingList = document.querySelector("[data-incoming-list]");
+    var outgoingList = document.querySelector("[data-outgoing-list]");
+    var empty = document.querySelector("[data-requests-empty]");
+    incomingList.innerHTML = "";
+    outgoingList.innerHTML = "";
+
+    if (latestNetwork.incoming.length === 0 && latestNetwork.outgoing.length === 0) {
+      empty.hidden = false;
+    } else {
+      empty.hidden = true;
+    }
+
+    latestNetwork.incoming.forEach(function (row) {
+      var label = personLabel(row.profile);
+      var item = document.createElement("div");
+      item.className = "person-item";
+      item.innerHTML =
+        '<div class="person-avatar"></div>' +
+        '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div></div>' +
+        '<div class="person-actions">' +
+          '<button type="button" class="btn-sm btn-sm-primary" data-accept="' + row.connection_id + '">Accept</button>' +
+          '<button type="button" class="btn-sm btn-sm-outline" data-remove="' + row.connection_id + '">Decline</button>' +
+        '</div>';
+      item.querySelector(".person-avatar").textContent = initials(label.name);
+      item.querySelector(".person-name").textContent = label.name;
+      item.querySelector(".person-sub").textContent = label.sub;
+      incomingList.appendChild(item);
+    });
+
+    latestNetwork.outgoing.forEach(function (row) {
+      var label = personLabel(row.profile);
+      var item = document.createElement("div");
+      item.className = "person-item";
+      item.innerHTML =
+        '<div class="person-avatar"></div>' +
+        '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div></div>' +
+        '<div class="person-actions"><button type="button" class="btn-sm btn-sm-outline" data-remove="' + row.connection_id + '">Cancel</button></div>';
+      item.querySelector(".person-avatar").textContent = initials(label.name);
+      item.querySelector(".person-name").textContent = label.name;
+      item.querySelector(".person-sub").textContent = "Request sent — " + label.sub;
+      outgoingList.appendChild(item);
+    });
+
+    var countEl = document.querySelector("[data-requests-count]");
+    countEl.textContent = latestNetwork.incoming.length > 0 ? " (" + latestNetwork.incoming.length + ")" : "";
+  }
+
+  function connectedOrPendingIds() {
+    var ids = {};
+    latestNetwork.incoming.forEach(function (r) { if (r.profile) ids[r.profile.id] = "incoming"; });
+    latestNetwork.outgoing.forEach(function (r) { if (r.profile) ids[r.profile.id] = "outgoing"; });
+    latestNetwork.connections.forEach(function (r) { if (r.profile) ids[r.profile.id] = "connected"; });
+    return ids;
+  }
+
+  function renderDiscover(rows) {
+    var list = document.querySelector("[data-discover-list]");
+    var empty = document.querySelector("[data-discover-empty]");
+    list.innerHTML = "";
+    if (!rows || rows.length === 0) { empty.hidden = false; return; }
+    empty.hidden = true;
+    var statusById = connectedOrPendingIds();
+
+    rows.forEach(function (profile) {
+      var label = personLabel(profile);
+      var item = document.createElement("div");
+      item.className = "person-item";
+      var state = statusById[profile.id];
+      var actionHtml;
+      if (state === "connected") actionHtml = '<span class="btn-sm btn-sm-sent">Connected</span>';
+      else if (state === "outgoing") actionHtml = '<span class="btn-sm btn-sm-sent">Request sent</span>';
+      else if (state === "incoming") actionHtml = '<span class="btn-sm btn-sm-sent">Check Requests</span>';
+      else actionHtml = '<button type="button" class="btn-sm btn-sm-primary" data-connect="' + profile.id + '">Connect</button>';
+      item.innerHTML =
+        '<div class="person-avatar"></div>' +
+        '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div></div>' +
+        '<div class="person-actions">' + actionHtml + '</div>';
+      item.querySelector(".person-avatar").textContent = initials(label.name);
+      item.querySelector(".person-name").textContent = label.name;
+      item.querySelector(".person-sub").textContent = label.sub;
+      list.appendChild(item);
+    });
+  }
+
+  function loadNetwork() {
+    return jget("/candidates/network").then(function (result) {
+      if (result.ok) {
+        latestNetwork = result.body;
+        renderConnections();
+        renderRequests();
+      }
+      return result;
+    });
+  }
+
+  var discoverTimer = null;
+  function loadDiscover(q) {
+    jget("/candidates/discover" + (q ? "?q=" + encodeURIComponent(q) : "")).then(function (result) {
+      if (result.ok) renderDiscover(result.body.candidates);
+    });
+  }
+
+  document.querySelector("[data-discover-search]").addEventListener("input", function (e) {
+    var q = e.target.value;
+    clearTimeout(discoverTimer);
+    discoverTimer = setTimeout(function () { loadDiscover(q); }, 300);
+  });
+
+  document.querySelectorAll(".tabs .tab").forEach(function (tabBtn) {
+    tabBtn.addEventListener("click", function () {
+      document.querySelectorAll(".tabs .tab").forEach(function (t) { t.classList.toggle("is-active", t === tabBtn); });
+      var name = tabBtn.getAttribute("data-tab");
+      document.querySelectorAll("[data-panel]").forEach(function (p) { p.hidden = p.getAttribute("data-panel") !== name; });
+      if (name === "discover") loadDiscover(document.querySelector("[data-discover-search]").value);
+    });
+  });
+
+  document.querySelector("[data-network-content]").addEventListener("click", function (e) {
+    var connectBtn = e.target.closest("[data-connect]");
+    var acceptBtn = e.target.closest("[data-accept]");
+    var removeBtn = e.target.closest("[data-remove]");
+
+    if (connectBtn) {
+      connectBtn.disabled = true;
+      connectBtn.textContent = "Sending…";
+      jpost("/candidates/network/request", { addressee_id: connectBtn.getAttribute("data-connect") }).then(function (result) {
+        if (!result.ok) {
+          setStatus(result.body.error || "Couldn't send that request.", true);
+          connectBtn.disabled = false;
+          connectBtn.textContent = "Connect";
+          return;
+        }
+        loadNetwork().then(function () { loadDiscover(document.querySelector("[data-discover-search]").value); });
+      });
+    } else if (acceptBtn) {
+      acceptBtn.disabled = true;
+      jpost("/candidates/network/" + acceptBtn.getAttribute("data-accept") + "/accept").then(function (result) {
+        if (!result.ok) { setStatus(result.body.error || "Something went wrong.", true); acceptBtn.disabled = false; return; }
+        loadNetwork();
+      });
+    } else if (removeBtn) {
+      removeBtn.disabled = true;
+      jdelete("/candidates/network/" + removeBtn.getAttribute("data-remove")).then(function (result) {
+        if (!result.ok) { setStatus("Something went wrong.", true); removeBtn.disabled = false; return; }
+        loadNetwork().then(function () { loadDiscover(document.querySelector("[data-discover-search]").value); });
+      });
+    }
+  });
+
+  Promise.all([loadNetwork(), jget("/candidates/me/shortlists")]).then(function (results) {
+    var networkResult = results[0], shortlistsResult = results[1];
+    document.querySelector("[data-loading]").style.display = "none";
+    if (!networkResult.ok) {
+      document.querySelector("[data-loading]").style.display = "block";
+      document.querySelector("[data-loading]").textContent = "Couldn't load your network. Try refreshing the page.";
+      return;
+    }
+    document.querySelector("[data-network-content]").hidden = false;
+
+    if (shortlistsResult.ok) {
+      var hasNew = (shortlistsResult.body.shortlists || []).some(function (r) { return !r.candidate_consented_at && !r.closed_at; });
+      document.querySelector("[data-invites-dot]").classList.toggle("is-visible", hasNew);
+    }
+  }).catch(function () {
+    document.querySelector("[data-loading]").textContent = "Couldn't load your network. Try refreshing the page.";
+  });
 
   document.querySelector("[data-sign-out]").addEventListener("click", function () {
     icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {

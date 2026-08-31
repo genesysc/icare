@@ -1102,6 +1102,104 @@ Same branch/PR as Sprints 13–15/18–21
 (`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not yet
 merged).
 
+### Sprint 23 — Real Network (LinkedIn-style connections) ✅ Shipped 2026-08-31
+
+Asked whether Home/Network/invite-auto-expiry were built; none were.
+Founder said "Go and look" at Network specifically. Checked the schema
+first (as with Sprint 22) and reported back: zero backend for
+connections/follows, plus the wireframe's own screen 09 notes flag real
+unresolved product questions (what does Connect actually do, is a
+connections list itself visible to anyone, does following an org opt
+you into its search). Founder gave direct product instruction: LinkedIn-
+style send/accept/decline between candidates; org Follow explicitly
+deprioritised; asked "is there anything I missed?"
+
+Answered with three design choices, each an extension of a mechanic
+already established elsewhere in this schema rather than a new
+invention, and proceeded without re-asking since they follow directly
+from precedent already set (Sprint 22's identity-reveal-on-accept in
+particular):
+1. Accepting a request reveals real names mutually — the exact same
+   "hidden until an explicit accept" rule already governing employer
+   consent, applied peer-to-peer. Photo reveal deliberately excluded
+   this pass (needs the same signed-URL gate the employer flow uses —
+   a bigger lift than a first connections pass warrants).
+2. Discovery is by profession/location, not name — consistent with the
+   fact names aren't searchable anywhere else in the product either.
+3. Connections list is private by default (only the two parties in a
+   row can read it) — the wireframe's own note warned a visible list
+   could out a colleague as job-hunting; no counter-instruction was
+   given, so this is the conservative default.
+
+**Shipped**: migration `0027` — `connections` table (requester_id/
+addressee_id/status, `check (requester_id <> addressee_id)`, an
+order-independent unique index on `(least(...), greatest(...))` so
+A→B and B→A can't coexist as separate rows) plus `candidate_discover` (a
+security-definer view, same `current_role_is('candidate')`-gated
+pattern as `candidate_peer_feed`). New routes in `candidates.ts`: `GET
+/discover` (search, sanitised before interpolating into `.or()` — see
+bug note below), `GET /network` (incoming/outgoing/connections, joined
+against `candidate_discover` for display fields), `POST /network/
+request`, `POST /network/:id/accept`, `DELETE /network/:id` (covers
+cancel/decline/remove — all three are just deleting the row, from
+either side). `src/network.html` rebuilt from the Sprint 19 placeholder:
+Connections/Requests/Discover tabs.
+
+**Two real gaps found and fixed during live-schema testing, before
+shipping** — both via their own follow-up migration, not silently
+patched:
+- **`0028`**: `candidate_discover`'s original definition (from `0027`)
+  had no way to actually reveal a connected peer's name —
+  `accounts_read_self` RLS means a candidate can only ever read their
+  *own* `accounts` row, so a route trying to separately query the
+  other party's `full_name` would get nothing back regardless of
+  connection status. Fixed by folding the reveal condition into the
+  view itself (`full_name` populated only when an accepted
+  `connections` row exists between `auth.uid()` and the subject),
+  discovered by reasoning through the RLS model before writing the
+  route, not by a failed test.
+- **`0029`**: the insert policy's `exists (select 1 from candidates ...
+  and is_published)` check for "is the addressee published" ran under
+  the *requesting* candidate's own RLS — and `candidates` RLS only ever
+  grants `candidate_self` (own row) or `candidate_read_published`
+  (verified *employers* only, not other candidates) — so the exists()
+  always saw zero rows and every single request was silently rejected.
+  This one WAS caught by testing: the very first live-schema insert
+  attempt failed with a bare RLS violation, traced to the subquery,
+  fixed by replacing it with a new `candidate_is_published()`
+  security-definer helper (same pattern as `current_role_is`/
+  `is_verified_employer`).
+
+**Bug caught before shipping** (code read, not test failure): the
+`/discover` search originally built its multi-column OR filter by
+interpolating the raw `q` query param directly into `.or(\`headline.
+ilike.%${q}%,...\`)` — unlike `.ilike()`, which takes its value as a
+proper parameter, `.or()` takes a raw PostgREST filter string, so an
+unsanitised `q` could inject extra filter clauses. Inconsistent with
+this codebase's own existing safer pattern (`employer-chat.ts`'s
+`search_candidates` uses parameterised `.ilike()` throughout). Fixed by
+stripping PostgREST filter-syntax characters (`, ( ) . " *`) from `q`
+before interpolating.
+
+**Verified end to end against the live schema** with three test
+candidates: A requests B (blocked first by the `0029` gap, verified
+fixed) → B sees it incoming, A sees it outgoing → B accepting A's
+reverse-direction duplicate request correctly rejected by the unique
+index → B accepts → `candidate_discover` confirmed to reveal full names
+in both directions → a fourth, uninvolved candidate confirmed to still
+see null names for both → a third party's attempt to accept a request
+addressed to someone else correctly blocked (0 rows, RLS). All test
+rows deleted after, three affected tables confirmed back at 0.
+`get_advisors` showed exactly two new findings (the new view + new
+function), same accepted class as the four pre-existing ones. `tsc
+--noEmit` clean, `wrangler deploy --dry-run` bundles cleanly (1323.70
+KiB / 265.91 KiB gzip). Mock-shim click-through (Connections/Requests/
+Discover, plus a live Connect click) confirmed zero JS errors and
+correct rendering, including the discover list correctly disabling
+Connect for a profile with a request already pending. Same branch/PR as
+Sprints 13–15/18–22 (`claude/jobseeker-employer-wireframes-rc5uss`, PR
+#29 — not yet merged).
+
 ### Sprint 16 — Async video interview stage
 
 Candidate self-schedules, answers pre-set questions on video, submits;

@@ -867,6 +867,107 @@ candidates.get("/feed", async (c) => {
   return c.json({ posts: data });
 });
 
+// --- Network / connections (SPRINTS.md Sprint 23) ---
+// LinkedIn-style: send/accept/decline. connections (migration 0027) has
+// no separate 'declined' status — declining or withdrawing a pending
+// request just deletes the row (either party can), same as removing an
+// accepted connection later. candidate_discover (0027, reveal logic
+// added in 0028) is the one source of truth for what's shown about the
+// other party: anonymised fields always, full_name only once
+// connections.status = 'accepted' for that pair — enforced inside the
+// view itself, not trusted to this route.
+
+candidates.get("/discover", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+  const q = (c.req.query("q") || "").trim();
+
+  let query = supabase.from("candidate_discover").select("*").neq("id", userId).limit(30);
+  // Search by profession/town only — name isn't searchable anywhere else
+  // in this product either, since it isn't visible pre-connection.
+  // Stripped of PostgREST filter-syntax characters before interpolating
+  // into .or() (unlike .ilike(), .or() takes a raw filter string, so an
+  // unsanitised q could inject extra filter clauses) — matches this
+  // codebase's existing safer pattern of parameterised .ilike() calls
+  // elsewhere (see employer-chat.ts's search_candidates) as closely as a
+  // multi-column OR search allows.
+  const safeQ = q.replace(/[,()."*]/g, "");
+  if (safeQ) query = query.or(`headline.ilike.%${safeQ}%,town.ilike.%${safeQ}%,primary_profession.ilike.%${safeQ}%`);
+
+  const { data, error } = await query;
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ candidates: data });
+});
+
+candidates.get("/network", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+
+  const { data: rows, error } = await supabase
+    .from("connections")
+    .select("id, requester_id, addressee_id, status, created_at, responded_at")
+    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+  if (error) return c.json({ error: error.message }, 400);
+
+  const otherIds = Array.from(new Set((rows || []).map((r) => (r.requester_id === userId ? r.addressee_id : r.requester_id))));
+  const discoverResult = otherIds.length ? await supabase.from("candidate_discover").select("*").in("id", otherIds) : { data: [] };
+  const profileById = new Map((discoverResult.data || []).map((p: { id: string }) => [p.id, p]));
+
+  const incoming = (rows || [])
+    .filter((r) => r.status === "pending" && r.addressee_id === userId)
+    .map((r) => ({ connection_id: r.id, created_at: r.created_at, profile: profileById.get(r.requester_id) || null }));
+
+  const outgoing = (rows || [])
+    .filter((r) => r.status === "pending" && r.requester_id === userId)
+    .map((r) => ({ connection_id: r.id, created_at: r.created_at, profile: profileById.get(r.addressee_id) || null }));
+
+  const connectionsList = (rows || [])
+    .filter((r) => r.status === "accepted")
+    .map((r) => ({
+      connection_id: r.id,
+      responded_at: r.responded_at,
+      profile: profileById.get(r.requester_id === userId ? r.addressee_id : r.requester_id) || null,
+    }));
+
+  return c.json({ incoming, outgoing, connections: connectionsList });
+});
+
+candidates.post("/network/request", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const addresseeId = typeof body?.addressee_id === "string" ? body.addressee_id : null;
+  if (!addresseeId) return c.json({ error: "addressee_id is required" }, 400);
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("connections")
+    .insert({ requester_id: c.get("userId"), addressee_id: addresseeId })
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ connection: data }, 201);
+});
+
+candidates.post("/network/:id/accept", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("connections")
+    .update({ status: "accepted", responded_at: new Date().toISOString() })
+    .eq("id", c.req.param("id"))
+    .eq("status", "pending")
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ connection: data });
+});
+
+candidates.delete("/network/:id", async (c) => {
+  const { error } = await c.get("supabase").from("connections").delete().eq("id", c.req.param("id"));
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+});
+
 // --- Incoming shortlists + consent (SPRINTS.md Sprint 9 remainder) ---
 // Consent unlocks photo/video/CV specifically for that employer — name/
 // job title/location are already visible pre-shortlist per non-negotiable
