@@ -2916,3 +2916,153 @@ merged).
 against), invite auto-expiry, real per-field visibility preferences,
 the DBS three-state confirmation flow, onboarding step-count
 reconciliation.
+
+## Sprint 24 — correct peer-visibility model: identity free-for-all within iCare
+
+Founder course-corrected Sprints 22 and 23 with a direct, explicit
+instruction (verbatim, dictated-style): "For this particular tab or
+module, um, the network should, um, follow how LinkedIn works. That's
+it. Um, in general, um, in the eye care community, in the eye care
+platform itself, um, again, it's assumed that everyone everyone is,
+you know, a health care professional. None of them are looking at each
+other. None of them are looking at profiles. to recruit. Okay? They're
+all there as carers, um, health care assistants, nurse, doctor, um, a
+chemist, a locum, um, chemist, uh, you know? So, basically, it should
+be a free for all when it comes inside, um, eye care. The only thing
+the only thing or the restriction on photos and and names being being
+blocked or screened would be in the employer sign, which is the i
+recruit platform. But for the iCare platform, it should be... the the
+names would be visible. The photo would be visible. You know, the
+headliner of, you know, the candidate's profile. And, yeah, in terms
+of the posts, that the user in eye care is doing. The post could be
+private. The post could be a public post depending on how they post or
+how they choose to post their content on eye care. So that... yeah. If
+it's a public one, everybody, even someone who's not get a connection,
+can view it. If it's a private one, well, then, obviously, anyone
+outside of the network of that specific user cannot see that post."
+
+This reversed a real design mistake, not a new requirement: Sprints 22
+and 23 had both extended the employer-consent identity-hiding pattern
+(hidden until shortlist consent / hidden until connection accept) to
+candidate-to-candidate visibility, reasoning it was "consistent" with
+the rest of the app. That reasoning didn't hold — the employer-consent
+pattern exists because an employer is evaluating a candidate for
+recruitment (Equality Act 2010 exposure, HANDOVER.md non-negotiable
+#4); nothing like that risk exists between two candidates, who are
+never evaluating each other. The identity-hiding rule belongs only on
+the employer/iRecruit side. The LinkedIn-style Connect/Accept/Decline
+mechanic itself (built in Sprint 23) stays exactly as built and
+correct — what changed is what it gates: previously it gated identity
+reveal, now it gates "connections-only" post visibility instead.
+
+**Migration `0030_peer_identity_and_post_visibility.sql`**:
+- `candidate_posts.visibility text not null default 'public' check
+  (visibility in ('public', 'connections'))` — new column.
+- `candidate_discover` rewritten: dropped the Sprint 23 `case when
+  exists(accepted connection) then a.full_name else null end`
+  conditional-reveal logic entirely — `full_name`/`has_photo` are now
+  always selected unconditionally for every published candidate.
+- `candidate_peer_feed` rewritten: still gated by `current_role_is
+  ('candidate')` and `is_published`/`not is_flagged`, but now always
+  returns `full_name`/`has_photo` unconditionally, and adds a new
+  `visibility` filter — a row is included if `cp.visibility = 'public'`
+  OR an accepted `connections` row exists between the viewer
+  (`auth.uid()`) and the poster, in either direction.
+- `candidate_post_search` (the employer-facing view, unchanged
+  audience) gained `and cp.visibility = 'public'` to its `where`
+  clause, so a connections-only post never surfaces in employer search
+  either — connections-only means "hidden from everyone outside the
+  poster's network," which includes employers, not just other
+  candidates.
+- **Real Postgres error hit and fixed before applying**: the first
+  draft of `candidate_peer_feed`'s rewritten `select` list put
+  `cp.visibility` before `cp.created_at`, which Postgres rejected with
+  `ERROR: 42P16: cannot change name of view column "created_at" to
+  "visibility"` — `CREATE OR REPLACE VIEW` can only append new trailing
+  columns, never reorder or insert mid-list. Fixed by moving
+  `visibility` to the end of the column list, keeping migration 0026's
+  original `id, candidate_id, title, body, created_at, headline, town,
+  primary_profession` order exactly as it was, with `full_name`/
+  `has_photo`/`visibility` appended after. Re-applied successfully.
+
+**`src/candidates.ts`**:
+- `POST_FIELDS` gained `"visibility"`; `POST /me/posts` now validates
+  an optional `visibility` against a fixed `["public", "connections"]`
+  list, 400s on anything else.
+- New `GET /candidates/:id/photo` route, placed after the existing
+  `GET /me/photo` (Hono's router prioritizes the static route over the
+  `:id` param route regardless of declaration order, so no conflict).
+  Deliberately does **not** reuse `employers.ts`'s consent-gated
+  `shortlistConsented()` pattern — the only gate is
+  `current_role_is('candidate')` (blocks any employer account outright)
+  plus a new `candidate_is_published(p_candidate_id uuid)`
+  security-definer helper (checks the target's `is_published` flag
+  without granting broader row access). Serves the R2 object directly
+  with its stored content type, same pattern as the existing photo
+  routes.
+
+**`src/home.html`**: rewritten from the Sprint 22 version — feed items
+now show `post.full_name` (falls back to "A candidate" only if somehow
+null) instead of profession/headline as the display name, add a
+"Connections only" pill tag when `post.visibility === "connections"`,
+and load a real avatar photo via the new route
+(`icareAuthFetch` → blob → object URL, the same pattern already
+established in `employer-home.html`, since `<img src>` can't carry a
+bearer token) when `post.has_photo` is true, falling back to initials
+otherwise. Composer gained a two-option Public/Connections-only toggle
+(`selectedVisibility`, defaults `"public"`) whose value is now sent as
+part of the `POST /me/posts` body.
+
+**`src/network.html`**: rewritten from the Sprint 23 version —
+`personLabel()` simplified to always use `profile.full_name`, dropping
+the old profession-as-name fallback for unconnected profiles. New
+`fillAvatar()` helper (same photo-loading pattern as home.html) used
+at all four render call-sites (Connections, Requests incoming/
+outgoing, Discover) in place of the old initials-only fill. The page's
+own "your connections list is private" framing is unchanged and still
+accurate — only identity reveal changed, not connection-list privacy.
+
+**`src/dashboard.html`**: composer gained the same Public/Connections-
+only toggle as home.html; the candidate's own post list now shows
+which visibility each post has via a small pill tag, and the card
+copy was corrected from "Employers who search can find and read
+these, same as your CV and skills" to explain the real model: public
+posts are visible to everyone on iCare and to employers who search;
+connections-only posts are visible only to people the candidate is
+connected to.
+
+**Verified directly against the live schema** with two test
+candidates (one with a `photo_path` set): confirmed `candidate_
+discover` always reveals `full_name`/`has_photo` with zero connection
+required; confirmed a connections-only post is invisible to an
+unconnected viewer via `candidate_peer_feed` and becomes visible the
+moment an accepted `connections` row exists between them; confirmed
+`candidate_post_search` (the employer view) excludes connections-only
+posts even for a verified employer; confirmed a verified-employer
+account fails `current_role_is('candidate')` and is blocked from the
+new `GET /:id/photo` route. All test rows deleted afterward, confirmed
+0 leftover across `candidate_posts`/`connections`/`candidates`/
+`auth.users` for the test ids. `get_advisors` showed no new findings
+beyond the expected/pre-existing security-definer-view class. `tsc
+--noEmit` clean; `wrangler deploy --dry-run` clean (1330.28 KiB /
+267.44 KiB gzip).
+
+**Mock-shim Playwright click-through** (fixtures updated with real
+`full_name`/`has_photo`/`visibility` values, replacing the Sprint 22/23
+name-free ones; a new photo-route 404 mock added): zero `pageerror`s.
+Screenshots confirmed correct rendering — real names shown
+unconditionally on the Home feed (composer + both feed items) and on
+all three Network tabs (Connections/Requests/Discover); the
+"Connections only" pill renders on the gated post; the Public/
+Connections-only toggle's active state switches correctly on click;
+Network's "your connections list is private" copy is intact and
+accurate.
+
+Pushed to the same branch/PR as Sprints 13–15/18–23
+(`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not yet
+merged).
+
+**Not done this session**: org Follow, invite auto-expiry, real
+per-field visibility preferences, the DBS three-state confirmation
+flow, onboarding step-count reconciliation — all still open, unchanged
+from prior sprints, not the subject of this correction.

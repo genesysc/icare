@@ -147,7 +147,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/badges`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish + new `/me/unpublish` (Sprint 21 — the reversible other half of publish, see §14), professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5), new `GET /feed` (Sprint 22 — reads `candidate_peer_feed`, see §14), new `GET /discover`, `GET /network`, `POST /network/request`, `POST /network/:id/accept`, `DELETE /network/:id` (Sprint 23 — connections, see §14), incoming shortlists + consent (`/me/shortlists*`, Sprint 9, re-scoped to per-pipeline `/me/shortlists/:id/consent` + new `/withdraw` in Sprint 14/15 — see §14; `/withdraw` now also takes an optional `reason` from a fixed list, stored as `decline_reason` — Sprint 18), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
+| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish + new `/me/unpublish` (Sprint 21 — the reversible other half of publish, see §14), professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, now with a `visibility` public/connections field, Sprint 24 — see §5/§14), `GET /feed` (Sprint 22 — reads `candidate_peer_feed`, see §14), `GET /discover`, `GET /network`, `POST /network/request`, `POST /network/:id/accept`, `DELETE /network/:id` (Sprint 23 — connections, see §14), new `GET /:id/photo` (Sprint 24 — peer-to-peer photo, no consent gate, only `current_role_is('candidate')` + `candidate_is_published()` — see §14), incoming shortlists + consent (`/me/shortlists*`, Sprint 9, re-scoped to per-pipeline `/me/shortlists/:id/consent` + new `/withdraw` in Sprint 14/15 — see §14; `/withdraw` now also takes an optional `reason` from a fixed list, stored as `decline_reason` — Sprint 18), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
 | `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post; `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9, now with `job_title`); `GET /candidates/:id/{photo,video,cv}` — consent-gated media (Sprint 9); `GET /bookmarks`, `DELETE /bookmarks/:candidateId` (Sprint 14) |
 | `src/employer-chat.ts` | Employer chat — seven tools behind `POST /employers/chat` (guardrail → Workers AI tool call → deterministic DB action → persist), `GET /employers/chat` (replay thread): `search_candidates` (Sprint 8, extended for posts, `min_experience_years`, `qualification_type_id`), `bookmark_candidates`/`send_invite` (Sprint 14, replacing Sprint 9's `shortlist_candidates` — see §14), `move_candidate_stage` (Sprint 9, now keyed by `pipeline_id` not `candidate_id`, Sprint 14)/`get_pipeline_status` (Sprint 9), `bulk_move_stage` (Sprint 11), `who_is_summary` (Sprint 10) |
 | `src/employer-chat-guardrail.ts` | Protected-characteristics keyword/proximity guardrail — the deterministic layer behind the chat's non-negotiable #5 compliance, see §7 |
@@ -167,8 +167,8 @@ stop and ask the user — do not resolve it yourself.**
 | `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure. This is the wireframe's **Profile** tab (Sprint 19) — the tab-bar shell now sits at the bottom of every signed-in page instead of a text nav link. Its own inline shortlist section is unchanged/still functional, not yet consolidated into `invites.html`/`pipelines.html` |
 | `src/invites.html` | Jobseeker Invites screen (Sprint 18), `/invites` — implements wireframe screens 03/04 against the existing `/me/shortlists*` routes: New/Accepted/Declined tabs (derived client-side from `candidate_consented_at`/`closed_at`, no new status field) and a detail view per tab — undecided invites get the full "if you accept" consent panel with Accept/Decline/Decide later and a fixed six-option decline-reason picker; accepted ones get a Withdraw action; declined ones are read-only. Does NOT implement the wireframe's 7-day auto-expiry countdown (needs an `expires_at` column set at invite creation plus a scheduled job — real scope, flagged not built) |
 | `src/pipelines.html` | Jobseeker Pipelines screen (Sprint 19), `/pipelines` — implements wireframe screen 05 against the same `/me/shortlists*` data as `invites.html`. Active/Closed tabs, but scoped to rows that were actually accepted (`candidate_consented_at` set) — an invite declined before ever being accepted lives only on `invites.html`'s Declined tab, never here, matching the wireframe's own stated principle that a pipeline is a state you sit in *after* the invite decision. Detail view renders a real six-stage tracker (done/current/upcoming) plus a Withdraw action for active pipelines, or a closing note for closed ones. One deliberate deviation from the wireframe's own screen-05 example, documented in the file's header comment: a Successful/Onboarding pipeline stays in Active here (this backend's `closed_at` means access-revoked, not "reached a terminal stage" — see `employer-chat.ts`'s `move_candidate_stage`) |
-| `src/home.html` | The real Home feed (Sprint 22, replacing the Sprint 19 placeholder), `/home` — pinned "new invites" strip, a composer (`POST /me/posts`, already existed), and a real cross-candidate feed (`GET /candidates/feed` → new `candidate_peer_feed` view, migration 0026). Attribution is name-free (headline/primary profession/town — same fields already shown to employers pre-consent), a new privacy surface added only after the founder explicitly confirmed it — see the note below |
-| `src/network.html` | The real Network (Sprint 23, replacing the Sprint 19 placeholder), `/network` — LinkedIn-style connections: Connections/Requests/Discover tabs against new `connections` table + `candidate_discover` view (migrations 0027–0029). Discovery is profession/location search, not name (names aren't searchable anywhere else either); accepting a request reveals real names mutually — the same identity-reveal mechanic used for employer consent, extended peer-to-peer. Connections list is private (RLS: only the two parties in a row can read it). Org "Follow" explicitly deprioritised by the founder, not built |
+| `src/home.html` | The real Home feed (Sprint 22, **corrected Sprint 24 — see §14**), `/home` — pinned "new invites" strip, a composer (`POST /me/posts`, now with a `visibility` public/connections toggle) and a real cross-candidate feed (`GET /candidates/feed` → `candidate_peer_feed` view). Identity (real name + photo) shown unconditionally, free-for-all between candidates — Sprint 24 reversed Sprint 22's name-free attribution, which was a mistaken extension of the employer-consent pattern |
+| `src/network.html` | The real Network (Sprint 23, **corrected Sprint 24 — see §14**), `/network` — LinkedIn-style connections: Connections/Requests/Discover tabs against `connections` table + `candidate_discover` view. Discovery is profession/location search, not name (names aren't searchable anywhere else either). Identity (real name + photo) is shown unconditionally in all three tabs, not gated by connection status — Sprint 24 reversed Sprint 23's "accept reveals name" mechanic, which was a mistaken extension of employer consent to the peer-to-peer context. Connections list itself stays private (RLS: only the two parties in a row can read it). Org "Follow" explicitly deprioritised by the founder, not built |
 | `src/credentials.html` | Credentials & documents (Sprint 20), `/credentials` — implements wireframe screen 07, reached from `dashboard.html`'s badges card rather than a sixth tab-bar destination (matches the wireframe's own information architecture — Credentials sits one level under Profile, not beside it). Badges section is copied verbatim from `dashboard.html`'s own rendering; DBS and sponsorship-status (`right_to_work`) blocks are new but read/write only existing fields via existing routes. Deliberately does NOT implement the wireframe's three-state DBS model ("Not Yet Verified" / "Current — no new information" / "New information reported") — see the file's header comment and the note below for why |
 | `src/visibility.html` | Visibility (Sprint 21), `/visibility` — implements wireframe screen 08, reached from a new "Visibility" card on `dashboard.html`. The master "Findable by employers" switch is real and reversible: `candidates.is_published` existed already but had no way back to `false` short of closing the whole account, so this sprint added `POST /candidates/me/unpublish` (`candidates.ts`) as the missing other half of the existing `/me/publish`. The wireframe's field-by-field visibility matrix (About/Experience Public, Registrations/Availability Employers-only, etc., each independently toggleable) is NOT built — no such preference exists anywhere in the schema, `candidate_search` is a single fixed view. This page shows a read-only, accurate breakdown of what's actually exposed instead of fake per-field toggles — see the file's header comment |
 | `src/nav-shell.html` | Reference file for the signed-in tab-bar shell (Sprint 19) — same "not imported, copy verbatim" convention as `auth-client.js`. Five destinations (Home/Invites/Pipelines/Network/Profile) as a bottom-fixed bar at every viewport size (this codebase has no other desktop-specific layout), hand-authored inline SVG icons, an unread dot on Invites. Copied into `dashboard.html`, `invites.html`, `pipelines.html`, `home.html`, `network.html` — update all five if this file changes |
@@ -1269,6 +1269,68 @@ first slice:
   still sees no name → remove/cleanup. `get_advisors` showed exactly the
   expected two new findings (the new view + new function, same accepted
   class as existing ones).
+- **Sprint 24 — correct peer-visibility model: identity free-for-all
+  within iCare — shipped 2026-08-31**: founder gave a direct, explicit
+  course correction (see PROGRESS.md for the verbatim instruction):
+  Sprints 22 and 23 had wrongly extended the employer-consent
+  identity-hiding pattern to candidate-to-candidate visibility. The
+  founder's actual model: inside iCare, everyone is assumed to be a
+  fellow healthcare professional, never someone evaluating another for
+  recruitment — so names and photos should be visible free-for-all,
+  never gated behind a connection. **The identity-hidden-until-consent
+  rule applies only on the employer/iRecruit side**, unchanged there.
+  Posts instead get a visibility choice at compose time — public
+  (anyone, even non-connections) vs. connections-only (hidden from
+  anyone outside the poster's accepted-connections network) — with the
+  Connect/Accept/Decline mechanic from Sprint 23 kept exactly as built,
+  now gating post visibility rather than identity reveal.
+  Migration `0030`: added `candidate_posts.visibility` (`public`/
+  `connections`, default `public`, check constraint); rewrote
+  `candidate_discover` to always return `full_name`/`has_photo`
+  unconditionally (dropped the Sprint 23 conditional-reveal `case
+  when exists(...)` logic entirely); rewrote `candidate_peer_feed` to
+  always return `full_name`/`has_photo` and filter rows by
+  `visibility = 'public' OR an accepted connection exists between
+  viewer and poster` instead of `is_published` alone; updated
+  `candidate_post_search` (the employer-facing view) to also require
+  `visibility = 'public'`, so a connections-only post never surfaces in
+  employer search either. One real Postgres error hit and fixed before
+  applying: `CREATE OR REPLACE VIEW` can only append trailing columns,
+  never reorder or insert mid-list (42P16) — the first draft put
+  `visibility` before `created_at` in `candidate_peer_feed`'s column
+  list, which changed an existing column's position; fixed by moving
+  it to the end, preserving migration 0026's original column order
+  exactly.
+  New `GET /candidates/:id/photo` route (`src/candidates.ts`) — peer
+  photo access with no consent gate, only `current_role_is('candidate')`
+  + a new `candidate_is_published(p_candidate_id)` security-definer
+  check (deliberately not the employer side's `shortlistConsented()`
+  gate in `employers.ts`, which stays untouched). `POST /me/posts`
+  validates the new optional `visibility` field against a fixed
+  `['public','connections']` list.
+  `src/home.html`/`src/network.html` rewritten to show real name +
+  photo unconditionally (photo loaded via the new authenticated route,
+  same blob/object-URL pattern already used in `employer-home.html`,
+  since `<img src>` can't carry a bearer token); `src/home.html`/
+  `src/dashboard.html` composers gained the public/connections-only
+  toggle, and `dashboard.html`'s own post list now shows which
+  visibility each post has.
+  Verified directly against the live schema with two test candidates:
+  `candidate_discover` reveals name/photo with zero connection
+  required; a connections-only post is hidden from an unconnected
+  viewer and becomes visible once an accepted connection exists;
+  `candidate_post_search` (employer view) correctly excludes
+  connections-only posts; a verified-employer account correctly fails
+  `current_role_is('candidate')` and is blocked from the new peer
+  photo route. All test rows deleted after, confirmed 0 leftover.
+  `get_advisors` showed no new findings beyond the expected/pre-existing
+  security-definer-view class. `tsc --noEmit` clean; `wrangler deploy
+  --dry-run` clean (1330.28 KiB / 267.44 KiB gzip). Mock-shim
+  click-through (Home feed + composer toggle, Network Connections +
+  Discover tabs) confirmed correct rendering with zero JS errors: real
+  names shown unconditionally everywhere, the connections-only tag
+  renders correctly on a gated post, and the visibility toggle's active
+  state switches correctly on click.
 - **Still not built, in wireframe order**: the 7-day invite auto-expiry
   (needs an `expires_at` column set at invite creation in `employer-
   chat.ts`'s `send_invite` handler, plus a scheduled job — flagged, not

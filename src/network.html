@@ -1,29 +1,37 @@
 <!--
-  iCare candidate Network — SPRINTS.md Sprint 23.
+  iCare candidate Network — SPRINTS.md Sprint 23, identity model
+  corrected Sprint 24.
 
   Replaces the Sprint 19 placeholder ("Network is coming") now that the
   founder gave direction: LinkedIn-style send/accept/decline connection
   requests between candidates. Org "Follow" is explicitly deprioritised,
   not built here.
 
-  Backed by migration 0027 (connections table) + 0028 (candidate_discover
-  view, with a name-reveal condition folded in) and new routes in
-  candidates.ts: GET /candidates/discover (search by profession/town —
-  not name, since names aren't visible pre-connection anywhere else in
-  this product), GET /candidates/network (incoming/outgoing/connections),
-  POST /candidates/network/request, POST /candidates/network/:id/accept,
-  DELETE /candidates/network/:id (covers cancel, decline, AND remove —
-  all three are just deleting the row, from either side).
+  Backed by migration 0027 (connections table) + 0028/0030
+  (candidate_discover view) and routes in candidates.ts: GET /candidates
+  /discover (search by profession/town — not name, matching how
+  discovery already worked before this correction), GET /candidates/
+  network (incoming/outgoing/connections), POST /candidates/network/
+  request, POST /candidates/network/:id/accept, DELETE /candidates/
+  network/:id (covers cancel, decline, AND remove — all three are just
+  deleting the row, from either side).
 
-  Real name only ever appears in `profile.full_name` when the view
-  itself decided to reveal it (accepted connections only) — this page
-  never assumes a name is present and always falls back to the same
-  anonymised headline/profession/town shown everywhere else pre-consent.
+  Sprint 24 correction: `profile.full_name` and `profile.has_photo` are
+  now always populated, connected or not — founder was explicit that
+  within iCare, identity is free-for-all between candidates (everyone's
+  assumed a fellow professional, not someone evaluating anyone else);
+  the hidden-until-consent rule belongs only to the employer side. This
+  page shows full identity everywhere, including in Discover before any
+  connection exists. Photo loaded via GET /candidates/:id/photo (not
+  consent-gated — see that route's own comment) as a blob object URL,
+  same technique home.html's feed already uses.
 
-  Connections list is private by default (only the two parties in a row
-  can ever read it, per migration 0027's RLS) — nothing here makes any
-  candidate's connections visible to a third party, including other
-  connections.
+  What connections still gate, post-correction: nothing about identity —
+  only whether a "connections only" post (migration 0030's candidate_
+  posts.visibility) shows up in your feed. Connections list itself stays
+  private by default (only the two parties in a row can read it, per
+  migration 0027's RLS) — nothing here makes any candidate's connections
+  visible to a third party, including other connections.
 -->
 <!doctype html>
 <html lang="en">
@@ -106,7 +114,8 @@
   .search-input:focus { outline: none; border-color: var(--teal-500); }
 
   .person-item { background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
-  .person-avatar { width: 40px; height: 40px; border-radius: 999px; background: var(--paper-dim); border: 1.5px solid var(--line); flex: none; display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-faint); }
+  .person-avatar { width: 40px; height: 40px; border-radius: 999px; background: var(--paper-dim); border: 1.5px solid var(--line); flex: none; display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-faint); overflow: hidden; }
+  .person-avatar img { width: 100%; height: 100%; object-fit: cover; }
   .person-meta { flex: 1; min-width: 0; }
   .person-name { font-size: 14.5px; font-weight: 700; color: var(--plum-950); }
   .person-sub { margin-top: 1px; font-size: 12.5px; color: var(--ink-faint); }
@@ -266,17 +275,28 @@ function icareRequireAuth(signInPath) {
 
   function personLabel(profile) {
     if (!profile) return { name: "A candidate", sub: "" };
-    if (profile.full_name) {
-      var subParts = [];
-      if (profile.headline) subParts.push(profile.headline);
-      if (profile.town) subParts.push(profile.town);
-      return { name: profile.full_name, sub: subParts.join(" · ") };
+    var subParts = [];
+    if (profile.headline) subParts.push(profile.headline);
+    if (profile.town) subParts.push(profile.town);
+    return { name: profile.full_name || "A candidate", sub: subParts.join(" · ") };
+  }
+
+  function loadAvatarPhoto(imgEl, candidateId) {
+    icareAuthFetch("/candidates/" + candidateId + "/photo").then(function (res) {
+      if (!res.ok) return;
+      return res.blob().then(function (blob) { imgEl.src = URL.createObjectURL(blob); });
+    }).catch(function () {});
+  }
+
+  function fillAvatar(avatarEl, label, profile) {
+    avatarEl.textContent = initials(label.name);
+    if (profile && profile.has_photo) {
+      var img = document.createElement("img");
+      img.alt = label.name;
+      avatarEl.textContent = "";
+      avatarEl.appendChild(img);
+      loadAvatarPhoto(img, profile.id);
     }
-    var name = profile.primary_profession || profile.headline || "A candidate";
-    var subParts2 = [];
-    if (profile.headline && profile.headline !== name) subParts2.push(profile.headline);
-    if (profile.town) subParts2.push(profile.town);
-    return { name: name, sub: subParts2.join(" · ") };
   }
 
   var latestNetwork = { incoming: [], outgoing: [], connections: [] };
@@ -295,7 +315,7 @@ function icareRequireAuth(signInPath) {
         '<div class="person-avatar"></div>' +
         '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div></div>' +
         '<div class="person-actions"><button type="button" class="btn-sm btn-sm-outline danger" data-remove="' + row.connection_id + '">Remove</button></div>';
-      item.querySelector(".person-avatar").textContent = initials(label.name);
+      fillAvatar(item.querySelector(".person-avatar"), label, row.profile);
       item.querySelector(".person-name").textContent = label.name;
       item.querySelector(".person-sub").textContent = label.sub;
       list.appendChild(item);
@@ -326,7 +346,7 @@ function icareRequireAuth(signInPath) {
           '<button type="button" class="btn-sm btn-sm-primary" data-accept="' + row.connection_id + '">Accept</button>' +
           '<button type="button" class="btn-sm btn-sm-outline" data-remove="' + row.connection_id + '">Decline</button>' +
         '</div>';
-      item.querySelector(".person-avatar").textContent = initials(label.name);
+      fillAvatar(item.querySelector(".person-avatar"), label, row.profile);
       item.querySelector(".person-name").textContent = label.name;
       item.querySelector(".person-sub").textContent = label.sub;
       incomingList.appendChild(item);
@@ -340,7 +360,7 @@ function icareRequireAuth(signInPath) {
         '<div class="person-avatar"></div>' +
         '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div></div>' +
         '<div class="person-actions"><button type="button" class="btn-sm btn-sm-outline" data-remove="' + row.connection_id + '">Cancel</button></div>';
-      item.querySelector(".person-avatar").textContent = initials(label.name);
+      fillAvatar(item.querySelector(".person-avatar"), label, row.profile);
       item.querySelector(".person-name").textContent = label.name;
       item.querySelector(".person-sub").textContent = "Request sent — " + label.sub;
       outgoingList.appendChild(item);
@@ -380,7 +400,7 @@ function icareRequireAuth(signInPath) {
         '<div class="person-avatar"></div>' +
         '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div></div>' +
         '<div class="person-actions">' + actionHtml + '</div>';
-      item.querySelector(".person-avatar").textContent = initials(label.name);
+      fillAvatar(item.querySelector(".person-avatar"), label, profile);
       item.querySelector(".person-name").textContent = label.name;
       item.querySelector(".person-sub").textContent = label.sub;
       list.appendChild(item);

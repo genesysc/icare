@@ -1200,6 +1200,55 @@ Connect for a profile with a request already pending. Same branch/PR as
 Sprints 13–15/18–22 (`claude/jobseeker-employer-wireframes-rc5uss`, PR
 #29 — not yet merged).
 
+### Sprint 24 — Correct peer-visibility model: identity free-for-all within iCare ✅ Shipped 2026-08-31
+
+Founder gave a direct course correction on Sprints 22 and 23: within
+iCare, everyone is assumed to be a fellow healthcare professional, not
+someone evaluating another for recruitment, so candidate-to-candidate
+identity (name, photo) should be free-for-all, never gated behind a
+connection. **The identity-hidden-until-consent rule applies only on
+the employer/iRecruit side**, unchanged there. Posts instead get a
+public/connections-only visibility choice at compose time, with the
+Sprint 23 Connect/Accept/Decline mechanic kept exactly as built but now
+gating post visibility rather than identity reveal. Full verbatim
+instruction and reasoning logged in `PROGRESS.md`'s Sprint 24 entry.
+
+This reverses a real design mistake from Sprints 22/23 (both had
+extended the employer-consent identity-hiding pattern to the
+candidate-to-candidate context, reasoning it was "consistent" — the
+founder correctly identified that reasoning didn't hold, since the
+Equality Act 2010 exposure the employer-side rule exists for has no
+analogue between two candidates).
+
+**Shipped**: migration `0030` — new `candidate_posts.visibility`
+(`public`/`connections`, default `public`); `candidate_discover`
+rewritten to drop the Sprint 23 conditional name-reveal and always
+return `full_name`/`has_photo`; `candidate_peer_feed` rewritten the
+same way, with a new visibility filter (public, or an accepted
+connection exists between viewer and poster); `candidate_post_search`
+(employer view) now also requires `visibility = 'public'`. One
+Postgres `42P16` column-reorder error hit and fixed before applying
+(view columns can only be appended, not reordered) — see
+`PROGRESS.md` for detail. New `GET /candidates/:id/photo` route
+(`candidates.ts`) — peer photo access gated only by
+`current_role_is('candidate')` + new `candidate_is_published()`
+helper, deliberately not the employer side's consent gate.
+`src/home.html`/`src/network.html` rewritten to show real name+photo
+unconditionally; `home.html`/`dashboard.html` composers gained the
+public/connections-only toggle.
+
+**Verified against the live schema** (two test candidates): identity
+always revealed pre-connection; a connections-only post correctly
+hidden from an unconnected viewer, correctly visible once connected;
+employer search correctly excludes connections-only posts; employer
+role correctly blocked from the new peer photo route. All test data
+cleaned up. `get_advisors` clean (no new finding class). `tsc --noEmit`
+clean, `wrangler deploy --dry-run` clean (1330.28 KiB / 267.44 KiB
+gzip). Mock-shim click-through confirmed correct rendering with zero
+JS errors. Same branch/PR as Sprints 13–15/18–23
+(`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not yet
+merged).
+
 ### Sprint 16 — Async video interview stage
 
 Candidate self-schedules, answers pre-set questions on video, submits;

@@ -148,6 +148,10 @@
   .post-form input:focus, .post-form textarea:focus { outline: none; border-color: var(--teal-500); }
   .post-form textarea { min-height: 100px; }
   .post-char-count { font-size: 11.5px; color: var(--ink-faint); text-align: right; }
+  .post-form-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .visibility-select { display: flex; gap: 4px; background: var(--paper-dim); border-radius: 999px; padding: 3px; }
+  .visibility-option { padding: 6px 12px; border-radius: 999px; border: none; background: none; font-size: 12px; font-weight: 600; color: var(--ink-faint); cursor: pointer; }
+  .visibility-option.is-active { background: var(--white); color: var(--plum-950); box-shadow: 0 1px 2px rgba(36,21,51,0.12); }
   .btn-primary { background: var(--teal-500); color: var(--white); }
   .btn-primary:hover { background: var(--teal-700); }
   .btn-primary:disabled { opacity: 0.6; cursor: default; }
@@ -157,6 +161,7 @@
   .post-item-body { margin-top: 4px; font-size: 13px; color: var(--ink-soft); line-height: 1.5; white-space: pre-wrap; }
   .post-item-foot { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; }
   .post-item-date { font-size: 11.5px; color: var(--ink-faint); }
+  .post-item-visibility { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); background: var(--paper-dim); padding: 3px 8px; border-radius: 999px; margin-right: 8px; }
   .post-item-flagged { font-size: 11px; font-weight: 700; color: var(--err); }
   .post-item-delete { background: none; border: none; padding: 0; font-size: 12px; font-weight: 600; color: var(--ink-faint); cursor: pointer; text-decoration: underline; }
   .post-item-delete:hover { color: var(--err); }
@@ -237,15 +242,22 @@
 
     <div class="card">
       <h2 class="card-title">Your posts</h2>
-      <p class="card-sub">Share an experience, an opinion, a win — your own words, on your profile. Employers who
-        search can find and read these, same as your CV and skills.</p>
+      <p class="card-sub">Share an experience, an opinion, a win — your own words. Public posts are visible to
+        everyone on iCare and to employers who search; Connections-only posts are visible only to people you're
+        connected to.</p>
       <p class="post-hint">Before you post: don't name or make identifiable any patient, service user, colleague, or
         employer. Everything else is yours to share.</p>
       <form class="post-form" data-post-form>
         <input type="text" maxlength="200" placeholder="Title (optional)" data-post-title />
         <textarea maxlength="8000" placeholder="What's on your mind?" data-post-body required></textarea>
         <div class="post-char-count" data-post-char-count>0 / 8000</div>
-        <button type="submit" class="btn btn-primary" data-post-submit style="align-self:flex-start;">Post</button>
+        <div class="post-form-foot">
+          <div class="visibility-select" data-visibility-select>
+            <button type="button" class="visibility-option is-active" data-visibility="public">Public</button>
+            <button type="button" class="visibility-option" data-visibility="connections">Connections only</button>
+          </div>
+          <button type="submit" class="btn btn-primary" data-post-submit>Post</button>
+        </div>
         <p class="status" data-status="post"></p>
       </form>
       <div class="post-list" data-post-list></div>
@@ -409,11 +421,12 @@ function icareRequireAuth(signInPath) {
       item.innerHTML =
         (post.title ? '<div class="post-item-title"></div>' : "") +
         '<div class="post-item-body"></div>' +
-        '<div class="post-item-foot"><span class="post-item-date"></span>' +
+        '<div class="post-item-foot"><span><span class="post-item-visibility"></span><span class="post-item-date"></span></span>' +
         (post.is_flagged ? '<span class="post-item-flagged">Reported — under review</span>' : '<button type="button" class="post-item-delete" data-post-delete="' + post.id + '">Delete</button>') +
         "</div>";
       if (post.title) item.querySelector(".post-item-title").textContent = post.title;
       item.querySelector(".post-item-body").textContent = post.body;
+      item.querySelector(".post-item-visibility").textContent = post.visibility === "connections" ? "Connections only" : "Public";
       item.querySelector(".post-item-date").textContent = new Date(post.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
       list.appendChild(item);
     });
@@ -597,8 +610,18 @@ function icareRequireAuth(signInPath) {
 
   var postBodyInput = document.querySelector("[data-post-body]");
   var postCharCount = document.querySelector("[data-post-char-count]");
+  var selectedVisibility = "public";
   postBodyInput.addEventListener("input", function () {
     postCharCount.textContent = postBodyInput.value.length + " / 8000";
+  });
+
+  document.querySelector("[data-visibility-select]").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-visibility]");
+    if (!btn) return;
+    selectedVisibility = btn.getAttribute("data-visibility");
+    document.querySelectorAll("[data-visibility-select] .visibility-option").forEach(function (b) {
+      b.classList.toggle("is-active", b === btn);
+    });
   });
 
   document.querySelector("[data-post-form]").addEventListener("submit", function (e) {
@@ -612,7 +635,7 @@ function icareRequireAuth(signInPath) {
     submitBtn.disabled = true;
     icareAuthFetch("/candidates/me/posts", {
       method: "POST",
-      body: JSON.stringify({ title: titleInput.value.trim(), body: body }),
+      body: JSON.stringify({ title: titleInput.value.trim(), body: body, visibility: selectedVisibility }),
     })
       .then(function (res) { return res.json().then(function (b) { return { ok: res.ok, body: b }; }); })
       .then(function (result) {

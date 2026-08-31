@@ -1,15 +1,29 @@
 <!--
-  iCare candidate Home — SPRINTS.md Sprint 22.
+  iCare candidate Home — SPRINTS.md Sprint 22, identity model corrected
+  Sprint 24.
 
   Replaces the Sprint 19 placeholder ("Home is coming") now that the
   founder confirmed the feed should be a real cross-candidate feed, not
   scoped to just your own content. That needed a real backend addition
   first — see migration 0026 and GET /candidates/feed in candidates.ts —
   since no path previously let one candidate read another's posts at
-  all. Attribution here is deliberately name-free: headline, primary
-  profession, town — exactly the same fields candidate_search already
-  exposes to employers pre-consent, not a wider disclosure just because
-  the audience changed from employers to other candidates.
+  all.
+
+  Sprint 24 correction: attribution shows real name and photo, not the
+  anonymised headline/profession/town Sprint 22 originally used. Founder
+  was explicit — within iCare, everyone is assumed a fellow healthcare
+  professional, not someone evaluating anyone else; the name/photo-
+  hidden-until-consent rule belongs only to the employer/iRecruit side,
+  unchanged. Photo is fetched per post via GET /candidates/:id/photo
+  (new this sprint, NOT consent-gated like the employer equivalent —
+  see that route's own comment) and rendered as a blob object URL, same
+  technique employer-home.html already used for consent-gated media.
+
+  Posts can be marked "Connections only" at compose time (migration
+  0030's candidate_posts.visibility) — the feed only ever receives rows
+  the backend already decided to include (public, or connections-only
+  from someone you're actually connected to), so this page trusts what
+  GET /candidates/feed returns rather than re-filtering client-side.
 
   Three real sections, all against existing/new-this-sprint routes:
   - Pinned "new invites" strip (GET /me/shortlists, same "new" bucket
@@ -116,7 +130,11 @@
   .post-form input:focus, .post-form textarea:focus { outline: none; border-color: var(--teal-500); }
   .post-form textarea { min-height: 80px; }
   .post-char-count { font-size: 11.5px; color: var(--ink-faint); text-align: right; }
-  .btn-primary { padding: 11px 20px; border-radius: 999px; font-weight: 700; font-size: 14px; cursor: pointer; border: none; background: var(--teal-500); color: var(--white); align-self: flex-start; }
+  .post-form-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .visibility-select { display: flex; gap: 4px; background: var(--paper-dim); border-radius: 999px; padding: 3px; }
+  .visibility-option { padding: 6px 12px; border-radius: 999px; border: none; background: none; font-size: 12px; font-weight: 600; color: var(--ink-faint); cursor: pointer; }
+  .visibility-option.is-active { background: var(--white); color: var(--plum-950); box-shadow: 0 1px 2px rgba(36,21,51,0.12); }
+  .btn-primary { padding: 11px 20px; border-radius: 999px; font-weight: 700; font-size: 14px; cursor: pointer; border: none; background: var(--teal-500); color: var(--white); }
   .btn-primary:hover { background: var(--teal-700); }
   .btn-primary:disabled { opacity: 0.6; cursor: default; }
   .status { margin-top: 4px; font-size: 13px; display: none; }
@@ -127,10 +145,12 @@
   .feed-heading { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); padding: 0 4px; }
   .feed-item { padding: 20px 22px; }
   .feed-item-head { display: flex; align-items: center; gap: 12px; }
-  .feed-avatar { width: 36px; height: 36px; border-radius: 999px; background: var(--paper-dim); border: 1.5px solid var(--line); flex: none; display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); }
+  .feed-avatar { width: 36px; height: 36px; border-radius: 999px; background: var(--paper-dim); border: 1.5px solid var(--line); flex: none; display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); overflow: hidden; }
+  .feed-avatar img { width: 100%; height: 100%; object-fit: cover; }
   .feed-item-meta { flex: 1; min-width: 0; }
   .feed-item-who { font-size: 13.5px; font-weight: 700; color: var(--plum-950); }
   .feed-item-sub { margin-top: 1px; font-size: 12px; color: var(--ink-faint); }
+  .feed-item-visibility { flex: none; font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); background: var(--paper-dim); padding: 3px 8px; border-radius: 999px; }
   .feed-item-title { margin-top: 12px; font-size: 14.5px; font-weight: 700; color: var(--plum-950); }
   .feed-item-body { margin-top: 6px; font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; white-space: pre-wrap; }
 
@@ -173,7 +193,13 @@
         <input type="text" maxlength="200" placeholder="Title (optional)" data-post-title />
         <textarea maxlength="8000" placeholder="Share an update…" data-post-body required></textarea>
         <div class="post-char-count" data-post-char-count>0 / 8000</div>
-        <button type="submit" class="btn-primary" data-post-submit>Post</button>
+        <div class="post-form-foot">
+          <div class="visibility-select" data-visibility-select>
+            <button type="button" class="visibility-option is-active" data-visibility="public">Public</button>
+            <button type="button" class="visibility-option" data-visibility="connections">Connections only</button>
+          </div>
+          <button type="submit" class="btn-primary" data-post-submit>Post</button>
+        </div>
         <p class="status" data-status="post"></p>
       </form>
     </div>
@@ -268,6 +294,13 @@ function icareRequireAuth(signInPath) {
     return words.map(function (w) { return w[0].toUpperCase(); }).join("");
   }
 
+  function loadAvatarPhoto(imgEl, candidateId) {
+    icareAuthFetch("/candidates/" + candidateId + "/photo").then(function (res) {
+      if (!res.ok) return;
+      return res.blob().then(function (blob) { imgEl.src = URL.createObjectURL(blob); });
+    }).catch(function () {});
+  }
+
   function renderFeed(rows) {
     var list = document.querySelector("[data-feed-list]");
     var empty = document.querySelector("[data-feed-empty]");
@@ -280,9 +313,9 @@ function icareRequireAuth(signInPath) {
     rows.forEach(function (post) {
       var item = document.createElement("div");
       item.className = "card feed-item";
-      var who = post.primary_profession || post.headline || "A candidate";
+      var who = post.full_name || "A candidate";
       var subParts = [];
-      if (post.headline && post.headline !== who) subParts.push(post.headline);
+      if (post.headline) subParts.push(post.headline);
       if (post.town) subParts.push(post.town);
       item.innerHTML =
         '<div class="feed-item-head">' +
@@ -291,10 +324,19 @@ function icareRequireAuth(signInPath) {
             '<div class="feed-item-who"></div>' +
             '<div class="feed-item-sub"></div>' +
           '</div>' +
+          (post.visibility === "connections" ? '<span class="feed-item-visibility">Connections only</span>' : '') +
         '</div>' +
         (post.title ? '<div class="feed-item-title"></div>' : '') +
         '<div class="feed-item-body"></div>';
-      item.querySelector(".feed-avatar").textContent = initials(who);
+      var avatarEl = item.querySelector(".feed-avatar");
+      avatarEl.textContent = initials(who);
+      if (post.has_photo) {
+        var img = document.createElement("img");
+        img.alt = who;
+        avatarEl.textContent = "";
+        avatarEl.appendChild(img);
+        loadAvatarPhoto(img, post.candidate_id);
+      }
       item.querySelector(".feed-item-who").textContent = who;
       item.querySelector(".feed-item-sub").textContent = (subParts.length ? subParts.join(" · ") + " · " : "") + timeAgo(post.created_at);
       if (post.title) item.querySelector(".feed-item-title").textContent = post.title;
@@ -311,8 +353,18 @@ function icareRequireAuth(signInPath) {
 
   var postBodyInput = document.querySelector("[data-post-body]");
   var postCharCount = document.querySelector("[data-post-char-count]");
+  var selectedVisibility = "public";
   postBodyInput.addEventListener("input", function () {
     postCharCount.textContent = postBodyInput.value.length + " / 8000";
+  });
+
+  document.querySelector("[data-visibility-select]").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-visibility]");
+    if (!btn) return;
+    selectedVisibility = btn.getAttribute("data-visibility");
+    document.querySelectorAll("[data-visibility-select] .visibility-option").forEach(function (b) {
+      b.classList.toggle("is-active", b === btn);
+    });
   });
 
   document.querySelector("[data-post-form]").addEventListener("submit", function (e) {
@@ -326,7 +378,7 @@ function icareRequireAuth(signInPath) {
     submitBtn.disabled = true;
     icareAuthFetch("/candidates/me/posts", {
       method: "POST",
-      body: JSON.stringify({ title: titleInput.value.trim(), body: body }),
+      body: JSON.stringify({ title: titleInput.value.trim(), body: body, visibility: selectedVisibility }),
     })
       .then(function (res) { return res.json().then(function (b) { return { ok: res.ok, body: b }; }); })
       .then(function (result) {

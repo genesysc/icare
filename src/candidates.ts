@@ -223,6 +223,30 @@ candidates.get("/me/photo", async (c) => {
   });
 });
 
+// Peer photo (SPRINTS.md Sprint 24) — candidate-to-candidate, NOT
+// consent-gated like employers.ts's equivalent route: within iCare,
+// identity is free-for-all between candidates (see migration 0030's
+// header comment), so the only checks are the same ones candidate_
+// discover/candidate_peer_feed already enforce — signed in as a
+// candidate, viewing a published profile.
+candidates.get("/:id/photo", async (c) => {
+  const supabase = c.get("supabase");
+  const targetId = c.req.param("id");
+
+  const [{ data: isCandidate }, { data: isPublished }] = await Promise.all([
+    supabase.rpc("current_role_is", { p_role: "candidate" }),
+    supabase.rpc("candidate_is_published", { p_candidate_id: targetId }),
+  ]);
+  if (!isCandidate || !isPublished) return c.json({ error: "Not found" }, 404);
+
+  const object = await c.env.MEDIA.get(`candidates/${targetId}/photo`);
+  if (!object) return c.json({ error: "No photo uploaded" }, 404);
+
+  return new Response(object.body, {
+    headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream" },
+  });
+});
+
 // --- Intro video (Sprint 9 remainder) — same pattern as photo above.
 // candidates.intro_video_path has existed since 0001_init but nothing ever
 // wrote or served it; needed now so shortlist consent (Sprint 9) has an
@@ -778,7 +802,8 @@ candidates.delete("/me/prompts/:promptId", async (c) => {
 // verification): an employer can call flag_candidate_post() (src/employers.ts),
 // which just sets is_flagged — nothing here polices content up front.
 
-const POST_FIELDS = ["title", "body"] as const;
+const POST_FIELDS = ["title", "body", "visibility"] as const;
+const POST_VISIBILITIES = ["public", "connections"] as const;
 
 candidates.get("/me/posts", async (c) => {
   const { data, error } = await c
@@ -801,6 +826,15 @@ candidates.post("/me/posts", async (c) => {
   const insert: Record<string, unknown> = { candidate_id: c.get("userId"), body: text };
   const title = typeof body.title === "string" ? body.title.trim() : "";
   if (title) insert.title = title;
+  // Sprint 24: public by default (matches what posts already were before
+  // this — visible to any verified employer, no consent required) with
+  // an explicit "connections" opt-in narrowing to accepted connections.
+  if (typeof body.visibility === "string") {
+    if (!(POST_VISIBILITIES as readonly string[]).includes(body.visibility)) {
+      return c.json({ error: "visibility must be one of " + POST_VISIBILITIES.join(", ") }, 400);
+    }
+    insert.visibility = body.visibility;
+  }
 
   const { data, error } = await c.get("supabase").from("candidate_posts").insert(insert).select().single();
   if (error) return c.json({ error: error.message }, 400);
@@ -846,14 +880,16 @@ candidates.delete("/me/posts/:id", async (c) => {
   return c.body(null, 204);
 });
 
-// --- Peer feed (SPRINTS.md Sprint 22) ---
-// Reads candidate_peer_feed (migration 0026) — a new cross-candidate view
-// gated by current_role_is('candidate'), added specifically because no
-// path previously let one candidate see another's posts at all
-// (candidate_posts_self is self-only; candidate_post_search is
-// employer-only). Exposes exactly the same fields already shown to
-// employers pre-consent (headline, primary profession, town) — nothing
-// wider than the existing name/photo/contact protection.
+// --- Peer feed (SPRINTS.md Sprint 22, identity model corrected Sprint 24) ---
+// Reads candidate_peer_feed (migration 0026, rewritten in 0030) — a
+// cross-candidate view gated by current_role_is('candidate'), added
+// specifically because no path previously let one candidate see
+// another's posts at all (candidate_posts_self is self-only;
+// candidate_post_search is employer-only). Sprint 24 correction: within
+// iCare, candidate identity (name, photo) is free-for-all, not hidden —
+// that protection exists only on the employer/iRecruit side. A post is
+// included here if it's public, or if the viewer holds an accepted
+// connection with its author (visibility = 'connections').
 candidates.get("/feed", async (c) => {
   const limit = Math.min(Number(c.req.query("limit")) || 30, 100);
   const { data, error } = await c
