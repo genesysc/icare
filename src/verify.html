@@ -14,6 +14,16 @@
   GET /auth/me: employers land on /employer/home (stub until Sprint 7+),
   candidates check onboarding_done via the EXISTING GET /candidates/me to
   land on /onboarding or /dashboard, same as before Sprint 6.
+
+  Also handles a magic-link redirect (Sprint 24 fix): auth.ts now passes
+  emailRedirectTo pointing back at this page, so when a user clicks the
+  link in Supabase's email instead of typing the code, Supabase appends
+  #access_token=...&refresh_token=... to the URL (implicit flow, the
+  supabase-js default for signInWithOtp with no flowType override) — we
+  read those directly off the hash rather than a second network round
+  trip, since they're already a valid session. This does NOT fix a
+  misconfigured Supabase "Site URL"/redirect allow-list on its own — see
+  HANDOVER.md §6.
 -->
 <!doctype html>
 <html lang="en">
@@ -102,7 +112,11 @@
 </header>
 
 <div class="center">
-  <div class="card">
+  <div class="card" data-magic-link-card hidden>
+    <h1 class="card-title">Signing you in…</h1>
+    <p class="card-sub" data-magic-link-status>One moment.</p>
+  </div>
+  <div class="card" data-code-card>
     <h1 class="card-title">Enter your code</h1>
     <p class="card-sub">We sent a code to <strong data-email>your email</strong>.</p>
 
@@ -145,6 +159,60 @@ function icareAuthFetch(url, options) {
   var email = params.get("email") || "";
   var roleHint = params.get("role") === "employer" ? "employer" : "candidate";
   var signInPath = roleHint === "employer" ? "/employer/sign-in" : "/sign-in";
+
+  // Which page to land on is decided by the account's real role
+  // (GET /auth/me, server-authoritative), never by the ?role= hint — that
+  // param only steers the "use a different email" link / fallback below.
+  function completeSignIn(session, onError) {
+    icareSetSession(session);
+    return icareAuthFetch("/auth/me")
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (meResult) {
+        var role = meResult.ok && meResult.body.account ? meResult.body.account.role : roleHint;
+        if (role === "employer") {
+          window.location.href = "/employer/home";
+          return;
+        }
+        return icareAuthFetch("/candidates/me")
+          .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+          .then(function (candidateResult) {
+            var onboardingDone = candidateResult.ok && candidateResult.body.candidate && candidateResult.body.candidate.onboarding_done;
+            window.location.href = onboardingDone ? "/dashboard" : "/onboarding";
+          });
+      })
+      .catch(function () {
+        if (onError) { onError(); return; }
+        // Couldn't confirm role/onboarding state — fall back to the
+        // hinted audience's safest default landing page.
+        window.location.href = roleHint === "employer" ? "/employer/home" : "/onboarding";
+      });
+  }
+
+  // Magic-link path: clicking the link in Supabase's email (instead of
+  // typing the code) lands here with #access_token=...&refresh_token=...
+  // already a valid session — no /auth/verify-code round trip needed.
+  var hash = window.location.hash;
+  if (hash && hash.indexOf("access_token=") !== -1) {
+    var hashParams = new URLSearchParams(hash.replace(/^#/, ""));
+    var accessToken = hashParams.get("access_token");
+    var refreshToken = hashParams.get("refresh_token");
+    if (accessToken && refreshToken) {
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      document.querySelector("[data-magic-link-card]").hidden = false;
+      document.querySelector("[data-code-card]").hidden = true;
+      completeSignIn(
+        { access_token: accessToken, refresh_token: refreshToken },
+        function () {
+          document.querySelector("[data-magic-link-status]").textContent =
+            "Something went wrong finishing sign-in — try the code from your email instead, or request a new one.";
+          document.querySelector("[data-magic-link-card]").hidden = true;
+          document.querySelector("[data-code-card]").hidden = false;
+        }
+      );
+      return;
+    }
+  }
+
   if (!email) {
     window.location.href = signInPath;
     return;
@@ -181,31 +249,8 @@ function icareAuthFetch(url, options) {
           setStatus("err", result.body.error || "That code didn't work — check it and try again.");
           return;
         }
-        icareSetSession(result.body.session);
         setStatus("ok", "You're in — taking you to your account…");
-        // Which page to land on is decided by the account's real role
-        // (GET /auth/me, server-authoritative), never by the ?role= hint —
-        // that param only steered the "use a different email" link above.
-        return icareAuthFetch("/auth/me")
-          .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
-          .then(function (meResult) {
-            var role = meResult.ok && meResult.body.account ? meResult.body.account.role : roleHint;
-            if (role === "employer") {
-              window.location.href = "/employer/home";
-              return;
-            }
-            return icareAuthFetch("/candidates/me")
-              .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
-              .then(function (candidateResult) {
-                var onboardingDone = candidateResult.ok && candidateResult.body.candidate && candidateResult.body.candidate.onboarding_done;
-                window.location.href = onboardingDone ? "/dashboard" : "/onboarding";
-              });
-          })
-          .catch(function () {
-            // Couldn't confirm role/onboarding state — fall back to the
-            // hinted audience's safest default landing page.
-            window.location.href = roleHint === "employer" ? "/employer/home" : "/onboarding";
-          });
+        return completeSignIn(result.body.session);
       })
       .catch(function () {
         submitBtn.disabled = false;
