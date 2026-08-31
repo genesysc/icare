@@ -104,12 +104,12 @@
 <div class="center">
   <div class="card">
     <h1 class="card-title">Enter your code</h1>
-    <p class="card-sub">We sent a 6-digit code to <strong data-email>your email</strong>.</p>
+    <p class="card-sub">We sent a code to <strong data-email>your email</strong>.</p>
 
     <form id="verify-form" novalidate>
       <div class="field">
         <label for="code" class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Verification code</label>
-        <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000" required />
+        <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" autocomplete="one-time-code" placeholder="Enter code" required />
       </div>
       <button type="submit" class="btn" data-submit>Verify</button>
     </form>
