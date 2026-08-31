@@ -1,13 +1,28 @@
 <!--
-  iCare candidate Home — SPRINTS.md Sprint 19.
+  iCare candidate Home — SPRINTS.md Sprint 22.
 
-  Placeholder. The wireframe's Home (docs/mockups/jobseeker-wireframes.
-  html, screen 02) is a social feed with a pinned "new invites" strip
-  above it — real feature work (a composer, other candidates' posts
-  surfaced, a feed ranking/pagination story) that wasn't asked for this
-  sprint and isn't guessed at here. This exists so the tab-bar shell's
-  five destinations all resolve honestly instead of leaving Home as a
-  dead link — see HANDOVER.md §14's Sprint 19 note for what's still open.
+  Replaces the Sprint 19 placeholder ("Home is coming") now that the
+  founder confirmed the feed should be a real cross-candidate feed, not
+  scoped to just your own content. That needed a real backend addition
+  first — see migration 0026 and GET /candidates/feed in candidates.ts —
+  since no path previously let one candidate read another's posts at
+  all. Attribution here is deliberately name-free: headline, primary
+  profession, town — exactly the same fields candidate_search already
+  exposes to employers pre-consent, not a wider disclosure just because
+  the audience changed from employers to other candidates.
+
+  Three real sections, all against existing/new-this-sprint routes:
+  - Pinned "new invites" strip (GET /me/shortlists, same "new" bucket
+    invites.html/pipelines.html already use) — outranks the feed per the
+    wireframe's own reasoning: a pending invite is time-sensitive, a
+    post isn't.
+  - Composer (POST /me/posts, already existed — dashboard.html has the
+    same one, this is a second entry point, not a new capability).
+  - Feed (GET /candidates/feed → candidate_peer_feed).
+
+  Profile-strength card uses candidates.completeness (0-100 int, kept
+  current by a DB trigger — see migration 0003) — real data, not
+  invented for this page.
 -->
 <!doctype html>
 <html lang="en">
@@ -21,15 +36,32 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --plum-950: #241533; --ink-soft: #5b5670; --ink-faint: #8a8599;
-    --teal-700: #0e8c7f; --teal-500: #16b8a6; --teal-100: #e3faf6;
-    --paper-dim: #f8f6f1; --line: #e7e3da; --white: #ffffff;
+    --plum-950: #241533;
+    --plum-800: #382349;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --amber-600: #b8791f;
+    --amber-100: #faedd4;
+    --paper: #fefefc;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --err: #b23a24;
     --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased; }
-  h1 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
   p { margin: 0; }
+  button { font-family: inherit; }
+  a { color: var(--teal-700); }
 
   .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
   .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
@@ -37,19 +69,74 @@
   .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
   .sign-out:hover { color: var(--teal-700); }
 
-  .tab-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; background: var(--white); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0); }
-  .tab-bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint); font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em; }
+  /* Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment */
+  .tab-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; background: var(--white); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-bar-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint);
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+  }
   .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
   .tab-bar-item.is-active { color: var(--teal-700); }
   .tab-bar-item .tab-bar-icon-wrap { position: relative; }
-  .tab-bar-dot { position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px; background: var(--teal-500); border: 1.5px solid var(--white); display: none; }
+  .tab-bar-dot {
+    position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px;
+    background: var(--teal-500); border: 1.5px solid var(--white); display: none;
+  }
   .tab-bar-dot.is-visible { display: block; }
 
-  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; }
-  .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 34px 28px; text-align: center; }
-  .card h1 { font-size: 21px; }
-  .card p { margin-top: 10px; font-size: 13.5px; color: var(--ink-faint); line-height: 1.6; max-width: 44ch; margin-left: auto; margin-right: auto; }
-  .card a { display: inline-block; margin-top: 18px; font-size: 13.5px; font-weight: 700; color: var(--teal-700); text-decoration: none; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; display: flex; flex-direction: column; gap: 16px; }
+
+  .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 22px 24px; }
+
+  /* Pinned invites strip */
+  .invite-strip { border-color: var(--teal-500); border-width: 1.5px; background: var(--teal-100); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .invite-strip-text { font-size: 14px; font-weight: 700; color: var(--plum-950); }
+  .invite-strip-sub { margin-top: 2px; font-size: 12.5px; color: var(--ink-soft); }
+  .invite-strip-link { flex: none; font-size: 13px; font-weight: 700; color: var(--teal-700); text-decoration: none; white-space: nowrap; }
+
+  /* Profile strength */
+  .strength-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .strength-title { font-size: 14px; font-weight: 700; color: var(--plum-950); }
+  .strength-pct { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; color: var(--teal-700); font-weight: 600; }
+  .strength-bar-track { margin-top: 10px; height: 6px; border-radius: 999px; background: var(--paper-dim); overflow: hidden; }
+  .strength-bar-fill { height: 100%; background: var(--teal-500); border-radius: 999px; }
+  .strength-link { display: inline-block; margin-top: 10px; font-size: 12.5px; font-weight: 700; color: var(--teal-700); text-decoration: none; }
+
+  /* Composer */
+  .post-form { display: flex; flex-direction: column; gap: 10px; }
+  .post-form input, .post-form textarea {
+    padding: 10px 13px; border-radius: 10px; border: 1.5px solid var(--line); font-family: inherit;
+    font-size: 14px; color: var(--plum-950); background: var(--paper-dim); resize: vertical;
+  }
+  .post-form input:focus, .post-form textarea:focus { outline: none; border-color: var(--teal-500); }
+  .post-form textarea { min-height: 80px; }
+  .post-char-count { font-size: 11.5px; color: var(--ink-faint); text-align: right; }
+  .btn-primary { padding: 11px 20px; border-radius: 999px; font-weight: 700; font-size: 14px; cursor: pointer; border: none; background: var(--teal-500); color: var(--white); align-self: flex-start; }
+  .btn-primary:hover { background: var(--teal-700); }
+  .btn-primary:disabled { opacity: 0.6; cursor: default; }
+  .status { margin-top: 4px; font-size: 13px; display: none; }
+  .status.is-visible { display: block; }
+  .status.err { color: var(--err); }
+
+  /* Feed */
+  .feed-heading { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); padding: 0 4px; }
+  .feed-item { padding: 20px 22px; }
+  .feed-item-head { display: flex; align-items: center; gap: 12px; }
+  .feed-avatar { width: 36px; height: 36px; border-radius: 999px; background: var(--paper-dim); border: 1.5px solid var(--line); flex: none; display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); }
+  .feed-item-meta { flex: 1; min-width: 0; }
+  .feed-item-who { font-size: 13.5px; font-weight: 700; color: var(--plum-950); }
+  .feed-item-sub { margin-top: 1px; font-size: 12px; color: var(--ink-faint); }
+  .feed-item-title { margin-top: 12px; font-size: 14.5px; font-weight: 700; color: var(--plum-950); }
+  .feed-item-body { margin-top: 6px; font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; white-space: pre-wrap; }
+
+  .empty-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 30px 0; }
+  .loading-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 40px 0; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -60,14 +147,45 @@
 </header>
 
 <div class="wrap">
-  <div class="card">
-    <h1>Home is coming</h1>
-    <p>This is where your feed and new-invite highlights will live. For now, your invites and pipelines have their
-      own pages — start there.</p>
-    <a href="/invites">Go to your invites →</a>
+  <p class="loading-note" data-loading>Loading your home…</p>
+
+  <div data-home-content hidden style="display:flex; flex-direction:column; gap:16px;">
+
+    <div class="card invite-strip" data-invite-strip hidden>
+      <div>
+        <div class="invite-strip-text" data-invite-strip-text></div>
+        <div class="invite-strip-sub">Waiting on your decision</div>
+      </div>
+      <a href="/invites" class="invite-strip-link">View invites →</a>
+    </div>
+
+    <div class="card">
+      <div class="strength-row">
+        <span class="strength-title">Profile strength</span>
+        <span class="strength-pct" data-strength-pct>—</span>
+      </div>
+      <div class="strength-bar-track"><div class="strength-bar-fill" data-strength-fill style="width:0%"></div></div>
+      <a href="/dashboard" class="strength-link">Complete your profile →</a>
+    </div>
+
+    <div class="card">
+      <form class="post-form" data-post-form>
+        <input type="text" maxlength="200" placeholder="Title (optional)" data-post-title />
+        <textarea maxlength="8000" placeholder="Share an update…" data-post-body required></textarea>
+        <div class="post-char-count" data-post-char-count>0 / 8000</div>
+        <button type="submit" class="btn-primary" data-post-submit>Post</button>
+        <p class="status" data-status="post"></p>
+      </form>
+    </div>
+
+    <p class="feed-heading">Feed</p>
+    <div data-feed-list></div>
+    <p class="empty-note" data-feed-empty hidden>No posts yet from you or other candidates — be the first to share
+      something.</p>
   </div>
 </div>
 
+<!-- Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment -->
 <nav class="tab-bar" aria-label="Main">
   <a href="/home" class="tab-bar-item is-active" data-tab="home">
     <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -129,10 +247,139 @@ function icareRequireAuth(signInPath) {
   var session = icareRequireAuth();
   if (!session) return;
 
-  icareAuthFetch("/candidates/me/shortlists").then(function (res) { return res.json(); }).then(function (body) {
-    var hasNew = (body.shortlists || []).some(function (r) { return !r.candidate_consented_at && !r.closed_at; });
-    document.querySelector("[data-invites-dot]").classList.toggle("is-visible", hasNew);
-  }).catch(function () {});
+  function jget(url) {
+    return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+
+  function timeAgo(iso) {
+    var ms = Date.now() - new Date(iso).getTime();
+    var mins = Math.floor(ms / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + (mins === 1 ? " min ago" : " mins ago");
+    var hours = Math.floor(mins / 60);
+    if (hours < 24) return hours + (hours === 1 ? " hour ago" : " hours ago");
+    var days = Math.floor(hours / 24);
+    return days + (days === 1 ? " day ago" : " days ago");
+  }
+
+  function initials(text) {
+    if (!text) return "?";
+    var words = text.trim().split(/\s+/).slice(0, 2);
+    return words.map(function (w) { return w[0].toUpperCase(); }).join("");
+  }
+
+  function renderFeed(rows) {
+    var list = document.querySelector("[data-feed-list]");
+    var empty = document.querySelector("[data-feed-empty]");
+    list.innerHTML = "";
+    if (!rows || rows.length === 0) {
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    rows.forEach(function (post) {
+      var item = document.createElement("div");
+      item.className = "card feed-item";
+      var who = post.primary_profession || post.headline || "A candidate";
+      var subParts = [];
+      if (post.headline && post.headline !== who) subParts.push(post.headline);
+      if (post.town) subParts.push(post.town);
+      item.innerHTML =
+        '<div class="feed-item-head">' +
+          '<div class="feed-avatar"></div>' +
+          '<div class="feed-item-meta">' +
+            '<div class="feed-item-who"></div>' +
+            '<div class="feed-item-sub"></div>' +
+          '</div>' +
+        '</div>' +
+        (post.title ? '<div class="feed-item-title"></div>' : '') +
+        '<div class="feed-item-body"></div>';
+      item.querySelector(".feed-avatar").textContent = initials(who);
+      item.querySelector(".feed-item-who").textContent = who;
+      item.querySelector(".feed-item-sub").textContent = (subParts.length ? subParts.join(" · ") + " · " : "") + timeAgo(post.created_at);
+      if (post.title) item.querySelector(".feed-item-title").textContent = post.title;
+      item.querySelector(".feed-item-body").textContent = post.body;
+      list.appendChild(item);
+    });
+  }
+
+  function loadFeed() {
+    jget("/candidates/feed").then(function (result) {
+      if (result.ok) renderFeed(result.body.posts);
+    });
+  }
+
+  var postBodyInput = document.querySelector("[data-post-body]");
+  var postCharCount = document.querySelector("[data-post-char-count]");
+  postBodyInput.addEventListener("input", function () {
+    postCharCount.textContent = postBodyInput.value.length + " / 8000";
+  });
+
+  document.querySelector("[data-post-form]").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var titleInput = document.querySelector("[data-post-title]");
+    var body = postBodyInput.value.trim();
+    var statusEl = document.querySelector('[data-status="post"]');
+    if (!body) return;
+
+    var submitBtn = document.querySelector("[data-post-submit]");
+    submitBtn.disabled = true;
+    icareAuthFetch("/candidates/me/posts", {
+      method: "POST",
+      body: JSON.stringify({ title: titleInput.value.trim(), body: body }),
+    })
+      .then(function (res) { return res.json().then(function (b) { return { ok: res.ok, body: b }; }); })
+      .then(function (result) {
+        submitBtn.disabled = false;
+        if (!result.ok) {
+          statusEl.textContent = result.body.error || "Something went wrong. Please try again.";
+          statusEl.className = "status is-visible err";
+          return;
+        }
+        titleInput.value = "";
+        postBodyInput.value = "";
+        postCharCount.textContent = "0 / 8000";
+        statusEl.textContent = "";
+        statusEl.className = "status";
+        loadFeed();
+      })
+      .catch(function () {
+        submitBtn.disabled = false;
+        statusEl.textContent = "Network error — please try again.";
+        statusEl.className = "status is-visible err";
+      });
+  });
+
+  Promise.all([
+    jget("/candidates/me"),
+    jget("/candidates/me/shortlists"),
+  ]).then(function (results) {
+    var candidateResult = results[0], shortlistsResult = results[1];
+    document.querySelector("[data-loading]").style.display = "none";
+    if (!candidateResult.ok) {
+      document.querySelector("[data-loading]").style.display = "block";
+      document.querySelector("[data-loading]").textContent = "Couldn't load your home. Try refreshing the page.";
+      return;
+    }
+    document.querySelector("[data-home-content]").hidden = false;
+
+    var completeness = candidateResult.body.candidate.completeness || 0;
+    document.querySelector("[data-strength-pct]").textContent = completeness + "%";
+    document.querySelector("[data-strength-fill]").style.width = completeness + "%";
+
+    var rows = shortlistsResult.ok ? (shortlistsResult.body.shortlists || []) : [];
+    var newRows = rows.filter(function (r) { return !r.candidate_consented_at && !r.closed_at; });
+    document.querySelector("[data-invites-dot]").classList.toggle("is-visible", newRows.length > 0);
+    if (newRows.length > 0) {
+      document.querySelector("[data-invite-strip]").hidden = false;
+      document.querySelector("[data-invite-strip-text]").textContent =
+        newRows.length === 1 ? "1 new invite" : newRows.length + " new invites";
+    }
+
+    loadFeed();
+  }).catch(function () {
+    document.querySelector("[data-loading]").textContent = "Couldn't load your home. Try refreshing the page.";
+  });
 
   document.querySelector("[data-sign-out]").addEventListener("click", function () {
     icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {

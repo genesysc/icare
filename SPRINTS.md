@@ -1041,6 +1041,67 @@ enforcement). Same branch/PR as Sprints 13–15/18/19/20
 (`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not yet
 merged).
 
+### Sprint 22 — Real Home feed (peer visibility) ✅ Shipped 2026-08-31
+
+Founder said "Let's build it now. Start with the home page" after
+reviewing what was and wasn't built. Before writing any frontend, checked
+whether "a feed of other candidates' posts" (the wireframe's Home,
+screen 02) was actually possible against the live schema — it wasn't:
+`candidate_posts_self` (migration 0015) is self-read-only, and
+`candidate_post_search` (also 0015) is gated on `is_verified_employer()`
+— employers only. This exact gap was already flagged in an earlier
+session: "Not built: a peer-facing feed — no surface exists for
+'visible to other candidates only,' and none was asked for."
+
+**Stopped and asked rather than deciding alone**: exposing candidate
+content to a new audience (other candidates, not just consenting
+employers) is a real privacy decision, not a frontend judgment call.
+Offered two options — Home scoped to just your own content (no new
+privacy surface), or add real peer visibility. Founder chose the latter
+explicitly, and also correctly pointed out the first option was really
+describing Profile, not Home.
+
+**Shipped**: new migration `0026_candidate_peer_feed.sql` — a
+`candidate_peer_feed` view, same security-definer-view pattern already
+used by `candidate_search`/`candidate_post_search` (flagged by
+`get_advisors` as the same pre-existing, accepted class of risk, not a
+new one), gated by `current_role_is('candidate')` (existing helper,
+`0002_auth.sql`) instead of `is_verified_employer()`. Attribution
+columns are deliberately identical to what `candidate_search` already
+shows employers pre-consent — headline, primary profession, town — not
+a wider disclosure just because the reader changed from employer to
+candidate; name/photo/contact stay exactly as hidden as they always
+were. New `GET /candidates/feed` (`candidates.ts`) reads it.
+`src/home.html` rebuilt from the Sprint 19 "Home is coming" placeholder
+into the real page: a pinned "N new invites" strip (same "new" bucket
+`invites.html` already defines, outranking the feed per the wireframe's
+own stated reasoning), a composer (`POST /me/posts` — already existed,
+this is a second entry point matching the wireframe's home-page
+composer, not a new capability), a profile-strength bar
+(`candidates.completeness`, a real 0-100 int already kept current by a
+DB trigger since migration 0003 — not invented for this page), and the
+feed itself.
+
+**Verified directly against the live schema**: two test candidates —
+one publishes a profile and posts, the other queries `candidate_peer_
+feed` through the exact RLS-scoped path `GET /candidates/feed` uses —
+correctly saw the post with headline/town/profession attribution, no
+name, alongside real pre-existing seed-candidate posts (confirming the
+view also picks up genuine content, not just test rows). Negative test:
+the same view queried as the existing verified employer test account
+returned zero rows, confirming `current_role_is('candidate')` actually
+excludes employers rather than just employers-in-practice. Both test
+candidates and the test post deleted afterward, all three affected
+tables confirmed back at 0. `get_advisors` re-run — one new finding
+(`candidate_peer_feed` flagged as a security-definer view), same
+class/severity as the two pre-existing ones, not a new category. `tsc
+--noEmit` clean, `wrangler deploy --dry-run` bundles cleanly (1305.50
+KiB / 263.08 KiB gzip). Mock-shim click-through (feed fixture data +
+composer round-trip) confirmed zero JS errors and correct rendering.
+Same branch/PR as Sprints 13–15/18–21
+(`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not yet
+merged).
+
 ### Sprint 16 — Async video interview stage
 
 Candidate self-schedules, answers pre-set questions on video, submits;

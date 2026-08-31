@@ -2792,3 +2792,54 @@ Sprints 13–15/18–20 (`claude/jobseeker-employer-wireframes-rc5uss`, PR
 (genuine backend project), the actual Home/Network features, invite
 auto-expiry, the DBS three-state confirmation flow, onboarding
 step-count reconciliation. Sequencing still open for the founder.
+
+## 2026-08-31 (same day, continued) — Sprint 22: Real Home feed (peer visibility)
+
+Asked "Is this built yet: the actual Home feed, Network/connections,
+invite auto-expiry" — answered honestly that none of the three were
+(Home/Network are Sprint 19 placeholder pages, no auto-expiry exists at
+all). Followed by "Let's build it now. Start with the home page."
+
+Before writing frontend, checked whether a cross-candidate feed was
+actually possible: it wasn't. `candidate_posts_self` RLS (migration
+0015) is self-read-only; `candidate_post_search` is employer-only
+(`is_verified_employer()`-gated). This exact gap was already flagged in
+an earlier session's PROGRESS.md entry as deliberately unbuilt ("no
+surface exists for 'visible to other candidates only,' and none was
+asked for"). Rather than deciding alone whether to open a new privacy
+surface, asked the founder directly: keep Home scoped to your own
+content (no schema change), or add real peer visibility. Founder chose
+peer visibility explicitly, and noted the your-content-only option was
+really describing Profile, not Home — fair point.
+
+**Shipped**: migration `0026_candidate_peer_feed.sql` — a new view,
+same security-definer-view pattern already used by `candidate_search`/
+`candidate_post_search`, gated by the existing `current_role_is
+('candidate')` helper instead of `is_verified_employer()`. Attribution
+is deliberately identical to what employers already see pre-consent —
+headline, primary profession, town, no name — extending the existing
+protection to a new audience rather than inventing a laxer rule. New
+`GET /candidates/feed` route. `src/home.html` rebuilt from the Sprint 19
+placeholder: pinned new-invites strip, composer (reusing the existing
+`POST /me/posts`), a real profile-strength bar (`candidates.
+completeness`, already existed), and the feed.
+
+**Verified against the live schema**: two test candidates — one posts,
+the other reads the feed through the exact route path — correctly saw
+the post with name-free attribution, alongside genuine pre-existing
+seed-candidate posts (confirming the view surfaces real content, not
+just test rows). Negative test: the same view queried as the existing
+verified employer account returned zero rows, confirming the role gate
+actually excludes employers. Test rows deleted, tables confirmed back
+at 0. `get_advisors` showed exactly one new finding — the new view
+flagged as security-definer, same accepted class as the two pre-existing
+ones. `tsc --noEmit`/`wrangler deploy --dry-run` clean (1305.50 KiB /
+263.08 KiB gzip); mock-shim click-through (fixture feed data + composer
+round-trip) confirmed correct rendering. Pushed to the same branch/PR
+as Sprints 13–15/18–21 (`claude/jobseeker-employer-wireframes-rc5uss`,
+PR #29 — not yet merged).
+
+**Not done this session**: Network/connections (same kind of privacy-
+surface decision as the feed, not yet asked about), invite auto-expiry,
+real per-field visibility preferences, the DBS three-state confirmation
+flow, onboarding step-count reconciliation.

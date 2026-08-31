@@ -846,6 +846,27 @@ candidates.delete("/me/posts/:id", async (c) => {
   return c.body(null, 204);
 });
 
+// --- Peer feed (SPRINTS.md Sprint 22) ---
+// Reads candidate_peer_feed (migration 0026) — a new cross-candidate view
+// gated by current_role_is('candidate'), added specifically because no
+// path previously let one candidate see another's posts at all
+// (candidate_posts_self is self-only; candidate_post_search is
+// employer-only). Exposes exactly the same fields already shown to
+// employers pre-consent (headline, primary profession, town) — nothing
+// wider than the existing name/photo/contact protection.
+candidates.get("/feed", async (c) => {
+  const limit = Math.min(Number(c.req.query("limit")) || 30, 100);
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidate_peer_feed")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ posts: data });
+});
+
 // --- Incoming shortlists + consent (SPRINTS.md Sprint 9 remainder) ---
 // Consent unlocks photo/video/CV specifically for that employer — name/
 // job title/location are already visible pre-shortlist per non-negotiable
