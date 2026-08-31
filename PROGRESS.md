@@ -2690,3 +2690,53 @@ Home feed and Network features behind their new placeholder pages, the
 7-day invite auto-expiry, dedicated Credentials/Visibility screens,
 onboarding step-count reconciliation. Flagged in `HANDOVER.md` §14 and
 `SPRINTS.md`'s Sprint 19 note, sequencing still open for the founder.
+
+## 2026-08-31 (same day, continued) — Sprint 20: Credentials screen
+
+Founder said "Go on" after the Sprint 19 handoff, which had offered
+Credentials as the next wireframe screen — proceeded with it (screen 07).
+
+**Shipped**: `src/credentials.html` (`/credentials`), linked from
+`dashboard.html`'s badges card (a drill-in from Profile, not a sixth
+tab-bar item — matches the wireframe's own information architecture).
+Badges section copied verbatim from `dashboard.html`; DBS and
+sponsorship-status blocks are new, both against existing routes
+(`GET /me/dbs`, `GET /me`'s `right_to_work`) — no new backend.
+
+**Real gap surfaced, not new**: before building the DBS block, checked
+whether the wireframe's three-state DBS model ("Not Yet Verified" /
+"Current — no new information" / "New information reported") actually
+exists anywhere in the live schema. It doesn't — `dbs_records` (migration
+0001) has no `state` column at all, only level/issued_on/on_update_
+service/consent_to_check/consent_given_at/certificate_number/workforce.
+This was already flagged as unbuilt in the 2026-08-30 PROGRESS.md entry,
+along with an unresolved policy question (DBS guidance wants the
+physical certificate viewed too, no clean remote-first answer) that
+needs legal input before it can be decided, let alone built. Rather than
+inventing the three-state copy client-side (which would misrepresent a
+confirmation the platform has never performed), the DBS block shows only
+what's real: level, Update Service registration, consent — documented
+both in the file's own header comment and here.
+
+**Bug caught before shipping** (first screenshot, not code review): the
+DBS block's two status pills stretched to full card width instead of
+sizing to content — a `display:flex; flex-direction:column` container
+without `align-items` set defaults its children to `stretch` on the
+cross axis, and `inline-flex` on the pills themselves only controls
+their own internal layout, not how the parent sizes them. Fixed by
+wrapping the two pills in their own row and setting `align-items:
+flex-start` on the facts container generally.
+
+**Verified**: no new migration/route — `tsc --noEmit` and `wrangler
+deploy --dry-run` clean (1275.66 KiB / 258.28 KiB gzip). Mock-shim
+click-through (fixture extended with a populated DBS record and a
+`right_to_work` value) confirmed correct rendering after the pill fix.
+Pushed to the same branch/PR as Sprints 13–15/18/19
+(`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not yet
+merged).
+
+**Not done this session**: real DBS three-state confirmation (blocked
+on the legal/policy question above), Visibility screen, the actual
+Home/Network features behind their placeholder pages, invite
+auto-expiry, onboarding step-count reconciliation. Sequencing still
+open for the founder.

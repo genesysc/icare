@@ -920,6 +920,66 @@ excluding the still-undecided invite. Same branch/PR as Sprints 13–15/
 18 (`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not yet
 merged).
 
+### Sprint 20 — Credentials screen ✅ Shipped 2026-08-31
+
+Continuing the founder's wireframe-order sequencing after Sprint 19.
+Screen 07 (Credentials & documents).
+
+**Shipped**: new `src/credentials.html` (`/credentials`), linked from
+`dashboard.html`'s badges card rather than added as a sixth tab-bar
+item — the wireframe's own sitemap puts Credentials one level under
+Profile, not beside Home/Invites/Pipelines/Network/Profile. Three
+sections, all against existing routes, no new backend: badges (`GET
+/me/badges`, rendering copied verbatim from `dashboard.html` — this
+repo's no-build-step convention), DBS (`GET /me/dbs`), sponsorship
+status (`GET /me`'s `right_to_work` field, already set at onboarding
+step 3 — this section matches the wireframe directly, unlike DBS below).
+
+**Real gap this surfaced, not new**: the wireframe (and `docs/iCare_B2B_
+Recruitment_Workflow_Handover.md`, and the Next.js reference's `lib/
+types.ts`) specify DBS status as one of three exact strings — "Not Yet
+Verified" / "Current — no new information" / "New information
+reported" — confirmed by iCare staff via the DBS Update Service.
+PROGRESS.md's 2026-08-30 entry already flagged this as unbuilt: no
+`state` column exists on `dbs_records` (migration 0001 — only level/
+issued_on/on_update_service/consent_to_check/consent_given_at/
+certificate_number/workforce), no staff confirmation workflow exists,
+and the underlying policy question (DBS guidance wants the *physical*
+certificate viewed too — no clean answer for a remote-first platform)
+is explicitly flagged for legal input, not decided. Faking the
+three-state copy here would mean claiming a confirmation the platform
+has never performed. Instead this page shows only real fields: DBS
+level, whether the candidate has registered on the Update Service, and
+whether they've consented to a future check — the same data
+`onboarding.html`'s step 7 already collects. Building the real
+three-state flow is its own follow-up, blocked on that policy decision,
+not something to fake in this pass — documented in the file's own
+header comment as well as here.
+
+**Bug caught before shipping**: the DBS block's two status pills (on
+Update Service / consent) were rendered as direct children of a
+`display:flex; flex-direction:column` container without `align-items`
+set — flex children default to `stretch` on the cross axis, so both
+pills stretched to the full card width instead of sizing to their
+content, despite being `display:inline-flex` themselves (inline-flex
+only controls the element's own internal layout, not how its *parent*
+sizes it). Caught in the first screenshot, not the code review pass;
+fixed by wrapping both pills in their own `display:flex` row so they
+lay out side by side, plus `align-items:flex-start` on the facts
+container generally so nothing in it stretches by default going
+forward.
+
+**Verified**: no new migration/route this sprint either — `tsc
+--noEmit` and `wrangler deploy --dry-run` both clean (1275.66 KiB /
+258.28 KiB gzip). Playwright click-through against the mock-shim
+harness (extended with a populated DBS fixture and a `right_to_work`
+value) confirmed zero JS errors and, after the pill fix, correct
+layout — badges render identically to `dashboard.html`, the DBS block
+shows real on-file data with both status pills correctly inline, the
+sponsorship block shows the right-to-work label. Same branch/PR as
+Sprints 13–15/18/19 (`claude/jobseeker-employer-wireframes-rc5uss`, PR
+#29 — not yet merged).
+
 ### Sprint 16 — Async video interview stage
 
 Candidate self-schedules, answers pre-set questions on video, submits;

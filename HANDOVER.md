@@ -168,6 +168,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/invites.html` | Jobseeker Invites screen (Sprint 18), `/invites` — implements wireframe screens 03/04 against the existing `/me/shortlists*` routes: New/Accepted/Declined tabs (derived client-side from `candidate_consented_at`/`closed_at`, no new status field) and a detail view per tab — undecided invites get the full "if you accept" consent panel with Accept/Decline/Decide later and a fixed six-option decline-reason picker; accepted ones get a Withdraw action; declined ones are read-only. Does NOT implement the wireframe's 7-day auto-expiry countdown (needs an `expires_at` column set at invite creation plus a scheduled job — real scope, flagged not built) |
 | `src/pipelines.html` | Jobseeker Pipelines screen (Sprint 19), `/pipelines` — implements wireframe screen 05 against the same `/me/shortlists*` data as `invites.html`. Active/Closed tabs, but scoped to rows that were actually accepted (`candidate_consented_at` set) — an invite declined before ever being accepted lives only on `invites.html`'s Declined tab, never here, matching the wireframe's own stated principle that a pipeline is a state you sit in *after* the invite decision. Detail view renders a real six-stage tracker (done/current/upcoming) plus a Withdraw action for active pipelines, or a closing note for closed ones. One deliberate deviation from the wireframe's own screen-05 example, documented in the file's header comment: a Successful/Onboarding pipeline stays in Active here (this backend's `closed_at` means access-revoked, not "reached a terminal stage" — see `employer-chat.ts`'s `move_candidate_stage`) |
 | `src/home.html`, `src/network.html` | Minimal placeholder pages (Sprint 19) for the tab-bar shell's remaining two destinations — an honest "not built yet" card, not fake content. See the note below for what real feature work each still needs |
+| `src/credentials.html` | Credentials & documents (Sprint 20), `/credentials` — implements wireframe screen 07, reached from `dashboard.html`'s badges card rather than a sixth tab-bar destination (matches the wireframe's own information architecture — Credentials sits one level under Profile, not beside it). Badges section is copied verbatim from `dashboard.html`'s own rendering; DBS and sponsorship-status (`right_to_work`) blocks are new but read/write only existing fields via existing routes. Deliberately does NOT implement the wireframe's three-state DBS model ("Not Yet Verified" / "Current — no new information" / "New information reported") — see the file's header comment and the note below for why |
 | `src/nav-shell.html` | Reference file for the signed-in tab-bar shell (Sprint 19) — same "not imported, copy verbatim" convention as `auth-client.js`. Five destinations (Home/Invites/Pipelines/Network/Profile) as a bottom-fixed bar at every viewport size (this codebase has no other desktop-specific layout), hand-authored inline SVG icons, an unread dot on Invites. Copied into `dashboard.html`, `invites.html`, `pipelines.html`, `home.html`, `network.html` — update all five if this file changes |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
@@ -1180,13 +1181,30 @@ first slice:
   Onboarding pipeline stays in Active, not Closed — this backend's
   `closed_at` means access-revoked specifically, not "reached a terminal
   stage").
+- **Sprint 20 — Credentials screen — shipped 2026-08-31**:
+  `src/credentials.html` (wireframe screen 07), linked from
+  `dashboard.html`. Badges + DBS + sponsorship-status (`right_to_work`)
+  sections, all against existing routes. **Real gap surfaced while
+  building this, not new**: the wireframe's three-state DBS model
+  ("Not Yet Verified" / "Current — no new information" / "New
+  information reported") was already flagged as unbuilt in the
+  2026-08-30 PROGRESS.md entry (no `state` column on `dbs_records`, no
+  staff confirmation workflow, and the underlying policy question — DBS
+  guidance wants the physical certificate viewed too, no clean answer
+  for a remote-first platform — explicitly needs legal input, not
+  decided). This page does not fake that model: it shows only what's
+  actually on file (level, Update Service registration, consent) rather
+  than inventing a confirmation the platform has never performed.
+  Building the real three-state flow needs that policy decision first.
 - **Still not built, in wireframe order**: the 7-day invite auto-expiry
   (needs an `expires_at` column set at invite creation in `employer-
   chat.ts`'s `send_invite` handler, plus a scheduled job — flagged, not
   started); the Home social feed itself (composer, other candidates'
   posts, a pinned invites strip — `home.html` is a placeholder, not this);
-  Network/connections (`network.html` likewise a placeholder); dedicated
-  Credentials and Visibility (field-level privacy) screens; onboarding's
-  step count/content still doesn't match the wireframe's 7-step outline
-  (11 steps, different structure — not just renumbered). Sequencing
-  these is an open question for the founder, not decided here.
+  Network/connections (`network.html` likewise a placeholder); a
+  Visibility (field-level privacy) screen; the real DBS three-state
+  confirmation flow (blocked on the legal/operational question above);
+  onboarding's step count/content still doesn't match the wireframe's
+  7-step outline (11 steps, different structure — not just renumbered).
+  Sequencing these is an open question for the founder, not decided
+  here.
