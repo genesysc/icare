@@ -2543,3 +2543,87 @@ gzip).
 their own scoping/design pass before building, not started. Employer
 track reconciliation (Sprints 13–15) is now complete and pushed to
 `claude/jobseeker-employer-wireframes-rc5uss`, not yet opened as a PR.
+
+## 2026-08-31 — PR #29 opened for Sprints 13–15, wireframe-vs-live gap flagged by founder, Sprint 18 (jobseeker Invites screen) shipped
+
+**PR #29 opened.** Updated the branch's auto-created PR with a full
+title/body covering Sprints 13–15 (jobs module, bookmark/invite split,
+six-stage pipeline, revocable frozen-at-acceptance access), all five
+real bugs found while building, verification method, and deliberate
+omissions. Subscribed to PR activity and set up a recurring 60-minute
+self-check-in (`trig_01Jo9kkfKDWdSqd8czrbLFae`) — this repo's CI only
+triggers on push to `main`, not on pull_request, so there's no PR-level
+CI check to watch; check-ins confirm mergeable state / new comments /
+merge status instead. Several check-ins fired with nothing changed
+(re-armed silently, per instruction).
+
+**Founder asked to see the jobseeker site.** Sandboxed Playwright
+couldn't reach `icareltd.com` live (proxy `ERR_CONNECTION_RESET`);
+worked around it by `curl`-ing the real production HTML (curl respects
+the sandbox's `https_proxy` automatically) and rendering it locally via
+Playwright loading a `file://` URL instead of navigating live. Sent
+real landing-page screenshots, then real sign-in/onboarding/dashboard
+screenshots (the latter two via fixture data injected through Playwright
+route interception, since the live pages require real OTP auth that
+nobody — not just this sandbox — can currently complete, because
+Sender.net email sending is still a deliberate no-op).
+
+**Founder then asked for a URL to click through and test.** Built an
+interactive test harness: a `window.fetch` override (`mock-shim.js`)
+providing a full in-memory mock backend (auth, reference catalogues,
+candidate CRUD, DBS, prompts, badges, posts, shortlists) built from the
+real API shapes and real seed data, injected into unmodified copies of
+the real `sign-in.html`/`onboarding.html`/`dashboard.html`. First
+attempt used a single `<iframe>` with `srcdoc` reassigned per tab click —
+worked correctly (verified via DOM inspection: real positioned, styled
+content) but Playwright's *screenshot capture* of it stayed blank after
+a dynamic `srcdoc` swap, a CDP/headless compositing quirk specific to
+this sandbox, confirmed non-functional by forcing an external viewport
+resize (fixed the screenshot without changing any page code). Rebuilt
+to load all three pages into three separate iframes up front (each
+`srcdoc` set during initial page load, matching the one tab that always
+rendered correctly) and toggle visibility instead of reassigning
+`srcdoc` per click — this fixed the screenshot capture issue entirely
+*and* is better UX regardless (preserves in-progress wizard state across
+tab switches). Verified end-to-end: clicked through the onboarding
+wizard to "Step 4 of 11 · Experience" inside the published wrapper with
+zero JS errors. Published as a private Claude Artifact
+(`applicant-ui-preview`) with an honest caption: real unmodified
+production code, mocked backend only, file uploads disabled in the
+preview, final "Publish" step won't resolve inside the artifact (switch
+tabs instead).
+
+**Founder then compared the live site against `jobseeker-wireframes.
+html` directly and flagged the mismatch**: no tab-bar app shell, no
+dedicated Invites/Pipelines/Network/Credentials/Visibility screens, no
+consent-moment screen, Invites/Pipelines merged into one dashboard
+section. Correct — Sprints 13–15 only reconciled the employer-track
+*backend*; the candidate-facing HTML predates the wireframe and was
+never rebuilt against it. Said so plainly rather than downplaying it,
+laid out the concrete screen-by-screen gap, and asked whether to start
+on the frontend.
+
+**Founder said to start.** Shipped Sprint 18 (see `SPRINTS.md` for full
+detail): `src/invites.html`, the wireframe's own "most important
+screen" — Invites list + invite-detail consent moment — against the
+existing `/me/shortlists*` routes, no new backend concept beyond a
+`decline_reason` column + optional `reason` param on the existing
+withdraw route (migration `0025`), needed because the wireframe
+explicitly requires a decline always carry one of a fixed set of
+reasons. Linked from `dashboard.html` (nav + new-invites badge).
+Verified against the live schema with a full test candidate provisioned
+through the real `handle_new_user()` trigger (no real candidates exist
+in production yet) — declined-with-reason, accepted-then-withdrew, and
+an invalid-reason rejection, all via the exact RLS-scoped path the
+routes themselves use; all test rows deleted after, tables confirmed
+back at 0. `tsc --noEmit` clean, `wrangler deploy --dry-run` bundles
+cleanly (1213.91 KiB / 248.05 KiB gzip), `get_advisors` re-run with no
+new findings.
+
+**Not done this session**: the rest of the wireframe gap — tab-bar app
+shell, dedicated Pipelines/Network/Credentials/Visibility screens, the
+7-day invite auto-expiry, the Home social feed, onboarding step-count
+reconciliation. Flagged in `HANDOVER.md` §14 and `SPRINTS.md`'s Sprint
+18 note, explicitly not sequenced without the founder's input. Sprint 18
+pushed to the same branch/PR as Sprints 13–15
+(`claude/jobseeker-employer-wireframes-rc5uss`, PR #29).

@@ -834,7 +834,7 @@ candidates.get("/me/shortlists", async (c) => {
   const { data, error } = await c
     .get("supabase")
     .from("shortlists")
-    .select("id, employer_id, job_id, job_snapshot, stage, created_at, candidate_consented_at, closed_at, employers(org_name)")
+    .select("id, employer_id, job_id, job_snapshot, stage, created_at, candidate_consented_at, closed_at, decline_reason, employers(org_name)")
     .eq("candidate_id", c.get("userId"))
     .order("created_at", { ascending: false });
 
@@ -964,11 +964,26 @@ candidates.post("/me/shortlists/:id/consent", async (c) => {
 // (rejected, withdrawn, or job closed) revokes access. This is the
 // candidate's own half of that; the employer-side half (moving to
 // Rejected) is in employer-chat.ts, and job closure cascades in jobs.ts.
+//
+// Sprint 18 — wireframe screen 04: a decline always sends one of a fixed
+// set of reasons to the employer ("prefer not to say" is a complete answer
+// on its own, but there's no way to decline with nothing shared at all).
+// Covers both an outright decline (never consented) and a later withdrawal
+// (consented, then changed their mind) — same column, same route; the
+// candidate-facing copy is what tells the two apart, not the schema.
+const DECLINE_REASONS = ["not_looking", "wrong_pattern", "too_far", "wrong_role", "accepted_elsewhere", "prefer_not_to_say"];
+
 candidates.post("/me/shortlists/:id/withdraw", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const reason = typeof body?.reason === "string" ? body.reason : null;
+  if (reason && !DECLINE_REASONS.includes(reason)) {
+    return c.json({ error: "Invalid reason." }, 400);
+  }
+
   const { data, error } = await c
     .get("supabase")
     .from("shortlists")
-    .update({ closed_at: new Date().toISOString() })
+    .update({ closed_at: new Date().toISOString(), decline_reason: reason })
     .eq("id", c.req.param("id"))
     .eq("candidate_id", c.get("userId"))
     .is("closed_at", null)

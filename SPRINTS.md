@@ -778,6 +778,66 @@ back at 0 rows. `get_advisors` re-run — no new findings. `tsc --noEmit`
 clean, `wrangler deploy --dry-run` bundles cleanly (1185 KiB / 243 KiB
 gzip). Not yet pushed as a PR.
 
+### Sprint 18 — Jobseeker Invites screen (frontend) ✅ Shipped 2026-08-31
+
+Sprints 13–15 reconciled the employer-track *backend* against the
+wireframe/workflow spec; the jobseeker-facing pages never were. Founder
+flagged the mismatch directly after a live-site walkthrough and asked to
+start on the frontend — first slice is the wireframe's own "most
+important screen": Invites (screen 03) + the invite-detail consent
+moment (screen 04), from `docs/mockups/jobseeker-wireframes.html`.
+
+**Shipped**: new `src/invites.html` (`/invites`, registered in
+`src/index.ts`) — New/Accepted/Declined tabs derived client-side from
+the shortlist row's existing `candidate_consented_at`/`closed_at`
+columns (no new status field needed); a detail view per tab matching the
+wireframe: undecided invites show the full role (from `job_snapshot`)
+plus the "if you accept" panel and Accept/Decline/Decide later; accepted
+ones show current stage + Withdraw; declined ones are read-only with the
+reason shown back. "Accept" reuses the existing per-pipeline
+`POST /me/shortlists/:id/consent`; "decline"/"withdraw" reuse the
+existing `POST /me/shortlists/:id/withdraw`, now extended (migration
+`0025_shortlist_decline_reason.sql`) with an optional `reason` from a
+fixed six-value list matching the wireframe's decline-reason picker
+exactly — a real product decision (a decline always sends a reason;
+"prefer not to say" is a complete, valid one; there's no option to
+decline with nothing shared), not something that could be faked
+client-side alone. `dashboard.html` gets a nav link to `/invites` with a
+count badge for new (undecided) invites; its own inline shortlist
+section was left as-is rather than removed, to avoid breaking working
+functionality in the same pass.
+
+**Deliberately not built**, flagged rather than half-built: the
+wireframe's 7-day invite auto-expiry countdown (needs an `expires_at`
+column set at invite creation in `employer-chat.ts`'s `send_invite`
+handler, plus a scheduled job to auto-close and notify the employer on
+lapse — real scope beyond a candidate-side screen); the tab-bar app
+shell itself (every candidate page is still its own top-level page); a
+dedicated Pipelines screen (still folded into `dashboard.html`).
+
+**Verified directly against the real schema** (no real candidates exist
+yet in production — Sender.net email sending is still a no-op, so
+nobody has completed a real sign-up — same test methodology as prior
+sprints): inserted a test `auth.users` row (the `handle_new_user()`
+trigger provisions `accounts`/`candidates`/`candidate_contact`
+correctly), two test jobs, two test shortlist rows. Simulated the
+candidate via `set_config('request.jwt.claims', ...)` + `set local role
+authenticated` (each DDL/DML in its own `execute_sql` call after last
+sprint's lesson about combined statements rolling back together on
+error): declined-with-reason via the exact update the withdraw route
+runs — succeeded, `decline_reason` persisted; accepted via
+`set_shortlist_consent()` then withdrew with no reason (the "Accepted"
+tab's Withdraw action) — succeeded, `decline_reason` stayed null;
+attempted an invalid `decline_reason` value — correctly rejected by the
+new check constraint, matching the route's own application-level
+validation. All test rows (2 shortlists, 2 jobs, 1 candidate + its
+`auth.users`/`accounts`/`candidate_contact` rows) deleted afterward, all
+five affected tables confirmed back at 0 leftover rows. `get_advisors`
+re-run — no new findings beyond what already existed. `tsc --noEmit`
+clean, `wrangler deploy --dry-run` bundles cleanly (1213.91 KiB / 248.05
+KiB gzip). Same branch/PR as Sprints 13–15 (`claude/jobseeker-employer-
+wireframes-rc5uss`, PR #29 — not yet merged).
+
 ### Sprint 16 — Async video interview stage
 
 Candidate self-schedules, answers pre-set questions on video, submits;

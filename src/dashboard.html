@@ -59,6 +59,10 @@
   .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
   .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
   .logo em { font-style: normal; color: var(--teal-500); }
+  .nav-links { display: flex; align-items: center; gap: 18px; }
+  .nav-link { font-size: 14px; font-weight: 600; color: var(--ink-faint); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+  .nav-link:hover { color: var(--teal-700); }
+  .nav-link-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--teal-500); color: var(--white); font-size: 10.5px; font-weight: 700; }
   .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
   .sign-out:hover { color: var(--teal-700); }
 
@@ -177,7 +181,10 @@
 
 <header class="nav">
   <a href="/" class="logo">i<em>Care</em></a>
-  <button class="sign-out" data-sign-out>Sign out</button>
+  <div class="nav-links">
+    <a href="/invites" class="nav-link">Invites<span class="nav-link-badge" data-invites-badge style="display:none;"></span></a>
+    <button class="sign-out" data-sign-out>Sign out</button>
+  </div>
 </header>
 
 <div class="wrap">
@@ -429,7 +436,20 @@ function icareRequireAuth(signInPath) {
 
   function loadShortlists() {
     jget("/candidates/me/shortlists").then(function (result) {
-      if (result.ok) renderShortlists(result.body.shortlists);
+      if (!result.ok) return;
+      renderShortlists(result.body.shortlists);
+      // New invite = not yet consented, not closed — same definition
+      // /invites.html uses for its "New" tab (Sprint 18).
+      var newCount = (result.body.shortlists || []).filter(function (r) {
+        return !r.candidate_consented_at && !r.closed_at;
+      }).length;
+      var badge = document.querySelector("[data-invites-badge]");
+      if (newCount > 0) {
+        badge.textContent = newCount;
+        badge.style.display = "inline-flex";
+      } else {
+        badge.style.display = "none";
+      }
     });
   }
 

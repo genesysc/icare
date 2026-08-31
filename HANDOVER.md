@@ -147,7 +147,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/badges`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5), incoming shortlists + consent (`/me/shortlists*`, Sprint 9, re-scoped to per-pipeline `/me/shortlists/:id/consent` + new `/withdraw` in Sprint 14/15 — see §14), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
+| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5), incoming shortlists + consent (`/me/shortlists*`, Sprint 9, re-scoped to per-pipeline `/me/shortlists/:id/consent` + new `/withdraw` in Sprint 14/15 — see §14; `/withdraw` now also takes an optional `reason` from a fixed list, stored as `decline_reason` — Sprint 18), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
 | `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post; `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9, now with `job_title`); `GET /candidates/:id/{photo,video,cv}` — consent-gated media (Sprint 9); `GET /bookmarks`, `DELETE /bookmarks/:candidateId` (Sprint 14) |
 | `src/employer-chat.ts` | Employer chat — seven tools behind `POST /employers/chat` (guardrail → Workers AI tool call → deterministic DB action → persist), `GET /employers/chat` (replay thread): `search_candidates` (Sprint 8, extended for posts, `min_experience_years`, `qualification_type_id`), `bookmark_candidates`/`send_invite` (Sprint 14, replacing Sprint 9's `shortlist_candidates` — see §14), `move_candidate_stage` (Sprint 9, now keyed by `pipeline_id` not `candidate_id`, Sprint 14)/`get_pipeline_status` (Sprint 9), `bulk_move_stage` (Sprint 11), `who_is_summary` (Sprint 10) |
 | `src/employer-chat-guardrail.ts` | Protected-characteristics keyword/proximity guardrail — the deterministic layer behind the chat's non-negotiable #5 compliance, see §7 |
@@ -164,7 +164,8 @@ stop and ask the user — do not resolve it yourself.**
 | `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me` |
 | `src/employer-home.html` | Employer home, `/employer/home` — verification card (Sprint 7, now including a read-only org profile summary once verified — Sprint 11) + chat-based candidate search (Sprint 8) + iRecruit pipeline card (Sprint 9, now showing consent-gated photo/video/CV buttons) |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
-| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure |
+| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure. Nav now links to `/invites` with a "new invites" count badge (Sprint 18) — the inline shortlist section itself is unchanged/still functional, not yet consolidated into the new page |
+| `src/invites.html` | Jobseeker Invites screen (Sprint 18), `/invites` — implements wireframe screens 03/04 against the existing `/me/shortlists*` routes: New/Accepted/Declined tabs (derived client-side from `candidate_consented_at`/`closed_at`, no new status field) and a detail view per tab — undecided invites get the full "if you accept" consent panel with Accept/Decline/Decide later and a fixed six-option decline-reason picker; accepted ones get a Withdraw action; declined ones are read-only. Does NOT implement the wireframe's 7-day auto-expiry countdown (needs an `expires_at` column set at invite creation plus a scheduled job — real scope, flagged not built) or the tab-bar app shell (Home/Invites/Pipelines/Network/Profile) — this ships as a page linked from the dashboard, not yet a full navigation rework |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -1134,3 +1135,44 @@ has two pipelines with one employer — both fixed, see `SPRINTS.md` Sprint
 screens combined across both) were also published as private Claude
 Artifacts this session for the founder to review visually — not part of
 the repo, not live, links given directly to the founder in chat.
+
+**2026-08-31 — founder flagged the gap directly:** Sprints 13–15 above
+reconciled the employer-track *backend* against the wireframe/workflow
+spec, but the jobseeker-facing pages (`sign-in.html`, `onboarding.html`,
+`dashboard.html`) were never rebuilt against `docs/mockups/jobseeker-
+wireframes.html` — they predate it. Founder confirmed via the live-site
+walkthrough that what's deployed doesn't match the wireframe (no tab
+bar, no dedicated Invites/Pipelines/Network/Credentials/Visibility
+screens, no consent-moment screen). Asked to start on the frontend;
+first slice:
+
+- **Sprint 18 — jobseeker Invites screen — shipped 2026-08-31**: new
+  `src/invites.html` (`/invites`) implements wireframe screens 03
+  (Invites list, New/Accepted/Declined tabs) and 04 (Invite detail — the
+  consent moment) against the *existing* `/me/shortlists*` routes; no new
+  backend concept, "accept" = existing per-pipeline consent, "decline" =
+  existing withdraw route. Added migration `0025` (`shortlists.decline_
+  reason`, a fixed six-value list matching the wireframe's decline-reason
+  picker) and extended `POST /me/shortlists/:id/withdraw` to accept an
+  optional `reason` — a real, if small, product decision the wireframe
+  calls out explicitly ("prefer not to say" must be a valid, complete
+  answer; there's no way to decline with nothing shared), not something
+  that could be faked purely in the frontend. Linked from `dashboard.html`
+  (nav link + new-invites count badge); the dashboard's own inline
+  shortlist/consent section was left in place rather than removed, to
+  avoid breaking working functionality in the same pass — worth
+  consolidating once the rest of the shell exists.
+- **Still not built, in wireframe order**: the tab-bar app shell itself
+  (Home/Invites/Pipelines/Network/Profile — currently every candidate
+  page is its own top-level page, no shared nav); a dedicated Pipelines
+  screen (currently folded into `dashboard.html`'s "Employer interest"
+  section, which still uses old-style stage chips rather than the
+  wireframe's dedicated list); the 7-day invite auto-expiry (needs an
+  `expires_at` column set at invite creation in `employer-chat.ts`'s
+  `send_invite` handler, plus a scheduled job — flagged, not started);
+  Network/connections; dedicated Credentials and Visibility (field-level
+  privacy) screens; the Home social feed with a pinned invites strip;
+  onboarding's step count/content still doesn't match the wireframe's
+  7-step outline (11 steps, different structure — not just renumbered).
+  Sequencing these is an open question for the founder, not decided
+  here.
