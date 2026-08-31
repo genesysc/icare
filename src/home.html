@@ -1,0 +1,146 @@
+<!--
+  iCare candidate Home — SPRINTS.md Sprint 19.
+
+  Placeholder. The wireframe's Home (docs/mockups/jobseeker-wireframes.
+  html, screen 02) is a social feed with a pinned "new invites" strip
+  above it — real feature work (a composer, other candidates' posts
+  surfaced, a feed ranking/pagination story) that wasn't asked for this
+  sprint and isn't guessed at here. This exists so the tab-bar shell's
+  five destinations all resolve honestly instead of leaving Home as a
+  dead link — see HANDOVER.md §14's Sprint 19 note for what's still open.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Home — iCare</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533; --ink-soft: #5b5670; --ink-faint: #8a8599;
+    --teal-700: #0e8c7f; --teal-500: #16b8a6; --teal-100: #e3faf6;
+    --paper-dim: #f8f6f1; --line: #e7e3da; --white: #ffffff;
+    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased; }
+  h1 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  p { margin: 0; }
+
+  .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+  .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .sign-out:hover { color: var(--teal-700); }
+
+  .tab-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; background: var(--white); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0); }
+  .tab-bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint); font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em; }
+  .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-bar-item.is-active { color: var(--teal-700); }
+  .tab-bar-item .tab-bar-icon-wrap { position: relative; }
+  .tab-bar-dot { position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px; background: var(--teal-500); border: 1.5px solid var(--white); display: none; }
+  .tab-bar-dot.is-visible { display: block; }
+
+  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; }
+  .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 34px 28px; text-align: center; }
+  .card h1 { font-size: 21px; }
+  .card p { margin-top: 10px; font-size: 13.5px; color: var(--ink-faint); line-height: 1.6; max-width: 44ch; margin-left: auto; margin-right: auto; }
+  .card a { display: inline-block; margin-top: 18px; font-size: 13.5px; font-weight: 700; color: var(--teal-700); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</header>
+
+<div class="wrap">
+  <div class="card">
+    <h1>Home is coming</h1>
+    <p>This is where your feed and new-invite highlights will live. For now, your invites and pipelines have their
+      own pages — start there.</p>
+    <a href="/invites">Go to your invites →</a>
+  </div>
+</div>
+
+<nav class="tab-bar" aria-label="Main">
+  <a href="/home" class="tab-bar-item is-active" data-tab="home">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="/invites" class="tab-bar-item" data-tab="invites">
+    <span class="tab-bar-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+      <span class="tab-bar-dot" data-invites-dot></span>
+    </span>
+    <span>Invites</span>
+  </a>
+  <a href="/pipelines" class="tab-bar-item" data-tab="pipelines">
+    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    <span>Pipelines</span>
+  </a>
+  <a href="/network" class="tab-bar-item" data-tab="network">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Network</span>
+  </a>
+  <a href="/dashboard" class="tab-bar-item" data-tab="profile">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Profile</span>
+  </a>
+</nav>
+
+<script>
+var ICARE_SESSION_KEY = "icare_session";
+function icareGetSession() {
+  try { var raw = localStorage.getItem(ICARE_SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+function icareClearSession() {
+  try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {}
+}
+function icareIsSessionExpired(session) {
+  if (!session || !session.expires_at) return true;
+  return Date.now() >= session.expires_at * 1000;
+}
+function icareAuthFetch(url, options) {
+  var session = icareGetSession();
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+function icareRequireAuth(signInPath) {
+  var session = icareGetSession();
+  if (!session || icareIsSessionExpired(session)) {
+    icareClearSession();
+    var next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = (signInPath || "/sign-in") + "?next=" + next;
+    return null;
+  }
+  return session;
+}
+
+(function () {
+  var session = icareRequireAuth();
+  if (!session) return;
+
+  icareAuthFetch("/candidates/me/shortlists").then(function (res) { return res.json(); }).then(function (body) {
+    var hasNew = (body.shortlists || []).some(function (r) { return !r.candidate_consented_at && !r.closed_at; });
+    document.querySelector("[data-invites-dot]").classList.toggle("is-visible", hasNew);
+  }).catch(function () {});
+
+  document.querySelector("[data-sign-out]").addEventListener("click", function () {
+    icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
+      icareClearSession();
+      window.location.href = "/";
+    });
+  });
+})();
+</script>
+</body>
+</html>

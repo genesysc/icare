@@ -70,11 +70,28 @@
   .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
   .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
   .logo em { font-style: normal; color: var(--teal-500); }
-  .nav-links { display: flex; align-items: center; gap: 18px; }
-  .nav-link { font-size: 14px; font-weight: 600; color: var(--ink-faint); text-decoration: none; }
-  .nav-link:hover { color: var(--teal-700); }
   .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
   .sign-out:hover { color: var(--teal-700); }
+
+  /* Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment */
+  .tab-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; background: var(--white); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-bar-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint);
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-bar-item.is-active { color: var(--teal-700); }
+  .tab-bar-item .tab-bar-icon-wrap { position: relative; }
+  .tab-bar-dot {
+    position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px;
+    background: var(--teal-500); border: 1.5px solid var(--white); display: none;
+  }
+  .tab-bar-dot.is-visible { display: block; }
 
   .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; }
 
@@ -148,10 +165,7 @@
 
 <header class="nav">
   <a href="/" class="logo">i<em>Care</em></a>
-  <div class="nav-links">
-    <a href="/dashboard" class="nav-link">Dashboard</a>
-    <button class="sign-out" data-sign-out>Sign out</button>
-  </div>
+  <button class="sign-out" data-sign-out>Sign out</button>
 </header>
 
 <div class="wrap">
@@ -280,6 +294,33 @@
 
   </div>
 </div>
+
+<!-- Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment -->
+<nav class="tab-bar" aria-label="Main">
+  <a href="/home" class="tab-bar-item" data-tab="home">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="/invites" class="tab-bar-item is-active" data-tab="invites">
+    <span class="tab-bar-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+      <span class="tab-bar-dot" data-invites-dot></span>
+    </span>
+    <span>Invites</span>
+  </a>
+  <a href="/pipelines" class="tab-bar-item" data-tab="pipelines">
+    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    <span>Pipelines</span>
+  </a>
+  <a href="/network" class="tab-bar-item" data-tab="network">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Network</span>
+  </a>
+  <a href="/dashboard" class="tab-bar-item" data-tab="profile">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Profile</span>
+  </a>
+</nav>
 
 <script>
 // ---- Shared auth helper (src/auth-client.js, copied per this repo's no-build-step convention) ----
@@ -489,15 +530,21 @@ function icareRequireAuth(signInPath) {
       if (result.ok) {
         allRows = result.body.shortlists || [];
         renderList();
+        var hasNew = allRows.some(function (r) { return bucketOf(r) === "new"; });
+        document.querySelector("[data-invites-dot]").classList.toggle("is-visible", hasNew);
       }
       return result;
     });
   }
 
-  document.querySelectorAll("[data-tab]").forEach(function (tabBtn) {
+  // Scoped to .tabs .tab, not the broader [data-tab] selector — the
+  // bottom tab-bar's nav links (Sprint 19) reuse the data-tab attribute
+  // name for their own destinations (home/invites/pipelines/...) and
+  // must not be caught by this in-page tab switcher.
+  document.querySelectorAll(".tabs .tab").forEach(function (tabBtn) {
     tabBtn.addEventListener("click", function () {
       activeTab = tabBtn.getAttribute("data-tab");
-      document.querySelectorAll("[data-tab]").forEach(function (t) { t.classList.toggle("is-active", t === tabBtn); });
+      document.querySelectorAll(".tabs .tab").forEach(function (t) { t.classList.toggle("is-active", t === tabBtn); });
       renderList();
     });
   });

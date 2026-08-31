@@ -164,8 +164,11 @@ stop and ask the user — do not resolve it yourself.**
 | `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me` |
 | `src/employer-home.html` | Employer home, `/employer/home` — verification card (Sprint 7, now including a read-only org profile summary once verified — Sprint 11) + chat-based candidate search (Sprint 8) + iRecruit pipeline card (Sprint 9, now showing consent-gated photo/video/CV buttons) |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
-| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure. Nav now links to `/invites` with a "new invites" count badge (Sprint 18) — the inline shortlist section itself is unchanged/still functional, not yet consolidated into the new page |
-| `src/invites.html` | Jobseeker Invites screen (Sprint 18), `/invites` — implements wireframe screens 03/04 against the existing `/me/shortlists*` routes: New/Accepted/Declined tabs (derived client-side from `candidate_consented_at`/`closed_at`, no new status field) and a detail view per tab — undecided invites get the full "if you accept" consent panel with Accept/Decline/Decide later and a fixed six-option decline-reason picker; accepted ones get a Withdraw action; declined ones are read-only. Does NOT implement the wireframe's 7-day auto-expiry countdown (needs an `expires_at` column set at invite creation plus a scheduled job — real scope, flagged not built) or the tab-bar app shell (Home/Invites/Pipelines/Network/Profile) — this ships as a page linked from the dashboard, not yet a full navigation rework |
+| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure. This is the wireframe's **Profile** tab (Sprint 19) — the tab-bar shell now sits at the bottom of every signed-in page instead of a text nav link. Its own inline shortlist section is unchanged/still functional, not yet consolidated into `invites.html`/`pipelines.html` |
+| `src/invites.html` | Jobseeker Invites screen (Sprint 18), `/invites` — implements wireframe screens 03/04 against the existing `/me/shortlists*` routes: New/Accepted/Declined tabs (derived client-side from `candidate_consented_at`/`closed_at`, no new status field) and a detail view per tab — undecided invites get the full "if you accept" consent panel with Accept/Decline/Decide later and a fixed six-option decline-reason picker; accepted ones get a Withdraw action; declined ones are read-only. Does NOT implement the wireframe's 7-day auto-expiry countdown (needs an `expires_at` column set at invite creation plus a scheduled job — real scope, flagged not built) |
+| `src/pipelines.html` | Jobseeker Pipelines screen (Sprint 19), `/pipelines` — implements wireframe screen 05 against the same `/me/shortlists*` data as `invites.html`. Active/Closed tabs, but scoped to rows that were actually accepted (`candidate_consented_at` set) — an invite declined before ever being accepted lives only on `invites.html`'s Declined tab, never here, matching the wireframe's own stated principle that a pipeline is a state you sit in *after* the invite decision. Detail view renders a real six-stage tracker (done/current/upcoming) plus a Withdraw action for active pipelines, or a closing note for closed ones. One deliberate deviation from the wireframe's own screen-05 example, documented in the file's header comment: a Successful/Onboarding pipeline stays in Active here (this backend's `closed_at` means access-revoked, not "reached a terminal stage" — see `employer-chat.ts`'s `move_candidate_stage`) |
+| `src/home.html`, `src/network.html` | Minimal placeholder pages (Sprint 19) for the tab-bar shell's remaining two destinations — an honest "not built yet" card, not fake content. See the note below for what real feature work each still needs |
+| `src/nav-shell.html` | Reference file for the signed-in tab-bar shell (Sprint 19) — same "not imported, copy verbatim" convention as `auth-client.js`. Five destinations (Home/Invites/Pipelines/Network/Profile) as a bottom-fixed bar at every viewport size (this codebase has no other desktop-specific layout), hand-authored inline SVG icons, an unread dot on Invites. Copied into `dashboard.html`, `invites.html`, `pipelines.html`, `home.html`, `network.html` — update all five if this file changes |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -1162,17 +1165,28 @@ first slice:
   shortlist/consent section was left in place rather than removed, to
   avoid breaking working functionality in the same pass — worth
   consolidating once the rest of the shell exists.
-- **Still not built, in wireframe order**: the tab-bar app shell itself
-  (Home/Invites/Pipelines/Network/Profile — currently every candidate
-  page is its own top-level page, no shared nav); a dedicated Pipelines
-  screen (currently folded into `dashboard.html`'s "Employer interest"
-  section, which still uses old-style stage chips rather than the
-  wireframe's dedicated list); the 7-day invite auto-expiry (needs an
-  `expires_at` column set at invite creation in `employer-chat.ts`'s
-  `send_invite` handler, plus a scheduled job — flagged, not started);
-  Network/connections; dedicated Credentials and Visibility (field-level
-  privacy) screens; the Home social feed with a pinned invites strip;
-  onboarding's step count/content still doesn't match the wireframe's
-  7-step outline (11 steps, different structure — not just renumbered).
-  Sequencing these is an open question for the founder, not decided
-  here.
+- **Sprint 19 — tab-bar shell + Pipelines screen — shipped 2026-08-31**:
+  founder asked to build the shell first, then Pipelines. `src/nav-
+  shell.html` is the new reference tab bar (Home/Invites/Pipelines/
+  Network/Profile), copied into all five signed-in pages —
+  `dashboard.html` is now understood as the wireframe's Profile tab
+  rather than a standalone page. `src/pipelines.html` implements
+  wireframe screen 05 (Active/Closed, six-stage tracker), scoped to
+  ever-accepted rows only per the wireframe's own invite-vs-pipeline
+  distinction. `src/home.html`/`src/network.html` are minimal, honest
+  placeholders so all five tab destinations resolve — see the file map
+  above and `SPRINTS.md`'s Sprint 19 note for the real feature work each
+  still needs and the one deliberate wireframe deviation (a Successful/
+  Onboarding pipeline stays in Active, not Closed — this backend's
+  `closed_at` means access-revoked specifically, not "reached a terminal
+  stage").
+- **Still not built, in wireframe order**: the 7-day invite auto-expiry
+  (needs an `expires_at` column set at invite creation in `employer-
+  chat.ts`'s `send_invite` handler, plus a scheduled job — flagged, not
+  started); the Home social feed itself (composer, other candidates'
+  posts, a pinned invites strip — `home.html` is a placeholder, not this);
+  Network/connections (`network.html` likewise a placeholder); dedicated
+  Credentials and Visibility (field-level privacy) screens; onboarding's
+  step count/content still doesn't match the wireframe's 7-step outline
+  (11 steps, different structure — not just renumbered). Sequencing
+  these is an open question for the founder, not decided here.

@@ -838,6 +838,88 @@ clean, `wrangler deploy --dry-run` bundles cleanly (1213.91 KiB / 248.05
 KiB gzip). Same branch/PR as Sprints 13–15 (`claude/jobseeker-employer-
 wireframes-rc5uss`, PR #29 — not yet merged).
 
+### Sprint 19 — Tab-bar shell + Pipelines screen ✅ Shipped 2026-08-31
+
+Founder's own sequencing call: "Build the tab-bar shell first, then
+Pipelines." Both from `docs/mockups/jobseeker-wireframes.html`'s sitemap
+(screen 00, five destinations) and screen 05.
+
+**Shipped**: `src/nav-shell.html` — reference file, same "not imported,
+copy verbatim" convention as `auth-client.js` — defines a bottom-fixed
+tab bar (Home/Invites/Pipelines/Network/Profile), hand-authored inline
+SVG icons (no icon library dependency), an unread dot on Invites driven
+by each page's own already-fetched `/me/shortlists` data. Fixed at
+every viewport size rather than mobile-only + a separate desktop nav —
+this codebase has no other desktop-specific layout (every page is a
+single centered column, no breakpoints), so a second pattern wasn't
+introduced just for this. Copied into `dashboard.html` (now understood
+as the wireframe's Profile tab — it was the only candidate page before
+this sprint) and `invites.html` (replacing that page's ad-hoc "Dashboard"
+text link from Sprint 18).
+
+New `src/pipelines.html` (`/pipelines`) — wireframe screen 05 — against
+the same `GET /me/shortlists` `invites.html` already uses, no new
+backend route. Active/Closed tabs, but scoped to `candidate_consented_
+at is not null` only: an invite declined before ever being accepted
+belongs solely to `invites.html`'s Declined tab, matching the
+wireframe's own stated principle ("an invite is a decision you make
+once, a pipeline is a state you sit in afterwards"). Detail view renders
+a real five-stage tracker (done/current/upcoming dots and connecting
+line) plus Rejected as its own terminal marker rather than pretending it
+sits on the normal ladder; Withdraw for active pipelines, a closing note
+for closed ones (`closeNote()` distinguishes candidate-declined-with-
+reason vs. employer-moved-to-rejected vs. job-closed, from the same
+`decline_reason`/`stage` data invites.html already has).
+
+**One deliberate deviation from the wireframe's own screen-05 example**,
+flagged in `pipelines.html`'s header comment rather than silently
+matched: the wireframe shows a "Successful" pipeline filed under
+Closed ("moved to Onboarding"). This backend's `closed_at` specifically
+means access-revoked (set only on reject/withdraw/job-close — see
+`employer-chat.ts`'s `move_candidate_stage`), never merely "reached a
+terminal stage" — a pipeline that's reached Successful/Onboarding still
+has `closed_at = null` in real data, so it correctly stays in Active
+here. Matching the wireframe's example literally would have meant
+inventing a second, UI-only notion of "closed" that doesn't correspond
+to anything in the schema.
+
+New `src/home.html`/`src/network.html` — minimal, honestly-labelled
+placeholder pages ("Home is coming" / "Network is coming", one card, a
+link back to Invites where useful) so the shell's five tab destinations
+all resolve instead of leaving two dead links. Real feed/composer/
+connections feature work wasn't asked for this sprint and isn't guessed
+at here — see `HANDOVER.md` §14's Sprint 19 note for what each still
+needs. All five pages registered in `src/index.ts` (`/pipelines`,
+`/home`, `/network`).
+
+**Bug caught before shipping, not in production**: both `invites.html`
+(from Sprint 18) and the new `pipelines.html` used `data-tab` as the
+attribute name for their own in-page pill tabs (New/Accepted/Declined,
+Active/Closed) — the same attribute name `nav-shell.html`'s bottom bar
+uses for its five nav links. `document.querySelectorAll("[data-tab]")`
+in both files' tab-switch handlers would have caught the nav links too,
+briefly corrupting `activeTab` state on every nav click (harmless in
+practice since the `<a href>` navigates away immediately after, but
+still wrong). Caught by re-reading the diff before testing, not by the
+click-through itself; fixed by scoping both handlers to `.tabs .tab`
+instead of the bare attribute selector.
+
+**Verified**: no new migration or backend route this sprint (pure
+frontend), so `tsc --noEmit` + `wrangler deploy --dry-run` (both clean,
+1255.52 KiB / 254.67 KiB gzip) covers the build; a full Playwright
+click-through against the existing mock-shim harness (extended with
+richer fixture data — a new invite with a full `job_snapshot`, an
+active mid-stage pipeline, an active Onboarding-stage pipeline, a
+candidate-declined-with-reason closed row, an employer-rejected closed
+row — and a new `/withdraw` handler the shim didn't have yet) confirmed
+zero JS errors and correct rendering across all five pages: the stage
+tracker's done/current/upcoming states, the Rejected-only marker, both
+closing-note branches, the Invites-tab unread dot lighting correctly
+from the same fixture, and the Active/Closed pipeline split correctly
+excluding the still-undecided invite. Same branch/PR as Sprints 13–15/
+18 (`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not yet
+merged).
+
 ### Sprint 16 — Async video interview stage
 
 Candidate self-schedules, answers pre-set questions on video, submits;

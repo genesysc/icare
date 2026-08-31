@@ -16,6 +16,9 @@ import verifyPage from "./verify.html";
 import onboardingPage from "./onboarding.html";
 import dashboardPage from "./dashboard.html";
 import invitesPage from "./invites.html";
+import pipelinesPage from "./pipelines.html";
+import homePage from "./home.html";
+import networkPage from "./network.html";
 import employerHomePage from "./employer-home.html";
 
 type Bindings = {
@@ -45,6 +48,9 @@ app.get("/verify", (c) => c.html(verifyPage));
 app.get("/onboarding", (c) => c.html(onboardingPage));
 app.get("/dashboard", (c) => c.html(dashboardPage));
 app.get("/invites", (c) => c.html(invitesPage));
+app.get("/pipelines", (c) => c.html(pipelinesPage));
+app.get("/home", (c) => c.html(homePage));
+app.get("/network", (c) => c.html(networkPage));
 app.get("/employer/home", (c) => c.html(employerHomePage));
 
 app.get("/health", (c) => c.json({ status: "ok" }));

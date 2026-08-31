@@ -2627,3 +2627,66 @@ reconciliation. Flagged in `HANDOVER.md` §14 and `SPRINTS.md`'s Sprint
 18 note, explicitly not sequenced without the founder's input. Sprint 18
 pushed to the same branch/PR as Sprints 13–15
 (`claude/jobseeker-employer-wireframes-rc5uss`, PR #29).
+
+## 2026-08-31 (same day, continued) — Sprint 19: Tab-bar shell + Pipelines screen
+
+Founder's own sequencing after the Sprint 18 handoff: "Build the tab-bar
+shell first, then Pipelines."
+
+**Shipped**: `src/nav-shell.html`, a new reference file (same "not
+imported, copy verbatim" convention as `auth-client.js`) defining a
+bottom-fixed tab bar — Home/Invites/Pipelines/Network/Profile,
+hand-authored inline SVG icons, an unread dot on Invites — copied into
+`dashboard.html` and `invites.html`. `dashboard.html` is now understood
+as the wireframe's Profile tab rather than a standalone page; its Sprint
+18 "Dashboard" text link on `invites.html` was replaced by the shell
+itself. New `src/pipelines.html` (`/pipelines`) implements wireframe
+screen 05 against the same `GET /me/shortlists` data `invites.html`
+already uses — no new backend route — scoped to ever-accepted rows only
+(`candidate_consented_at is not null`), matching the wireframe's own
+principle that a pipeline only exists after the invite decision. Detail
+view has a real five-stage progress tracker plus a distinct terminal
+marker for Rejected, and a Withdraw action / closing note depending on
+state. New `src/home.html`/`src/network.html` — small, honestly-labelled
+placeholder pages, not fake feature content, so the shell's five
+destinations all resolve. All routes registered in `index.ts`.
+
+**One deliberate wireframe deviation, documented rather than silently
+matched**: the wireframe's own screen 05 example files a "Successful"
+pipeline under Closed. This backend's `closed_at` means access-revoked
+specifically (set only on reject/withdraw/job-close), never "reached a
+terminal stage" — a Successful/Onboarding pipeline has `closed_at =
+null` in real data and correctly stays Active here. Matching the
+wireframe's example literally would have meant inventing a second,
+schema-less notion of "closed."
+
+**Bug caught before shipping** (re-reading the diff, not from the
+click-through): both `invites.html` and the new `pipelines.html` used
+`data-tab` as the attribute name for their own in-page pill tabs, the
+same name `nav-shell.html`'s bottom bar uses for its five nav links —
+`querySelectorAll("[data-tab]")` in both tab-switch handlers would have
+caught the nav links too. Harmless in practice (the `<a href>` navigates
+away immediately after), but still wrong; fixed by scoping both to
+`.tabs .tab`.
+
+**Verified**: no new migration/route this sprint (pure frontend) — `tsc
+--noEmit` and `wrangler deploy --dry-run` both clean (1255.52 KiB /
+254.67 KiB gzip). Extended the existing mock-shim Playwright harness
+(from the earlier applicant-UI-preview Artifact work) with richer
+shortlist fixtures — a new invite with a full `job_snapshot`, two active
+pipelines at different stages (including Onboarding, to prove the
+"stays Active" deviation actually renders that way), a candidate-
+declined-with-reason closed row, an employer-rejected closed row — and a
+`/withdraw` handler the shim didn't have yet. Click-through confirmed
+zero JS errors and correct rendering across all five pages: stage
+tracker states, the Rejected-only marker, both closing-note branches,
+the Invites unread dot, and the Active/Closed split correctly excluding
+the still-undecided invite. Pushed to the same branch/PR as Sprints
+13–15/18 (`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not
+yet merged).
+
+**Not done this session**: the rest of the wireframe gap — the actual
+Home feed and Network features behind their new placeholder pages, the
+7-day invite auto-expiry, dedicated Credentials/Visibility screens,
+onboarding step-count reconciliation. Flagged in `HANDOVER.md` §14 and
+`SPRINTS.md`'s Sprint 19 note, sequencing still open for the founder.
