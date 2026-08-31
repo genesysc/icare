@@ -160,6 +160,31 @@ candidates.post("/me/publish", async (c) => {
   return c.json({ published: data });
 });
 
+// Sprint 21 — wireframe screen 08's "Findable by employers" master
+// switch. is_published is deliberately NOT in WRITABLE_FIELDS above (it's
+// meant to be owned by publish_my_profile()'s completeness gate, not a
+// bare PATCH) — but turning IT off never needed a gate, only turning it
+// back on does, and /me/publish already covers that reversible half.
+// This route is the missing other half: a plain, ungated unpublish. RLS
+// (candidate_self, id = auth.uid()) already allows a candidate to write
+// any column on their own row, same as every other candidate-owned
+// field — this route doesn't change what's reachable, only adds a
+// dedicated, narrow entry point for it, consistent with /me/publish and
+// /me/close-account already being their own single-purpose routes rather
+// than folded into the generic PATCH /me.
+candidates.post("/me/unpublish", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidates")
+    .update({ is_published: false })
+    .eq("id", c.get("userId"))
+    .select("is_published")
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ published: data.is_published });
+});
+
 candidates.post("/me/photo", async (c) => {
   const contentType = c.req.header("Content-Type");
   if (!contentType?.startsWith("image/")) {

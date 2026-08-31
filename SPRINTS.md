@@ -980,6 +980,67 @@ sponsorship block shows the right-to-work label. Same branch/PR as
 Sprints 13–15/18/19 (`claude/jobseeker-employer-wireframes-rc5uss`, PR
 #29 — not yet merged).
 
+### Sprint 21 — Visibility screen ✅ Shipped 2026-08-31
+
+Founder said "Go" after the Sprint 20 handoff, which had offered
+Visibility as the next wireframe screen. Screen 08.
+
+**Shipped**: new `src/visibility.html` (`/visibility`), linked from a
+new "Visibility" card on `dashboard.html` (grouped near Account, same
+"drill-in from Profile" pattern as Credentials). The master "Findable
+by employers" switch works both directions and is real, not decorative:
+`candidates.is_published` already existed and `/me/publish` (via
+`publish_my_profile()`, completeness-gated) already turned it on, but
+there was no way back to `false` short of `close_my_account()` — a much
+bigger, harder-to-reverse action. New `POST /candidates/me/unpublish`
+(`candidates.ts`) is the missing other half: a plain, ungated
+toggle-off. Checked first whether this needed a new RLS policy — it
+doesn't; `candidate_self` (`for all using (id = auth.uid())`) already
+lets a candidate write any column on their own row, `is_published` was
+only ever excluded from the generic `PATCH /me`'s application-layer
+allow-list (`WRITABLE_FIELDS`) so that turning it on stays behind
+`publish_my_profile()`'s completeness gate — the new route doesn't
+touch that, it only adds the missing off-switch as its own narrow
+endpoint, matching how `/me/publish` and `/me/close-account` are
+already separate single-purpose routes rather than folded into the
+generic PATCH.
+
+**Deliberately not built**: the wireframe's field-by-field visibility
+matrix (About/Experience: Public; Registrations/Availability: Employers
+only; Current employer/Documents: Private — each independently
+toggleable). Checked `candidate_search`'s actual definition (migration
+0001) before assuming this was buildable as a frontend toggle: it's a
+single fixed view, no per-field preference exists anywhere in the
+schema, and the wireframe's own claim doesn't even hold today —
+`about`/`proud_of` are explicitly excluded from that view by the
+migration's own comment, contradicting the wireframe's "About you:
+Public." Building real per-field visibility would mean new preference
+storage plus rewriting `candidate_search` to select conditionally per
+row — a genuine backend project, not something to fake with toggles
+that silently do nothing. This page instead shows a read-only, accurate
+breakdown of what's actually visible and when, sourced from what
+`candidate_search`/`candidate_post_search`/the consent-gated media
+routes really select.
+
+**Verified against the live schema** — this sprint's new route needed
+it, unlike Sprint 20's pure frontend pass: provisioned a test candidate
+via the real `handle_new_user()` trigger, manually set `is_published =
+true` to simulate an already-published profile (since a fresh test
+profile would correctly fail `publish_my_profile()`'s completeness
+gate), then ran the exact RLS-scoped update the new route performs —
+succeeded, `is_published` flipped to `false`. Confirmed the RLS
+boundary itself still holds by attempting the same update against a
+different account's id while authenticated as the test candidate — zero
+rows affected, as expected from the unchanged `candidate_self` policy.
+Test candidate deleted afterward, table confirmed back at 0 leftover
+rows. `tsc --noEmit` and `wrangler deploy --dry-run` both clean
+(1294.39 KiB / 261.07 KiB gzip). Mock-shim click-through confirmed the
+switch renders and toggles correctly both directions, on top of the
+schema-level test covering what the harness can't (real RLS
+enforcement). Same branch/PR as Sprints 13–15/18/19/20
+(`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — not yet
+merged).
+
 ### Sprint 16 — Async video interview stage
 
 Candidate self-schedules, answers pre-set questions on video, submits;

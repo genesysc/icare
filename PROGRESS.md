@@ -2740,3 +2740,55 @@ on the legal/policy question above), Visibility screen, the actual
 Home/Network features behind their placeholder pages, invite
 auto-expiry, onboarding step-count reconciliation. Sequencing still
 open for the founder.
+
+## 2026-08-31 (same day, continued) — Sprint 21: Visibility screen
+
+Founder said "Go" after the Sprint 20 handoff, which had offered
+Visibility as the next wireframe screen (screen 08).
+
+**Shipped**: `src/visibility.html` (`/visibility`), linked from a new
+"Visibility" card on `dashboard.html`. The master "Findable by
+employers" switch is real, not decorative — new `POST /candidates/me/
+unpublish` (`candidates.ts`) fills a genuine gap: `is_published`
+already existed and `/me/publish` already turned it on (completeness-
+gated via `publish_my_profile()`), but there was no way back to `false`
+short of closing the whole account. Checked whether this needed new RLS
+first — it didn't; `candidate_self` already allows a candidate to write
+any column on their own row, `is_published` was only excluded from the
+generic PATCH's application-layer allow-list so publishing stays gated.
+The new route is a narrow, single-purpose off-switch, matching how
+`/me/publish`/`/me/close-account` are already separate routes rather
+than folded into the generic PATCH.
+
+**Deliberately not built**: the wireframe's field-by-field visibility
+matrix (About/Experience Public, Registrations/Availability Employers-
+only, Current employer/Documents Private, each independently
+toggleable). Read `candidate_search`'s actual definition before
+assuming this was a simple frontend wire-up like the last two screens —
+it's a single fixed view, no per-field preference exists in the schema
+anywhere, and the wireframe's own claim doesn't hold today regardless:
+`about`/`proud_of` are explicitly excluded from that view, contradicting
+its "About you: Public" line. Real per-field visibility would need new
+preference storage and a rewritten conditional-select view — a genuine
+backend project, not something to fake with toggles that do nothing.
+The page instead shows an accurate, read-only breakdown of what's
+actually visible and when.
+
+**Verified against the live schema**, since this sprint added a real
+mutating route (unlike Sprint 20's pure frontend pass): provisioned a
+test candidate via the real signup trigger, manually published it
+(since a fresh profile would correctly fail the completeness gate),
+then ran the exact RLS-scoped update the new route performs — succeeded.
+Confirmed the RLS boundary still holds by attempting the same update
+against a different account's id while authenticated as the test
+candidate — zero rows affected. Test candidate deleted, table confirmed
+back at 0. `tsc --noEmit`/`wrangler deploy --dry-run` clean (1294.39 KiB
+/ 261.07 KiB gzip); mock-shim click-through confirmed the switch renders
+and toggles correctly both directions. Pushed to the same branch/PR as
+Sprints 13–15/18–20 (`claude/jobseeker-employer-wireframes-rc5uss`, PR
+#29 — not yet merged).
+
+**Not done this session**: real per-field visibility preferences
+(genuine backend project), the actual Home/Network features, invite
+auto-expiry, the DBS three-state confirmation flow, onboarding
+step-count reconciliation. Sequencing still open for the founder.

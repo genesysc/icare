@@ -147,7 +147,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/badges`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5), incoming shortlists + consent (`/me/shortlists*`, Sprint 9, re-scoped to per-pipeline `/me/shortlists/:id/consent` + new `/withdraw` in Sprint 14/15 — see §14; `/withdraw` now also takes an optional `reason` from a fixed list, stored as `decline_reason` — Sprint 18), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
+| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish + new `/me/unpublish` (Sprint 21 — the reversible other half of publish, see §14), professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5), incoming shortlists + consent (`/me/shortlists*`, Sprint 9, re-scoped to per-pipeline `/me/shortlists/:id/consent` + new `/withdraw` in Sprint 14/15 — see §14; `/withdraw` now also takes an optional `reason` from a fixed list, stored as `decline_reason` — Sprint 18), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
 | `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post; `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9, now with `job_title`); `GET /candidates/:id/{photo,video,cv}` — consent-gated media (Sprint 9); `GET /bookmarks`, `DELETE /bookmarks/:candidateId` (Sprint 14) |
 | `src/employer-chat.ts` | Employer chat — seven tools behind `POST /employers/chat` (guardrail → Workers AI tool call → deterministic DB action → persist), `GET /employers/chat` (replay thread): `search_candidates` (Sprint 8, extended for posts, `min_experience_years`, `qualification_type_id`), `bookmark_candidates`/`send_invite` (Sprint 14, replacing Sprint 9's `shortlist_candidates` — see §14), `move_candidate_stage` (Sprint 9, now keyed by `pipeline_id` not `candidate_id`, Sprint 14)/`get_pipeline_status` (Sprint 9), `bulk_move_stage` (Sprint 11), `who_is_summary` (Sprint 10) |
 | `src/employer-chat-guardrail.ts` | Protected-characteristics keyword/proximity guardrail — the deterministic layer behind the chat's non-negotiable #5 compliance, see §7 |
@@ -169,6 +169,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/pipelines.html` | Jobseeker Pipelines screen (Sprint 19), `/pipelines` — implements wireframe screen 05 against the same `/me/shortlists*` data as `invites.html`. Active/Closed tabs, but scoped to rows that were actually accepted (`candidate_consented_at` set) — an invite declined before ever being accepted lives only on `invites.html`'s Declined tab, never here, matching the wireframe's own stated principle that a pipeline is a state you sit in *after* the invite decision. Detail view renders a real six-stage tracker (done/current/upcoming) plus a Withdraw action for active pipelines, or a closing note for closed ones. One deliberate deviation from the wireframe's own screen-05 example, documented in the file's header comment: a Successful/Onboarding pipeline stays in Active here (this backend's `closed_at` means access-revoked, not "reached a terminal stage" — see `employer-chat.ts`'s `move_candidate_stage`) |
 | `src/home.html`, `src/network.html` | Minimal placeholder pages (Sprint 19) for the tab-bar shell's remaining two destinations — an honest "not built yet" card, not fake content. See the note below for what real feature work each still needs |
 | `src/credentials.html` | Credentials & documents (Sprint 20), `/credentials` — implements wireframe screen 07, reached from `dashboard.html`'s badges card rather than a sixth tab-bar destination (matches the wireframe's own information architecture — Credentials sits one level under Profile, not beside it). Badges section is copied verbatim from `dashboard.html`'s own rendering; DBS and sponsorship-status (`right_to_work`) blocks are new but read/write only existing fields via existing routes. Deliberately does NOT implement the wireframe's three-state DBS model ("Not Yet Verified" / "Current — no new information" / "New information reported") — see the file's header comment and the note below for why |
+| `src/visibility.html` | Visibility (Sprint 21), `/visibility` — implements wireframe screen 08, reached from a new "Visibility" card on `dashboard.html`. The master "Findable by employers" switch is real and reversible: `candidates.is_published` existed already but had no way back to `false` short of closing the whole account, so this sprint added `POST /candidates/me/unpublish` (`candidates.ts`) as the missing other half of the existing `/me/publish`. The wireframe's field-by-field visibility matrix (About/Experience Public, Registrations/Availability Employers-only, etc., each independently toggleable) is NOT built — no such preference exists anywhere in the schema, `candidate_search` is a single fixed view. This page shows a read-only, accurate breakdown of what's actually exposed instead of fake per-field toggles — see the file's header comment |
 | `src/nav-shell.html` | Reference file for the signed-in tab-bar shell (Sprint 19) — same "not imported, copy verbatim" convention as `auth-client.js`. Five destinations (Home/Invites/Pipelines/Network/Profile) as a bottom-fixed bar at every viewport size (this codebase has no other desktop-specific layout), hand-authored inline SVG icons, an unread dot on Invites. Copied into `dashboard.html`, `invites.html`, `pipelines.html`, `home.html`, `network.html` — update all five if this file changes |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
@@ -1196,15 +1197,32 @@ first slice:
   actually on file (level, Update Service registration, consent) rather
   than inventing a confirmation the platform has never performed.
   Building the real three-state flow needs that policy decision first.
+- **Sprint 21 — Visibility screen — shipped 2026-08-31**:
+  `src/visibility.html` (wireframe screen 08), linked from a new
+  "Visibility" card on `dashboard.html`. The master "Findable by
+  employers" switch is real and reversible — new `POST /candidates/
+  me/unpublish` fills the gap that `is_published` previously had no way
+  back to `false` except by closing the whole account. Verified against
+  the live schema (RLS-scoped publish/unpublish round trip, confirmed a
+  candidate can't write another candidate's row). The wireframe's
+  field-by-field visibility matrix (About/Experience Public,
+  Registrations/Availability Employers-only, etc.) is explicitly NOT
+  built — no such preference exists anywhere in the schema, and the
+  wireframe's own claim that "About you" is Public doesn't even match
+  reality (`about`/`proud_of` are excluded from `candidate_search`
+  entirely). The page shows a read-only, accurate breakdown instead of
+  fake toggles.
 - **Still not built, in wireframe order**: the 7-day invite auto-expiry
   (needs an `expires_at` column set at invite creation in `employer-
   chat.ts`'s `send_invite` handler, plus a scheduled job — flagged, not
   started); the Home social feed itself (composer, other candidates'
   posts, a pinned invites strip — `home.html` is a placeholder, not this);
-  Network/connections (`network.html` likewise a placeholder); a
-  Visibility (field-level privacy) screen; the real DBS three-state
-  confirmation flow (blocked on the legal/operational question above);
-  onboarding's step count/content still doesn't match the wireframe's
-  7-step outline (11 steps, different structure — not just renumbered).
-  Sequencing these is an open question for the founder, not decided
-  here.
+  Network/connections (`network.html` likewise a placeholder); real
+  per-field visibility preferences (a genuine backend project — new
+  preference storage plus rewriting `candidate_search` to select
+  conditionally, not a frontend wire-up); the real DBS three-state
+  confirmation flow (blocked on the legal/operational question in the
+  Sprint 20 note); onboarding's step count/content still doesn't match
+  the wireframe's 7-step outline (11 steps, different structure — not
+  just renumbered). Sequencing these is an open question for the
+  founder, not decided here.
