@@ -1,38 +1,27 @@
-// Thin wrapper around Sender.net for transactional email. Deliberately a
-// no-op right now: sending needs a verified icare domain in Sender.net
-// (only genesysconsultancy.co.uk is verified today), and the user chose
-// to wait for that domain rather than send from a stand-in address. This
-// keeps /waitlist fully functional (signups are captured either way) and
-// makes turning sending on later a config change, not a code change.
+// Thin wrapper around Sender.net's transactional-send REST API
+// (POST https://api.sender.net/v2/message/send — confirmed against
+// Sender's own current docs, not guessed) for the stage-completion emails
+// this project already writes content for (see src/emails/): candidate
+// profile published, employer verification submitted/verified.
 //
-// The stage-completion email content this now sends into (candidate
-// profile published, employer verification submitted/verified — see
-// src/emails/) is already written and wired at its call sites
-// (src/candidates.ts, src/employers.ts) — it's only this function's actual
-// API call that's still a stub. Tried to fill it in for real on 2026-08-26
-// and hit a hard wall: the Sender MCP connector was disconnected
-// mid-session (can't inspect the live account), and WebFetch to
-// api.sender.net / www.sender.net / developers.sender.net all came back
-// EGRESS_BLOCKED from this sandbox's network proxy — the same class of
-// restriction that blocks *.supabase.co and api.anthropic.com elsewhere in
-// this build. Never guessed the request shape to work around it — that's
-// exactly the kind of API-shape guess this project's conventions forbid.
+// This is a SEPARATE path from Supabase Auth's own emails (OTP code,
+// magic link, password reset) — those are triggered by Supabase itself
+// and can only be routed through Sender.net as a custom SMTP relay
+// configured in the Supabase Dashboard (Authentication -> Emails -> SMTP
+// Settings), not through this function. See HANDOVER.md §8/§6.
 //
-// To activate once ready:
-//   1. Verify the icare domain in Sender.net, grab an API key.
-//   2. `wrangler secret put SENDER_API_KEY` (never a plain wrangler.jsonc var — this one's a real secret).
-//   3. Add SENDER_FROM_EMAIL to wrangler.jsonc vars (e.g. "hello@icare...").
-//   4. Fill in the fetch() call below per Sender.net's current transactional-send API docs —
-//      get real docs either via the Sender MCP connector (reconnect it) or by pasting the
-//      relevant API reference directly; do not guess the request shape.
-//   5. employer-verified.ts also needs a real trigger: is_verified is only ever flipped by a
-//      manual Supabase dashboard edit today, with no API call behind it to hook a send into.
-//      That needs either a Postgres database webhook (employers.is_verified -> true, calling a
-//      new Worker route) or a proper admin review route — ask the founder which, don't assume.
+// icareltd.com is a verified sending domain in Sender.net (SPF/DKIM/DMARC
+// all pass, confirmed live via the Sender MCP connector) — the earlier
+// domain blocker noted below is resolved.
+//
+// Still a documented no-op if the secret isn't set: `SENDER_API_KEY` must
+// be provisioned via `wrangler secret put SENDER_API_KEY` (never a plain
+// wrangler.jsonc var) before this actually sends anything.
 
 type Bindings = {
   SENDER_API_KEY?: string;
   SENDER_FROM_EMAIL?: string;
+  SENDER_FROM_NAME?: string;
 };
 
 export async function sendTransactionalEmail(
@@ -46,9 +35,26 @@ export async function sendTransactionalEmail(
     return { sent: false };
   }
 
-  // TODO: wire the real Sender.net transactional-send request here once
-  // the domain/API key exist — check current Sender.net API docs for the
-  // exact endpoint and payload shape before filling this in.
-  console.log(`[email:stub] would send "${subject}" to ${to} from ${env.SENDER_FROM_EMAIL}`);
-  return { sent: false };
+  const res = await fetch("https://api.sender.net/v2/message/send", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.SENDER_API_KEY}`,
+    },
+    body: JSON.stringify({
+      from: { email: env.SENDER_FROM_EMAIL, name: env.SENDER_FROM_NAME || "iCare" },
+      to: { email: to },
+      subject,
+      html,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error(`[email:error] Sender.net send failed (${res.status}): ${body}`);
+    return { sent: false };
+  }
+
+  return { sent: true };
 }
