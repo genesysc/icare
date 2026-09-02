@@ -1478,18 +1478,34 @@ candidates.post("/me/cv", async (c) => {
       max_tokens: 3000,
     });
 
-    const rawResponse = typeof result === "object" && result !== null && "response" in result ? (result as { response?: string }).response : undefined;
+    const rawResponse = typeof result === "object" && result !== null && "response" in result ? (result as { response?: unknown }).response : undefined;
     if (!rawResponse) {
       await supabase.from("cv_imports").update({ status: "unreadable", error_detail: "Model did not return structured data" }).eq("id", importRow.id);
       return c.json({ cv_import: { ...importRow, status: "unreadable" } });
     }
 
+    // With response_format: json_schema, Workers AI returns `response` as
+    // an already-parsed object, not a JSON string — confirmed by directly
+    // inspecting a live call's raw output. JSON.parse()-ing it unconditionally
+    // was the actual bug (stringifies the object to "[object Object]" first,
+    // which then fails to parse) — every CV import was failing on this,
+    // never on the model's own output. Handle both shapes defensively in
+    // case that ever changes.
     let rawParsed: Record<string, unknown>;
-    try {
-      rawParsed = JSON.parse(rawResponse) as Record<string, unknown>;
-    } catch {
-      await supabase.from("cv_imports").update({ status: "unreadable", error_detail: "Model response wasn't valid JSON" }).eq("id", importRow.id);
-      return c.json({ cv_import: { ...importRow, status: "unreadable" } });
+    if (typeof rawResponse === "string") {
+      try {
+        rawParsed = JSON.parse(rawResponse) as Record<string, unknown>;
+      } catch {
+        const detail = "Model response wasn't valid JSON: " + rawResponse.slice(0, 500);
+        await supabase.from("cv_imports").update({ status: "unreadable", error_detail: detail }).eq("id", importRow.id);
+        return c.json({ cv_import: { ...importRow, status: "unreadable", error_detail: detail } });
+      }
+    } else if (typeof rawResponse === "object") {
+      rawParsed = rawResponse as Record<string, unknown>;
+    } else {
+      const detail = "Model returned an unexpected response type: " + typeof rawResponse;
+      await supabase.from("cv_imports").update({ status: "unreadable", error_detail: detail }).eq("id", importRow.id);
+      return c.json({ cv_import: { ...importRow, status: "unreadable", error_detail: detail } });
     }
 
     const parsed = sanitizeParsed(rawParsed, professionIds, skillIds, qualTypeIds);
