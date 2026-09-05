@@ -1260,6 +1260,54 @@ function asString(v: unknown): string | null {
 function asArray(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
+
+const MONTH_NAMES: Record<string, string> = {
+  january: "01", february: "02", march: "03", april: "04", may: "05", june: "06",
+  july: "07", august: "08", september: "09", october: "10", november: "11", december: "12",
+  jan: "01", feb: "02", mar: "03", apr: "04", jun: "06", jul: "07", aug: "08", sep: "09", sept: "09", oct: "10", nov: "11", dec: "12",
+};
+
+// The schema asks the model for strict YYYY-MM-DD, but instructing an
+// open-weight model to use a format doesn't guarantee it — confirmed live
+// ("January 2025", "November 2022", a bare "2012" all came back from real
+// CVs) and the destination columns (employment_history.started_on etc.)
+// reject anything else outright. Normalizes what the model actually
+// extracted into a real date rather than guessing new information; a
+// genuinely unparseable string is dropped to null, never invented.
+function asDate(v: unknown): string | null {
+  const s = asString(v);
+  if (!s) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  let m = s.match(/^(\d{4})-(\d{2})$/);
+  if (m) return `${m[1]}-${m[2]}-01`;
+
+  m = s.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (m) {
+    const month = MONTH_NAMES[m[1].toLowerCase()];
+    if (month) return `${m[2]}-${month}-01`;
+  }
+
+  m = s.match(/^(\d{1,2})[/-](\d{4})$/);
+  if (m) {
+    const mm = m[1].padStart(2, "0");
+    if (Number(mm) >= 1 && Number(mm) <= 12) return `${m[2]}-${mm}-01`;
+  }
+
+  m = s.match(/^(\d{4})$/);
+  if (m) return `${m[1]}-01-01`;
+
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    const yyyy = parsed.getUTCFullYear();
+    const mm = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(parsed.getUTCDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return null;
+}
 function filterAllowedIds(v: unknown, allowed: Set<string>): string[] {
   return asArray(v).filter((id): id is string => typeof id === "string" && allowed.has(id));
 }
@@ -1279,8 +1327,8 @@ function sanitizeParsed(raw: Record<string, unknown>, professionIds: Set<string>
         employer,
         job_title: jobTitle,
         setting: asString(rec.setting),
-        started_on: asString(rec.started_on),
-        ended_on: asString(rec.ended_on),
+        started_on: asDate(rec.started_on),
+        ended_on: asDate(rec.ended_on),
         is_current: rec.is_current === true,
         description: asString(rec.description),
       };
@@ -1298,7 +1346,7 @@ function sanitizeParsed(raw: Record<string, unknown>, professionIds: Set<string>
         type_id: typeId && qualTypeIds.has(typeId) ? typeId : null,
         title,
         awarding_body: asString(rec.awarding_body),
-        awarded_on: asString(rec.awarded_on),
+        awarded_on: asDate(rec.awarded_on),
       };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
