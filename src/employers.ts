@@ -150,14 +150,25 @@ employers.post("/me/verification-requests", async (c) => {
 // a second, independent check on the same condition — belt and braces,
 // not redundancy for its own sake, since a Worker route bug in the
 // explicit check wouldn't be caught by anything else for photo/video.
+// Sprint 15: fixed a real bug introduced by Sprint 14 — once a candidate
+// could hold more than one pipeline with the same employer (one per job),
+// .maybeSingle() here would throw (PGRST116, "multiple rows returned")
+// the moment a candidate had two shortlist rows with this employer, even
+// if only one was consented. Media access isn't job-specific (a photo/
+// video/CV is the same file regardless of which role it's for), so this
+// checks for ANY currently open, consented pipeline with this employer —
+// not a specific one — per HANDOVER.md §14's "is there a currently-active
+// pipeline" access-check standard (not "was ever granted").
 async function shortlistConsented(supabase: SupabaseClient, employerId: string, candidateId: string): Promise<boolean> {
   const { data } = await supabase
     .from("shortlists")
     .select("candidate_consented_at")
     .eq("employer_id", employerId)
     .eq("candidate_id", candidateId)
-    .maybeSingle();
-  return !!data?.candidate_consented_at;
+    .not("candidate_consented_at", "is", null)
+    .is("closed_at", null)
+    .limit(1);
+  return !!data?.length;
 }
 
 employers.get("/candidates/:id/photo", async (c) => {
@@ -211,7 +222,7 @@ employers.get("/pipeline", async (c) => {
 
   const { data: shortlistRows, error } = await supabase
     .from("shortlists")
-    .select("candidate_id, stage, created_at, stage_updated_at, candidate_consented_at")
+    .select("id, candidate_id, job_id, job_snapshot, stage, created_at, stage_updated_at, candidate_consented_at, closed_at")
     .eq("employer_id", userId)
     .order("stage_updated_at", { ascending: false });
   if (error) return c.json({ error: error.message }, 400);
@@ -228,15 +239,65 @@ employers.get("/pipeline", async (c) => {
   }
 
   const pipeline = (shortlistRows || []).map((r) => ({
+    id: r.id,
     candidate_id: r.candidate_id,
+    job_id: r.job_id,
+    job_title: (r.job_snapshot as { title?: string } | null)?.title || null,
     stage: r.stage,
     created_at: r.created_at,
     stage_updated_at: r.stage_updated_at,
     consented: !!r.candidate_consented_at,
+    closed: !!r.closed_at,
     candidate: candidatesById[r.candidate_id as string] || null,
   }));
 
   return c.json({ pipeline });
+});
+
+// --- Bookmarks (Sprint 14) — read-only supporting view for the same reason
+// /pipeline exists: bookmark_candidates in employer-chat.ts is the primary
+// interface, this just lets the employer see what chat has built. Genuinely
+// private — no candidate-facing equivalent exists anywhere, and none should.
+employers.get("/bookmarks", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+
+  const { data: bookmarkRows, error } = await supabase
+    .from("bookmarks")
+    .select("candidate_id, created_at")
+    .eq("employer_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) return c.json({ error: error.message }, 400);
+
+  const candidateIds = (bookmarkRows || []).map((r) => r.candidate_id);
+  const candidatesById: Record<string, unknown> = {};
+  if (candidateIds.length) {
+    const { data: candidateRows, error: candidatesError } = await supabase
+      .from("candidate_search")
+      .select("id, full_name, primary_profession, current_job_title, town, postcode_district")
+      .in("id", candidateIds);
+    if (candidatesError) return c.json({ error: candidatesError.message }, 400);
+    for (const cand of candidateRows || []) candidatesById[cand.id] = cand;
+  }
+
+  const bookmarks = (bookmarkRows || []).map((r) => ({
+    candidate_id: r.candidate_id,
+    created_at: r.created_at,
+    candidate: candidatesById[r.candidate_id as string] || null,
+  }));
+
+  return c.json({ bookmarks });
+});
+
+employers.delete("/bookmarks/:candidateId", async (c) => {
+  const { error } = await c
+    .get("supabase")
+    .from("bookmarks")
+    .delete()
+    .eq("employer_id", c.get("userId"))
+    .eq("candidate_id", c.req.param("candidateId"));
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
 });
 
 // --- Report a candidate post (Sprint 8 follow-up: candidate posts) ---

@@ -4,6 +4,7 @@ import auth from "./auth";
 import candidates from "./candidates";
 import employersApi from "./employers";
 import employerChat from "./employer-chat";
+import jobs from "./jobs";
 import waitlist from "./waitlist";
 import landingPage from "./landing.html";
 import employerLandingPage from "./employers.html";
@@ -14,6 +15,12 @@ import employerSignInPage from "./employer-sign-in.html";
 import verifyPage from "./verify.html";
 import onboardingPage from "./onboarding.html";
 import dashboardPage from "./dashboard.html";
+import invitesPage from "./invites.html";
+import pipelinesPage from "./pipelines.html";
+import credentialsPage from "./credentials.html";
+import visibilityPage from "./visibility.html";
+import homePage from "./home.html";
+import networkPage from "./network.html";
 import employerHomePage from "./employer-home.html";
 
 type Bindings = {
@@ -28,6 +35,7 @@ app.route("/auth", auth);
 app.route("/candidates", candidates);
 app.route("/employers", employersApi);
 app.route("/employers/chat", employerChat);
+app.route("/employers/jobs", jobs);
 app.route("/waitlist", waitlist);
 
 app.get("/", (c) => c.html(landingPage));
@@ -41,6 +49,12 @@ app.get("/employer/sign-up", (c) => c.html(employerSignInPage));
 app.get("/verify", (c) => c.html(verifyPage));
 app.get("/onboarding", (c) => c.html(onboardingPage));
 app.get("/dashboard", (c) => c.html(dashboardPage));
+app.get("/invites", (c) => c.html(invitesPage));
+app.get("/pipelines", (c) => c.html(pipelinesPage));
+app.get("/credentials", (c) => c.html(credentialsPage));
+app.get("/visibility", (c) => c.html(visibilityPage));
+app.get("/home", (c) => c.html(homePage));
+app.get("/network", (c) => c.html(networkPage));
 app.get("/employer/home", (c) => c.html(employerHomePage));
 
 app.get("/health", (c) => c.json({ status: "ok" }));
