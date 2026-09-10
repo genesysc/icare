@@ -3066,3 +3066,162 @@ merged).
 per-field visibility preferences, the DBS three-state confirmation
 flow, onboarding step-count reconciliation — all still open, unchanged
 from prior sprints, not the subject of this correction.
+
+## 2026-08-31 → 2026-09-10 — Live end-to-end testing session: real staging environment, several real bugs found and fixed, one unresolved
+
+Founder asked to actually test the built-out candidate journey
+end-to-end on a real, working site rather than the mock-shim harness —
+"let's go so we can finally test everything." This section covers
+everything that came out of that: a real staging deployment, several
+genuine bugs found by actually using the product (not by re-reading
+code), and one still-open issue at the end.
+
+**Staging environment** — no test target existed that could run real
+Supabase auth / R2 uploads / Workers AI without either faking it
+(mock-shim) or deploying straight to the live `icareltd.com` custom
+domain. Added `wrangler.staging.jsonc` (separate Worker `icare-staging`,
+`workers.dev` only, no custom-domain routes, same real Supabase/R2
+bindings) — deployed via `CLOUDFLARE_API_TOKEN=<token> npx wrangler
+deploy --config wrangler.staging.jsonc` using a Cloudflare API token
+the founder generated and pasted in-session (used only inline, never
+written to a committed file). Also tried wiring a CI path
+(`deploy.yml`'s `workflow_dispatch` gained a `target: production|
+staging` input) but the GitHub Actions runner sat queued for several
+minutes on this account for reasons unclear (not a workflow bug — the
+production `push`-triggered runs on the same repo have always started
+instantly) — the direct CLI deploy became the actual working path used
+for every fix this session. Live at
+`https://icare-staging.icare-181.workers.dev`.
+
+**Bug 1 — OTP code input hardcoded to 6 digits.** This Supabase
+project issues 8-digit codes; `verify.html`'s input had
+`maxlength="6"`, silently truncating any code the founder tried to
+type from the Supabase Dashboard's own "copy the code" admin tool.
+Widened to `maxlength="10"`, copy made digit-count-agnostic.
+
+**Bug 2 — magic-link email always redirected to a dead page.** Two
+compounding issues, found and fixed together:
+- `auth.ts`'s `signInWithOtp` never set `emailRedirectTo`, so Supabase
+  used whatever "Site URL" was configured in its own Auth settings — a
+  leftover `localhost` from an earlier dev setup on this same Supabase
+  project. Fixed by computing `emailRedirectTo` from the incoming
+  request's own origin (`/verify?email=...&role=...`), so it's
+  automatically correct on staging or production.
+- `verify.html` only ever supported typing a code — it had no code path
+  for being opened via the link at all. Added: read
+  `#access_token=&refresh_token=` off the URL hash (Supabase's implicit
+  flow, the default for `signInWithOtp` with no `flowType` override)
+  and complete sign-in directly from those, no second network round
+  trip.
+- Even after both fixes, the founder reported the link still "looped
+  back to the landing page." Root cause: Supabase's Redirect URLs
+  allow-list evidently still didn't match our exact target, so it kept
+  falling back to the bare Site URL (by then fixed to `icareltd.com`,
+  not localhost) — i.e. this page's root, which had no code to read the
+  token hash at all. Fixed defensively rather than chasing the
+  Dashboard setting further: `landing.html` now checks for
+  `#access_token=` the instant it loads, before anything else runs, and
+  forwards to `/verify`. This works regardless of whether the Supabase
+  Redirect URLs list is ever exactly right, since GoTrue's fallback
+  always targets Site URL's root.
+
+**Sender.net wired up for real** (`src/email.ts`) — the Sender MCP
+connector was reachable this session and confirmed `icareltd.com` is a
+fully verified sending domain (SPF/DKIM/DMARC all passing at the time).
+Replaced the no-op stub with a real `POST https://api.sender.net/v2/
+message/send` call (endpoint/payload shape confirmed via Sender's own
+current docs through WebFetch, not guessed), gated on a new
+`SENDER_API_KEY` Worker secret (`wrangler secret put`, both staging and
+— after explicit founder confirmation, since this activates real
+sending on the live domain — production) plus `SENDER_FROM_EMAIL`/
+`SENDER_FROM_NAME` vars. Verified with a real send (`emailId` returned,
+arrived quickly, not spam). Also added `waitlist.invited_at` (migration
+`0031`) for a founder-requested "invite a waitlist member to sign up"
+capability — no self-serve admin UI exists (no admin auth flow
+anywhere in this codebase; out of scope to build one unprompted), so
+for now this is staff (or Claude, asked directly) looking up the row
+and calling `/auth/request-code` with its stored name/email, then
+stamping this column.
+
+**Bug 3 — CV parsing: "Model response wasn't valid JSON" on every
+single attempt.** Founder reported CV parsing "not working." Root
+cause, found by temporarily adding a debug route that called the exact
+same Workers AI request directly and inspected the raw output (removed
+immediately after): with `response_format: json_schema`,
+`result.response` comes back as an **already-parsed JavaScript
+object**, not a JSON string — `candidates.ts` called `JSON.parse()` on
+it unconditionally, which stringifies the object to `"[object Object]"`
+first and then fails to parse. The model's own extraction was correct
+the entire time; every CV import had been failing on our bug, not a
+model limitation. Fixed to handle the object shape directly, with the
+string+`JSON.parse` path kept as a fallback in case that response shape
+ever changes.
+
+**Bug 4 — CV-apply failing whenever a role has no clear start date.**
+Next real error, this time self-diagnosing correctly because the
+previous fix's improved error surfacing showed the actual per-request
+failure reasons: `invalid input syntax for type date: "January 2025"`
+(and several more). Two related issues:
+- `employment_history.started_on` is `NOT NULL` in the database, but
+  the CV extraction schema correctly allows `null` (this project's own
+  rule against ever guessing a date the CV doesn't state) — any CV with
+  one undated role failed the *entire* batch save, and retrying "Apply"
+  hit the same wall every time. Fixed at `onboarding.html`'s review
+  screen: a role with no start date now renders unchecked and disabled
+  with a note to add it manually in Step 4, so it's never sent, instead
+  of crashing the whole save.
+- The model *did* extract dates, just not in the requested `YYYY-MM-DD`
+  format ("January 2025", "November 2022", a bare "2012") — asking an
+  open-weight model to follow a format doesn't guarantee it, the exact
+  same class of problem `sanitizeParsed()` already solved for
+  profession/skill/qualification-type ids, just not yet for dates.
+  Added `asDate()` to `sanitizeParsed()`: normalizes "Month YYYY",
+  "YYYY-MM", a bare year, and common written-out dates into real
+  `YYYY-MM-DD` (reformatting what the model already found, not
+  inventing new information); genuinely unparseable strings still
+  become `null`, which then combines with the fix above rather than
+  crashing anything.
+- Also improved the CV-apply error message generally: it now surfaces
+  the real per-request failure reason(s) instead of a single generic
+  "some of this didn't save," which is what made bug 4 itself
+  diagnosable in the first place rather than a repeat mystery.
+
+**⚠️ Unresolved — OTP/magic-link delivery regression, root cause found,
+fix not yet applied.** Days after the above was all confirmed working
+("arrived quickly, not spam"), the founder reported new sign-in emails
+had stopped arriving entirely — not even in spam. Diagnosed
+systematically rather than guessed at:
+- Sender.net account: `ACTIVE`, not suspended.
+- `icareltd.com` domain: still `verified`/`ready_to_send` in Sender.net.
+- The specific recipient (`mjm.refugio@gmail.com`) in Sender.net:
+  `channel_status.temail: "active"`, `bounced_at: null`,
+  `unsubscribed_at: null` — not suppressed on Sender's side.
+- A **direct Sender.net API test send** (bypassing Supabase's SMTP
+  relay entirely, using a fresh API token the founder pasted in-session)
+  returned `success: true` with a real `emailId` — but never arrived
+  either, confirming the problem isn't specific to the SMTP-relay path,
+  and that Sender's API "accepted" response isn't proof of delivery.
+- Checked live DNS directly (Google's DNS-over-HTTPS, since this
+  sandbox has no `dig`/`nslookup`): **two conflicting TXT records at
+  `_dmarc.icareltd.com`** — Sender.net's intended `v=DMARC1; p=none;`
+  alongside a stale **GoDaddy default record**
+  (`v=DMARC1; p=quarantine; ...; rua=mailto:dmarc_rua@onsecureserver.net`)
+  never cleaned up when DNS moved to Cloudflare. Two DMARC records at
+  one name is invalid per spec, and this exact shape (a stricter,
+  malformed duplicate alongside a permissive one) is a documented cause
+  of Gmail silently discarding mail rather than spam-foldering it —
+  matches the symptom exactly.
+- No tool available in this session edits Cloudflare DNS records (only
+  Workers/D1/KV/R2/Hyperdrive management was available) — **the founder
+  was given the exact record to delete** (Cloudflare Dashboard →
+  icareltd.com → DNS → Records → the `_dmarc` TXT pointing at
+  `onsecureserver.net`, keeping the `p=none;` one) **and has not yet
+  confirmed it's done or that delivery is restored.** Pick this up
+  first next session: confirm the DNS change, then re-run the same
+  direct-API diagnostic send to `mjm.refugio@gmail.com` to confirm
+  delivery actually reaches the inbox before assuming this is fixed.
+
+All of the above pushed as individual commits to the same branch/PR as
+every other sprint this session
+(`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — still not
+merged).

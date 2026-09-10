@@ -108,8 +108,10 @@ stop and ask the user — do not resolve it yourself.**
   cost (founder decision, 2026-08-26). Default to Workers AI for any
   future LLM feature (e.g. Sprint 8's chat search) unless the user says
   otherwise.
-- Email (transactional/waitlist) is planned via **Sender.net**, not yet
-  active — see §8.
+- Email (transactional/waitlist) sends live via **Sender.net** — see §8
+  item 3. OTP/magic-link delivery (via Supabase Auth's own SMTP, not
+  this path) currently broken by a stale DNS record — see the same
+  section's 2026-09-10 note before assuming email works end-to-end.
 
 ---
 
@@ -143,7 +145,8 @@ stop and ask the user — do not resolve it yourself.**
 
 | File | What |
 |---|---|
-| `wrangler.jsonc` | Worker config — account id, vars (Supabase URL/key), R2 binding, the `Text` import rule for `.html` |
+| `wrangler.jsonc` | Production Worker config (`icare`, bound to `icareltd.com`) — account id, vars (Supabase URL/key, `SENDER_FROM_EMAIL`/`SENDER_FROM_NAME`), R2 binding, the `Text` import rule for `.html`. `SENDER_API_KEY` is a secret (`wrangler secret put`), not in this file |
+| `wrangler.staging.jsonc` | Added 2026-09-02, not committed-and-forgotten — a real, reusable staging deploy target (`icare-staging`, `workers.dev` only, no custom-domain routes) so unmerged branches can be tested end-to-end against the same real Supabase/R2/Sender.net backend without touching production. Deploy: `CLOUDFLARE_API_TOKEN=<token> npx wrangler deploy --config wrangler.staging.jsonc`. Live at `https://icare-staging.icare-181.workers.dev`. `deploy.yml`'s `workflow_dispatch` also gained a `target: production\|staging` input for the same purpose via CI, though the CLI path above is what actually got used this session (CI runner was slow/queued once, see PROGRESS.md) |
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/badges`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
@@ -153,15 +156,15 @@ stop and ask the user — do not resolve it yourself.**
 | `src/employer-chat-guardrail.ts` | Protected-characteristics keyword/proximity guardrail — the deterministic layer behind the chat's non-negotiable #5 compliance, see §7 |
 | `src/jobs.ts` | Jobs module (Sprint 13, mounted at `/employers/jobs`): `POST /draft` (Workers AI drafts the description body), `POST /`, `GET /`, `GET /:id`, `PATCH /:id`, `PATCH /:id/close` — see §14 |
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
-| `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
-| `src/emails/waitlist-welcome.ts`, `employer-waitlist.ts`, `candidate-profile-published.ts`, `employer-verification-submitted.ts`, `employer-verified.ts` | Stage-completion email subject/HTML, all unused until `email.ts` is wired up (see §8 item 3). The first two are for the waitlist; the latter three are candidate/employer product-stage emails, added 2026-08-26 |
-| `src/landing.html` | Candidate waitlist landing page — single file, inline CSS/JS, GSAP via CDN |
+| `src/email.ts` | `sendTransactionalEmail` — real Sender.net API call, live since 2026-09-02, see §8 item 3 |
+| `src/emails/waitlist-welcome.ts`, `employer-waitlist.ts`, `candidate-profile-published.ts`, `employer-verification-submitted.ts`, `employer-verified.ts` | Stage-completion email subject/HTML, wired at their call sites and actually sending as of 2026-09-02 (see §8 item 3). The first two are for the waitlist; the latter three are candidate/employer product-stage emails, added 2026-08-26 |
+| `src/landing.html` | Candidate waitlist landing page — single file, inline CSS/JS, GSAP via CDN. Also now recovers a magic-link sign-in that lands here by mistake (2026-09-02 fix, see §14/PROGRESS.md) — checks for `#access_token=` in the URL hash on load, before anything else runs, and forwards to `/verify` |
 | `src/employers.html` | Employer waitlist landing page — separate design system, same self-contained pattern |
 | `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
 | `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
 | `src/employer-sign-in.html` | Employer sign-up/sign-in (Sprint 6), mounted at both `/employer/sign-up` and `/employer/sign-in`, own purple/teal design system |
-| `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me` |
+| `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me`. Also now handles being opened via the emailed magic link directly (2026-09-02 fix) — reads `#access_token=&refresh_token=` off the URL hash (the implicit-flow shape `auth.ts`'s new `emailRedirectTo` produces) and completes sign-in without the manual code form. Code input widened to `maxlength="10"` — this Supabase project issues 8-digit codes, not 6 |
 | `src/employer-home.html` | Employer home, `/employer/home` — verification card (Sprint 7, now including a read-only org profile summary once verified — Sprint 11) + chat-based candidate search (Sprint 8) + iRecruit pipeline card (Sprint 9, now showing consent-gated photo/video/CV buttons) |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
 | `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure. This is the wireframe's **Profile** tab (Sprint 19) — the tab-bar shell now sits at the bottom of every signed-in page instead of a text nav link. Its own inline shortlist section is unchanged/still functional, not yet consolidated into `invites.html`/`pipelines.html` |
@@ -437,31 +440,44 @@ deploy confirmation yet.
    raw candidate app.
 2. **Supabase email template fix** (`{{ .Token }}`) — see §6. Manual
    Dashboard step.
-3. **Sender.net API integration itself** — `src/email.ts` has a stub with
-   clear activation instructions in a comment, but the actual
-   transactional-send request was never written. **Genuinely tried to
-   unblock this on 2026-08-26**, not just left alone: the Sender MCP
-   connector disconnected mid-session (can't inspect the live account —
-   verified domains, templates, workflows), and `WebFetch` to
-   `api.sender.net`/`www.sender.net`/`developers.sender.net` all came
-   back `EGRESS_BLOCKED` from this sandbox's network proxy — the same
-   class of restriction that blocks `*.supabase.co` and
-   `api.anthropic.com` elsewhere. Did **not** guess the request shape to
-   route around it. What *is* done: three stage-completion email
+3. ~~**Sender.net API integration itself**~~ — **resolved 2026-09-02**:
+   the Sender MCP connector reconnected and confirmed `icareltd.com` is
+   a fully verified sending domain (SPF/DKIM/DMARC all passing at the
+   time). `src/email.ts`'s `sendTransactionalEmail()` now makes a real
+   `POST https://api.sender.net/v2/message/send` call (confirmed against
+   Sender's own current docs, not guessed), gated on a `SENDER_API_KEY`
+   Worker secret (provisioned via `wrangler secret put`, never a plain
+   `wrangler.jsonc` var) plus `SENDER_FROM_EMAIL`/`SENDER_FROM_NAME`
+   vars (`hello@icareltd.com` / `iCare`). Verified with a real send
+   (`emailId` returned, delivered). The three stage-completion email
    templates (`src/emails/candidate-profile-published.ts`,
    `employer-verification-submitted.ts`, `employer-verified.ts`) are
-   written and — for the two with a real trigger point — wired at their
-   call sites (`POST /candidates/me/publish` in `candidates.ts`,
-   `POST /employers/me/verification-requests` in `employers.ts`); both
-   calls go through the same safe no-op `sendTransactionalEmail()`, so
-   nothing breaks with sending still off. `employer-verified.ts` has
-   **no trigger to wire it to yet** — `is_verified` is only ever flipped
-   by a manual Supabase dashboard edit, no API call behind it — that
-   needs either a Postgres database webhook or a real admin review
-   route, a decision for the founder. To finish #3: reconnect the
-   Sender MCP (or paste the relevant API docs directly) so the actual
-   `fetch()` call in `email.ts` can be filled in against real docs, not
-   guessed.
+   wired at their call sites as before and now actually send.
+   `employer-verified.ts` **still has no trigger** — `is_verified` is
+   only ever flipped by a manual Supabase dashboard edit — that's still
+   open, a decision for the founder (Postgres database webhook vs. a
+   real admin review route).
+   **⚠️ New finding 2026-09-10, not yet resolved**: OTP/magic-link
+   delivery (a *separate* path — Supabase Auth's own SMTP, not this
+   route, see §6) started silently failing after working correctly for
+   several days. Diagnosed live: Sender.net account/domain/recipient all
+   checked healthy (not suspended, domain still `ready_to_send`,
+   recipient's `temail` channel status `active`, no bounce), and even a
+   **direct Sender.net API test send** (bypassing Supabase entirely)
+   returned success — but never arrived, not even in spam. Root cause
+   found via DNS: **two conflicting `_dmarc.icareltd.com` TXT records**
+   — Sender.net's intended `v=DMARC1; p=none;` alongside a stale
+   **GoDaddy default record** (`rua=mailto:dmarc_rua@onsecureserver.net`)
+   left over from before DNS moved to Cloudflare. Two DMARC records at
+   the same name is invalid per spec and is a known cause of Gmail
+   silently discarding mail rather than spam-foldering it — matches the
+   symptom exactly. No tool available here edits Cloudflare DNS records
+   (only Workers/D1/KV/R2/Hyperdrive) — **the founder was given the
+   exact record to delete via the Cloudflare dashboard (DNS → Records →
+   `_dmarc`) and has not yet confirmed it's done or re-tested delivery.
+   Pick this up first on the next session** — see PROGRESS.md's
+   2026-09-10 entry for the full diagnostic trail before re-doing any of
+   this work.
 
 **Next, no particular blocker**
 
