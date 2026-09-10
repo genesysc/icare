@@ -475,10 +475,10 @@ deploy confirmation yet.
    only ever flipped by a manual Supabase dashboard edit — that's still
    open, a decision for the founder (Postgres database webhook vs. a
    real admin review route).
-   **⚠️ New finding 2026-09-10, not yet resolved**: OTP/magic-link
-   delivery (a *separate* path — Supabase Auth's own SMTP, not this
-   route, see §6) started silently failing after working correctly for
-   several days. Diagnosed live: Sender.net account/domain/recipient all
+   **✅ Resolved 2026-09-10** (was broken, found and fixed same day):
+   OTP/magic-link delivery (a *separate* path — Supabase Auth's own
+   SMTP, not this route, see §6) started silently failing after working
+   correctly for several days. Diagnosed live: Sender.net account/domain/recipient all
    checked healthy (not suspended, domain still `ready_to_send`,
    recipient's `temail` channel status `active`, no bounce), and even a
    **direct Sender.net API test send** (bypassing Supabase entirely)
@@ -516,14 +516,16 @@ deploy confirmation yet.
    the kind of pattern (an address with sending history on one system
    suddenly sending from another, on a young domain, on a shared-IP free
    ESP tier) that triggers Gmail's silent-discard behavior specifically.
-   **Fix identified, not yet made**: change the SMTP relay's "Sender
-   email" in Supabase Dashboard → Authentication → Emails → SMTP
-   Settings from `info@icareltd.com` to `hello@icareltd.com` — the
-   address `email.ts`'s direct-API path already uses successfully, with
-   no separate real mailbox behind it. Not yet confirmed working — pick
-   this up next, re-test the same way (trigger `POST /auth/request-code`
-   on staging, check `mjm.refugio@gmail.com` inbox + spam + Promotions/
-   Updates tabs + a full Gmail search for the sender).
+   **Fix applied and confirmed working**: founder changed the SMTP
+   relay's "Sender email" in Supabase Dashboard → Authentication →
+   Emails → SMTP Settings from `info@icareltd.com` to
+   `hello@icareltd.com` — the address `email.ts`'s direct-API path
+   already used successfully, with no separate real mailbox behind it.
+   Re-tested the same way (`POST /auth/request-code` on staging,
+   `recovery_sent_at` confirmed processed within 2 seconds) — founder
+   confirmed the email arrived. OTP/magic-link delivery is working
+   end-to-end again. See §2's "Email address ownership" rule — don't
+   let `info@` and `hello@` blur back together.
 
 **Next, no particular blocker**
 

@@ -3244,15 +3244,32 @@ another is a known trigger for exactly this kind of silent Gmail
 filtering, especially compounded by a young domain and a shared-IP
 free-tier ESP.
 
-**Not yet done**: change the SMTP relay's sender address in Supabase
-Dashboard (Authentication → Emails → SMTP Settings → Sender email) from
-`info@icareltd.com` to `hello@icareltd.com` — the address `email.ts`'s
-already-working direct-API path uses, with no separate real mailbox
-behind it to conflict with. Pick this up first next session: make that
-change, then re-trigger the exact same test (`POST /auth/request-code`
-on staging for `mjm.refugio@gmail.com`) and check inbox + spam +
-Promotions/Updates tabs + a full Gmail search for the sender, not just
-spam alone, before concluding whether this was the full fix.
+**Resolved, same day.** Founder changed the SMTP relay's sender address
+in Supabase Dashboard (Authentication → Emails → SMTP Settings → Sender
+email) from `info@icareltd.com` to `hello@icareltd.com`. Re-triggered
+the exact same test (`POST /auth/request-code` on staging for
+`mjm.refugio@gmail.com`, `auth.users.recovery_sent_at` confirmed
+processed within 2 seconds) — founder confirmed the email arrived.
+OTP/magic-link delivery via the Supabase SMTP relay is working
+end-to-end again.
+
+Documented the underlying rule as a firm one in `HANDOVER.md` §2 (Email
+address ownership), since the founder's own question afterward — "what
+does Zoho have to do with Supabase and Sender.net?" — showed the
+relationship wasn't obvious and was worth making explicit rather than
+just fixed once: `info@icareltd.com` is a real Zoho-hosted human inbox,
+never used for automated sending; `hello@icareltd.com` is the one
+address all automated app mail goes out as, always via Sender.net
+(both the Supabase Auth SMTP relay and `email.ts`'s direct API calls);
+the two must never overlap again.
+
+**End state of this whole multi-day testing/bugfix arc**: staging
+environment live and working, real Sender.net email sending (both
+paths) confirmed working end-to-end, magic-link sign-in fixed, CV
+parsing fixed (two separate real bugs), OTP delivery regression
+diagnosed and fixed (two contributing causes: a stale DMARC record and
+a sender-address/mailbox-provider mismatch). No known blockers left on
+the candidate-journey testing path as of 2026-09-10.
 
 All of the above pushed as individual commits to the same branch/PR as
 every other sprint this session
