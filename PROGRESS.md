@@ -3215,11 +3215,44 @@ systematically rather than guessed at:
   Workers/D1/KV/R2/Hyperdrive management was available) — **the founder
   was given the exact record to delete** (Cloudflare Dashboard →
   icareltd.com → DNS → Records → the `_dmarc` TXT pointing at
-  `onsecureserver.net`, keeping the `p=none;` one) **and has not yet
-  confirmed it's done or that delivery is restored.** Pick this up
-  first next session: confirm the DNS change, then re-run the same
-  direct-API diagnostic send to `mjm.refugio@gmail.com` to confirm
-  delivery actually reaches the inbox before assuming this is fixed.
+  `onsecureserver.net`, keeping the `p=none;` one).
+
+**Same day, follow-up — DMARC fix applied, confirmed via DNS, but
+delivery still not restored.** Founder deleted the stale record; a
+fresh DNS-over-HTTPS lookup confirmed only `v=DMARC1; p=none;` remains.
+Triggered a real OTP send (`POST /auth/request-code` on staging,
+`create:false`) at the exact moment confirmed via `auth.users.
+recovery_sent_at` (Supabase processed it within 1 second). Founder
+reported: still never arrived, checked spam — **but Sender.net's own
+delivery log shows the message as "delivered."** This is real forward
+progress (the earlier direct-API test during diagnosis never got that
+far) but not the same as reaching the inbox — Sender.net's "delivered"
+only confirms Gmail's SMTP server returned 250 OK, not that Gmail
+actually surfaces the message anywhere the user can see. Gmail is known
+to silently accept-then-discard suspicious mail specifically to avoid
+tipping off senders via a bounce.
+
+**Founder then supplied the likely real root cause directly**: the
+Supabase SMTP relay's configured sender address is `info@icareltd.com`
+— which is a genuine, separate mailbox hosted on **Zoho Mail** (its own
+MX/SPF/DKIM records were set up for it when the domain was configured
+— see §8 item 1 in HANDOVER.md). Sending automated OTP mail claiming to
+be from that address via Sender.net (a completely different sending
+system than Zoho) is a real infrastructure mismatch — a from-address
+with established sending history on one provider suddenly sending via
+another is a known trigger for exactly this kind of silent Gmail
+filtering, especially compounded by a young domain and a shared-IP
+free-tier ESP.
+
+**Not yet done**: change the SMTP relay's sender address in Supabase
+Dashboard (Authentication → Emails → SMTP Settings → Sender email) from
+`info@icareltd.com` to `hello@icareltd.com` — the address `email.ts`'s
+already-working direct-API path uses, with no separate real mailbox
+behind it to conflict with. Pick this up first next session: make that
+change, then re-trigger the exact same test (`POST /auth/request-code`
+on staging for `mjm.refugio@gmail.com`) and check inbox + spam +
+Promotions/Updates tabs + a full Gmail search for the sender, not just
+spam alone, before concluding whether this was the full fix.
 
 All of the above pushed as individual commits to the same branch/PR as
 every other sprint this session

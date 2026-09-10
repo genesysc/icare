@@ -478,6 +478,34 @@ deploy confirmation yet.
    Pick this up first on the next session** — see PROGRESS.md's
    2026-09-10 entry for the full diagnostic trail before re-doing any of
    this work.
+   **Update, same day, DMARC fix applied but not yet sufficient**: the
+   founder deleted the stale GoDaddy DMARC record (confirmed via fresh
+   DNS lookup — only `v=DMARC1; p=none;` remains now) and a fresh test
+   OTP send was triggered. Sender.net's own delivery log shows it as
+   **delivered** (SMTP accepted by Gmail) — a genuine improvement, the
+   earlier direct-API test never even got that far — but it still never
+   reached the inbox or spam. "Delivered" here only means Gmail's server
+   accepted the SMTP handoff, not that Gmail actually surfaces it to the
+   user; Gmail is known to silently accept-then-discard mail it's
+   suspicious of, invisible to both Sender.net and us.
+   **Real candidate root cause, founder-confirmed 2026-09-10, not yet
+   applied**: the Supabase SMTP relay's configured sender address is
+   **`info@icareltd.com`** — but that exact mailbox is a real, separate
+   inbox hosted on **Zoho Mail** (MX/SPF/DKIM for Zoho were set up for
+   it when the domain was configured, see item 1 above). Sending OTP
+   mail claiming to be from that address via a *different* provider
+   (Sender.net, not Zoho) is a real infrastructure mismatch, and exactly
+   the kind of pattern (an address with sending history on one system
+   suddenly sending from another, on a young domain, on a shared-IP free
+   ESP tier) that triggers Gmail's silent-discard behavior specifically.
+   **Fix identified, not yet made**: change the SMTP relay's "Sender
+   email" in Supabase Dashboard → Authentication → Emails → SMTP
+   Settings from `info@icareltd.com` to `hello@icareltd.com` — the
+   address `email.ts`'s direct-API path already uses successfully, with
+   no separate real mailbox behind it. Not yet confirmed working — pick
+   this up next, re-test the same way (trigger `POST /auth/request-code`
+   on staging, check `mjm.refugio@gmail.com` inbox + spam + Promotions/
+   Updates tabs + a full Gmail search for the sender).
 
 **Next, no particular blocker**
 
