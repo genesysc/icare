@@ -7,6 +7,7 @@ import employerChat from "./employer-chat";
 import jobs from "./jobs";
 import waitlist from "./waitlist";
 import landingPage from "./landing.html";
+import welcomePage from "./welcome.html";
 import employerLandingPage from "./employers.html";
 import privacyPage from "./privacy.html";
 import termsPage from "./terms.html";
@@ -39,6 +40,7 @@ app.route("/employers/jobs", jobs);
 app.route("/waitlist", waitlist);
 
 app.get("/", (c) => c.html(landingPage));
+app.get("/welcome", (c) => c.html(welcomePage));
 app.get("/employers", (c) => c.html(employerLandingPage));
 app.get("/privacy", (c) => c.html(privacyPage));
 app.get("/terms", (c) => c.html(termsPage));
