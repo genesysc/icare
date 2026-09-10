@@ -177,6 +177,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/email.ts` | `sendTransactionalEmail` — real Sender.net API call, live since 2026-09-02, see §8 item 3 |
 | `src/emails/waitlist-welcome.ts`, `employer-waitlist.ts`, `candidate-profile-published.ts`, `employer-verification-submitted.ts`, `employer-verified.ts` | Stage-completion email subject/HTML, wired at their call sites and actually sending as of 2026-09-02 (see §8 item 3). The first two are for the waitlist; the latter three are candidate/employer product-stage emails, added 2026-08-26 |
 | `src/landing.html` | Candidate waitlist landing page — single file, inline CSS/JS, GSAP via CDN. Also now recovers a magic-link sign-in that lands here by mistake (2026-09-02 fix, see §14/PROGRESS.md) — checks for `#access_token=` in the URL hash on load, before anything else runs, and forwards to `/verify` |
+| `src/welcome.html` | **NEW 2026-09-10.** Launched-state landing page at `/welcome` — reuses `landing.html`'s design system (same CSS vars/fonts/section markup) but swaps the waitlist capture form for real product entry points: primary CTA → `/sign-up`, secondary → `/sign-in`, employer cross-link → `/employer/sign-up`. Added because `/` is deliberately staying the pre-launch waitlist page for now (user's explicit call — see §8/§14) and there was no page anywhere with an actual login/sign-up CTA on it. Not yet linked from `/` or from anywhere else in the app; nothing currently points here except direct navigation. Decide later whether this replaces `/` at actual launch or `/` gets retired in favor of it |
 | `src/employers.html` | Employer waitlist landing page — separate design system, same self-contained pattern |
 | `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
@@ -562,6 +563,21 @@ deploy confirmation yet.
    the simple structured-field search assumed elsewhere in this doc and
    in `SPRINTS.md`.** Treat `SPRINTS.md`'s employer track as stale until
    it's revised against this — it has been (see §13).
+10. ~~Launched-state marketing landing page with real Log In / Sign Up
+    entry points~~ — **built 2026-09-10** (`src/welcome.html`, mounted
+    at `GET /welcome`). The user flagged this twice: `/` only ever had a
+    waitlist-capture form, no way to actually sign in once someone's
+    account exists — `/home` (the post-login candidate feed) isn't a
+    substitute, and neither is the magic-link recovery fix in
+    `landing.html`. `/welcome` reuses `landing.html`'s exact design
+    system but its primary/secondary CTAs are `/sign-up` and `/sign-in`
+    (plus a cross-link to `/employer/sign-up`) instead of the waitlist
+    form. **Deliberately not wired up as `/` yet** — the user's explicit
+    call was to keep `/` as the waitlist page for now and decide later
+    whether `/welcome` replaces it at actual launch or stays a separate
+    path. Nothing links to `/welcome` yet either (not from `/`, not from
+    nav) — it's reachable only by direct URL until that decision is
+    made.
 
 ---
 

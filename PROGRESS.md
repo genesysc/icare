@@ -3275,3 +3275,50 @@ All of the above pushed as individual commits to the same branch/PR as
 every other sprint this session
 (`claude/jobseeker-employer-wireframes-rc5uss`, PR #29 — still not
 merged).
+
+## 2026-09-10 — Launched-state landing page (`/welcome`)
+
+After the OTP arc closed out, the user flagged the `#join` magic-link
+redirect symptom — a real magic link was landing back on the waitlist
+page's `#join` anchor, which just re-asks for name/email. Traced the
+Site URL (confirmed correctly configured by the founder — "yup
+everything checks out") and `waitlist-welcome.ts` (confirmed it has no
+`#join` link anywhere in it) — both ruled out. The user then named the
+actual root problem directly, and said they'd flagged it before: there
+simply isn't a page anywhere in the app with a real Log In / Sign Up
+entry point on it. `/` is waitlist-only by design; `/home` is the
+signed-in candidate feed, not a public entry point — pointing a magic
+link anywhere on this site was always going to dead-end into one of
+those two.
+
+Built `src/welcome.html`, mounted at `GET /welcome` in `src/index.ts`.
+It reuses `landing.html`'s design system verbatim (CSS custom
+properties, Fraunces/Public Sans/IBM Plex Mono, the same hero/band/
+why/badges/promise section structure and the illustrative invite-card
+deck) so it reads as the same product, but the final section and the
+hero's CTA row swap the waitlist capture form for real entry points:
+primary button → `/sign-up`, secondary → `/sign-in`, plus a nav bar
+(Log in / Sign up / For employers) that `landing.html` doesn't have,
+and a "Hiring instead? Sign up as an employer" link → `/employer/
+sign-up`.
+
+Per the user's explicit choice ("New page, keep / as waitlist for now")
+`/` was not touched — it still serves `landing.html` unchanged.
+`/welcome` isn't linked from anywhere yet (not from `/`, not from any
+nav); it exists as a real destination but nothing in the app points to
+it yet. That linking decision — replace `/` with it at actual launch,
+or keep both — is left open for a later session.
+
+Verified before pushing: `npm run typecheck` clean. No Cloudflare API
+token was available in this fresh session (the prior session's copy
+was inline-only and not persisted, per policy), so rather than asking
+for a new one, deployed to the existing `icare-staging` Worker via the
+GitHub Actions `deploy.yml` workflow's `workflow_dispatch` (`target:
+staging` input, added in an earlier session specifically for this
+purpose) using `mcp__github__actions_run_trigger`, dispatched against
+this branch. Run succeeded; confirmed live with a direct `curl` against
+`https://icare-staging.icare-181.workers.dev/welcome` (200, correct
+`<title>`, three `/sign-up` links and three `/sign-in` links present —
+nav, hero, final section) and re-confirmed `/`, `/sign-up`, `/sign-in`
+still 200 on the same deploy (no regression from the router change).
+Nothing deployed to production.
