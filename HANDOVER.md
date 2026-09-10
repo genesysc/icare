@@ -110,8 +110,26 @@ stop and ask the user — do not resolve it yourself.**
   otherwise.
 - Email (transactional/waitlist) sends live via **Sender.net** — see §8
   item 3. OTP/magic-link delivery (via Supabase Auth's own SMTP, not
-  this path) currently broken by a stale DNS record — see the same
-  section's 2026-09-10 note before assuming email works end-to-end.
+  this path) had a real regression fixed on 2026-09-10 (stale DMARC
+  record + a sender-address conflict, see the same section) — confirm
+  it's still working before assuming so.
+- **Email address ownership — firm rule, don't blur this again**: three
+  separate mail systems touch this domain and each owns exactly one
+  address, never overlapping:
+  - `info@icareltd.com` → a real, human-read inbox on **Zoho Mail**. The
+    app must never send automated mail claiming to be this address —
+    mixing a real mailbox's identity with automated sending from a
+    different provider (Sender.net) is what caused the 2026-09-10 OTP
+    delivery regression (Gmail silently discarding it, invisible to
+    both Sender.net's logs and us).
+  - `hello@icareltd.com` → all automated app mail, always via
+    **Sender.net** — OTP/magic-link (Supabase Auth's custom SMTP relay,
+    Dashboard-configured) and our own stage-completion emails
+    (`src/email.ts`'s direct API call). Never a real inbox anywhere.
+  - Supabase Auth itself only generates the OTP code/magic-link token
+    and needs *some* mail transport handed to it — it doesn't own an
+    address, it just uses whichever one its SMTP relay is configured
+    with (`hello@`, per the above).
 
 ---
 
