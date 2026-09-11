@@ -467,7 +467,7 @@
       <div class="field">
         <label for="right-to-work">Right to work in the UK</label>
         <select id="right-to-work">
-          <option value="not_stated">Prefer not to say yet</option>
+          <option value="" disabled selected hidden>Select your right-to-work status</option>
           <option value="british_irish">British / Irish citizen</option>
           <option value="settled">Settled status</option>
           <option value="pre_settled">Pre-settled status</option>
@@ -1701,6 +1701,11 @@ function icareRequireAuth(signInPath) {
       if (el.checked) shifts.push(el.value);
     });
 
+    if (!rightToWorkSelect.value) {
+      setStatus(3, "err", "Please tell us your right-to-work status — we can't publish a profile without it.");
+      return;
+    }
+
     btn.disabled = true;
     clearStatus(3);
 
@@ -2125,7 +2130,7 @@ function icareRequireAuth(signInPath) {
     document.getElementById("min-rate").value = candidate.min_hourly_rate != null ? candidate.min_hourly_rate : "";
     availabilitySelect.value = candidate.availability || "open_to_offers";
     document.getElementById("available-from").value = candidate.available_from || "";
-    rightToWorkSelect.value = candidate.right_to_work || "not_stated";
+    rightToWorkSelect.value = (candidate.right_to_work && candidate.right_to_work !== "not_stated") ? candidate.right_to_work : "";
     document.getElementById("visa-expiry").value = candidate.visa_expiry || "";
     document.getElementById("driving-licence").checked = !!candidate.has_driving_licence;
     document.getElementById("own-vehicle").checked = !!candidate.has_own_vehicle;

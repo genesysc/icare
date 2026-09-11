@@ -1524,13 +1524,28 @@ candidates.post("/me/cv", async (c) => {
     // A long, detailed CV (multi-page, extensive training/course lists) can
     // genuinely exceed it — a real user hit exactly this (21001 input tokens
     // requested). Truncate defensively rather than let the whole import
-    // fail: ~55000 characters is a conservative ~3.3 chars/token estimate
-    // for CV-style text (bullets/punctuation skew denser than prose) that
-    // leaves several thousand tokens of headroom for the system prompt and
-    // tokenizer variance.
-    const MAX_CV_TEXT_CHARS = 55000;
+    // fail: ~62000 characters is a conservative ~3 chars/token estimate for
+    // CV-style text (bullets/punctuation skew denser than prose) that
+    // leaves headroom for the system prompt and tokenizer variance.
+    //
+    // Keep both the head AND the tail rather than just the head. A pure
+    // head-truncation shipped first and regressed live: a genuinely long CV
+    // came back "parsed" with zero employment_history entries, because that
+    // CV's work-history section fell after a long qualifications/training
+    // list and got cut off entirely. Employment history can appear anywhere
+    // in a CV template, so keep a majority share from the start (contact
+    // info, summary, and whatever comes first) and a meaningful chunk from
+    // the end (many CVs put full employment history, oldest included,
+    // toward the back after a skills/training-heavy opening) rather than
+    // gambling on one end.
+    const MAX_CV_TEXT_CHARS = 62000;
     const cvTextTruncated = conversion.data.length > MAX_CV_TEXT_CHARS;
-    const cvText = cvTextTruncated ? conversion.data.slice(0, MAX_CV_TEXT_CHARS) : conversion.data;
+    const OMITTED_MARKER = "\n\n[... middle of document omitted — too long to include in full ...]\n\n";
+    const headChars = Math.floor(MAX_CV_TEXT_CHARS * 0.6);
+    const tailChars = MAX_CV_TEXT_CHARS - headChars - OMITTED_MARKER.length;
+    const cvText = cvTextTruncated
+      ? conversion.data.slice(0, headChars) + OMITTED_MARKER + conversion.data.slice(-tailChars)
+      : conversion.data;
 
     const result = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
       messages: [
