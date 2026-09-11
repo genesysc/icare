@@ -3514,6 +3514,95 @@ violation meant the save never actually completed in the first place.
 Shipped as three separate PRs (kept small and reviewable rather than
 one giant one): **#33** (Step 4 fix + right-to-work + CV truncation
 regression + catalogue expansion, migrations 0032/0033 applied live
-before the PR), **#34** (DBS copy), and the photo-upload defensive fix
-(in flight as of this entry). Dev branch reset to match `main` after
-each merge, same as every round today.
+before the PR), **#34** (DBS copy), and **#35** (photo-upload
+defensive fix). Dev branch reset to match `main` after each merge,
+same as every round today.
+
+## 2026-09-11 continued — Ran my own full onboarding test, steps 1-11
+
+User asked directly: "can you do your own testing, from start to
+finish... debug, fix." Two approaches attempted:
+
+**Approach 1, real browser (Playwright), abandoned as unsupported.**
+Installed Playwright into the scratchpad (browser binaries were
+already pre-installed at `/opt/pw-browsers`), minted a real signed
+session for a throwaway test candidate (see below), and tried to
+drive `icareltd.com/onboarding` end to end in headless Chromium.
+Every attempt — with and without an explicit `--proxy-server` flag,
+with HTTP/2 and QUIC disabled — failed with `net::ERR_CONNECTION_RESET`
+on the very first navigation, and the environment's own agent-proxy
+status endpoint showed `ws_closed_mid_exchange` against `icareltd.com`
+alongside a burst of the same failure against unrelated Google
+hosts. The proxy's own README lists this exact class ("many parallel/
+multiplexed HTTP/2 streams over one relay tunnel") as not reliably
+supported and says to report it rather than work around it — so
+stopped there rather than fighting it further (no cert bypass, no
+proxy disabling).
+
+**Approach 2, direct API calls with a real session — this is what
+actually ran.** Created one clearly-labelled throwaway test candidate
+directly in `auth.users` (email `qa-e2e-test-2026-09-11@icareltd.com`,
+a real bcrypt password via `pgcrypto`'s `crypt()`/`gen_salt('bf')`,
+`email_confirmed_at` set) so `handle_new_user()` provisioned it exactly
+like a real signup. Got a genuine access token via Supabase Auth's own
+password-grant endpoint (not this app's OTP flow, but the same
+underlying GoTrue backend and the same JWT shape `icareAuthFetch` reads
+out of `localStorage`). Then replayed the **exact sequence of API
+calls** `onboarding.html` makes for every one of its 11 steps, in
+order, with the same payload shapes — `PATCH /me`, `PUT /me/
+professions`, `PUT /me/skills`, `POST/PATCH /me/employment-history`,
+`POST /me/qualifications`, `POST /me/registrations`, `PUT /me/dbs`,
+`POST /me/references`, `PUT /me/prompts/:id`, `POST /me/photo` (a real
+PNG), through to `POST /me/publish` — 31 calls total, checking every
+response.
+
+**Result: all 31 calls returned 2xx.** The profile ended up 100%
+complete, actually published (`is_published: true`), with a photo
+that round-tripped through `GET /me/photo` correctly. This confirms
+today's earlier fixes (Step 4 RLS, right-to-work requirement, CV
+truncation) hold up under a real full run, not just the isolated
+checks done at the time — and it means Step 10's "clicked Upload,
+nothing happened" report is very likely a genuinely client-side/
+browser issue, not a backend bug: the identical POST with real image
+bytes and the real Content-Type header worked perfectly at the API
+layer.
+
+**One more real bug found this way, missed by every fix so far**:
+after publishing, checked which badges actually got awarded.
+`exp_3` (3+ years' experience) was there, correctly, but `dbs_update`
+was NOT — even though the DBS step was filled in with `level:
+enhanced`, `on_update_service: true`, `consent_to_check: true`,
+exactly matching `publish_my_profile()`'s award condition. Queried
+`dbs_records` directly: `on_update_service` had landed as `false`
+in the database despite being sent as `true`. Root cause: `PUT
+/candidates/me/dbs`'s `DBS_FIELDS` allow-list
+(`["level","issued_on","certificate_number","workforce"]`) never
+included `on_update_service` — the exact field the frontend's "I'm
+registered on the DBS Update Service" checkbox sends. It was silently
+dropped on every save, for every candidate, since this field existed.
+No candidate could ever have earned the `dbs_update` badge through the
+app. Fixed with a one-line addition to the allow-list (**PR #36**,
+merged, deployed). **Re-verified against the same live test account**:
+re-PUT the same payload, `on_update_service` now lands as `true`;
+re-published, `dbs_update` badge now appears in `candidate_badges`
+alongside `exp_3`.
+
+Also cross-checked every other field allow-list
+(`EMPLOYMENT_FIELDS`, `QUALIFICATION_FIELDS`, `REGISTRATION_FIELDS`,
+`REFERENCE_FIELDS`, `WRITABLE_FIELDS`) against what `onboarding.html`
+actually sends for each of those forms — all matched exactly. This
+was the only instance of this bug class.
+
+**Test account fully cleaned up afterward**: deleted the `auth.users`
+row directly (cascades through `accounts` → `candidates` → every
+child table — confirmed via `pg_constraint`), then verified 0 rows
+left across `accounts`, `candidates`, `employment_history`,
+`candidate_badges`, `dbs_records`, and `auth.users` for that id.
+Nothing left in the database from this testing pass.
+
+**Still open, unresolved**: Step 10's "nothing happened" symptom.
+Backend confirmed correct by this test; the defensive try/catch from
+the previous fix (PR #35) is live, but the actual root cause — if it's
+a real bug and not a one-off — needs either a real retry from the
+founder or a way to drive an actual browser through this session's
+proxy (not currently possible here).
