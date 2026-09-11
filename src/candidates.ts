@@ -1517,10 +1517,31 @@ candidates.post("/me/cv", async (c) => {
       "Allowed clinical skills (id: label):\n" + skillCatalogue + "\n\n" +
       "Allowed qualification types (id: label):\n" + qualTypeCatalogue;
 
+    // @cf/meta/llama-3.3-70b-instruct-fp8-fast has a 24000-token total context
+    // window. We reserve 3000 for the response, leaving ~21000 for the
+    // system prompt + CV text; the catalogues above are small (well under
+    // 1000 tokens even at full size), so the CV text is what can blow this.
+    // A long, detailed CV (multi-page, extensive training/course lists) can
+    // genuinely exceed it — a real user hit exactly this (21001 input tokens
+    // requested). Truncate defensively rather than let the whole import
+    // fail: ~55000 characters is a conservative ~3.3 chars/token estimate
+    // for CV-style text (bullets/punctuation skew denser than prose) that
+    // leaves several thousand tokens of headroom for the system prompt and
+    // tokenizer variance.
+    const MAX_CV_TEXT_CHARS = 55000;
+    const cvTextTruncated = conversion.data.length > MAX_CV_TEXT_CHARS;
+    const cvText = cvTextTruncated ? conversion.data.slice(0, MAX_CV_TEXT_CHARS) : conversion.data;
+
     const result = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: "Extract this CV into structured data:\n\n" + conversion.data },
+        {
+          role: "user",
+          content:
+            "Extract this CV into structured data:\n\n" +
+            cvText +
+            (cvTextTruncated ? "\n\n[Document truncated here — it continued beyond this point, but nothing after this was provided to you. Do not treat this as the end of the candidate's history.]" : ""),
+        },
       ],
       response_format: { type: "json_schema", json_schema: CV_EXTRACT_SCHEMA },
       max_tokens: 3000,
@@ -1572,9 +1593,17 @@ candidates.post("/me/cv", async (c) => {
       .single();
     if (updateError) return c.json({ error: updateError.message }, 400);
 
-    return c.json({ cv_import: updated });
+    return c.json({ cv_import: updated, cv_text_truncated: cvTextTruncated });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "CV parsing failed";
+    // Never surface a raw provider error (a Workers AI failure looks like
+    // `8007: {"error":{"message":"...","type":"BadRequestError",...}}`) —
+    // onboarding.html shows error_detail to the candidate verbatim. Log the
+    // real detail for us, store/return a message a candidate can act on.
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    console.error("[cv-import] parsing failed:", rawMessage);
+    const message = /maximum context length|BadRequestError/i.test(rawMessage)
+      ? "This CV was too long for us to process. Try a shorter file, or fill it in yourself."
+      : "CV parsing failed. Please try again, or fill it in yourself.";
     await supabase.from("cv_imports").update({ status: "failed", error_detail: message }).eq("id", importRow.id);
     return c.json({ cv_import: { ...importRow, status: "failed", error_detail: message } });
   }
