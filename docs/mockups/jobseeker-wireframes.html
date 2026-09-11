@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iCare — jobseeker wireframes</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --line:#B8B4C0; --line2:#DCD9E2; --fill:#EFEDF2; --fill2:#F7F6F9;
+  --ink:#2A2733; --mid:#6E6A78; --pale:#9A96A4; --page:#fff; --key:#4A4553;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#E8E6EC;color:var(--ink);font-family:'Public Sans',system-ui,sans-serif;font-size:14px}
+a{color:inherit}
+:focus-visible{outline:2px solid #444;outline-offset:2px}
+
+/* ---- shell ---- */
+.nav{position:fixed;inset:auto 0 0 0;z-index:99;background:#211E29;display:flex;overflow-x:auto;
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase}
+.nav button{flex:0 0 auto;appearance:none;border:0;background:transparent;color:rgba(255,255,255,.5);
+  padding:13px 14px;cursor:pointer;font:inherit;border-right:1px solid rgba(255,255,255,.12);white-space:nowrap}
+.nav button[aria-pressed="true"]{background:#fff;color:#211E29;font-weight:600}
+.view{display:none;padding:22px 16px 78px}
+.view.on{display:block}
+@media (min-width:960px){
+  .nav{inset:0 auto 0 0;flex-direction:column;width:212px;overflow-y:auto;overflow-x:hidden}
+  .nav button{text-align:left;border-right:0;border-bottom:1px solid rgba(255,255,255,.1);padding:14px 16px;white-space:normal}
+  .nav::before{content:'iCare · jobseeker wireframes';display:block;color:#8F8A9B;padding:20px 16px 10px;font-size:9.5px;line-height:1.5}
+  .view{margin-left:212px;padding:34px 40px 60px}
+}
+
+.vhead{max-width:1080px;margin:0 auto 22px}
+.vhead h2{font-size:19px;margin:0 0 6px;letter-spacing:-.01em}
+.vhead p{margin:0;color:var(--mid);line-height:1.6;max-width:70ch;font-size:13.5px}
+.canvas{max-width:1080px;margin:0 auto}
+
+/* ---- wireframe primitives ---- */
+.phone{max-width:390px;margin:0 auto;background:var(--page);border:1px solid var(--line);
+  border-radius:14px;overflow:hidden}
+.pair{display:grid;gap:26px}
+@media (min-width:1000px){.pair{grid-template-columns:390px 1fr;align-items:start}}
+.desk{background:var(--page);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.capt{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--pale);margin:0 0 8px}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;
+  border-bottom:1px solid var(--line2);background:var(--fill2)}
+.brand{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.04em}
+.ico{width:22px;height:22px;border:1px solid var(--line);border-radius:5px;flex:none;background:var(--fill)}
+.icos{display:flex;gap:7px}
+.body{padding:13px}
+.tabbar{display:flex;border-top:1px solid var(--line2);background:var(--fill2)}
+.tabbar div{flex:1;text-align:center;padding:9px 2px;font-family:'IBM Plex Mono',monospace;
+  font-size:8.5px;letter-spacing:.04em;color:var(--pale);border-right:1px solid var(--line2)}
+.tabbar div:last-child{border-right:0}
+.tabbar div.act{color:var(--ink);font-weight:600;background:#fff;box-shadow:inset 0 2px 0 var(--key)}
+
+.blk{background:var(--fill);border:1px solid var(--line2);border-radius:7px;padding:11px;margin-bottom:10px}
+.blk:last-child{margin-bottom:0}
+.blk.plain{background:#fff}
+.blk.dash{background:repeating-linear-gradient(45deg,#F4F3F7,#F4F3F7 6px,#EBE9F0 6px,#EBE9F0 12px);
+  border-style:dashed;text-align:center;color:var(--pale);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:18px 11px}
+.lbl{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--pale);margin-bottom:7px}
+.h{font-weight:700;font-size:14px;margin:0 0 5px;line-height:1.3}
+.t{color:var(--mid);font-size:12.5px;line-height:1.5;margin:0}
+.ln{height:8px;background:var(--line2);border-radius:4px;margin-bottom:6px}
+.ln.s{width:55%}.ln.m{width:75%}.ln.l{width:92%}
+.row{display:flex;align-items:center;gap:10px}
+.av{width:38px;height:38px;border-radius:8px;background:var(--fill);border:1px solid var(--line);flex:none}
+.av.rd{border-radius:50%}
+.btn{display:inline-block;background:var(--key);color:#fff;border-radius:6px;padding:9px 15px;
+  font-size:12.5px;font-weight:600;text-align:center;border:0}
+.btn.o{background:#fff;color:var(--key);border:1px solid var(--line)}
+.btn.w{display:block;width:100%}
+.btns{display:flex;gap:8px;margin-top:10px}
+.btns .btn{flex:1}
+.chip{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.07em;
+  text-transform:uppercase;border:1px solid var(--line);border-radius:4px;padding:3px 7px;color:var(--mid);
+  background:#fff;margin:0 4px 4px 0}
+.chip.k{background:var(--key);color:#fff;border-color:var(--key)}
+.note{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale);line-height:1.6;
+  border-left:2px solid var(--line);padding-left:9px;margin:12px 0 0}
+.split{display:grid;gap:11px}
+@media (min-width:700px){.split.two{grid-template-columns:1fr 1fr}.split.three{grid-template-columns:repeat(3,1fr)}}
+.side{display:grid;gap:14px}
+@media (min-width:820px){.side{grid-template-columns:2fr 1fr;align-items:start}}
+.rail{display:flex;gap:0;border-bottom:1px solid var(--line2);background:#fff}
+.rail span{padding:9px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale);
+  border-bottom:2px solid transparent}
+.rail span.act{color:var(--ink);border-bottom-color:var(--key);font-weight:600}
+.list{border:1px solid var(--line2);border-radius:7px;overflow:hidden}
+.item{padding:11px;border-bottom:1px solid var(--line2);background:#fff}
+.item:last-child{border-bottom:0}
+.meta{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--pale);margin-top:4px}
+
+/* ---- sitemap ---- */
+.map{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px}
+.mapgrid{display:grid;gap:20px}
+@media (min-width:900px){.mapgrid{grid-template-columns:repeat(3,1fr)}}
+.zone{border:1px solid var(--line2);border-radius:8px;padding:14px;background:var(--fill2)}
+.zone h3{margin:0 0 4px;font-size:13.5px}
+.zone .sub{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--pale);
+  letter-spacing:.08em;text-transform:uppercase;margin-bottom:11px}
+.tree{list-style:none;margin:0;padding:0;font-size:13px}
+.tree li{padding:6px 0 6px 13px;border-left:1px solid var(--line);position:relative;line-height:1.45}
+.tree li::before{content:'';position:absolute;left:0;top:14px;width:8px;height:1px;background:var(--line)}
+.tree ul{list-style:none;margin:5px 0 0;padding:0;font-size:12.5px;color:var(--mid)}
+.tree .k{font-weight:600}
+.ext{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--pale);letter-spacing:.06em}
+.legend{margin-top:18px;padding-top:14px;border-top:1px solid var(--line2);
+  font-size:12.5px;color:var(--mid);line-height:1.7}
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Wireframe screens">
+  <button data-v="s0" aria-pressed="true">00 · Sitemap</button>
+  <button data-v="s1" aria-pressed="false">01 · Onboarding</button>
+  <button data-v="s2" aria-pressed="false">02 · Home</button>
+  <button data-v="s3" aria-pressed="false">03 · Invites</button>
+  <button data-v="s4" aria-pressed="false">04 · Invite detail</button>
+  <button data-v="s5" aria-pressed="false">05 · My pipelines</button>
+  <button data-v="s6" aria-pressed="false">06 · Profile</button>
+  <button data-v="s7" aria-pressed="false">07 · Credentials</button>
+  <button data-v="s8" aria-pressed="false">08 · Visibility</button>
+  <button data-v="s9" aria-pressed="false">09 · Network</button>
+</nav>
+
+<!-- ============ 00 SITEMAP ============ -->
+<section class="view on" id="s0">
+  <div class="vhead">
+    <h2>Sitemap — icareltd.com</h2>
+    <p>Jobseeker domain only. Employers and agencies live on the separate recruiter domain, so icareltd.com never renders an employer view — it only links out.</p>
+  </div>
+  <div class="canvas">
+    <div class="map">
+      <div class="mapgrid">
+
+        <div class="zone">
+          <h3>Public</h3>
+          <div class="sub">Signed out · indexed</div>
+          <ul class="tree">
+            <li class="k">/ — Landing page</li>
+            <li class="k">/about</li>
+            <li class="k">/how-it-works</li>
+            <li class="k">/professions
+              <ul><li>Nursing · Medicine · AHP · Care &amp; support · Healthcare science · Practice &amp; admin</li></ul>
+            </li>
+            <li class="k">/trust
+              <ul><li>Badge grades explained</li><li>What we don't verify</li></ul>
+            </li>
+            <li class="k">/help</li>
+            <li class="k">/legal
+              <ul><li>Privacy · Terms · Cookies · Accessibility</li></ul>
+            </li>
+            <li class="k">For employers <span class="ext">↗ recruiter domain</span></li>
+          </ul>
+        </div>
+
+        <div class="zone">
+          <h3>Auth &amp; onboarding</h3>
+          <div class="sub">No password · OTP</div>
+          <ul class="tree">
+            <li class="k">/join — email entry</li>
+            <li class="k">/verify — one-time code</li>
+            <li class="k">/onboarding
+              <ul>
+                <li>1 · Profession &amp; role <span class="ext">+ sponsorship status</span></li>
+                <li>2 · Location &amp; travel</li>
+                <li>3 · Experience</li>
+                <li class="ext">— findable from here —</li>
+                <li>4 · CV upload &amp; confirm</li>
+                <li>5 · Registrations</li>
+                <li>6 · Availability</li>
+                <li>7 · Visibility choices</li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+
+        <div class="zone">
+          <h3>Signed in</h3>
+          <div class="sub">The app</div>
+          <ul class="tree">
+            <li class="k">/home — feed</li>
+            <li class="k">/invites
+              <ul><li>New · Accepted · Declined</li><li>/invites/:id</li></ul>
+            </li>
+            <li class="k">/pipelines
+              <ul><li>/pipelines/:id — one role</li></ul>
+            </li>
+            <li class="k">/profile
+              <ul><li>/profile/edit</li><li>/profile/preview</li></ul>
+            </li>
+            <li class="k">/credentials
+              <ul><li>Registrations · Training · DBS · Documents</li></ul>
+            </li>
+            <li class="k">/network
+              <ul><li>/people/:id · /orgs/:id</li></ul>
+            </li>
+            <li class="k">/notifications</li>
+            <li class="k">/settings
+              <ul><li>Visibility · Account · Data &amp; downloads · Close account</li></ul>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+      <p class="legend">
+        <strong>Two things this sitemap asserts.</strong> First, <em>/pipelines</em> is separate from <em>/invites</em> — an invite is a decision you make once, a pipeline is a state you sit in afterwards, and merging them makes the consent moment ambiguous. Second, onboarding is findable from step 3, so steps 4–7 are resumable rather than gates.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 01 ONBOARDING ============ -->
+<section class="view" id="s1">
+  <div class="vhead">
+    <h2>01 · Onboarding — step 3 of 7</h2>
+    <p>Progress is explicit and exit is always available. After step 3 the profile is findable, so the screen says so rather than treating the remaining steps as mandatory.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Mobile</p>
+      <div class="phone">
+        <div class="bar"><span class="brand">iCare</span><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">Save &amp; exit</span></div>
+        <div class="body">
+          <div class="ln l" style="height:4px;background:var(--key);width:43%;margin-bottom:3px"></div>
+          <p class="meta" style="margin:0 0 13px">STEP 3 OF 7 · EXPERIENCE</p>
+          <p class="h">Where have you worked?</p>
+          <p class="t" style="margin-bottom:12px">Add the settings you've worked in. You can add more later.</p>
+          <div class="blk plain"><div class="lbl">Setting</div><div class="ln l"></div></div>
+          <div class="blk plain"><div class="lbl">Years in this setting</div><div class="ln s"></div></div>
+          <div class="blk dash">+ Add another setting</div>
+          <div class="blk" style="background:var(--fill2);border-style:dashed">
+            <p class="t" style="font-size:11.5px;margin:0"><strong>After this step your profile can be found by employers.</strong> The remaining steps make it stronger, but you can stop here and come back.</p>
+          </div>
+          <span class="btn w">Continue</span>
+          <p style="text-align:center;margin:10px 0 0"><span class="ext">Finish later</span></p>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="capt">Desktop</p>
+      <div class="desk">
+        <div class="bar"><span class="brand">iCare</span><span class="ext" style="font-size:10px;color:var(--pale);font-family:'IBM Plex Mono',monospace">Save &amp; exit</span></div>
+        <div class="body" style="padding:26px">
+          <div class="side">
+            <div>
+              <p class="meta" style="margin:0 0 8px">STEP 3 OF 7 · EXPERIENCE</p>
+              <p class="h" style="font-size:20px">Where have you worked?</p>
+              <p class="t" style="margin-bottom:14px">Add the settings you've worked in. You can add more later.</p>
+              <div class="split two">
+                <div class="blk plain"><div class="lbl">Setting</div><div class="ln l"></div></div>
+                <div class="blk plain"><div class="lbl">Years</div><div class="ln s"></div></div>
+              </div>
+              <div class="blk dash" style="margin-top:11px">+ Add another setting</div>
+              <div class="btns"><span class="btn o" style="flex:0 0 auto">Back</span><span class="btn">Continue</span></div>
+            </div>
+            <div>
+              <div class="blk">
+                <div class="lbl">Your progress</div>
+                <div class="ln l"></div><div class="ln l"></div><div class="ln m"></div><div class="ln s"></div>
+                <p class="t" style="font-size:11.5px;margin-top:9px">Steps 1–3 make you findable. 4–7 make you stronger.</p>
+              </div>
+            </div>
+          </div>
+          <p class="note">Nothing here asks for name, photo or contact details in a way that implies they'll be shown. Those are collected but stay hidden until an invite is accepted — worth stating on this screen, not just in settings.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 HOME ============ -->
+<section class="view" id="s2">
+  <div class="vhead">
+    <h2>02 · Home</h2>
+    <p>The feed is the social layer, but invites outrank it — a pending invite is time-sensitive and a post isn't. So invites surface as a pinned strip above the feed rather than as a badge on a tab you might not open.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Mobile</p>
+      <div class="phone">
+        <div class="bar"><span class="brand">iCare</span><span class="icos"><span class="ico"></span><span class="ico"></span></span></div>
+        <div class="body">
+          <div class="blk" style="border-color:var(--key);border-width:1.5px;background:#fff">
+            <div class="lbl" style="color:var(--key)">2 new invites</div>
+            <div class="row"><span class="av"></span><div style="flex:1"><div class="ln m"></div><div class="ln s"></div></div></div>
+            <div class="btns"><span class="btn" style="flex:1">View invites</span></div>
+          </div>
+          <div class="blk plain" style="display:flex;align-items:center;gap:10px">
+            <span class="av rd" style="width:30px;height:30px"></span>
+            <span class="t" style="flex:1;color:var(--pale)">Share an update…</span>
+          </div>
+          <div class="blk plain">
+            <div class="row"><span class="av rd"></span><div style="flex:1"><div class="ln m"></div><div class="meta">Registered Nurse · 2h</div></div></div>
+            <div class="ln l" style="margin-top:10px"></div><div class="ln l"></div><div class="ln m"></div>
+            <div class="row" style="margin-top:11px;gap:16px"><span class="ext">Like</span><span class="ext">Comment</span><span class="ext">Share</span></div>
+          </div>
+          <div class="blk plain">
+            <div class="row"><span class="av rd"></span><div style="flex:1"><div class="ln m"></div><div class="meta">Beechwood House · 5h</div></div></div>
+            <div class="ln l" style="margin-top:10px"></div><div class="ln m"></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="act">Home</div><div>Invites</div><div>Pipelines</div><div>Network</div><div>Profile</div>
+        </div>
+      </div>
+      <p class="capt" style="margin-top:18px">Mobile — composer expanded</p>
+      <div class="phone">
+        <div class="bar"><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px">Cancel</span><span class="brand">New post</span><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--key);font-weight:600">Post</span></div>
+        <div class="body">
+          <div class="row" style="margin-bottom:10px"><span class="av rd"></span><div>
+            <p class="h" style="margin:0;font-size:13px">Your name</p>
+            <p class="meta">Posting to your network</p></div></div>
+          <div class="blk plain" style="min-height:90px">
+            <p class="t" style="color:var(--pale)">What's on your mind?</p>
+          </div>
+          <div class="row" style="gap:14px;margin-top:10px">
+            <span class="ext">+ Photo</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="capt">Desktop</p>
+      <div class="desk">
+        <div class="bar">
+          <span class="brand">iCare</span>
+          <span class="icos"><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">Home · Invites · Pipelines · Network</span><span class="ico rd"></span></span>
+        </div>
+        <div class="body" style="padding:20px">
+          <div class="side">
+            <div>
+              <div class="blk" style="border-color:var(--key);border-width:1.5px;background:#fff">
+                <div class="lbl" style="color:var(--key)">2 new invites</div>
+                <div class="split two">
+                  <div class="blk plain" style="margin:0"><div class="ln m"></div><div class="meta">Band 6 Physio · St Gabriel's</div></div>
+                  <div class="blk plain" style="margin:0"><div class="ln m"></div><div class="meta">Practice Nurse · Meadowvale</div></div>
+                </div>
+              </div>
+              <div class="blk dash">Composer — share an update</div>
+              <div class="blk plain">
+                <div class="row"><span class="av rd"></span><div style="flex:1"><div class="ln m"></div><div class="meta">Registered Nurse · 2h</div></div></div>
+                <div class="ln l" style="margin-top:10px"></div><div class="ln l"></div><div class="ln m"></div>
+              </div>
+              <div class="blk plain">
+                <div class="row"><span class="av rd"></span><div style="flex:1"><div class="ln m"></div><div class="meta">Beechwood House · 5h</div></div></div>
+                <div class="ln l" style="margin-top:10px"></div><div class="ln m"></div>
+              </div>
+            </div>
+            <div>
+              <div class="blk">
+                <div class="lbl">Profile strength</div>
+                <div class="ln l" style="height:5px;background:var(--key);width:64%"></div>
+                <p class="t" style="font-size:11.5px;margin-top:8px">Add your registration to reach Verified.</p>
+                <span class="btn o w" style="margin-top:8px">Complete profile</span>
+              </div>
+              <div class="blk">
+                <div class="lbl">Your visibility</div>
+                <p class="t" style="font-size:11.5px;margin:0">Findable by employers · Name hidden</p>
+                <span class="ext">Change</span>
+              </div>
+            </div>
+          </div>
+          <p class="note">Fixed: mobile was previously missing any way to start a post — the composer only existed on desktop. Now a tappable "Share an update…" prompt sits between the invites strip and the feed on both, and tapping it expands into the full composer shown alongside. Still genuinely open: whether the feed and composer ship at launch at all, or are phase 2 — if the latter, this screen becomes invites + profile prompts only and the tab bar drops to four items.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 INVITES ============ -->
+<section class="view" id="s3">
+  <div class="vhead">
+    <h2>03 · Invites</h2>
+    <p>Three states, not two. Declined invites stay visible so a person can see who approached them and when — and because a decline is a record they may want to check later.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Mobile</p>
+      <div class="phone">
+        <div class="bar"><span class="brand">Invites</span><span class="ico"></span></div>
+        <div class="rail"><span class="act">New (2)</span><span>Accepted</span><span>Declined</span></div>
+        <div class="body">
+          <div class="list">
+            <div class="item">
+              <div class="row"><span class="av"></span><div style="flex:1">
+                <p class="h" style="margin:0 0 3px">Band 6 Physiotherapist</p>
+                <p class="t" style="margin:0;font-size:12px">St Gabriel's Trust · Enfield</p>
+                <p class="meta">Invited 2 days ago · expires in 5 days (7-day window)</p>
+              </div></div>
+            </div>
+            <div class="item">
+              <div class="row"><span class="av"></span><div style="flex:1">
+                <p class="h" style="margin:0 0 3px">Practice Nurse</p>
+                <p class="t" style="margin:0;font-size:12px">Meadowvale Health Group · Barnet</p>
+                <p class="meta">Invited 6 days ago · expires in 1 day</p>
+              </div></div>
+            </div>
+          </div>
+          <div class="blk dash" style="margin-top:12px">Empty state — "No new invites. Your profile is still findable."</div>
+          <p class="note">Decided: invites expire 7 days after sending. On expiry, the employer is notified — this is not a silent lapse on their side.</p>
+        </div>
+        <div class="tabbar"><div>Home</div><div class="act">Invites</div><div>Pipelines</div><div>Network</div><div>Profile</div></div>
+      </div>
+    </div>
+    <div>
+      <p class="capt">Notes</p>
+      <div class="desk"><div class="body" style="padding:20px">
+        <p class="t"><strong>Expiry is on the list item, not just the detail view.</strong> That countdown is the single most decision-relevant fact and needs to survive a glance.</p>
+        <p class="t" style="margin-top:12px"><strong>Decided:</strong> 7-day expiry window. On expiry, the employer is notified. If a candidate actively declines instead, that's also always disclosed — with a short reason the candidate picks, down to "prefer not to say." So timeout and decline are now two distinct, always-visible outcomes for the employer, never a silent gap.</p>
+        <p class="t" style="margin-top:16px"><strong>What a new invite shows before acceptance:</strong></p>
+        <div>
+          <span class="chip">Role title</span><span class="chip">Employer name</span><span class="chip">Setting</span>
+          <span class="chip">Location &amp; distance</span><span class="chip">Hours pattern</span><span class="chip">Invite date</span><span class="chip">Expiry</span>
+        </div>
+        <p class="t" style="margin-top:12px"><strong>What the employer sees of you at this point:</strong></p>
+        <div>
+          <span class="chip k">Skills</span><span class="chip k">Experience</span><span class="chip k">Badges</span>
+          <span class="chip">Name — hidden</span><span class="chip">Photo — hidden</span><span class="chip">Contact — hidden</span>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 INVITE DETAIL ============ -->
+<section class="view" id="s4">
+  <div class="vhead">
+    <h2>04 · Invite detail — the consent moment</h2>
+    <p>The most important screen in the product. Accepting is what unlocks identity to that employer, scoped to this one role, so the screen has to state the consequence in plain words directly above the button rather than burying it in terms.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Mobile</p>
+      <div class="phone">
+        <div class="bar"><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px">← Invites</span><span class="ico"></span></div>
+        <div class="body">
+          <div class="row" style="margin-bottom:12px"><span class="av"></span><div>
+            <p class="h" style="margin:0">St Gabriel's Trust</p><p class="meta">Acute · Enfield · 3.2 mi</p></div></div>
+          <p class="h" style="font-size:17px">Band 6 Physiotherapist</p>
+          <div class="blk plain">
+            <div class="lbl">The role</div>
+            <div class="ln l"></div><div class="ln l"></div><div class="ln m"></div>
+          </div>
+          <div class="blk plain">
+            <div class="lbl">Hours &amp; pattern</div><div class="ln m"></div>
+          </div>
+          <div class="blk" style="border-color:var(--key);border-width:1.5px;background:#fff">
+            <div class="lbl" style="color:var(--key)">If you accept</div>
+            <p class="t" style="font-size:12px;margin:0 0 6px">St Gabriel's Trust will see your name, photo and contact details <strong>for this role only</strong>.</p>
+            <p class="t" style="font-size:12px;margin:0">Their access ends if the role closes, you withdraw, or you're not taken forward.</p>
+          </div>
+          <span class="btn w">Accept invite</span>
+          <div class="btns"><span class="btn o" style="flex:1">Decline</span><span class="btn o" style="flex:1">Decide later</span></div>
+          <p class="note">Declining doesn't hide you from this employer's future searches — it closes this role only.</p>
+        </div>
+      </div>
+      <p class="capt" style="margin-top:18px">Mobile — decline, step 2 of 2</p>
+      <div class="phone">
+        <div class="bar"><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px">← Back</span><span class="brand">Decline invite</span></div>
+        <div class="body">
+          <p class="h" style="font-size:16px">Why isn't this the right fit?</p>
+          <p class="t" style="margin-bottom:12px">This is shared with St Gabriel's Trust. Pick whichever is closest.</p>
+          <div class="blk plain" style="border-color:var(--key);border-width:1.5px"><div class="row" style="justify-content:space-between"><span>Not looking for work at the moment</span><span class="ico rd" style="border-color:var(--key)"></span></div></div>
+          <div class="blk plain"><div class="row" style="justify-content:space-between"><span>Not available for this pattern</span><span class="ico rd"></span></div></div>
+          <div class="blk plain"><div class="row" style="justify-content:space-between"><span>Too far to travel</span><span class="ico rd"></span></div></div>
+          <div class="blk plain"><div class="row" style="justify-content:space-between"><span>Not the right role for me right now</span><span class="ico rd"></span></div></div>
+          <div class="blk plain"><div class="row" style="justify-content:space-between"><span>Already accepted another offer</span><span class="ico rd"></span></div></div>
+          <div class="blk plain"><div class="row" style="justify-content:space-between"><span>Prefer not to say</span><span class="ico rd"></span></div></div>
+          <span class="btn w">Send decline</span>
+          <p class="note">A reason is always sent — "Prefer not to say" is a valid, complete answer. There's no option to decline with nothing shared.</p>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="capt">Notes</p>
+      <div class="desk"><div class="body" style="padding:20px">
+        <p class="t"><strong>Three actions, not two.</strong> "Decide later" prevents a forced binary on a screen someone opened on a break. Without it, the safe action is to close the app, and the invite quietly expires.</p>
+        <p class="t"><strong>Decided: declining always sends a reason, and the employer always sees it.</strong> A short preset list — not looking right now, pattern doesn't work, too far, wrong role, already accepted elsewhere, or "prefer not to say." That last option is a complete, valid answer on its own; there's no way to decline with literally nothing shared.</p>
+        <p class="t" style="margin-top:14px">This settles the earlier open question directly: a decline is never mistakeable for a timeout on the employer's side. Expiry (7 days, no response) notifies the employer that the window lapsed; an active decline notifies them with a reason. The two events now read differently by design, which is the more honest outcome for both sides.</p>
+        <p class="note"><strong>Decided:</strong> the reason list is fixed and identical for every profession and role type — no per-role variants, no distance field bolted onto "too far to travel." One consistent list keeps the decline screen simple and comparable across the whole workforce.</p>
+        <p class="note" style="margin-top:10px"><strong>Decided:</strong> "Prefer not to say" is recorded internally, never shown to employers. After 5 consecutive "prefer not to say" declines from the same candidate, iCare sends the candidate a gentle nudge — not surfaced to any employer — and offers a direct option, right there, to turn off discoverability entirely if they'd rather not be found by employers at all right now.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 PIPELINES ============ -->
+<section class="view" id="s5">
+  <div class="vhead">
+    <h2>05 · My pipelines</h2>
+    <p>Where accepted invites go. Scoped per role, so the same person can sit in several at once. Six stages: Shortlisted, Invited for Interview, Pending Interview Result, Successful, Rejected, Onboarding — mechanics behind each still open for fine-tuning.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Mobile</p>
+      <div class="phone">
+        <div class="bar"><span class="brand">Pipelines</span><span class="ico"></span></div>
+        <div class="rail"><span class="act">Active (3)</span><span>Closed</span></div>
+        <div class="body">
+          <div class="list">
+            <div class="item">
+              <p class="h" style="margin:0 0 3px">Band 6 Physiotherapist</p>
+              <p class="t" style="margin:0;font-size:12px">St Gabriel's Trust</p>
+              <div style="margin-top:8px"><span class="chip k">Invited for Interview</span></div>
+              <p class="meta">Thu 12 Sep · 2:00pm</p>
+            </div>
+            <div class="item">
+              <p class="h" style="margin:0 0 3px">Practice Nurse</p>
+              <p class="t" style="margin:0;font-size:12px">Meadowvale Health Group</p>
+              <div style="margin-top:8px"><span class="chip">Shortlisted</span></div>
+              <p class="meta">Accepted 3 days ago</p>
+            </div>
+            <div class="item">
+              <p class="h" style="margin:0 0 3px">Senior Care Assistant</p>
+              <p class="t" style="margin:0;font-size:12px">Beechwood House</p>
+              <div style="margin-top:8px"><span class="chip">Pending Interview Result</span></div>
+              <p class="meta">Interviewed 2 days ago</p>
+            </div>
+          </div>
+          <p class="lbl" style="margin-top:14px">Closed</p>
+          <div class="list">
+            <div class="item">
+              <p class="h" style="margin:0 0 3px">Healthcare Assistant</p>
+              <p class="t" style="margin:0;font-size:12px">St Gabriel's Trust</p>
+              <div style="margin-top:8px"><span class="chip">Rejected</span></div>
+              <p class="meta">St Gabriel's Trust no longer has access to your profile for this role</p>
+            </div>
+            <div class="item">
+              <p class="h" style="margin:0 0 3px">Care Coordinator</p>
+              <p class="t" style="margin:0;font-size:12px">Meadowvale Health Group</p>
+              <div style="margin-top:8px"><span class="chip k">Successful</span></div>
+              <p class="meta">Moved to Onboarding with Meadowvale Health Group</p>
+            </div>
+          </div>
+          <p class="note">Every active row carries a withdraw action in the detail view. Withdrawing revokes that employer's access.</p>
+        </div>
+        <div class="tabbar"><div>Home</div><div>Invites</div><div class="act">Pipelines</div><div>Network</div><div>Profile</div></div>
+      </div>
+    </div>
+    <div>
+      <p class="capt">Notes</p>
+      <div class="desk"><div class="body" style="padding:20px">
+        <p class="t"><strong>Decided: the six pipeline stages.</strong> Shortlisted → Invited for Interview → Pending Interview Result → Successful / Rejected → Onboarding. "Successful" and "Rejected" are both terminal outcomes of the interview stage; "Onboarding" is a further stage reached only from Successful, not a synonym for it.</p>
+        <p class="t" style="margin-top:14px"><strong>Rejection is shown, not hidden.</strong> A "Rejected" pipeline still says what happened to access underneath the label — "St Gabriel's Trust no longer has access to your profile for this role." That sentence is the product's consent promise being kept in public, whether the pipeline closed by rejection or by the candidate withdrawing.</p>
+        <p class="note">Deferred for later fine-tuning, per instruction: what "Shortlisted" actually requires from the employer (is it just accepting the invite, or a separate action?), what "Onboarding" contains as its own sub-steps, and whether "Pending Interview Result" needs its own expected-by date the way invites do. The six names are locked; the mechanics behind each are not.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 06 PROFILE ============ -->
+<section class="view" id="s6">
+  <div class="vhead">
+    <h2>06 · Profile</h2>
+    <p>Own view with an explicit toggle to see the employer's view — since the difference between them is the core promise, it shouldn't require imagination.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Mobile — own view</p>
+      <div class="phone">
+        <div class="bar"><span class="brand">Profile</span><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px">Edit</span></div>
+        <div class="body">
+          <div class="blk plain" style="text-align:center">
+            <span class="av rd" style="width:62px;height:62px;margin:0 auto 9px"></span>
+            <p class="h" style="margin:0">Your name</p>
+            <p class="meta">Registered Nurse — Adult · Enfield</p>
+            <div class="btns"><span class="btn o" style="flex:1">View as employer</span></div>
+          </div>
+          <div class="blk plain">
+            <div class="lbl">About</div><div class="ln l"></div><div class="ln l"></div><div class="ln m"></div>
+          </div>
+          <div class="blk plain">
+            <div class="lbl">Registrations</div>
+            <div class="row" style="justify-content:space-between"><span class="ln m" style="margin:0"></span><span class="chip k">Verified</span></div>
+          </div>
+          <div class="blk plain">
+            <div class="lbl">Experience</div>
+            <div class="row" style="justify-content:space-between;margin-bottom:8px"><span class="ln m" style="margin:0"></span><span class="chip">Evidenced</span></div>
+            <div class="row" style="justify-content:space-between"><span class="ln s" style="margin:0"></span><span class="chip">Derived</span></div>
+          </div>
+          <div class="blk plain">
+            <div class="lbl">Training</div>
+            <div class="row" style="justify-content:space-between"><span class="ln m" style="margin:0"></span><span class="chip">Declared</span></div>
+          </div>
+          <div class="blk dash">Posts &amp; activity — phase 2?</div>
+        </div>
+        <div class="tabbar"><div>Home</div><div>Invites</div><div>Pipelines</div><div>Network</div><div class="act">Profile</div></div>
+      </div>
+    </div>
+    <div>
+      <p class="capt">Desktop — employer preview</p>
+      <div class="desk">
+        <div class="bar" style="background:var(--key)"><span class="brand" style="color:#fff">Employer's view — before you accept an invite</span><span class="ext" style="color:rgba(255,255,255,.7);font-family:'IBM Plex Mono',monospace;font-size:10px">Exit preview</span></div>
+        <div class="body" style="padding:22px">
+          <div class="side">
+            <div>
+              <div class="blk plain">
+                <div class="row">
+                  <span class="av rd" style="background:repeating-linear-gradient(45deg,#EEE,#EEE 5px,#E3E1E8 5px,#E3E1E8 10px)"></span>
+                  <div><p class="h" style="margin:0">Registered Nurse — Adult</p><p class="meta">Enfield · available in 2 weeks</p></div>
+                </div>
+                <p class="note" style="margin-top:10px">Name, photo and contact details are hidden at this stage.</p>
+              </div>
+              <div class="blk plain"><div class="lbl">Experience</div><div class="ln l"></div><div class="ln l"></div><div class="ln m"></div></div>
+              <div class="blk plain"><div class="lbl">Registrations &amp; training</div>
+                <div class="row" style="justify-content:space-between;margin-bottom:7px"><span class="ln m" style="margin:0"></span><span class="chip k">Verified</span></div>
+                <div class="row" style="justify-content:space-between"><span class="ln s" style="margin:0"></span><span class="chip">Declared</span></div>
+              </div>
+            </div>
+            <div>
+              <div class="blk"><div class="lbl">What's hidden</div>
+                <p class="t" style="font-size:11.5px;margin:0">Name · Photo · Contact details · Exact address · Current employer</p>
+              </div>
+            </div>
+          </div>
+          <p class="note">This preview is also the honest answer to "what are you doing with my data" — it's worth linking to it from the landing page and from onboarding, not just from the profile.</p>
+          <p class="note" style="margin-top:8px"><strong>Decided: no promotion pipeline across the board.</strong> Verifying every employment entry for every candidate isn't workable — people can hold several roles in a short period, and checking each one doesn't scale. An entry keeps whatever grade it naturally earns (Derived from dates the candidate entered, Declared from their own description, Evidenced if they upload something like a payslip) and there's no expectation it moves further.</p>
+          <p class="note" style="margin-top:8px"><strong>Decided: referees are optional, and verification only happens if supplied.</strong> Candidates are never required to give referee details. If they choose to, and iCare confirms with that referee, the associated entry can show as Verified — a real differentiator, since employers may prefer candidates whose referees are already confirmed, but never a requirement to be found or hired.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 07 CREDENTIALS ============ -->
+<section class="view" id="s7">
+  <div class="vhead">
+    <h2>07 · Credentials &amp; documents</h2>
+    <p>Where the four badge grades are earned and where DBS status lives. The DBS row uses the three agreed states and never the word "Verified" or "clean".</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Mobile</p>
+      <div class="phone">
+        <div class="bar"><span class="brand">Credentials</span><span class="ico"></span></div>
+        <div class="body">
+          <div class="blk plain">
+            <div class="row" style="justify-content:space-between;align-items:flex-start">
+              <div><p class="h" style="margin:0 0 3px">NMC registration</p><p class="meta">Checked 12 Aug 2026</p></div>
+              <span class="chip k">Verified</span>
+            </div>
+          </div>
+          <div class="blk plain">
+            <div class="row" style="justify-content:space-between;align-items:flex-start">
+              <div><p class="h" style="margin:0 0 3px">BSc (Hons) Adult Nursing</p><p class="meta">Certificate uploaded</p></div>
+              <span class="chip">Evidenced</span>
+            </div>
+          </div>
+          <div class="blk plain" style="border-color:var(--line);border-width:1.5px">
+            <div class="lbl">DBS</div>
+            <p class="h" style="margin:0 0 4px">Not Yet Verified</p>
+            <p class="t" style="font-size:12px;margin:0 0 10px">Add your DBS Update Service number and we can show employers its current status.</p>
+            <span class="btn o w">Add Update Service number</span>
+            <p class="note">Other states: "Current — no new information" · "New information reported"</p>
+          </div>
+          <div class="blk plain">
+            <div class="lbl">Sponsorship status</div>
+            <p class="h" style="margin:0 0 4px;font-size:14px">Requires sponsorship</p>
+            <p class="t" style="font-size:12px;margin:0 0 10px">Set during registration. Change this any time — for example, if you're now sponsored by another employer and only want part-time work.</p>
+            <span class="btn o w">Change sponsorship status</span>
+          </div>
+          <div class="blk dash">+ Add training or certificate</div>
+        </div>
+        <div class="tabbar"><div>Home</div><div>Invites</div><div>Pipelines</div><div>Network</div><div class="act">Profile</div></div>
+      </div>
+    </div>
+    <div>
+      <p class="capt">Notes</p>
+      <div class="desk"><div class="body" style="padding:20px">
+        <p class="t"><strong>DBS is a status, not a badge.</strong> It sits in its own block with its own wording rather than taking one of the four grades, because "Verified" as a chip next to DBS is exactly the claim that can't be made.</p>
+        <p class="t" style="margin-top:14px"><strong>Decided: DBS status is confirmed by iCare staff manually</strong>, not a live DBS Update Service API integration. Copy on this screen should say "we'll confirm within [X] working days" rather than implying an instant check — worth pinning down the actual turnaround time before this ships, since that number is now a real promise to candidates.</p>
+        <p class="t" style="margin-top:14px"><strong>Decided: reference checks are conducted by iCare directly</strong>, not left to the employer or self-declared by the candidate. This affects the Experience section on the profile too — a reference confirmed by iCare is presumably what moves an entry from Derived or Declared up to Evidenced or Verified, though the exact grading mechanics per entry still need defining (see screen 06 notes on employment history badges).</p>
+        <p class="note">Documents uploaded here need a visible retention answer: who can see them, and when they're deleted. Data minimisation was a stated non-negotiable and this is where it's tested.</p>
+        <p class="note" style="margin-top:8px"><strong>New: candidates declare their own sponsorship need at registration</strong> (onboarding step 1), and can change it any time from here — the example given was someone moving to part-time work once already sponsored by another employer. This is a separate field from the employer-side sponsorship offering on a job posting (iRecruit screen 02); one states what a candidate needs, the other states what an employer can provide for a specific role. Search and invite matching presumably compares the two, though that matching logic hasn't been specified yet.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 08 VISIBILITY ============ -->
+<section class="view" id="s8">
+  <div class="vhead">
+    <h2>08 · Visibility &amp; privacy</h2>
+    <p>The landing page promises granular control over public / employer-only / private. This is the screen that has to exist for that claim to be true at launch.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Mobile</p>
+      <div class="phone">
+        <div class="bar"><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px">← Settings</span><span class="brand">Visibility</span></div>
+        <div class="body">
+          <div class="blk" style="border-color:var(--key);border-width:1.5px;background:#fff">
+            <div class="lbl" style="color:var(--key)">Master switch</div>
+            <div class="row" style="justify-content:space-between">
+              <div><p class="h" style="margin:0 0 2px">Findable by employers</p><p class="t" style="font-size:11.5px;margin:0">On</p></div>
+              <span style="width:38px;height:22px;border-radius:11px;background:var(--key);flex:none"></span>
+            </div>
+            <p class="note">Turning this off removes you from search. Active pipelines continue.</p>
+          </div>
+          <p class="lbl" style="margin-top:14px">Field by field</p>
+          <div class="list">
+            <div class="item"><div class="row" style="justify-content:space-between"><span>About you</span><span class="chip">Public</span></div></div>
+            <div class="item"><div class="row" style="justify-content:space-between"><span>Experience</span><span class="chip">Public</span></div></div>
+            <div class="item"><div class="row" style="justify-content:space-between"><span>Registrations</span><span class="chip">Employers only</span></div></div>
+            <div class="item"><div class="row" style="justify-content:space-between"><span>Availability</span><span class="chip">Employers only</span></div></div>
+            <div class="item"><div class="row" style="justify-content:space-between"><span>Current employer</span><span class="chip">Private</span></div></div>
+            <div class="item"><div class="row" style="justify-content:space-between"><span>Documents</span><span class="chip">Private</span></div></div>
+          </div>
+          <div class="blk" style="margin-top:12px">
+            <div class="lbl">Always hidden until you accept an invite</div>
+            <p class="t" style="font-size:11.5px;margin:0">Name · Photo · Contact details · Exact address</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="capt">Notes</p>
+      <div class="desk"><div class="body" style="padding:20px">
+        <p class="t"><strong>Two tiers of control, deliberately.</strong> Fields the person governs, and a fixed set that's hidden pre-acceptance regardless — because if name and photo were user-toggleable, the consent model stops being a guarantee and becomes a default.</p>
+        <p class="t" style="margin-top:14px"><strong>Decided: "Public" means other iCare members only</strong> — never the open indexed web. Worth stating this plainly on the screen itself, not just relying on the person already knowing, since for healthcare staff who've had a safeguarding concern or left a role badly, that distinction is genuinely consequential.</p>
+        <p class="note"><strong>Decided: no per-employer blocking.</strong> Appearing in a search costs a candidate nothing on its own — full identity is never shared unless they explicitly accept an invite. Since a named employer can't see who a candidate is just by finding them, there's nothing for blocking to protect against that the accept/decline consent step doesn't already cover. This control is out of scope.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 09 NETWORK ============ -->
+<section class="view" id="s9">
+  <div class="vhead">
+    <h2>09 · Network</h2>
+    <p>The social half. Included for completeness, but this is the part of the sitemap most likely to be phase 2 — and the tab bar is designed to survive its removal.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Mobile</p>
+      <div class="phone">
+        <div class="bar"><span class="brand">Network</span><span class="ico"></span></div>
+        <div class="rail"><span class="act">Connections</span><span>Organisations</span><span>Discover</span></div>
+        <div class="body">
+          <div class="blk dash">Search people, organisations, specialties</div>
+          <div class="list">
+            <div class="item"><div class="row"><span class="av rd"></span><div style="flex:1"><div class="ln m"></div><div class="meta">Physiotherapist · Enfield</div></div><span class="btn o" style="padding:6px 11px;font-size:11px">Connect</span></div></div>
+            <div class="item"><div class="row"><span class="av rd"></span><div style="flex:1"><div class="ln m"></div><div class="meta">Practice Manager · Barnet</div></div><span class="btn o" style="padding:6px 11px;font-size:11px">Connect</span></div></div>
+            <div class="item"><div class="row"><span class="av"></span><div style="flex:1"><div class="ln m"></div><div class="meta">Beechwood House · Organisation</div></div><span class="btn o" style="padding:6px 11px;font-size:11px">Follow</span></div></div>
+          </div>
+        </div>
+        <div class="tabbar"><div>Home</div><div>Invites</div><div>Pipelines</div><div class="act">Network</div><div>Profile</div></div>
+      </div>
+    </div>
+    <div>
+      <p class="capt">Notes</p>
+      <div class="desk"><div class="body" style="padding:20px">
+        <p class="t"><strong>Following an organisation is not the same as being findable by it.</strong> Worth keeping those visibly separate, or people will assume following a care home opts them into its searches.</p>
+        <p class="t" style="margin-top:14px"><strong>Connections raise a question the recruitment side doesn't.</strong> If a person's connections are visible, a colleague can infer they're job-hunting from who they've connected with. LinkedIn has this problem and handles it badly. Worth deciding early rather than inheriting it.</p>
+        <p class="note">If Network ships in phase 2, the tab bar becomes Home · Invites · Pipelines · Profile, which is a more honest launch product anyway.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<script>
+const b=[...document.querySelectorAll('.nav button')];
+b.forEach(x=>x.addEventListener('click',()=>{
+  b.forEach(y=>y.setAttribute('aria-pressed',String(y===x)));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===x.dataset.v));
+  window.scrollTo(0,0);
+}));
+</script>
+</body>
+</html>

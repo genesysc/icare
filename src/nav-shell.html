@@ -1,0 +1,73 @@
+<!--
+  iCare signed-in tab-bar shell — SPRINTS.md Sprint 19.
+
+  NOT imported by any Worker route (same convention as auth-client.js —
+  see that file's own header comment). Every signed-in candidate page
+  copies the CSS block and the <nav class="tab-bar"> markup below
+  verbatim, changing only which item carries `is-active` for that page.
+  If you change this file, update every page that copied it:
+  dashboard.html, invites.html, pipelines.html, home.html, network.html.
+
+  Five destinations, matching docs/mockups/jobseeker-wireframes.html's
+  sitemap screen exactly: Home, Invites, Pipelines, Network, Profile.
+  `dashboard.html` is Profile (it was the only candidate page before this
+  sprint, and its content — own headline/badges/sections/edit links — is
+  what the wireframe calls Profile, not Home).
+
+  Fixed to the bottom of the viewport at every size, not just mobile —
+  this codebase has no other desktop-specific layout (every existing
+  page is a single centered column, no breakpoints), so a second
+  desktop-only nav pattern isn't introduced here either. Every page's
+  `.wrap` already reserves 80px of bottom padding, which is exactly
+  enough clearance — no page needed to change that.
+
+  Icons are hand-authored inline SVG (no icon font/library — this repo
+  has no dependency for one), simple single-stroke line icons in the
+  brand teal/plum, sized 22px.
+-->
+<style>
+  .tab-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; background: var(--white); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-bar-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint);
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-bar-item.is-active { color: var(--teal-700); }
+  .tab-bar-item .tab-bar-icon-wrap { position: relative; }
+  .tab-bar-dot {
+    position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px;
+    background: var(--teal-500); border: 1.5px solid var(--white); display: none;
+  }
+  .tab-bar-dot.is-visible { display: block; }
+</style>
+
+<nav class="tab-bar" aria-label="Main">
+  <a href="/home" class="tab-bar-item" data-tab="home">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="/invites" class="tab-bar-item" data-tab="invites">
+    <span class="tab-bar-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+      <span class="tab-bar-dot" data-invites-dot></span>
+    </span>
+    <span>Invites</span>
+  </a>
+  <a href="/pipelines" class="tab-bar-item" data-tab="pipelines">
+    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    <span>Pipelines</span>
+  </a>
+  <a href="/network" class="tab-bar-item" data-tab="network">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Network</span>
+  </a>
+  <a href="/dashboard" class="tab-bar-item" data-tab="profile">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Profile</span>
+  </a>
+</nav>

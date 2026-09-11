@@ -3,24 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script>
-// Sprint 24 fix: if Supabase's magic-link redirect doesn't exactly match
-// an allow-listed Redirect URL in the Dashboard, it silently falls back
-// to the bare Site URL — this page's root — instead of our intended
-// /verify target, dropping the #access_token=... fragment on a page with
-// no code to handle it (previously a dead end: user stuck looping back
-// to the waitlist page after "successfully" clicking the email link).
-// GoTrue always appends that hash regardless of which URL it resolves
-// to, so recovering here — before anything else runs or paints — makes
-// sign-in work even if the Supabase Redirect URLs list is misconfigured,
-// rather than depending on getting that Dashboard-only setting exactly
-// right. See HANDOVER.md §6.
-(function () {
-  if (window.location.hash.indexOf("access_token=") !== -1) {
-    window.location.replace("/verify" + window.location.hash);
-  }
-})();
-</script>
 <title>iCare — the professional network for UK health and care</title>
 <meta name="description" content="iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile that shows your skills and experience — and, if you choose, the person behind them too.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -50,13 +32,17 @@ a{color:inherit}
 .wrap{max-width:1180px;margin:0 auto;padding:0 22px}
 .skip{position:absolute;left:-9999px;background:var(--purple);color:#fff;padding:12px 18px;border-radius:6px}
 .skip:focus{left:16px;top:16px;z-index:99}
-.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 
 /* ---------- nav ---------- */
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 0}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 0;gap:18px;flex-wrap:wrap}
 .logo{font-family:'Fraunces',serif;font-weight:800;font-size:22px;letter-spacing:-.02em;text-decoration:none}
 .logo span{color:var(--teal)}
+.navlinks{display:flex;align-items:center;gap:22px}
 .navlink{font-size:14px;text-decoration:none;font-weight:600;color:var(--purple)}
+.navlink.btn-outline{border:1.5px solid var(--purple);padding:9px 18px;border-radius:100px}
+.navlink.btn-solid{background:var(--purple);color:#fff;padding:10px 20px;border-radius:100px;
+  box-shadow:0 8px 22px -10px var(--purple);transition:transform .15s,box-shadow .15s,background .15s}
+.navlink.btn-solid:hover{transform:translateY(-2px);background:var(--purple-dk)}
 
 /* ---------- shared type ---------- */
 .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
@@ -67,7 +53,8 @@ a{color:inherit}
   transition:transform .15s,box-shadow .15s,background .15s;
   box-shadow:0 8px 22px -10px var(--purple)}
 .btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px -12px var(--purple);background:var(--purple-dk)}
-.btn:disabled{opacity:.6;cursor:default;transform:none}
+.btn.ghost{background:transparent;color:var(--purple);box-shadow:none;border:1.5px solid var(--purple)}
+.btn.ghost:hover{background:rgba(51,0,114,.06);box-shadow:none;transform:none}
 
 /* ---------- hero ---------- */
 .hero{padding:26px 0 56px}
@@ -168,30 +155,18 @@ a{color:inherit}
 .final p{color:rgba(255,255,255,.7);margin:0 auto 30px;max-width:42ch;line-height:1.65}
 .final .btn{background:var(--teal);color:#04231F;box-shadow:none}
 .final .btn:hover{background:#00C4B6;box-shadow:none}
-
-/* ---------- waitlist form ---------- */
-.join-form{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;
-  margin:0 auto 14px;max-width:560px}
-.join-form input{flex:1 1 190px;padding:15px 20px;border-radius:100px;border:1px solid rgba(255,255,255,.16);
-  font-family:inherit;font-size:15px;background:rgba(255,255,255,.06);color:#fff}
-.join-form input::placeholder{color:rgba(255,255,255,.45)}
-.join-form input:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
-.join-form .btn{flex:none}
-.join-status{min-height:20px;font-size:14px;margin:0 0 6px;color:rgba(255,255,255,.7)}
-.join-status.err{color:#FF9B9B}
-.join-status.ok{color:#5FE0D6}
-.join-note{font-size:13px;color:rgba(255,255,255,.5);margin:0 0 20px}
-.join-success{display:none;margin:8px auto 20px;max-width:440px}
-.join-success.is-visible{display:block}
-.join-success h3{font-family:'Fraunces',serif;font-size:22px;margin:0 0 8px;color:#fff;font-style:normal}
-.join-success p{color:rgba(255,255,255,.72);margin:0;line-height:1.6}
-.counter-row{font-family:'IBM Plex Mono',monospace;font-size:13px;color:rgba(255,255,255,.55)}
-.counter-num{font-weight:700;color:#5FE0D6;font-size:16px}
-@media (max-width:560px){.join-form{flex-direction:column;align-items:stretch}.join-form input,.join-form .btn{flex:none;width:100%}}
+.final .btn.ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.35)}
+.final .btn.ghost:hover{background:rgba(255,255,255,.08);transform:none}
+.final .ctarow{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-bottom:22px}
+.final .switch{font-size:14px;color:rgba(255,255,255,.55)}
+.final .switch a{color:#5FE0D6;font-weight:600;text-decoration:underline}
 
 footer{background:var(--ink);color:rgba(255,255,255,.5);padding:0 0 32px;text-align:center}
-footer .wrap{border-top:1px solid rgba(255,255,255,.1);padding-top:26px}
+footer .wrap{border-top:1px solid rgba(255,255,255,.1);padding-top:26px;display:flex;flex-direction:column;gap:10px;align-items:center}
 footer p{margin:0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.06em}
+footer .flinks{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+footer .flinks a{font-size:12.5px;color:rgba(255,255,255,.55);text-decoration:none}
+footer .flinks a:hover{color:#fff}
 </style>
 </head>
 <body>
@@ -199,7 +174,12 @@ footer p{margin:0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-
 
 <div class="wrap">
   <header class="topbar">
-    <a class="logo" href="#">i<span>Care</span></a>
+    <a class="logo" href="/welcome">i<span>Care</span></a>
+    <nav class="navlinks">
+      <a class="navlink" href="/employers">For employers</a>
+      <a class="navlink btn-outline" href="/sign-in">Log in</a>
+      <a class="navlink btn-solid" href="/sign-up">Sign up</a>
+    </nav>
   </header>
 </div>
 
@@ -213,8 +193,8 @@ footer p{margin:0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-
         <h1>One profile. Every healthcare employer <u>looking for you.</u></h1>
         <p class="lede">Put your registrations, experience and availability in one place. Employers search it, send you an invite, and see nothing more until you accept.</p>
         <div class="ctarow">
-          <a class="btn" href="#join">Join the waiting list</a>
-          <span class="rolestag">Nursing · Medicine · AHPs · Care · Practice teams</span>
+          <a class="btn" href="/sign-up">Create your profile</a>
+          <a class="btn ghost" href="/sign-in">Log in</a>
         </div>
       </div>
 
@@ -311,117 +291,30 @@ footer p{margin:0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-
     </div>
   </section>
 
-  <!-- FINAL / WAITLIST -->
-  <section class="final" id="join">
+  <!-- FINAL / GET STARTED -->
+  <section class="final" id="get-started">
     <div class="wrap">
       <h2>The right people should already know your name.</h2>
-      <p>We're opening to healthcare professionals across the UK shortly. Add your email and we'll bring you in early.</p>
+      <p>Build your profile in minutes — no password, just your email. Employers can't see a thing about you until you say yes.</p>
 
-      <form class="join-form" id="waitlist-form" novalidate>
-        <label for="wl-name" class="sr-only">Full name</label>
-        <input id="wl-name" name="full_name" type="text" placeholder="Your name" autocomplete="name" required>
-        <label for="wl-email" class="sr-only">Email address</label>
-        <input id="wl-email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required>
-        <button type="submit" class="btn">Join the waiting list</button>
-      </form>
-      <p class="join-status" data-status></p>
-      <p class="join-note">Free to join. We'll only use this to let you know when iCare is live.</p>
-
-      <div class="join-success" id="waitlist-success" aria-live="polite">
-        <h3 data-success-title>You're on the list.</h3>
-        <p data-success-text>We'll email you the moment iCare is live.</p>
+      <div class="ctarow">
+        <a class="btn" href="/sign-up">Create your profile</a>
+        <a class="btn ghost" href="/sign-in">Log in</a>
       </div>
-
-      <div class="counter-row">
-        <span class="counter-num" data-waitlist-count>—</span> people on the waiting list
-      </div>
+      <p class="switch">Hiring instead? <a href="/employer/sign-up">Sign up as an employer</a></p>
     </div>
   </section>
 </main>
 
 <footer>
-  <div class="wrap"><p>iCare · The professional network for UK health and care</p></div>
+  <div class="wrap">
+    <p>iCare · The professional network for UK health and care</p>
+    <div class="flinks">
+      <a href="/employers">For employers</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </div>
+  </div>
 </footer>
-
-<script>
-(function () {
-  // ---- Live waitlist counter (real — GET /waitlist/count) ----
-  var counterEl = document.querySelector("[data-waitlist-count]");
-  if (counterEl) {
-    fetch("/waitlist/count")
-      .then(function (res) { return res.json(); })
-      .then(function (body) { counterEl.textContent = typeof body.count === "number" ? body.count : "0"; })
-      .catch(function () { counterEl.textContent = "0"; });
-  }
-
-  // ---- Waitlist form submit (real — POST /waitlist) ----
-  var form = document.getElementById("waitlist-form");
-  if (!form) return;
-  var statusEl = form.parentElement.querySelector("[data-status]");
-  var successPanel = document.getElementById("waitlist-success");
-
-  function setStatus(kind, message) {
-    statusEl.textContent = message;
-    statusEl.className = "join-status " + kind;
-  }
-
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
-    var submitBtn = form.querySelector('button[type="submit"]');
-    var fullName = document.getElementById("wl-name").value.trim();
-    var email = document.getElementById("wl-email").value.trim();
-    if (!fullName) {
-      setStatus("err", "Please enter your name.");
-      return;
-    }
-    if (!email) {
-      setStatus("err", "Please enter your email address.");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setStatus("err", "Please enter a valid email address.");
-      return;
-    }
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Joining…";
-
-    fetch("/waitlist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ full_name: fullName, email: email }),
-    })
-      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
-      .then(function (result) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Join the waiting list";
-        if (!result.ok) {
-          setStatus("err", result.body.error || "Something went wrong. Please try again.");
-          return;
-        }
-        if (result.body.already_joined) {
-          setStatus("ok", "You're already on the list — we'll be in touch.");
-        } else {
-          form.style.display = "none";
-          if (result.body.is_early_supporter) {
-            successPanel.querySelector("[data-success-title]").textContent = "You're in — and one of our first 100.";
-            successPanel.querySelector("[data-success-text]").textContent = "That means you'll be near the very front of the queue when we launch. We'll email you the moment iCare is live.";
-          }
-          successPanel.classList.add("is-visible");
-          if (counterEl) {
-            var current = parseInt(counterEl.textContent, 10);
-            if (!isNaN(current)) counterEl.textContent = String(current + 1);
-          }
-        }
-        form.reset();
-      })
-      .catch(function () {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Join the waiting list";
-        setStatus("err", "Network error — please try again.");
-      });
-  });
-})();
-</script>
 </body>
 </html>

@@ -1055,11 +1055,20 @@ function icareRequireAuth(signInPath) {
         var dates = [job.started_on, job.is_current ? "Present" : job.ended_on].filter(Boolean).join(" – ");
         var item = document.createElement("div");
         item.className = "review-employment-item";
+        // A start date is required to save a role — the CV extraction is
+        // deliberately never allowed to guess one, so a role the CV
+        // doesn't clearly date can't be auto-applied. Un-checking and
+        // disabling it here (rather than sending it and letting the save
+        // fail) is what actually fixes "some of this didn't save" for any
+        // CV with an undated role — add it manually in Step 4 instead.
+        var hasStartDate = !!job.started_on;
         item.innerHTML =
-          '<label class="review-item-toggle"><input type="checkbox" checked data-cv-emp-keep="' + i + '" />' +
+          '<label class="review-item-toggle"><input type="checkbox" ' + (hasStartDate ? "checked" : "disabled") + ' data-cv-emp-keep="' + i + '" />' +
           '<span><span class="review-item-toggle-label"></span><div class="review-item-toggle-sub"></div></span></label>';
         item.querySelector(".review-item-toggle-label").textContent = job.job_title + " · " + job.employer;
-        item.querySelector(".review-item-toggle-sub").textContent = [job.setting, dates].filter(Boolean).join(" — ");
+        item.querySelector(".review-item-toggle-sub").textContent = hasStartDate
+          ? [job.setting, dates].filter(Boolean).join(" — ")
+          : "No start date found on the CV — add this manually in Step 4 instead";
         empList.appendChild(item);
       });
     } else {
@@ -1586,7 +1595,10 @@ function icareRequireAuth(signInPath) {
 
     Promise.all(ops).then(function (results) {
       var failed = results.filter(function (r) { return !r.ok; });
-      if (failed.length) throw new Error("Some of this didn't save — please check step 1 onward once you're in.");
+      if (failed.length) {
+        var reasons = failed.map(function (r) { return (r.body && r.body.error) || ("HTTP " + r.status); }).join("; ");
+        throw new Error("Some of this didn't save (" + reasons + ") — please check step 1 onward once you're in.");
+      }
       return jsend("POST", "/candidates/me/cv/" + cvImportId + "/mark-applied", {});
     }).then(function () {
       window.location.href = "/onboarding?step=1";

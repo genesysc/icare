@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
 import { sendTransactionalEmail } from "./email";
 import { candidateProfilePublishedEmail } from "./emails/candidate-profile-published";
+import { containsEvaluativeLanguage } from "./employer-chat-guardrail";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -159,6 +160,31 @@ candidates.post("/me/publish", async (c) => {
   return c.json({ published: data });
 });
 
+// Sprint 21 — wireframe screen 08's "Findable by employers" master
+// switch. is_published is deliberately NOT in WRITABLE_FIELDS above (it's
+// meant to be owned by publish_my_profile()'s completeness gate, not a
+// bare PATCH) — but turning IT off never needed a gate, only turning it
+// back on does, and /me/publish already covers that reversible half.
+// This route is the missing other half: a plain, ungated unpublish. RLS
+// (candidate_self, id = auth.uid()) already allows a candidate to write
+// any column on their own row, same as every other candidate-owned
+// field — this route doesn't change what's reachable, only adds a
+// dedicated, narrow entry point for it, consistent with /me/publish and
+// /me/close-account already being their own single-purpose routes rather
+// than folded into the generic PATCH /me.
+candidates.post("/me/unpublish", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidates")
+    .update({ is_published: false })
+    .eq("id", c.get("userId"))
+    .select("is_published")
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ published: data.is_published });
+});
+
 candidates.post("/me/photo", async (c) => {
   const contentType = c.req.header("Content-Type");
   if (!contentType?.startsWith("image/")) {
@@ -190,6 +216,30 @@ candidates.post("/me/photo", async (c) => {
 candidates.get("/me/photo", async (c) => {
   const userId = c.get("userId");
   const object = await c.env.MEDIA.get(`candidates/${userId}/photo`);
+  if (!object) return c.json({ error: "No photo uploaded" }, 404);
+
+  return new Response(object.body, {
+    headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream" },
+  });
+});
+
+// Peer photo (SPRINTS.md Sprint 24) — candidate-to-candidate, NOT
+// consent-gated like employers.ts's equivalent route: within iCare,
+// identity is free-for-all between candidates (see migration 0030's
+// header comment), so the only checks are the same ones candidate_
+// discover/candidate_peer_feed already enforce — signed in as a
+// candidate, viewing a published profile.
+candidates.get("/:id/photo", async (c) => {
+  const supabase = c.get("supabase");
+  const targetId = c.req.param("id");
+
+  const [{ data: isCandidate }, { data: isPublished }] = await Promise.all([
+    supabase.rpc("current_role_is", { p_role: "candidate" }),
+    supabase.rpc("candidate_is_published", { p_candidate_id: targetId }),
+  ]);
+  if (!isCandidate || !isPublished) return c.json({ error: "Not found" }, 404);
+
+  const object = await c.env.MEDIA.get(`candidates/${targetId}/photo`);
   if (!object) return c.json({ error: "No photo uploaded" }, 404);
 
   return new Response(object.body, {
@@ -752,7 +802,8 @@ candidates.delete("/me/prompts/:promptId", async (c) => {
 // verification): an employer can call flag_candidate_post() (src/employers.ts),
 // which just sets is_flagged — nothing here polices content up front.
 
-const POST_FIELDS = ["title", "body"] as const;
+const POST_FIELDS = ["title", "body", "visibility"] as const;
+const POST_VISIBILITIES = ["public", "connections"] as const;
 
 candidates.get("/me/posts", async (c) => {
   const { data, error } = await c
@@ -775,6 +826,15 @@ candidates.post("/me/posts", async (c) => {
   const insert: Record<string, unknown> = { candidate_id: c.get("userId"), body: text };
   const title = typeof body.title === "string" ? body.title.trim() : "";
   if (title) insert.title = title;
+  // Sprint 24: public by default (matches what posts already were before
+  // this — visible to any verified employer, no consent required) with
+  // an explicit "connections" opt-in narrowing to accepted connections.
+  if (typeof body.visibility === "string") {
+    if (!(POST_VISIBILITIES as readonly string[]).includes(body.visibility)) {
+      return c.json({ error: "visibility must be one of " + POST_VISIBILITIES.join(", ") }, 400);
+    }
+    insert.visibility = body.visibility;
+  }
 
   const { data, error } = await c.get("supabase").from("candidate_posts").insert(insert).select().single();
   if (error) return c.json({ error: error.message }, 400);
@@ -820,6 +880,130 @@ candidates.delete("/me/posts/:id", async (c) => {
   return c.body(null, 204);
 });
 
+// --- Peer feed (SPRINTS.md Sprint 22, identity model corrected Sprint 24) ---
+// Reads candidate_peer_feed (migration 0026, rewritten in 0030) — a
+// cross-candidate view gated by current_role_is('candidate'), added
+// specifically because no path previously let one candidate see
+// another's posts at all (candidate_posts_self is self-only;
+// candidate_post_search is employer-only). Sprint 24 correction: within
+// iCare, candidate identity (name, photo) is free-for-all, not hidden —
+// that protection exists only on the employer/iRecruit side. A post is
+// included here if it's public, or if the viewer holds an accepted
+// connection with its author (visibility = 'connections').
+candidates.get("/feed", async (c) => {
+  const limit = Math.min(Number(c.req.query("limit")) || 30, 100);
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidate_peer_feed")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ posts: data });
+});
+
+// --- Network / connections (SPRINTS.md Sprint 23) ---
+// LinkedIn-style: send/accept/decline. connections (migration 0027) has
+// no separate 'declined' status — declining or withdrawing a pending
+// request just deletes the row (either party can), same as removing an
+// accepted connection later. candidate_discover (0027, reveal logic
+// added in 0028) is the one source of truth for what's shown about the
+// other party: anonymised fields always, full_name only once
+// connections.status = 'accepted' for that pair — enforced inside the
+// view itself, not trusted to this route.
+
+candidates.get("/discover", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+  const q = (c.req.query("q") || "").trim();
+
+  let query = supabase.from("candidate_discover").select("*").neq("id", userId).limit(30);
+  // Search by profession/town only — name isn't searchable anywhere else
+  // in this product either, since it isn't visible pre-connection.
+  // Stripped of PostgREST filter-syntax characters before interpolating
+  // into .or() (unlike .ilike(), .or() takes a raw filter string, so an
+  // unsanitised q could inject extra filter clauses) — matches this
+  // codebase's existing safer pattern of parameterised .ilike() calls
+  // elsewhere (see employer-chat.ts's search_candidates) as closely as a
+  // multi-column OR search allows.
+  const safeQ = q.replace(/[,()."*]/g, "");
+  if (safeQ) query = query.or(`headline.ilike.%${safeQ}%,town.ilike.%${safeQ}%,primary_profession.ilike.%${safeQ}%`);
+
+  const { data, error } = await query;
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ candidates: data });
+});
+
+candidates.get("/network", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+
+  const { data: rows, error } = await supabase
+    .from("connections")
+    .select("id, requester_id, addressee_id, status, created_at, responded_at")
+    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+  if (error) return c.json({ error: error.message }, 400);
+
+  const otherIds = Array.from(new Set((rows || []).map((r) => (r.requester_id === userId ? r.addressee_id : r.requester_id))));
+  const discoverResult = otherIds.length ? await supabase.from("candidate_discover").select("*").in("id", otherIds) : { data: [] };
+  const profileById = new Map((discoverResult.data || []).map((p: { id: string }) => [p.id, p]));
+
+  const incoming = (rows || [])
+    .filter((r) => r.status === "pending" && r.addressee_id === userId)
+    .map((r) => ({ connection_id: r.id, created_at: r.created_at, profile: profileById.get(r.requester_id) || null }));
+
+  const outgoing = (rows || [])
+    .filter((r) => r.status === "pending" && r.requester_id === userId)
+    .map((r) => ({ connection_id: r.id, created_at: r.created_at, profile: profileById.get(r.addressee_id) || null }));
+
+  const connectionsList = (rows || [])
+    .filter((r) => r.status === "accepted")
+    .map((r) => ({
+      connection_id: r.id,
+      responded_at: r.responded_at,
+      profile: profileById.get(r.requester_id === userId ? r.addressee_id : r.requester_id) || null,
+    }));
+
+  return c.json({ incoming, outgoing, connections: connectionsList });
+});
+
+candidates.post("/network/request", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const addresseeId = typeof body?.addressee_id === "string" ? body.addressee_id : null;
+  if (!addresseeId) return c.json({ error: "addressee_id is required" }, 400);
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("connections")
+    .insert({ requester_id: c.get("userId"), addressee_id: addresseeId })
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ connection: data }, 201);
+});
+
+candidates.post("/network/:id/accept", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("connections")
+    .update({ status: "accepted", responded_at: new Date().toISOString() })
+    .eq("id", c.req.param("id"))
+    .eq("status", "pending")
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ connection: data });
+});
+
+candidates.delete("/network/:id", async (c) => {
+  const { error } = await c.get("supabase").from("connections").delete().eq("id", c.req.param("id"));
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+});
+
 // --- Incoming shortlists + consent (SPRINTS.md Sprint 9 remainder) ---
 // Consent unlocks photo/video/CV specifically for that employer — name/
 // job title/location are already visible pre-shortlist per non-negotiable
@@ -833,7 +1017,7 @@ candidates.get("/me/shortlists", async (c) => {
   const { data, error } = await c
     .get("supabase")
     .from("shortlists")
-    .select("employer_id, stage, created_at, candidate_consented_at, employers(org_name)")
+    .select("id, employer_id, job_id, job_snapshot, stage, created_at, candidate_consented_at, closed_at, decline_reason, employers(org_name)")
     .eq("candidate_id", c.get("userId"))
     .order("created_at", { ascending: false });
 
@@ -841,16 +1025,155 @@ candidates.get("/me/shortlists", async (c) => {
   return c.json({ shortlists: data });
 });
 
-candidates.post("/me/shortlists/:employerId/consent", async (c) => {
+// Sprint 15 (2026-08-30) — workflow handover §5/§6: full profile access is
+// scoped to a specific pipeline, not a standing grant, and the entire
+// profile view (factual + descriptive summary) generates ONCE, at the
+// moment of acceptance, frozen for that pipeline's lifetime. "Consent" here
+// *is* the acceptance event — see HANDOVER.md §14.
+//
+// Re-scoped from :employerId to :id (the shortlist row itself) — Sprint 14
+// made multiple pipelines per employer possible, so employer_id alone can
+// no longer address a single pipeline's consent unambiguously (a real bug,
+// fixed alongside set_shortlist_consent()'s own RPC signature — see
+// migration 0023).
+const POST_DESCRIPTIVE_SUMMARY_SYSTEM_PROMPT =
+  "You are given a healthcare/social-care candidate's own posts from their professional profile. Write a short, factual, descriptive summary (2-3 sentences) of what they write about — topics, recurring themes, who they mention helping or mentoring. " +
+  "Quote or paraphrase what's actually there. Never evaluate, rate, rank, or recommend — never say or imply they are 'dedicated', 'a strong team player', 'impressive', or similar, and never comment on whether they'd be a good hire. Describe, don't judge. " +
+  "If there's nothing substantive to describe, say so plainly rather than inventing detail. Respond with only the summary, no other text.";
+
+async function buildFrozenProfileSummary(
+  supabase: SupabaseClient,
+  env: Bindings,
+  candidateId: string,
+): Promise<{ factual: Record<string, unknown>; descriptive: string | null }> {
+  const [accountResult, candidateResult, professionsResult, skillsResult, qualsResult, historyResult, promptsResult, postsResult, experienceResult] =
+    await Promise.all([
+      supabase.from("accounts").select("full_name").eq("id", candidateId).single(),
+      supabase.from("candidates").select("headline, about, town").eq("id", candidateId).single(),
+      supabase.from("candidate_professions").select("professions(name)").eq("candidate_id", candidateId),
+      supabase.from("candidate_skills").select("clinical_skills(label)").eq("candidate_id", candidateId),
+      supabase.from("qualifications").select("title, awarding_body, awarded_on").eq("candidate_id", candidateId),
+      supabase
+        .from("employment_history")
+        .select("employer, job_title, setting, started_on, ended_on, is_current, description")
+        .eq("candidate_id", candidateId)
+        .order("started_on", { ascending: false }),
+      supabase.from("candidate_prompts").select("answer, prompts(label)").eq("candidate_id", candidateId),
+      supabase
+        .from("candidate_posts")
+        .select("title, body")
+        .eq("candidate_id", candidateId)
+        .eq("is_published", true)
+        .eq("is_flagged", false)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase.rpc("total_experience_months", { p_candidate: candidateId }),
+    ]);
+
+  const factual = {
+    full_name: accountResult.data?.full_name ?? null,
+    headline: candidateResult.data?.headline ?? null,
+    about: candidateResult.data?.about ?? null,
+    town: candidateResult.data?.town ?? null,
+    experience_months: typeof experienceResult.data === "number" ? experienceResult.data : null,
+    professions: (professionsResult.data || []).map((p) => (p.professions as unknown as { name: string } | null)?.name).filter(Boolean),
+    skills: (skillsResult.data || []).map((s) => (s.clinical_skills as unknown as { label: string } | null)?.label).filter(Boolean),
+    qualifications: qualsResult.data || [],
+    employment_history: historyResult.data || [],
+    prompts: (promptsResult.data || []).map((p) => ({ label: (p.prompts as unknown as { label: string } | null)?.label, answer: p.answer })),
+  };
+
+  const posts = postsResult.data || [];
+  let descriptive: string | null = null;
+  if (posts.length) {
+    const postsText = posts.map((p) => (p.title ? `${p.title}: ${p.body}` : p.body)).join("\n\n");
+    try {
+      const result = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+        messages: [
+          { role: "system", content: POST_DESCRIPTIVE_SUMMARY_SYSTEM_PROMPT },
+          { role: "user", content: postsText.slice(0, 4000) },
+        ],
+        max_tokens: 200,
+      });
+      const text = typeof result === "object" && result !== null && "response" in result ? (result as { response?: string }).response : undefined;
+      // Same guardrail already used for who_is_summary in employer-chat.ts —
+      // an evaluative response never gets frozen into the permanent record
+      // just because the model didn't follow the prompt this one time.
+      if (text && text.trim() && !containsEvaluativeLanguage(text)) descriptive = text.trim();
+    } catch {
+      // Leave descriptive null — factual data alone is still a valid,
+      // honest snapshot; nothing forces a descriptive summary to exist.
+    }
+  }
+
+  return { factual, descriptive };
+}
+
+candidates.post("/me/shortlists/:id/consent", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+  const shortlistId = c.req.param("id");
   const body = await c.req.json().catch(() => ({}));
   const consent = body?.consent !== false;
 
-  const { error } = await c.get("supabase").rpc("set_shortlist_consent", {
-    p_employer_id: c.req.param("employerId"),
-    p_consent: consent,
-  });
+  const { error } = await supabase.rpc("set_shortlist_consent", { p_shortlist_id: shortlistId, p_consent: consent });
   if (error) return c.json({ error: error.message }, 400);
+
+  if (consent) {
+    // Generate the frozen snapshot exactly once per pipeline — check first
+    // rather than relying solely on the unique constraint, so a second
+    // consent=true call (e.g. re-toggling) doesn't need to handle a
+    // duplicate-key error path at all.
+    const { data: existing } = await supabase.from("profile_summaries").select("id").eq("shortlist_id", shortlistId).maybeSingle();
+    if (!existing) {
+      const { data: shortlistRow } = await supabase.from("shortlists").select("employer_id").eq("id", shortlistId).single();
+      if (shortlistRow) {
+        const { factual, descriptive } = await buildFrozenProfileSummary(supabase, c.env, userId);
+        await supabase.from("profile_summaries").insert({
+          shortlist_id: shortlistId,
+          employer_id: shortlistRow.employer_id,
+          candidate_id: userId,
+          factual,
+          descriptive,
+        });
+      }
+    }
+  }
+
   return c.json({ consented: consent });
+});
+
+// Candidate-initiated withdrawal — workflow handover §5: closing a pipeline
+// (rejected, withdrawn, or job closed) revokes access. This is the
+// candidate's own half of that; the employer-side half (moving to
+// Rejected) is in employer-chat.ts, and job closure cascades in jobs.ts.
+//
+// Sprint 18 — wireframe screen 04: a decline always sends one of a fixed
+// set of reasons to the employer ("prefer not to say" is a complete answer
+// on its own, but there's no way to decline with nothing shared at all).
+// Covers both an outright decline (never consented) and a later withdrawal
+// (consented, then changed their mind) — same column, same route; the
+// candidate-facing copy is what tells the two apart, not the schema.
+const DECLINE_REASONS = ["not_looking", "wrong_pattern", "too_far", "wrong_role", "accepted_elsewhere", "prefer_not_to_say"];
+
+candidates.post("/me/shortlists/:id/withdraw", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const reason = typeof body?.reason === "string" ? body.reason : null;
+  if (reason && !DECLINE_REASONS.includes(reason)) {
+    return c.json({ error: "Invalid reason." }, 400);
+  }
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("shortlists")
+    .update({ closed_at: new Date().toISOString(), decline_reason: reason })
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"))
+    .is("closed_at", null)
+    .select()
+    .single();
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ shortlist: data });
 });
 
 // --- Badges (SPRINTS.md Sprint 5) ---
@@ -937,6 +1260,54 @@ function asString(v: unknown): string | null {
 function asArray(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
+
+const MONTH_NAMES: Record<string, string> = {
+  january: "01", february: "02", march: "03", april: "04", may: "05", june: "06",
+  july: "07", august: "08", september: "09", october: "10", november: "11", december: "12",
+  jan: "01", feb: "02", mar: "03", apr: "04", jun: "06", jul: "07", aug: "08", sep: "09", sept: "09", oct: "10", nov: "11", dec: "12",
+};
+
+// The schema asks the model for strict YYYY-MM-DD, but instructing an
+// open-weight model to use a format doesn't guarantee it — confirmed live
+// ("January 2025", "November 2022", a bare "2012" all came back from real
+// CVs) and the destination columns (employment_history.started_on etc.)
+// reject anything else outright. Normalizes what the model actually
+// extracted into a real date rather than guessing new information; a
+// genuinely unparseable string is dropped to null, never invented.
+function asDate(v: unknown): string | null {
+  const s = asString(v);
+  if (!s) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  let m = s.match(/^(\d{4})-(\d{2})$/);
+  if (m) return `${m[1]}-${m[2]}-01`;
+
+  m = s.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (m) {
+    const month = MONTH_NAMES[m[1].toLowerCase()];
+    if (month) return `${m[2]}-${month}-01`;
+  }
+
+  m = s.match(/^(\d{1,2})[/-](\d{4})$/);
+  if (m) {
+    const mm = m[1].padStart(2, "0");
+    if (Number(mm) >= 1 && Number(mm) <= 12) return `${m[2]}-${mm}-01`;
+  }
+
+  m = s.match(/^(\d{4})$/);
+  if (m) return `${m[1]}-01-01`;
+
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) {
+    const yyyy = parsed.getUTCFullYear();
+    const mm = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(parsed.getUTCDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return null;
+}
 function filterAllowedIds(v: unknown, allowed: Set<string>): string[] {
   return asArray(v).filter((id): id is string => typeof id === "string" && allowed.has(id));
 }
@@ -956,8 +1327,8 @@ function sanitizeParsed(raw: Record<string, unknown>, professionIds: Set<string>
         employer,
         job_title: jobTitle,
         setting: asString(rec.setting),
-        started_on: asString(rec.started_on),
-        ended_on: asString(rec.ended_on),
+        started_on: asDate(rec.started_on),
+        ended_on: asDate(rec.ended_on),
         is_current: rec.is_current === true,
         description: asString(rec.description),
       };
@@ -975,7 +1346,7 @@ function sanitizeParsed(raw: Record<string, unknown>, professionIds: Set<string>
         type_id: typeId && qualTypeIds.has(typeId) ? typeId : null,
         title,
         awarding_body: asString(rec.awarding_body),
-        awarded_on: asString(rec.awarded_on),
+        awarded_on: asDate(rec.awarded_on),
       };
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -1155,18 +1526,34 @@ candidates.post("/me/cv", async (c) => {
       max_tokens: 3000,
     });
 
-    const rawResponse = typeof result === "object" && result !== null && "response" in result ? (result as { response?: string }).response : undefined;
+    const rawResponse = typeof result === "object" && result !== null && "response" in result ? (result as { response?: unknown }).response : undefined;
     if (!rawResponse) {
       await supabase.from("cv_imports").update({ status: "unreadable", error_detail: "Model did not return structured data" }).eq("id", importRow.id);
       return c.json({ cv_import: { ...importRow, status: "unreadable" } });
     }
 
+    // With response_format: json_schema, Workers AI returns `response` as
+    // an already-parsed object, not a JSON string — confirmed by directly
+    // inspecting a live call's raw output. JSON.parse()-ing it unconditionally
+    // was the actual bug (stringifies the object to "[object Object]" first,
+    // which then fails to parse) — every CV import was failing on this,
+    // never on the model's own output. Handle both shapes defensively in
+    // case that ever changes.
     let rawParsed: Record<string, unknown>;
-    try {
-      rawParsed = JSON.parse(rawResponse) as Record<string, unknown>;
-    } catch {
-      await supabase.from("cv_imports").update({ status: "unreadable", error_detail: "Model response wasn't valid JSON" }).eq("id", importRow.id);
-      return c.json({ cv_import: { ...importRow, status: "unreadable" } });
+    if (typeof rawResponse === "string") {
+      try {
+        rawParsed = JSON.parse(rawResponse) as Record<string, unknown>;
+      } catch {
+        const detail = "Model response wasn't valid JSON: " + rawResponse.slice(0, 500);
+        await supabase.from("cv_imports").update({ status: "unreadable", error_detail: detail }).eq("id", importRow.id);
+        return c.json({ cv_import: { ...importRow, status: "unreadable", error_detail: detail } });
+      }
+    } else if (typeof rawResponse === "object") {
+      rawParsed = rawResponse as Record<string, unknown>;
+    } else {
+      const detail = "Model returned an unexpected response type: " + typeof rawResponse;
+      await supabase.from("cv_imports").update({ status: "unreadable", error_detail: detail }).eq("id", importRow.id);
+      return c.json({ cv_import: { ...importRow, status: "unreadable", error_detail: detail } });
     }
 
     const parsed = sanitizeParsed(rawParsed, professionIds, skillIds, qualTypeIds);
