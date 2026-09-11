@@ -3392,3 +3392,128 @@ CV upload attempt).
 match `main`** after each merge, per this repo's stated branch
 convention. `icareltd.com` is now running everything from PR #29 + the
 two follow-up fixes (#30, #31).
+
+## 2026-09-11 continued — Founder's own onboarding walkthrough: 5 more real issues
+
+Founder went through the full 11-step wizard on a real account and
+reported findings step by step. Four were genuine bugs, one a copy
+mismatch with actual mechanics, one a real content gap — worked
+through all of them live rather than batching for later:
+
+1. **Step 4 (employment history) save failed for everyone** —
+   `"new row violates row-level security policy for table
+   candidate_badges" — however, it allowed me to continue`. Traced to
+   `refresh_experience_badges()`, called by an AFTER trigger on every
+   `employment_history` insert/update/delete, never marked `security
+   definer` even though `candidate_badges` deliberately has no client
+   write policy (0001_init's own comment: "writable only by the
+   service role"). `publish_my_profile()` already calls the same
+   function and never hit this because IT is `security definer` — the
+   direct trigger path (every wizard save, not just publish) had no
+   such cover. `0005_security_hardening.sql` had already hardened its
+   `search_path`, which only makes sense for a security-definer
+   function — a strong sign this was meant to be one from day one and
+   the actual clause was simply missed. Fixed with migration `0032`
+   (single `ALTER FUNCTION ... SECURITY DEFINER`, no body change).
+   **Verified live, not assumed**: simulated the exact insert as the
+   affected real candidate using the `request.jwt.claims` trick
+   established earlier this session — reproduced the RLS violation
+   before the fix, confirmed it gone after, cleaned up the test row.
+   Also directly explains "it allowed me to continue": the frontend's
+   error handling was already correct (shows the error, doesn't fake
+   success) — the wizard just doesn't hard-block advancing past Step 4
+   without a saved role, only the final publish gate does, so the
+   founder could keep going through later steps with nothing actually
+   saved in Step 4.
+
+2. **Right-to-work "Prefer not to say yet" removed** — founder's
+   words: "we cannot give option to Prefer not to say yet... We want
+   them to give us the truth." Replaced with a required, unselectable
+   placeholder (`<option value="" disabled selected hidden>`); Step 3
+   now hard-blocks advancing without a real answer instead of quietly
+   defaulting to the DB's `not_stated` enum value. The DB default
+   itself is left alone (still needed as the column's `not null`
+   default before Step 3 is ever reached) — this is a frontend-only
+   change to stop offering/defaulting to it as a candidate-facing
+   choice.
+
+3. **CV import: the SAME-DAY truncation fix regressed live.** Queried
+   `cv_imports` for the founder's own account to check what actually
+   happened rather than guessing: the CV that had twice failed on
+   context-length overflow came back "parsed" the moment the
+   truncation fix went live — but with **zero** `employment_history`
+   entries. Root cause: truncating from the head only assumes the
+   important content is near the start, but this CV's work-history
+   section fell after a long qualifications/training list and got cut
+   off entirely by the 55,000-character head-only truncation. Switched
+   to a head+tail (60/40) slice with an "omitted middle" marker instead
+   of a pure head truncation, and nudged the budget up slightly to
+   62,000 chars — employment history now survives wherever it falls in
+   the document, whichever end.
+
+4. **DBS consent checkbox reworded.** Founder: "I consent to a DBS
+   status check via the Update Service once I'm shortlisted for a
+   role — I think we should rephrase this. They should consent from
+   the beginning... Thoughts?" Checked the actual mechanics before
+   touching the copy: consent was already captured immediately, at
+   publish time (`dbs_consent` → `consent_to_check`), gating the
+   `dbs_update` badge right away in `publish_my_profile()`. That badge
+   is graded `evidenced`, not `verified` — its own description already
+   says "We have not verified the certificate — you must check it
+   yourself." So the real Update Service check was always meant to be
+   run later by whichever employer shortlists the candidate, not by
+   iCare itself — iCare running it directly would require DBS
+   Registered Body status, a real external registration step, not a
+   code change. The mechanics were right; only the wording read as
+   deferred consent. Reworded to "I consent now to any employer who
+   shortlists me running a DBS Update Service check."
+
+5. **Professions/clinical_skills catalogues expanded.** Founder: "No
+   doctors! Deep dive and research so we can improve this list" (on
+   professions) and "This feels very limited. We need to expand this"
+   (on clinical skills). Checked the live catalogue first rather than
+   assuming: `professions` had 28 rows, zero in a "Medicine" family,
+   despite the `regulator` enum already having an unused `gmc` value
+   since `0001_init` — and zero Optometry despite `goc` also unused.
+   `clinical_skills` had only 14 entries across 3 families, all
+   social-care/nursing-flavoured, nothing tailored to the allied
+   health professions already listed (physio, OT, SLT, dietetics,
+   radiography all shared the identical generic list). Migration
+   `0033` adds the standard UK medical career grades (Foundation
+   Doctor through Consultant, GP, GP Registrar, SAS Doctor, Locum
+   Doctor, Clinical Fellow — all GMC-regulated) plus the two
+   GOC-regulated optical professions (39 professions total now), and
+   expands `clinical_skills` to 43 entries across the existing
+   families plus two new ones (Medication, Allied health). Kept at the
+   same granularity the existing catalogue already uses — broad
+   roles/skills, not an exhaustive sub-specialty list.
+
+6. **Step 10 (photo) — founder reported "Not working!"**, clarified on
+   follow-up as "clicked Upload, nothing happened — no error, no
+   photo." Read both the frontend handler and the backend route in
+   full; found nothing structurally wrong in either (same upload
+   pattern as the already-working CV upload — raw `File` body, an
+   explicit `Content-Type` header, `icareAuthFetch`), and couldn't
+   reproduce without a live browser session in this sandbox. The one
+   real gap found: the click handler had no outer `try/catch`, so any
+   synchronous JS exception before the `fetch` call would abort
+   silently with zero visible feedback — exactly matching the symptom
+   even without knowing what would throw. Wrapped the whole handler so
+   any such failure now always surfaces a status message instead of
+   silently doing nothing. **Not confirmed fixed** — genuinely unknown
+   root cause pending a real retry; if it recurs, the status message
+   (or a browser console error) should finally say what's actually
+   throwing.
+
+Confirmed no data was lost through any of this: every step besides 4
+saves to the server immediately on its own "Next"/"Save" action, not
+to browser storage — nothing client-side to lose on refresh or logout.
+Step 4 specifically never had anything to lose, since the RLS
+violation meant the save never actually completed in the first place.
+
+Shipped as three separate PRs (kept small and reviewable rather than
+one giant one): **#33** (Step 4 fix + right-to-work + CV truncation
+regression + catalogue expansion, migrations 0032/0033 applied live
+before the PR), **#34** (DBS copy), and the photo-upload defensive fix
+(in flight as of this entry). Dev branch reset to match `main` after
+each merge, same as every round today.

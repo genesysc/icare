@@ -2013,31 +2013,45 @@ function icareRequireAuth(signInPath) {
 
   // ---- Step 10: Photo ----
   document.querySelector("[data-photo-upload]").addEventListener("click", function () {
-    var btn = this;
-    var file = document.getElementById("photo-file").files[0];
-    if (!file) {
-      setStatus("photo", "err", "Choose a photo first.");
-      return;
+    // Wrapped in try/catch end-to-end: a founder report of "clicked Upload,
+    // nothing happened at all — no error, no photo" (2026-09-11) could not
+    // be reproduced from a code read alone, which means if it recurs it's
+    // most likely throwing synchronously somewhere before reaching the
+    // fetch (a browser/file-API quirk we haven't hit). Previously any such
+    // throw would have aborted the handler with zero visible feedback —
+    // now it always surfaces as a status message instead of silently
+    // doing nothing, whatever the actual cause turns out to be.
+    try {
+      var btn = this;
+      var fileInput = document.getElementById("photo-file");
+      var file = fileInput && fileInput.files && fileInput.files[0];
+      if (!file) {
+        setStatus("photo", "err", "Choose a photo first.");
+        return;
+      }
+      btn.disabled = true;
+      clearStatus("photo");
+      icareAuthFetch("/candidates/me/photo", {
+        method: "POST",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      }).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+        .then(function (result) {
+          btn.disabled = false;
+          if (!result.ok) {
+            setStatus("photo", "err", result.body.error || "Couldn't upload your photo.");
+            return;
+          }
+          candidate.photo_path = result.body.candidate.photo_path;
+          renderPhotoPreview();
+        }).catch(function (err) {
+          btn.disabled = false;
+          setStatus("photo", "err", (err && err.message) || "Something went wrong. Please try again.");
+        });
+    } catch (err) {
+      this.disabled = false;
+      setStatus("photo", "err", "Something went wrong selecting that file (" + (err && err.message ? err.message : "unknown error") + "). Please try again.");
     }
-    btn.disabled = true;
-    clearStatus("photo");
-    icareAuthFetch("/candidates/me/photo", {
-      method: "POST",
-      headers: { "Content-Type": file.type || "application/octet-stream" },
-      body: file,
-    }).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
-      .then(function (result) {
-        btn.disabled = false;
-        if (!result.ok) {
-          setStatus("photo", "err", result.body.error || "Couldn't upload your photo.");
-          return;
-        }
-        candidate.photo_path = result.body.candidate.photo_path;
-        renderPhotoPreview();
-      }).catch(function () {
-        btn.disabled = false;
-        setStatus("photo", "err", "Something went wrong. Please try again.");
-      });
   });
   document.querySelector('[data-next="10"]').addEventListener("click", function () {
     var btn = this;
