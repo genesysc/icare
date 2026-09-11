@@ -633,7 +633,7 @@ candidates.delete("/me/registrations/:id", async (c) => {
 // withdrawn — never client-supplied, so it's an honest record of when
 // consent was actually given, not just claimed.
 
-const DBS_FIELDS = ["level", "issued_on", "certificate_number", "workforce"] as const;
+const DBS_FIELDS = ["level", "issued_on", "certificate_number", "workforce", "on_update_service"] as const;
 
 candidates.get("/me/dbs", async (c) => {
   const { data, error } = await c
