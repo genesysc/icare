@@ -3322,3 +3322,73 @@ this branch. Run succeeded; confirmed live with a direct `curl` against
 nav, hero, final section) and re-confirmed `/`, `/sign-up`, `/sign-in`
 still 200 on the same deploy (no regression from the router change).
 Nothing deployed to production.
+
+## 2026-09-11 — Merged everything to production; two real bugs found and fixed live
+
+User's call: "safe to put everything in production now since there are
+no users yet and I can test everything live." Reviewed the full state
+of what's built vs. not (candidate track complete, employer track
+complete, `/privacy`/`/terms` still DRAFT/not lawyer-reviewed, no admin
+tooling, iCompliance/video-interview/dossier-UI deliberately deferred —
+full list given to the user directly), user said keep `/privacy`/
+`/terms` as-is and go ahead.
+
+**PR #29** (this whole session's work — jobs module, bookmark/invite
+split, six-stage pipeline, jobseeker invites/pipelines/credentials/
+visibility/home/network, peer-visibility correction, real Sender.net
+email, CV import bug fixes, `/welcome`) merged to `main` (squash),
+deploying automatically via `deploy.yml`'s `push: branches: [main]`
+trigger. Deploy succeeded.
+
+**Immediately sanity-checked every key production route after that
+deploy** rather than assuming a green CI run meant a working site —
+good thing: `GET /employers` (the public employer marketing page) was
+returning **401**, not the page. Root cause: `src/index.ts` registered
+`app.route("/employers", employersApi)` — which mounts `requireAuth`
+on `"*"` — *before* the public `app.get("/employers", ...)` landing-
+page route. Hono runs matching middleware in registration order, so
+every unauthenticated request to the bare `/employers` path hit that
+auth middleware and got rejected before the landing-page handler ever
+ran. This bug shipped inside PR #29 itself — the route order was never
+exercised end-to-end against a live, unauthenticated request before
+now. Fixed by moving the public route above the API mount (**PR #30**,
+merged, redeployed). One immediate re-check after that redeploy still
+showed a stray 401 — a stale edge response caught mid-propagation, not
+a real failure — three consecutive clean checks right after confirmed
+`/`, `/welcome`, `/employers`, `/sign-up`, `/sign-in`,
+`/employer/sign-in`, `/privacy`, `/terms` all 200.
+
+**Second bug, found from a real user's live test, not a sanity check**:
+uploading a CV returned `"We couldn't read that CV (8007:
+{"error":{"message":"This model's maximum context length is 24000
+tokens... your prompt contains at least 21001 input tokens..."`) — a
+raw Workers AI provider error surfaced verbatim to the candidate.
+Checked the obvious suspect first — the professions/skills/
+qualification-type catalogues baked into the CV-extraction system
+prompt — directly against the live `care-register` DB (28/14/14 rows,
+~1650 characters combined, nowhere near large enough to matter) before
+concluding the CV's own extracted text was what pushed the request over
+`@cf/meta/llama-3.3-70b-instruct-fp8-fast`'s 24000-token context window.
+Fixed in `src/candidates.ts`: truncate the CV markdown to ~55,000
+characters (a conservative token estimate leaving headroom for the
+3000-token response and tokenizer variance) before sending it to the
+model, with an explicit note in the prompt telling the model the
+document was cut off so it doesn't treat that as the real end of the
+candidate's history. `POST /candidates/me/cv` now returns
+`cv_text_truncated`; `onboarding.html`'s CV review screen shows a new
+notice ("This CV was very long, so we only read part of it...") using
+the same visual pattern as the existing sensitive-info notice, telling
+the candidate to check the rest and fill in anything missing. Also
+stopped leaking raw provider-error JSON into the candidate-facing
+message on any other AI failure — the real detail is logged
+server-side (`console.error`), the candidate sees a plain-language
+message instead. Shipped as **PR #31**, merged, redeployed, confirmed
+via `npm run typecheck` clean before pushing (couldn't re-test the
+actual upload path live in this session — no PDF file available to
+upload through the sandbox — so this needs a real re-test on the next
+CV upload attempt).
+
+**Dev branch (`claude/jobseeker-employer-wireframes-rc5uss`) reset to
+match `main`** after each merge, per this repo's stated branch
+convention. `icareltd.com` is now running everything from PR #29 + the
+two follow-up fixes (#30, #31).
