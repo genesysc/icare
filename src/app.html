@@ -1,0 +1,998 @@
+<!--
+  iCare app shell — Rounds / Network / Messages / Profile.
+
+  Build spec: icare_rounds_network_messages_profile_spec.md (2026-09-11).
+  Visual/interaction reference: icare_wall_network_mockup.html (same
+  upload) — that file is a static demo with placeholder photos and fake
+  data; this page is the real build, wired to the actual API, following
+  this repo's established convention of one self-contained HTML file per
+  signed-in surface (no build step, vanilla JS — see dashboard.html).
+
+  Brand palette matches landing.html's current design (purple/teal/
+  lavender), not dashboard.html's older plum palette — landing.html was
+  already moved to this palette earlier in the same project; dashboard.html
+  and onboarding.html haven't been migrated yet, which is a pre-existing
+  inconsistency, not something introduced here.
+
+  Media (photos, post images/video/documents) is served from
+  authenticated endpoints (Bearer token required), so a plain <img src>
+  won't work — everything goes through authedImageUrl() below, which
+  fetches as a blob and hands back an object URL.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>iCare</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --purple: #330072;
+    --purple-dark: #25004f;
+    --teal: #00A499;
+    --teal-dark: #00847c;
+    --lavender: #F4F1F8;
+    --white: #FFFFFF;
+    --ink: #231B2E;
+    --ink-muted: #6B6277;
+    --line: #E3DCEF;
+    --amber: #B8791C;
+    --amber-bg: #FBF0DF;
+    --danger: #B23A2E;
+    --danger-bg: #FBE7E4;
+    --ok-bg: #E4F5F3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--lavender); color: var(--ink);
+    font-family: "Public Sans", sans-serif; -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea { font-family: inherit; }
+  .app { max-width: 480px; margin: 0 auto; min-height: 100vh; background: var(--lavender); display: flex; flex-direction: column; }
+
+  header { position: sticky; top: 0; z-index: 10; background: var(--purple); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: baseline; gap: 8px; }
+  .brand .mark { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--white); letter-spacing: -0.01em; }
+  .header-title { font-family: "Fraunces", serif; font-weight: 600; font-size: 17px; color: var(--white); }
+  .header-back { background: none; border: none; color: var(--white); font-size: 20px; cursor: pointer; padding: 0 6px 0 0; }
+
+  main { flex: 1; padding: 14px 16px 90px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 20; background: var(--white); border-top: 1px solid var(--line); display: flex; max-width: 480px; margin: 0 auto; }
+  .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 0 10px; background: none; border: none; cursor: pointer; position: relative; }
+  .nav-icon { font-size: 19px; color: var(--ink-muted); line-height: 1; }
+  .nav-label { font-size: 10.5px; font-weight: 600; color: var(--ink-muted); }
+  .nav-btn.active .nav-icon, .nav-btn.active .nav-label { color: var(--purple); }
+  .nav-badge { position: absolute; top: 4px; right: calc(50% - 20px); background: var(--danger); color: var(--white); font-family: "IBM Plex Mono", monospace; font-size: 9px; font-weight: 700; min-width: 15px; height: 15px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
+  .nav-badge[hidden] { display: none; }
+
+  .avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex-shrink: 0; display: block; background: var(--line); }
+  .avatar.sm { width: 26px; height: 26px; }
+  .avatar.lg { width: 64px; height: 64px; }
+
+  .card { background: var(--white); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .empty-note { font-size: 13.5px; color: var(--ink-muted); text-align: center; padding: 24px 8px; }
+  .loading-note { font-size: 13px; color: var(--ink-muted); text-align: center; padding: 16px 8px; }
+  .error-note { font-size: 13px; color: var(--danger); background: var(--danger-bg); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+
+  /* Composer */
+  .composer { background: var(--white); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }
+  .composer-top { display: flex; align-items: center; gap: 10px; }
+  .composer input[type="text"] { flex: 1; border: none; background: var(--lavender); border-radius: 20px; padding: 9px 14px; font-size: 13px; color: var(--ink); }
+  .composer input[type="text"]:focus { outline: 2px solid var(--teal); }
+  .composer-add-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .add-toggle { background: none; border: none; font-weight: 700; font-size: 13px; color: var(--purple); cursor: pointer; padding: 0; }
+  .add-options { display: none; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+  .add-options.show { display: flex; }
+  .add-option { display: flex; flex-direction: column; align-items: center; gap: 5px; background: none; border: none; font-size: 11px; font-weight: 600; color: var(--ink-muted); cursor: pointer; padding: 0; }
+  .icon-circle { width: 32px; height: 32px; border-radius: 50%; background: var(--lavender); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .composer-note { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--ink-muted); margin-top: 8px; line-height: 1.4; }
+  .composer-attachment { margin-top: 10px; padding: 8px 10px; background: var(--lavender); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; }
+  .composer-attachment[hidden] { display: none; }
+  .composer-attachment .remove-attach { background: none; border: none; color: var(--danger); font-weight: 700; cursor: pointer; font-size: 14px; }
+  .composer-submit-row { display: flex; justify-content: flex-end; margin-top: 10px; }
+  .mention-search, .venue-search { margin-top: 10px; }
+  .mention-search[hidden], .venue-search[hidden] { display: none; }
+  .search-results { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+  .search-result-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12.5px; }
+  .search-result-row:hover { background: var(--lavender); }
+  .geo-btn { margin-top: 6px; background: none; border: 1px solid var(--teal); color: var(--teal-dark); border-radius: 999px; padding: 5px 12px; font-size: 11.5px; font-weight: 600; cursor: pointer; }
+
+  /* Feed cards */
+  .card-head { display: flex; gap: 10px; }
+  .card-head .who { flex: 1; min-width: 0; }
+  .name-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .name { font-family: "Fraunces", serif; font-weight: 600; font-size: 15px; color: var(--ink); }
+  .role { font-size: 12.5px; color: var(--ink-muted); margin-top: 1px; line-height: 1.35; }
+  .timestamp { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--ink-muted); }
+  .post-text { font-size: 13.5px; line-height: 1.55; color: var(--ink); margin: 10px 0 0; white-space: pre-wrap; }
+  .checkin-line { font-size: 12.5px; font-weight: 600; color: var(--teal-dark); margin-top: 8px; display: flex; align-items: center; gap: 4px; }
+  .mentions-row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .mention-chip { font-size: 11.5px; font-weight: 600; color: var(--purple); background: var(--lavender); border-radius: 999px; padding: 3px 9px; }
+  .verified-badge { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; background: var(--teal); color: var(--white); font-size: 9px; font-weight: 700; flex-shrink: 0; }
+  .attach-photo { margin-top: 10px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); }
+  .attach-photo img { width: 100%; display: block; }
+  .attach-video video { width: 100%; border-radius: 8px; margin-top: 10px; display: block; }
+  .attach-doc { display: flex; align-items: center; gap: 10px; background: var(--lavender); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+  .doc-icon { width: 34px; height: 34px; border-radius: 6px; background: var(--purple); color: var(--white); display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 10px; flex-shrink: 0; }
+  .doc-name { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .doc-meta { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--ink-muted); margin-top: 1px; }
+  .card-actions { display: flex; gap: 18px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .card-actions button { background: none; border: none; font-size: 12.5px; font-weight: 600; color: var(--ink-muted); padding: 0; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+  .card-actions button.liked { color: var(--teal-dark); }
+  .comments-block { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .comments-block[hidden] { display: none; }
+  .comment-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .comment-row .avatar { width: 26px; height: 26px; }
+  .comment-text { background: var(--lavender); border-radius: 10px; padding: 7px 10px; font-size: 12.5px; line-height: 1.4; }
+  .comment-text .cname { font-weight: 700; margin-right: 4px; }
+  .comment-form { display: flex; gap: 6px; margin-top: 6px; }
+  .comment-form input { flex: 1; border: 1px solid var(--line); border-radius: 20px; padding: 7px 12px; font-size: 12.5px; }
+  .comment-form button { background: var(--teal); color: var(--white); border: none; border-radius: 20px; padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .load-more { display: block; width: 100%; margin-top: 4px; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 13px; font-weight: 600; color: var(--purple); cursor: pointer; }
+
+  /* Network */
+  .subtabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .subtab-btn { flex: 1; background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 12.5px; font-weight: 700; color: var(--ink-muted); cursor: pointer; }
+  .subtab-btn.active { background: var(--purple); border-color: var(--purple); color: var(--white); }
+  .directory-card { display: flex; gap: 10px; align-items: flex-start; }
+  .directory-actions { margin-top: 10px; display: flex; gap: 8px; }
+  .btn { border-radius: 999px; padding: 7px 16px; font-size: 12.5px; font-weight: 700; cursor: pointer; border: 1px solid transparent; }
+  .btn-primary { background: var(--purple); color: var(--white); }
+  .btn-primary[disabled] { background: var(--line); color: var(--ink-muted); cursor: default; }
+  .btn-outline { background: var(--white); border-color: var(--purple); color: var(--purple); }
+  .btn-danger { background: var(--white); border-color: var(--danger); color: var(--danger); }
+  .connect-note-row { margin-top: 10px; }
+  .connect-note-row[hidden] { display: none; }
+  .connect-note-row textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 12.5px; resize: vertical; min-height: 50px; }
+  .connect-note-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+  /* Messages */
+  .inbox-row { display: flex; gap: 10px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .inbox-row:last-child { border-bottom: none; }
+  .inbox-who { flex: 1; min-width: 0; }
+  .inbox-preview { font-size: 12px; color: var(--ink-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inbox-unread { background: var(--teal); color: var(--white); font-family: "IBM Plex Mono", monospace; font-size: 10px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+  .thread-view[hidden] { display: none; }
+  .thread-messages { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; }
+  .bubble { max-width: 78%; padding: 8px 12px; border-radius: 14px; font-size: 13px; line-height: 1.4; }
+  .bubble.sent { align-self: flex-end; background: var(--purple); color: var(--white); border-bottom-right-radius: 4px; }
+  .bubble.received { align-self: flex-start; background: var(--white); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+  .thread-compose { position: fixed; bottom: 56px; left: 0; right: 0; max-width: 480px; margin: 0 auto; background: var(--white); border-top: 1px solid var(--line); padding: 10px 16px; display: flex; gap: 8px; }
+  .thread-compose[hidden] { display: none; }
+  .thread-compose input { flex: 1; border: 1px solid var(--line); border-radius: 20px; padding: 9px 14px; font-size: 13px; }
+  .thread-compose button { background: var(--teal); color: var(--white); border: none; border-radius: 20px; padding: 9px 16px; font-weight: 700; cursor: pointer; }
+
+  /* Profile */
+  .profile-head { display: flex; gap: 14px; align-items: center; }
+  .profile-name { font-family: "Fraunces", serif; font-weight: 600; font-size: 19px; }
+  .profile-meta { margin-top: 3px; font-size: 13px; color: var(--ink-muted); }
+  .profile-stats { display: flex; gap: 18px; margin-top: 12px; }
+  .profile-stat { font-size: 12px; color: var(--ink-muted); }
+  .profile-stat b { display: block; font-size: 16px; color: var(--ink); font-family: "Fraunces", serif; }
+  .open-pill { display: inline-flex; margin-top: 10px; font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--ok-bg); color: var(--teal-dark); }
+  .segmented { display: flex; margin: 16px 0; border-radius: 999px; background: var(--lavender); padding: 3px; }
+  .segmented button { flex: 1; border: none; background: none; padding: 8px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--ink-muted); cursor: pointer; }
+  .segmented button.active { background: var(--white); color: var(--purple); }
+  .preview-note { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--amber); background: var(--amber-bg); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; line-height: 1.4; }
+  .section-title { font-family: "Fraunces", serif; font-weight: 600; font-size: 15px; margin-bottom: 8px; }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { font-size: 11.5px; font-weight: 600; color: var(--purple); background: var(--lavender); border-radius: 999px; padding: 4px 10px; }
+  .exp-row { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .exp-row:last-child { border-bottom: none; }
+  .exp-title { font-size: 13.5px; font-weight: 700; }
+  .exp-sub { font-size: 12px; color: var(--ink-muted); margin-top: 1px; }
+  .kv-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+  .kv-row .k { color: var(--ink-muted); }
+  .visibility-note { font-size: 11.5px; color: var(--ink-muted); line-height: 1.5; margin-top: 16px; }
+  .signout-btn { margin-top: 16px; background: none; border: none; color: var(--danger); font-size: 13px; font-weight: 700; cursor: pointer; padding: 0; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <div class="brand"><span class="mark">i<em style="color:#C9B8E8;font-style:normal;">Care</em></span></div>
+    <div id="header-count" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#C9B8E8;"></div>
+  </header>
+
+  <main>
+    <div class="error-note" id="global-error" hidden></div>
+
+    <!-- ROUNDS -->
+    <section class="view" id="view-rounds">
+      <div class="composer">
+        <div class="composer-top">
+          <div class="avatar sm" id="composer-avatar"></div>
+          <input type="text" id="composer-text" placeholder="Share something with your care network..." />
+        </div>
+        <input type="file" id="composer-file-input" hidden />
+        <div class="composer-attachment" id="composer-attachment" hidden>
+          <span id="composer-attachment-label"></span>
+          <button type="button" class="remove-attach" id="composer-attachment-remove">✕</button>
+        </div>
+        <div class="mention-search" id="composer-mention-search" hidden>
+          <input type="text" id="mention-query" placeholder="Search a name to mention..." />
+          <div class="search-results" id="mention-results"></div>
+        </div>
+        <div class="venue-search" id="composer-venue-search" hidden>
+          <input type="text" id="venue-query" placeholder="Search a workplace, training centre, or venue..." />
+          <button type="button" class="geo-btn" id="venue-use-location">📍 Narrow by my location</button>
+          <div class="search-results" id="venue-results"></div>
+        </div>
+        <div class="composer-add-row">
+          <button type="button" class="add-toggle" id="add-toggle">+ Add to your post</button>
+          <div class="add-options" id="add-options">
+            <button type="button" class="add-option" data-add="photo"><span class="icon-circle">🖼️</span>Photo</button>
+            <button type="button" class="add-option" data-add="video"><span class="icon-circle">🎥</span>Video</button>
+            <button type="button" class="add-option" data-add="document"><span class="icon-circle">📄</span>Document</button>
+            <button type="button" class="add-option" data-add="mention"><span class="icon-circle">@</span>Mention</button>
+            <button type="button" class="add-option" data-add="checkin"><span class="icon-circle">📍</span>Check in</button>
+          </div>
+          <p class="composer-note">Don't upload anything that could identify a person you support.</p>
+        </div>
+        <div class="composer-submit-row">
+          <button type="button" class="btn btn-primary" id="composer-submit">Post</button>
+        </div>
+      </div>
+
+      <div id="feed-list"><p class="loading-note">Loading Rounds...</p></div>
+      <button type="button" class="load-more" id="feed-load-more" hidden>Load more</button>
+    </section>
+
+    <!-- NETWORK -->
+    <section class="view" id="view-network">
+      <div class="subtabs">
+        <button type="button" class="subtab-btn active" data-network-tab="discover">Discover</button>
+        <button type="button" class="subtab-btn" data-network-tab="requests">Requests</button>
+        <button type="button" class="subtab-btn" data-network-tab="connections">Connections</button>
+      </div>
+      <div id="network-list"><p class="loading-note">Loading...</p></div>
+    </section>
+
+    <!-- MESSAGES -->
+    <section class="view" id="view-messages">
+      <div id="inbox-list"><p class="loading-note">Loading Messages...</p></div>
+
+      <div class="thread-view" id="thread-view" hidden>
+        <div class="thread-messages" id="thread-messages"></div>
+      </div>
+      <div class="thread-compose" id="thread-compose" hidden>
+        <input type="text" id="thread-input" placeholder="Write a message..." />
+        <button type="button" id="thread-send">Send</button>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section class="view" id="view-profile">
+      <div class="card">
+        <div class="profile-head">
+          <div class="avatar lg" id="profile-avatar"></div>
+          <div>
+            <div class="profile-name" id="profile-name-row">—</div>
+            <div class="profile-meta" id="profile-headline">—</div>
+            <div class="profile-meta" id="profile-town"></div>
+          </div>
+        </div>
+        <div class="profile-stats">
+          <div class="profile-stat"><b id="profile-connections-count">0</b>Connections</div>
+          <div class="profile-stat"><b id="profile-experience">0</b>Years in care</div>
+        </div>
+        <span class="open-pill" id="profile-open-pill" hidden>Open to new roles</span>
+      </div>
+
+      <div class="segmented">
+        <button type="button" class="active" data-profile-view="member">How members see you</button>
+        <button type="button" data-profile-view="employer">Employer preview</button>
+      </div>
+      <p class="preview-note" id="employer-preview-note" hidden>This is a preview only — an employer sees this once you accept their formal invite, not before.</p>
+
+      <div class="card">
+        <p class="section-title">About</p>
+        <p id="profile-about" style="font-size:13.5px;line-height:1.55;">—</p>
+      </div>
+
+      <div class="card" id="profile-credentials-card">
+        <p class="section-title">Credentials</p>
+        <div id="profile-credentials-member">
+          <p style="font-size:13px;color:var(--ink-muted);line-height:1.5;">Your identity, right-to-work, and DBS documents are on file. These are shared with an employer only after you accept their formal invite.</p>
+        </div>
+        <div id="profile-credentials-employer" style="display:none;"></div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Experience</p>
+        <div id="profile-experience-list"></div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Qualifications &amp; Training</p>
+        <div id="profile-qualifications-list"></div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Specialisms</p>
+        <div class="tag-row" id="profile-skills-list"></div>
+      </div>
+
+      <div class="card">
+        <p class="section-title">Recent Activity</p>
+        <div id="profile-activity-list"></div>
+      </div>
+
+      <p class="visibility-note">Your name, headline, and current employer are visible to other iCare candidates. Photo, video, and CV are only shared with an employer after you consent, per shortlist. DBS status is never shown to peers — only to an employer once you're in their pipeline. <a href="/dashboard" style="color:var(--purple);">Edit your profile →</a></p>
+      <button type="button" class="signout-btn" id="sign-out-btn">Sign out</button>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button type="button" class="nav-btn active" data-view="rounds"><span class="nav-icon">🩺</span><span class="nav-label">Rounds</span></button>
+    <button type="button" class="nav-btn" data-view="network"><span class="nav-icon">👥</span><span class="nav-label">Network</span><span class="nav-badge" id="network-badge" hidden>0</span></button>
+    <button type="button" class="nav-btn" data-view="messages"><span class="nav-icon">💬</span><span class="nav-label">Messages</span><span class="nav-badge" id="messages-badge" hidden>0</span></button>
+    <button type="button" class="nav-btn" data-view="profile"><span class="nav-icon">👤</span><span class="nav-label">Profile</span></button>
+  </nav>
+</div>
+
+<script>
+// --- Shared auth helper (copied verbatim from src/auth-client.js — see that
+// file's header comment for why this is duplicated rather than imported). ---
+var ICARE_SESSION_KEY = "icare_session";
+function icareGetSession() { try { var raw = localStorage.getItem(ICARE_SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
+function icareClearSession() { try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {} }
+function icareIsSessionExpired(session) { if (!session || !session.expires_at) return true; return Date.now() >= session.expires_at * 1000; }
+function icareAuthFetch(url, options) {
+  var session = icareGetSession();
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+function icareRequireAuth(signInPath) {
+  var session = icareGetSession();
+  if (!session || icareIsSessionExpired(session)) {
+    icareClearSession();
+    var next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = (signInPath || "/sign-in") + "?next=" + next;
+    return null;
+  }
+  return session;
+}
+
+(function () {
+  var session = icareRequireAuth("/sign-in");
+  if (!session) return;
+  var MY_ID = session.user && session.user.id;
+
+  function showError(msg) {
+    var el = document.getElementById("global-error");
+    el.textContent = msg;
+    el.hidden = false;
+    setTimeout(function () { el.hidden = true; }, 5000);
+  }
+
+  async function api(path, opts) {
+    var res = await icareAuthFetch(path, opts);
+    if (res.status === 401) { icareClearSession(); window.location.href = "/sign-in"; return null; }
+    var body = null;
+    try { body = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error((body && body.error) || "Something went wrong");
+    return body;
+  }
+
+  var imageCache = {};
+  async function authedImageUrl(url) {
+    if (imageCache[url]) return imageCache[url];
+    try {
+      var res = await icareAuthFetch(url);
+      if (!res.ok) return null;
+      var blob = await res.blob();
+      var objUrl = URL.createObjectURL(blob);
+      imageCache[url] = objUrl;
+      return objUrl;
+    } catch (e) { return null; }
+  }
+
+  function initialsOf(name) {
+    if (!name) return "?";
+    var parts = name.trim().split(/\s+/);
+    return ((parts[0] || "")[0] || "") + ((parts[1] || "")[0] || "");
+  }
+
+  // Fills an .avatar element: tries the real photo, falls back to initials.
+  function setAvatar(el, candidateId, hasPhoto, fullName) {
+    el.textContent = "";
+    el.style.display = "flex";
+    el.style.alignItems = "center";
+    el.style.justifyContent = "center";
+    el.style.fontSize = "13px";
+    el.style.fontWeight = "700";
+    el.style.color = "var(--purple)";
+    el.textContent = initialsOf(fullName).toUpperCase();
+    if (!hasPhoto) return;
+    var url = candidateId === MY_ID ? "/candidates/me/photo" : "/candidates/" + candidateId + "/photo";
+    authedImageUrl(url).then(function (objUrl) {
+      if (!objUrl) return;
+      el.textContent = "";
+      var img = document.createElement("img");
+      img.src = objUrl;
+      img.style.width = "100%"; img.style.height = "100%"; img.style.objectFit = "cover"; img.style.borderRadius = "50%";
+      el.appendChild(img);
+    });
+  }
+
+  function timeAgo(iso) {
+    var diffMs = Date.now() - new Date(iso).getTime();
+    var mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + "m ago";
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + "h ago";
+    var days = Math.floor(hrs / 24);
+    if (days < 7) return days + "d ago";
+    return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (m) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m];
+    });
+  }
+
+  // --- Nav ---------------------------------------------------------------
+  var views = { rounds: loadFeed, network: loadNetwork, messages: loadInbox, profile: loadProfile };
+  document.querySelectorAll(".nav-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () { switchView(btn.dataset.view); });
+  });
+  function switchView(name) {
+    document.querySelectorAll(".nav-btn").forEach(function (b) { b.classList.toggle("active", b.dataset.view === name); });
+    document.querySelectorAll(".view").forEach(function (v) { v.classList.toggle("active", v.id === "view-" + name); });
+    if (views[name]) views[name]();
+  }
+
+  // --- ROUNDS --------------------------------------------------------------
+  var feedCursor = null;
+  var pendingAttachment = null; // { post_type, media_path, media_filename, media_size_bytes }
+  var pendingMentions = []; // [{id, full_name}]
+  var pendingCheckin = null; // { checkin_venue_name, checkin_employer_id }
+
+  setAvatar(document.getElementById("composer-avatar"), MY_ID, true, "");
+
+  document.getElementById("add-toggle").addEventListener("click", function () {
+    document.getElementById("add-options").classList.toggle("show");
+  });
+
+  document.querySelectorAll(".add-option").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var kind = btn.dataset.add;
+      document.getElementById("composer-mention-search").hidden = kind !== "mention";
+      document.getElementById("composer-venue-search").hidden = kind !== "checkin";
+      if (kind === "photo" || kind === "video" || kind === "document") {
+        var input = document.getElementById("composer-file-input");
+        input.accept = kind === "photo" ? "image/*" : kind === "video" ? "video/*" : "application/pdf";
+        input.dataset.kind = kind;
+        input.click();
+      }
+    });
+  });
+
+  document.getElementById("composer-file-input").addEventListener("change", async function (e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    var kind = e.target.dataset.kind;
+    try {
+      var res = await icareAuthFetch("/candidates/me/posts/media", {
+        method: "POST",
+        headers: { "Content-Type": file.type, "X-File-Name": file.name },
+        body: file,
+      });
+      var body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Upload failed");
+      pendingAttachment = { post_type: kind, media_path: body.media_path, media_filename: body.media_filename || file.name, media_size_bytes: body.media_size_bytes };
+      document.getElementById("composer-attachment-label").textContent = (kind === "photo" ? "🖼️ " : kind === "video" ? "🎥 " : "📄 ") + (body.media_filename || file.name);
+      document.getElementById("composer-attachment").hidden = false;
+    } catch (err) { showError(err.message); }
+    e.target.value = "";
+  });
+
+  document.getElementById("composer-attachment-remove").addEventListener("click", function () {
+    pendingAttachment = null;
+    document.getElementById("composer-attachment").hidden = true;
+  });
+
+  var mentionDebounce;
+  document.getElementById("mention-query").addEventListener("input", function (e) {
+    clearTimeout(mentionDebounce);
+    var q = e.target.value.trim();
+    mentionDebounce = setTimeout(async function () {
+      if (q.length < 2) { document.getElementById("mention-results").innerHTML = ""; return; }
+      var res = await api("/rounds/mention-search?q=" + encodeURIComponent(q));
+      document.getElementById("mention-results").innerHTML = (res.candidates || [])
+        .map(function (c) { return '<div class="search-result-row" data-mention-id="' + c.id + '" data-mention-name="' + escapeHtml(c.full_name) + '">' + escapeHtml(c.full_name) + (c.primary_profession ? " · " + escapeHtml(c.primary_profession) : "") + "</div>"; })
+        .join("");
+      document.querySelectorAll("[data-mention-id]").forEach(function (row) {
+        row.addEventListener("click", function () {
+          var id = row.dataset.mentionId, name = row.dataset.mentionName;
+          if (!pendingMentions.some(function (m) { return m.id === id; })) {
+            pendingMentions.push({ id: id, full_name: name });
+            var textEl = document.getElementById("composer-text");
+            textEl.value = (textEl.value ? textEl.value + " " : "") + "@" + name + " ";
+          }
+          document.getElementById("mention-query").value = "";
+          document.getElementById("mention-results").innerHTML = "";
+        });
+      });
+    }, 250);
+  });
+
+  var venueDebounce, lastViewbox = null;
+  document.getElementById("venue-query").addEventListener("input", function (e) {
+    clearTimeout(venueDebounce);
+    var q = e.target.value.trim();
+    venueDebounce = setTimeout(runVenueSearch.bind(null, q), 300);
+  });
+  document.getElementById("venue-use-location").addEventListener("click", function () {
+    if (!navigator.geolocation) { showError("Location isn't available in this browser"); return; }
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var d = 0.03; // ~3km box — narrows results only, never stored or sent anywhere but this one lookup
+      var lat = pos.coords.latitude, lon = pos.coords.longitude;
+      lastViewbox = (lon - d) + "," + (lat + d) + "," + (lon + d) + "," + (lat - d);
+      runVenueSearch(document.getElementById("venue-query").value.trim());
+    }, function () { showError("Couldn't get your location"); });
+  });
+  async function runVenueSearch(q) {
+    if (q.length < 2) { document.getElementById("venue-results").innerHTML = ""; return; }
+    var url = "/rounds/checkin/venues?q=" + encodeURIComponent(q) + (lastViewbox ? "&viewbox=" + lastViewbox : "");
+    var res = await api(url);
+    var rows = (res.employers || []).map(function (e) { return { name: e.name, employer_id: e.id }; })
+      .concat((res.places || []).map(function (p) { return { name: p.name, employer_id: null }; }));
+    document.getElementById("venue-results").innerHTML = rows
+      .map(function (r, i) { return '<div class="search-result-row" data-venue-index="' + i + '">📍 ' + escapeHtml(r.name) + "</div>"; })
+      .join("");
+    document.querySelectorAll("[data-venue-index]").forEach(function (row) {
+      row.addEventListener("click", function () {
+        var r = rows[Number(row.dataset.venueIndex)];
+        pendingCheckin = { checkin_venue_name: r.name, checkin_employer_id: r.employer_id };
+        document.getElementById("composer-attachment-label").textContent = "📍 " + r.name;
+        document.getElementById("composer-attachment").hidden = false;
+        document.getElementById("composer-venue-search").hidden = true;
+      });
+    });
+  }
+
+  document.getElementById("composer-attachment-remove").addEventListener("click", function () { pendingCheckin = null; });
+
+  document.getElementById("composer-submit").addEventListener("click", async function () {
+    var text = document.getElementById("composer-text").value.trim();
+    if (!text) { showError("Write something first"); return; }
+    var payload = { body: text, mentioned_candidate_ids: pendingMentions.map(function (m) { return m.id; }) };
+    if (pendingCheckin) {
+      payload.post_type = "checkin";
+      payload.checkin_venue_name = pendingCheckin.checkin_venue_name;
+      if (pendingCheckin.checkin_employer_id) payload.checkin_employer_id = pendingCheckin.checkin_employer_id;
+    } else if (pendingAttachment) {
+      Object.assign(payload, pendingAttachment);
+    }
+    try {
+      await api("/candidates/me/posts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      document.getElementById("composer-text").value = "";
+      pendingAttachment = null; pendingCheckin = null; pendingMentions = [];
+      document.getElementById("composer-attachment").hidden = true;
+      document.getElementById("add-options").classList.remove("show");
+      feedCursor = null;
+      loadFeed();
+    } catch (err) { showError(err.message); }
+  });
+
+  async function loadFeed() {
+    try {
+      var res = await api("/rounds/feed" + (feedCursor ? "?before=" + encodeURIComponent(feedCursor) : ""));
+      var list = document.getElementById("feed-list");
+      if (!feedCursor) list.innerHTML = "";
+      if (!feedCursor && (!res.posts || res.posts.length === 0)) {
+        list.innerHTML = '<p class="empty-note">No posts yet. Be the first to share a Round.</p>';
+      }
+      (res.posts || []).forEach(function (post) { list.appendChild(renderPostCard(post)); });
+      feedCursor = res.posts && res.posts.length === 20 ? res.posts[res.posts.length - 1].created_at : null;
+      document.getElementById("feed-load-more").hidden = !feedCursor;
+    } catch (err) { showError(err.message); }
+  }
+  document.getElementById("feed-load-more").addEventListener("click", loadFeed);
+
+  function renderPostCard(post) {
+    var card = document.createElement("div");
+    card.className = "card";
+    var badge = post.identity_verified ? '<span class="verified-badge" title="Identity verified">✓</span>' : "";
+    var roleLine = [post.current_job_title, post.current_employer].filter(Boolean).join(" · ") || post.primary_profession || "";
+    var mediaHtml = "";
+    if (post.post_type === "photo") mediaHtml = '<div class="attach-photo"><img data-lazy-img="/rounds/media/' + post.id + '" alt="" /></div>';
+    if (post.post_type === "video") mediaHtml = '<div class="attach-video"><video controls data-lazy-video="/rounds/media/' + post.id + '"></video></div>';
+    if (post.post_type === "document") mediaHtml = '<div class="attach-doc"><div class="doc-icon">PDF</div><div><div class="doc-name">' + escapeHtml(post.media_filename || "Document") + "</div><div class=\"doc-meta\">" + (post.media_size_bytes ? Math.round(post.media_size_bytes / 1024) + " KB" : "") + '</div></div></div>';
+    var checkinHtml = post.post_type === "checkin" && post.checkin_venue_name ? '<div class="checkin-line">📍 Checked in at ' + escapeHtml(post.checkin_venue_name) + "</div>" : "";
+
+    card.innerHTML =
+      '<div class="card-head">' +
+        '<div class="avatar" data-avatar></div>' +
+        '<div class="who">' +
+          '<div class="name-row"><span class="name">' + escapeHtml(post.full_name) + "</span>" + badge + '<span class="timestamp">· ' + timeAgo(post.created_at) + "</span></div>" +
+          (roleLine ? '<div class="role">' + escapeHtml(roleLine) + "</div>" : "") +
+        "</div>" +
+      "</div>" +
+      checkinHtml +
+      (post.title ? '<p class="post-text" style="font-weight:700;margin-bottom:0;">' + escapeHtml(post.title) + "</p>" : "") +
+      '<p class="post-text">' + escapeHtml(post.body) + "</p>" +
+      mediaHtml +
+      '<div class="mentions-row" data-mentions hidden></div>' +
+      '<div class="card-actions">' +
+        '<button type="button" class="' + (post.my_reacted ? "liked" : "") + '" data-react>👍 Helpful' + (post.reaction_count ? " (" + post.reaction_count + ")" : "") + "</button>" +
+        '<button type="button" data-toggle-comments>💬 Comment' + (post.comment_count ? " (" + post.comment_count + ")" : "") + "</button>" +
+      "</div>" +
+      '<div class="comments-block" data-comments-block hidden>' +
+        '<div data-comments-list></div>' +
+        '<div class="comment-form"><input type="text" placeholder="Write a comment..." data-comment-input /><button type="button" data-comment-submit>Send</button></div>' +
+      "</div>";
+
+    setAvatar(card.querySelector("[data-avatar]"), post.candidate_id, post.has_photo, post.full_name);
+
+    if (post.post_type === "photo" || post.post_type === "video") {
+      var mediaUrl = "/rounds/media/" + post.id;
+      authedImageUrl(mediaUrl).then(function (objUrl) {
+        if (!objUrl) return;
+        var el = card.querySelector(post.post_type === "photo" ? "[data-lazy-img]" : "[data-lazy-video]");
+        if (el) el.src = objUrl;
+      });
+    }
+
+    api("/rounds/posts/" + post.id + "/mentions").then(function (res) {
+      if (!res || !res.mentions || res.mentions.length === 0) return;
+      var row = card.querySelector("[data-mentions]");
+      row.hidden = false;
+      row.innerHTML = res.mentions.map(function (m) { return '<span class="mention-chip">@' + escapeHtml(m.full_name) + "</span>"; }).join("");
+    }).catch(function () {});
+
+    card.querySelector("[data-react]").addEventListener("click", async function () {
+      try {
+        var res = await api("/rounds/posts/" + post.id + "/reaction", { method: "POST" });
+        post.my_reacted = res.reacted;
+        post.reaction_count = (post.reaction_count || 0) + (res.reacted ? 1 : -1);
+        var btn = card.querySelector("[data-react]");
+        btn.classList.toggle("liked", post.my_reacted);
+        btn.textContent = "👍 Helpful" + (post.reaction_count ? " (" + post.reaction_count + ")" : "");
+      } catch (err) { showError(err.message); }
+    });
+
+    var commentsLoaded = false;
+    card.querySelector("[data-toggle-comments]").addEventListener("click", async function () {
+      var block = card.querySelector("[data-comments-block]");
+      block.hidden = !block.hidden;
+      if (!block.hidden && !commentsLoaded) {
+        commentsLoaded = true;
+        var res = await api("/rounds/posts/" + post.id + "/comments");
+        renderComments(card, res.comments || []);
+      }
+    });
+    card.querySelector("[data-comment-submit]").addEventListener("click", async function () {
+      var input = card.querySelector("[data-comment-input]");
+      var text = input.value.trim();
+      if (!text) return;
+      try {
+        await api("/rounds/posts/" + post.id + "/comments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: text }) });
+        input.value = "";
+        var res = await api("/rounds/posts/" + post.id + "/comments");
+        renderComments(card, res.comments || []);
+      } catch (err) { showError(err.message); }
+    });
+
+    return card;
+  }
+
+  function renderComments(card, comments) {
+    var list = card.querySelector("[data-comments-list]");
+    list.innerHTML = "";
+    comments.forEach(function (cm) {
+      var row = document.createElement("div");
+      row.className = "comment-row";
+      row.innerHTML = '<div class="avatar sm" data-c-avatar></div><div class="comment-text"><span class="cname">' + escapeHtml(cm.full_name) + "</span>" + escapeHtml(cm.body) + "</div>";
+      setAvatar(row.querySelector("[data-c-avatar]"), cm.candidate_id, cm.has_photo, cm.full_name);
+      list.appendChild(row);
+    });
+  }
+
+  // --- NETWORK -------------------------------------------------------------
+  var networkTab = "discover";
+  document.querySelectorAll("[data-network-tab]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      networkTab = btn.dataset.networkTab;
+      document.querySelectorAll("[data-network-tab]").forEach(function (b) { b.classList.toggle("active", b === btn); });
+      loadNetwork();
+    });
+  });
+
+  async function loadNetwork() {
+    var list = document.getElementById("network-list");
+    list.innerHTML = '<p class="loading-note">Loading...</p>';
+    try {
+      if (networkTab === "discover") {
+        var res = await api("/network/discover");
+        renderDiscover(res.candidates || []);
+        refreshNetworkBadge();
+      } else if (networkTab === "requests") {
+        var res2 = await api("/network/requests");
+        renderRequests(res2.requests || []);
+      } else {
+        var res3 = await api("/network/connections");
+        renderConnections(res3.connections || []);
+      }
+    } catch (err) { showError(err.message); }
+  }
+
+  async function refreshNetworkBadge() {
+    try {
+      var res = await api("/network/requests");
+      var count = (res.requests || []).length;
+      var badge = document.getElementById("network-badge");
+      badge.textContent = count;
+      badge.hidden = count === 0;
+    } catch (e) {}
+  }
+
+  function directoryCardShell(c, roleLine) {
+    var badge = c.identity_verified ? '<span class="verified-badge" title="Identity verified">✓</span>' : "";
+    var div = document.createElement("div");
+    div.className = "card directory-card";
+    div.innerHTML =
+      '<div class="avatar" data-avatar></div>' +
+      '<div class="who" style="flex:1;">' +
+        '<div class="name-row"><span class="name">' + escapeHtml(c.full_name) + "</span>" + badge + "</div>" +
+        (roleLine ? '<div class="role">' + escapeHtml(roleLine) + "</div>" : "") +
+        '<div class="directory-actions" data-actions></div>' +
+      "</div>";
+    setAvatar(div.querySelector("[data-avatar]"), c.candidate_id || c.id, c.has_photo, c.full_name);
+    return div;
+  }
+
+  function renderDiscover(list) {
+    var el = document.getElementById("network-list");
+    el.innerHTML = "";
+    if (list.length === 0) { el.innerHTML = '<p class="empty-note">No one new to discover right now.</p>'; return; }
+    list.forEach(function (c) {
+      var roleLine = [c.current_job_title, c.current_employer].filter(Boolean).join(" · ") || c.primary_profession || "";
+      var card = directoryCardShell(c, roleLine);
+      var actions = card.querySelector("[data-actions]");
+      if (c.connection_status === "pending" && c.connection_requester_id === MY_ID) {
+        actions.innerHTML = '<button type="button" class="btn btn-primary" disabled>Request sent</button><button type="button" class="btn btn-outline" data-cancel-sent>Cancel</button>';
+        actions.querySelector("[data-cancel-sent]").addEventListener("click", async function () {
+          try { await api("/network/connections/" + c.connection_id, { method: "DELETE" }); loadNetwork(); } catch (err) { showError(err.message); }
+        });
+      } else if (c.connection_status === "pending") {
+        actions.innerHTML = '<button type="button" class="btn btn-primary" data-accept>Accept request</button><button type="button" class="btn btn-danger" data-decline>Decline</button>';
+        actions.querySelector("[data-accept]").addEventListener("click", async function () {
+          try { await api("/network/requests/" + c.connection_id + "/accept", { method: "POST" }); loadNetwork(); } catch (err) { showError(err.message); }
+        });
+        actions.querySelector("[data-decline]").addEventListener("click", async function () {
+          try { await api("/network/requests/" + c.connection_id, { method: "DELETE" }); loadNetwork(); } catch (err) { showError(err.message); }
+        });
+      } else {
+        actions.innerHTML =
+          '<button type="button" class="btn btn-primary" data-connect>Connect</button>' +
+          '<div class="connect-note-row" data-note-row hidden>' +
+            '<textarea placeholder="Add a note (optional)" data-note-text></textarea>' +
+            '<div class="connect-note-actions"><button type="button" class="btn btn-primary" data-send-request>Send request</button><button type="button" class="btn btn-outline" data-cancel-request>Cancel</button></div>' +
+          "</div>";
+        actions.querySelector("[data-connect]").addEventListener("click", function () {
+          actions.querySelector("[data-note-row]").hidden = false;
+          actions.querySelector("[data-connect]").style.display = "none";
+        });
+        actions.querySelector("[data-cancel-request]").addEventListener("click", function () {
+          actions.querySelector("[data-note-row]").hidden = true;
+          actions.querySelector("[data-connect]").style.display = "";
+        });
+        actions.querySelector("[data-send-request]").addEventListener("click", async function () {
+          try {
+            var note = actions.querySelector("[data-note-text]").value.trim();
+            await api("/network/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ candidate_id: c.id, note: note || undefined }) });
+            actions.innerHTML = '<button type="button" class="btn btn-primary" disabled>Request sent</button>';
+          } catch (err) { showError(err.message); }
+        });
+      }
+      el.appendChild(card);
+    });
+  }
+
+  function renderRequests(list) {
+    var el = document.getElementById("network-list");
+    el.innerHTML = "";
+    if (list.length === 0) { el.innerHTML = '<p class="empty-note">No pending requests.</p>'; return; }
+    list.forEach(function (r) {
+      var roleLine = [r.current_job_title, r.current_employer].filter(Boolean).join(" · ") || r.primary_profession || "";
+      var card = directoryCardShell({ candidate_id: r.candidate_id, full_name: r.full_name, has_photo: r.has_photo, identity_verified: false }, roleLine);
+      var actions = card.querySelector("[data-actions]");
+      if (r.note) {
+        var noteEl = document.createElement("div");
+        noteEl.style.cssText = "font-size:12px;color:var(--ink-muted);margin:4px 0;font-style:italic;";
+        noteEl.textContent = '"' + r.note + '"';
+        actions.parentNode.insertBefore(noteEl, actions);
+      }
+      actions.innerHTML = '<button type="button" class="btn btn-primary" data-accept>Accept</button><button type="button" class="btn btn-danger" data-decline>Decline</button>';
+      actions.querySelector("[data-accept]").addEventListener("click", async function () {
+        try { await api("/network/requests/" + r.connection_id + "/accept", { method: "POST" }); loadNetwork(); } catch (err) { showError(err.message); }
+      });
+      actions.querySelector("[data-decline]").addEventListener("click", async function () {
+        try { await api("/network/requests/" + r.connection_id, { method: "DELETE" }); loadNetwork(); } catch (err) { showError(err.message); }
+      });
+      el.appendChild(card);
+    });
+  }
+
+  function renderConnections(list) {
+    var el = document.getElementById("network-list");
+    el.innerHTML = "";
+    if (list.length === 0) { el.innerHTML = '<p class="empty-note">No connections yet — start with Discover.</p>'; return; }
+    list.forEach(function (c) {
+      var roleLine = [c.current_job_title, c.current_employer].filter(Boolean).join(" · ") || c.primary_profession || "";
+      var card = directoryCardShell(c, roleLine);
+      var actions = card.querySelector("[data-actions]");
+      actions.innerHTML = '<button type="button" class="btn btn-outline" data-message>Message</button>';
+      actions.querySelector("[data-message]").addEventListener("click", function () { openThreadWith(c.candidate_id); });
+      el.appendChild(card);
+    });
+  }
+
+  // --- MESSAGES --------------------------------------------------------------
+  var activeConversationId = null;
+
+  async function loadInbox() {
+    document.getElementById("thread-view").hidden = true;
+    document.getElementById("thread-compose").hidden = true;
+    document.getElementById("inbox-list").hidden = false;
+    var el = document.getElementById("inbox-list");
+    el.innerHTML = '<p class="loading-note">Loading...</p>';
+    try {
+      var res = await api("/messages/");
+      el.innerHTML = "";
+      var unread = 0;
+      if (!res.conversations || res.conversations.length === 0) {
+        el.innerHTML = '<p class="empty-note">No conversations yet. Message an accepted connection from Network.</p>';
+      }
+      (res.conversations || []).forEach(function (conv) {
+        unread += conv.unread_count || 0;
+        var row = document.createElement("div");
+        row.className = "inbox-row";
+        row.innerHTML =
+          '<div class="avatar" data-avatar></div>' +
+          '<div class="inbox-who"><div class="name">' + escapeHtml(conv.other_full_name) + "</div>" +
+          '<div class="inbox-preview">' + escapeHtml(conv.last_message_body || "Say hello 👋") + "</div></div>" +
+          (conv.unread_count ? '<span class="inbox-unread">' + conv.unread_count + "</span>" : "");
+        setAvatar(row.querySelector("[data-avatar]"), conv.other_candidate_id, conv.other_has_photo, conv.other_full_name);
+        row.addEventListener("click", function () { openThread(conv.conversation_id, conv.other_full_name); });
+        el.appendChild(row);
+      });
+      var badge = document.getElementById("messages-badge");
+      badge.textContent = unread;
+      badge.hidden = unread === 0;
+    } catch (err) { showError(err.message); }
+  }
+
+  async function openThreadWith(otherCandidateId) {
+    try {
+      var res = await api("/messages/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ candidate_id: otherCandidateId }) });
+      switchView("messages");
+      openThread(res.conversation_id, "");
+    } catch (err) { showError(err.message); }
+  }
+
+  async function openThread(conversationId, otherName) {
+    activeConversationId = conversationId;
+    document.getElementById("inbox-list").hidden = true;
+    document.getElementById("thread-view").hidden = false;
+    document.getElementById("thread-compose").hidden = false;
+    try {
+      var res = await api("/messages/conversations/" + conversationId);
+      var wrap = document.getElementById("thread-messages");
+      wrap.innerHTML = "";
+      (res.messages || []).forEach(function (m) {
+        var b = document.createElement("div");
+        b.className = "bubble " + (m.sender_id === MY_ID ? "sent" : "received");
+        b.textContent = m.body;
+        wrap.appendChild(b);
+      });
+      wrap.scrollTop = wrap.scrollHeight;
+    } catch (err) { showError(err.message); }
+  }
+
+  document.getElementById("thread-send").addEventListener("click", sendThreadMessage);
+  document.getElementById("thread-input").addEventListener("keydown", function (e) { if (e.key === "Enter") sendThreadMessage(); });
+  async function sendThreadMessage() {
+    var input = document.getElementById("thread-input");
+    var text = input.value.trim();
+    if (!text || !activeConversationId) return;
+    try {
+      await api("/messages/conversations/" + activeConversationId, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body: text }) });
+      input.value = "";
+      openThread(activeConversationId, "");
+    } catch (err) { showError(err.message); }
+  }
+
+  // --- PROFILE -------------------------------------------------------------
+  var profileViewMode = "member";
+  document.querySelectorAll("[data-profile-view]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      profileViewMode = btn.dataset.profileView;
+      document.querySelectorAll("[data-profile-view]").forEach(function (b) { b.classList.toggle("active", b === btn); });
+      document.getElementById("employer-preview-note").hidden = profileViewMode !== "employer";
+      document.getElementById("profile-credentials-member").style.display = profileViewMode === "member" ? "" : "none";
+      document.getElementById("profile-credentials-employer").style.display = profileViewMode === "employer" ? "" : "none";
+    });
+  });
+
+  async function loadProfile() {
+    try {
+      var header = await api("/candidates/me/profile-header");
+      var candidate = await api("/candidates/me");
+      var c = candidate.candidate;
+
+      setAvatar(document.getElementById("profile-avatar"), MY_ID, !!c.photo_path, header.full_name);
+      var badge = header.identity_verified ? ' <span class="verified-badge" title="Identity verified">✓</span>' : "";
+      document.getElementById("profile-name-row").innerHTML = escapeHtml(header.full_name) + badge;
+      document.getElementById("profile-headline").textContent = c.headline || "Add a headline";
+      document.getElementById("profile-town").textContent = c.town || "";
+      document.getElementById("profile-connections-count").textContent = header.connections_count;
+      document.getElementById("profile-experience").textContent = Math.round((header.experience_months || 0) / 12);
+      document.getElementById("profile-about").textContent = c.about || "Nothing added yet.";
+      var openPill = document.getElementById("profile-open-pill");
+      openPill.hidden = c.availability === "not_looking";
+
+      var employerBlock = document.getElementById("profile-credentials-employer");
+      var dbsRes = await api("/candidates/me/dbs");
+      var dbs = dbsRes.dbs;
+      var rtwLabels = { british_irish: "British/Irish citizen", settled: "Settled status", pre_settled: "Pre-settled status", indefinite_leave: "Indefinite leave to remain", visa_with_work_rights: "Visa with work rights", requires_sponsorship: "Requires sponsorship", not_stated: "Not yet stated" };
+      employerBlock.innerHTML =
+        '<div class="kv-row"><span class="k">Right to work</span><span>' + (rtwLabels[c.right_to_work] || c.right_to_work) + "</span></div>" +
+        '<div class="kv-row"><span class="k">DBS status</span><span>' + (dbs ? (dbs.on_update_service ? "Current — no new information" : "Not yet verified") + (dbs.issued_on ? " (checked " + dbs.issued_on + ")" : "") : "Not yet verified") + "</span></div>" +
+        '<div class="kv-row"><span class="k">Sponsorship</span><span>' + (c.right_to_work === "requires_sponsorship" ? "Requires sponsorship" : "No sponsorship required") + "</span></div>";
+
+      var exp = await api("/candidates/me/employment-history");
+      document.getElementById("profile-experience-list").innerHTML = (exp.employment_history || [])
+        .map(function (e) { return '<div class="exp-row"><div class="exp-title">' + escapeHtml(e.job_title) + "</div><div class=\"exp-sub\">" + escapeHtml(e.employer) + (e.is_current ? " · Current" : "") + "</div></div>"; })
+        .join("") || '<p class="empty-note">Nothing added yet.</p>';
+
+      var quals = await api("/candidates/me/qualifications");
+      document.getElementById("profile-qualifications-list").innerHTML = (quals.qualifications || [])
+        .map(function (q) { return '<div class="exp-row"><div class="exp-title">' + escapeHtml(q.title) + "</div><div class=\"exp-sub\">" + escapeHtml(q.awarding_body || "") + "</div></div>"; })
+        .join("") || '<p class="empty-note">Nothing added yet.</p>';
+
+      var skills = await api("/candidates/me/skills");
+      document.getElementById("profile-skills-list").innerHTML = (skills.skills || [])
+        .map(function (s) { return '<span class="tag">' + escapeHtml((s.clinical_skills && s.clinical_skills.label) || "") + "</span>"; })
+        .join("") || '<p class="empty-note">Nothing added yet.</p>';
+
+      var posts = await api("/candidates/me/posts");
+      document.getElementById("profile-activity-list").innerHTML = (posts.posts || []).slice(0, 5)
+        .map(function (p) { return '<div class="exp-row"><div class="exp-sub">' + timeAgo(p.created_at) + "</div><p class=\"post-text\" style=\"margin-top:4px;\">" + escapeHtml((p.body || "").slice(0, 140)) + "</p></div>"; })
+        .join("") || '<p class="empty-note">No posts yet.</p>';
+    } catch (err) { showError(err.message); }
+  }
+
+  document.getElementById("sign-out-btn").addEventListener("click", function () {
+    icareClearSession();
+    window.location.href = "/sign-in";
+  });
+
+  // Initial load
+  loadFeed();
+  refreshNetworkBadge();
+  api("/messages/").then(function (res) {
+    var unread = (res.conversations || []).reduce(function (sum, c) { return sum + (c.unread_count || 0); }, 0);
+    var badge = document.getElementById("messages-badge");
+    badge.textContent = unread;
+    badge.hidden = unread === 0;
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>

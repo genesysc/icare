@@ -147,11 +147,14 @@ stop and ask the user — do not resolve it yourself.**
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/badges`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5), incoming shortlists + consent (`/me/shortlists*`, Sprint 9), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
+| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5; now 5 post types incl. media/check-in, `/me/posts/media` two-step upload, 2026-09-11), a published peer's photo (`GET /:id/photo` — directory-level info, not consent-gated, 2026-09-11), `/me/profile-header` (name/identity-verified/connections-count/experience, 2026-09-11), incoming shortlists + consent (`/me/shortlists*`, Sprint 9), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
 | `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post; `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9); `GET /candidates/:id/{photo,video,cv}` — consent-gated media (Sprint 9) |
 | `src/employer-chat.ts` | Employer chat — six tools behind `POST /employers/chat` (guardrail → Workers AI tool call → deterministic DB action → persist), `GET /employers/chat` (replay thread): `search_candidates` (Sprint 8, extended for posts, `min_experience_years`, `qualification_type_id`), `shortlist_candidates`/`move_candidate_stage`/`get_pipeline_status` (Sprint 9), `bulk_move_stage` (Sprint 11), `who_is_summary` (Sprint 10) |
 | `src/employer-chat-guardrail.ts` | Protected-characteristics keyword/proximity guardrail — the deterministic layer behind the chat's non-negotiable #5 compliance, see §7 |
-| `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
+| `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` (format regex + live MX-record check via Cloudflare DoH + typo-similarity check against known consumer providers) |
+| `src/rounds.ts` | Rounds (feed) — `GET /rounds/feed`, `POST /rounds/posts/:id/reaction`, comments, `GET /rounds/mention-search` (platform-wide), `GET /rounds/checkin/venues` (employer-directory matches + Nominatim), `GET /rounds/media/:postId` (post photo/video/document, visibility-checked) — 2026-09-11 |
+| `src/network.ts` | Network — `GET /network/discover` ("people you may know"), `/connections`, `/requests`, `POST /connect` (optional note), accept/decline/cancel — 2026-09-11 |
+| `src/messages.ts` | Messages — inbox (`GET /messages/`), start-or-resume a thread (gated to accepted connections only, via `get_or_create_conversation` RPC), thread read (marks the other party's messages read), send — 2026-09-11 |
 | `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
 | `src/emails/waitlist-welcome.ts`, `employer-waitlist.ts`, `candidate-profile-published.ts`, `employer-verification-submitted.ts`, `employer-verified.ts` | Stage-completion email subject/HTML, all unused until `email.ts` is wired up (see §8 item 3). The first two are for the waitlist; the latter three are candidate/employer product-stage emails, added 2026-08-26 |
 | `src/landing.html` | Candidate waitlist landing page — single file, inline CSS/JS, GSAP via CDN |
@@ -163,26 +166,32 @@ stop and ask the user — do not resolve it yourself.**
 | `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me` |
 | `src/employer-home.html` | Employer home, `/employer/home` — verification card (Sprint 7, now including a read-only org profile summary once verified — Sprint 11) + chat-based candidate search (Sprint 8) + iRecruit pipeline card (Sprint 9, now showing consent-gated photo/video/CV buttons) |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
-| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure |
+| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure. Links out to `/app` (2026-09-11). **Known bug, not fixed**: its own profile photo `<img src="/candidates/me/photo">` can't carry the Bearer token that route requires — likely silently broken |
+| `src/app.html` | Rounds/Network/Messages/Profile — one self-contained page, 4-tab bottom nav, built 2026-09-11 against the real API (not the uploaded mockup's demo data). All photo/media goes through fetch-as-blob (`authedImageUrl()`), never a plain `<img src>` |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
 | `SPRINTS.md` | Forward-looking roadmap — candidate journey sprints, then employer journey sprints. Check here before picking "what's next" |
 | `AGENTS.md` / `CLAUDE.md` | Pointer files: read `PROGRESS.md` (and now this file) first, update before ending a session |
 
-**`supabase/migrations/*.sql` now mirrors the live database**
-(2026-08-26) — all 19 migrations to date (`0001_init` through
-`0019_candidate_dossier_rpc`) are committed as files,
-fetched verbatim from `supabase_migrations.schema_migrations`
-(its `statements` column holds the exact SQL each migration ran). This
-is a point-in-time backup/version-control mirror, not a live sync —
-migrations are still applied to the real project via `apply_migration`
-(MCP) as before; **whoever adds a new migration going forward should
-also write the matching file here** to keep the mirror current, the
-same way this repo already expects `PROGRESS.md`/`HANDOVER.md` to be
-kept current by hand. Nothing here changes how `apply_migration` itself
-works — this is purely a "so it isn't only visible from inside
-Supabase" archive.
+**`supabase/migrations/*.sql` mirrors the live database, with a known
+gap: `0020`-`0033` are missing.** As of 2026-08-26 all 19 migrations to
+date (`0001_init` through `0019_candidate_dossier_rpc`) were committed as
+files, fetched verbatim from `supabase_migrations.schema_migrations`. Since
+then, migrations `0020` through `0033` were applied directly to the live
+project (by an earlier/other session — `jobs`, `bookmarks`, the six-stage
+pipeline, frozen `profile_summaries`, `candidate_peer_feed`,
+`candidate_discover`, `connections`) but **never saved as files here** —
+discovered 2026-09-11 while building Rounds/Network/Messages/Profile
+(`0034` onward, which ARE mirrored, pick up right after the gap). The real
+schema was verified directly against the live DB before building on it, so
+nothing is broken — this is purely a missing-files gap in the mirror, not a
+schema-correctness problem. Worth backfilling (`supabase_migrations.
+schema_migrations`'s `statements` column still holds the exact original
+SQL) next time someone's in this area. **Whoever adds a new migration
+going forward should write the matching file here at the time**, the same
+way `PROGRESS.md`/`HANDOVER.md` are expected to be kept current by hand —
+that's the discipline that lapsed and produced this gap.
 
 ---
 
@@ -242,6 +251,38 @@ definer — the structured-data source for Sprint 10's `who_is_summary`;
 `employment_history`/`qualifications` have no employer-facing RLS at
 all, so this one RPC is the actual gate, checked once rather than
 bolted onto five tables).
+
+**Rounds/Network/Messages/Profile schema (migrations `0034`-`0039`,
+2026-09-11)**, built on top of the pre-existing `connections`/`jobs`/
+`bookmarks`/`profile_summaries` foundation (see the mirror-gap note
+above): `candidate_posts` gained `post_type` (`text`/`photo`/`video`/
+`document`/`checkin`) and media/check-in columns; `connections` gained an
+optional `note`. New tables: `post_reactions` (one "Helpful" reaction per
+candidate per post, toggled via `toggle_post_reaction()` — no direct
+client write path), `post_comments` (`add_post_comment()` RPC to write,
+own-row RLS delete), `post_mentions` (platform-wide per the build spec —
+inserted by a post's own author only), `conversations`/`messages` (1:1
+DMs, gated to accepted connections only at creation time via
+`get_or_create_conversation()`, canonical `candidate_a_id < candidate_b_id`
+ordering so a unique constraint enforces one conversation per pair). New
+security-definer helper: `candidate_can_view_post(post_id)` — the same
+visibility rule `candidate_peer_feed` encodes, extracted once and reused
+by the reaction/comment RPCs (same pattern `0029` used for a similar RLS-
+duplication problem). Extended views: `candidate_peer_feed` and
+`candidate_discover` gained `identity_verified` (`right_to_work <>
+'not_stated'` AND a `dbs_records.certificate_number` on file —
+deliberately independent of `on_update_service`, the spec's explicit
+requirement), current job title/employer (same `LATERAL` join
+`candidate_search` uses), and (peer_feed only) reaction/comment counts +
+`my_reacted`; `candidate_discover` also gained `connection_status`/
+`connection_requester_id`/`connection_id` and now excludes the viewer's
+own row and already-accepted connections (the former was a real
+pre-existing bug — a candidate could see themselves in their own "people
+you may know" — fixed opportunistically while already touching this view,
+not as a separate pass). New views: `my_connections`, `my_pending_
+requests`, `post_comments_feed`, `post_mentions_feed`,
+`candidate_mention_search` (platform-wide, unlike `candidate_discover`),
+`conversation_inbox`.
 
 ---
 

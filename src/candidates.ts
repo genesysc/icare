@@ -251,6 +251,26 @@ candidates.delete("/me/video", async (c) => {
   return c.json({ candidate: data });
 });
 
+// Another (published) candidate's photo — Rounds/Network directory cards
+// show real photos, not initials (build spec §3, an explicit correction
+// over an earlier initials-only build). Unlike the employer-side photo
+// route in employers.ts, this isn't consent-gated: a published candidate's
+// name/headline/employer are already visible to any other candidate via
+// candidate_discover/candidate_peer_feed with no consent step, so a photo
+// is the same tier of directory-level info, not a step up in sensitivity.
+candidates.get("/:id/photo", async (c) => {
+  const targetId = c.req.param("id");
+  const { data: published } = await c.get("supabase").rpc("candidate_is_published", { p_candidate_id: targetId });
+  if (!published) return c.json({ error: "Not found" }, 404);
+
+  const object = await c.env.MEDIA.get(`candidates/${targetId}/photo`);
+  if (!object) return c.json({ error: "No photo uploaded" }, 404);
+
+  return new Response(object.body, {
+    headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream" },
+  });
+});
+
 // --- Professions (candidate's own set, replace-whole-set semantics) ---
 
 candidates.get("/me/professions", async (c) => {
@@ -751,8 +771,20 @@ candidates.delete("/me/prompts/:promptId", async (c) => {
 // pattern of manual review via the Supabase dashboard (see employer
 // verification): an employer can call flag_candidate_post() (src/employers.ts),
 // which just sets is_flagged — nothing here polices content up front.
+//
+// Rounds (build spec, 2026-09-11): five post types share this one table.
+// Media (photo/video/document) is uploaded first via POST /me/posts/media,
+// which returns a media_path this endpoint then references — same two-step
+// shape as the CV import flow above, so a half-finished upload never leaves
+// a dangling R2 object with no referencing row.
+//
+// Check-in is deliberately a named-venue field, never free text or device
+// coordinates (see 0034's migration comment) — checkin_venue_name is either
+// an existing employer's org_name (checkin_employer_id set) or a free-typed
+// name for a training centre/conference the employers table doesn't have.
 
 const POST_FIELDS = ["title", "body"] as const;
+const POST_TYPES = ["text", "photo", "video", "document", "checkin"] as const;
 
 candidates.get("/me/posts", async (c) => {
   const { data, error } = await c
@@ -766,19 +798,93 @@ candidates.get("/me/posts", async (c) => {
   return c.json({ posts: data });
 });
 
+// Upload media for a not-yet-created post. Returns a media_path to pass to
+// POST /me/posts — mirrors the photo/video upload pattern above, but keyed
+// by a fresh id per upload (a candidate can have many posts with media,
+// unlike the single profile photo/video slot).
+candidates.post("/me/posts/media", async (c) => {
+  const contentType = c.req.header("Content-Type");
+  const isImage = contentType?.startsWith("image/");
+  const isVideo = contentType?.startsWith("video/");
+  const isPdf = contentType === "application/pdf";
+  if (!isImage && !isVideo && !isPdf) {
+    return c.json({ error: "Content-Type must be image/*, video/*, or application/pdf" }, 400);
+  }
+
+  const userId = c.get("userId");
+  const body = await c.req.arrayBuffer();
+  if (body.byteLength === 0) return c.json({ error: "Empty file" }, 400);
+  const maxBytes = isVideo ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
+  if (body.byteLength > maxBytes) {
+    return c.json({ error: `File too large — ${maxBytes / (1024 * 1024)}MB maximum` }, 400);
+  }
+
+  const mediaId = crypto.randomUUID();
+  const key = `candidates/${userId}/posts/${mediaId}`;
+  await c.env.MEDIA.put(key, body, { httpMetadata: { contentType } });
+
+  return c.json({
+    media_path: key,
+    media_filename: c.req.header("X-File-Name") || null,
+    media_size_bytes: body.byteLength,
+  });
+});
+
+candidates.get("/me/posts/media/:mediaId", async (c) => {
+  const userId = c.get("userId");
+  const object = await c.env.MEDIA.get(`candidates/${userId}/posts/${c.req.param("mediaId")}`);
+  if (!object) return c.json({ error: "Not found" }, 404);
+
+  return new Response(object.body, {
+    headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream" },
+  });
+});
+
 candidates.post("/me/posts", async (c) => {
   const body = await c.req.json();
   const text = typeof body.body === "string" ? body.body.trim() : "";
   if (!text) return c.json({ error: "body is required" }, 400);
   if (text.length > 8000) return c.json({ error: "Post is too long — 8000 characters maximum" }, 400);
 
-  const insert: Record<string, unknown> = { candidate_id: c.get("userId"), body: text };
+  const postType = (POST_TYPES as readonly string[]).includes(body.post_type) ? body.post_type : "text";
+
+  const insert: Record<string, unknown> = { candidate_id: c.get("userId"), body: text, post_type: postType };
   const title = typeof body.title === "string" ? body.title.trim() : "";
   if (title) insert.title = title;
 
-  const { data, error } = await c.get("supabase").from("candidate_posts").insert(insert).select().single();
+  if (postType === "photo" || postType === "video" || postType === "document") {
+    const mediaPath = typeof body.media_path === "string" ? body.media_path : "";
+    if (!mediaPath) return c.json({ error: "media_path is required for a photo/video/document post" }, 400);
+    insert.media_path = mediaPath;
+    insert.media_filename = typeof body.media_filename === "string" ? body.media_filename : null;
+    insert.media_size_bytes = typeof body.media_size_bytes === "number" ? body.media_size_bytes : null;
+    insert.media_duration_seconds = typeof body.media_duration_seconds === "number" ? body.media_duration_seconds : null;
+  }
+
+  if (postType === "checkin") {
+    const venueName = typeof body.checkin_venue_name === "string" ? body.checkin_venue_name.trim() : "";
+    if (!venueName) return c.json({ error: "checkin_venue_name is required for a check-in post" }, 400);
+    insert.checkin_venue_name = venueName;
+    if (typeof body.checkin_employer_id === "string" && body.checkin_employer_id) {
+      insert.checkin_venue_type = "employer";
+      insert.checkin_employer_id = body.checkin_employer_id;
+    } else {
+      insert.checkin_venue_type = "external";
+    }
+  }
+
+  const { data: post, error } = await c.get("supabase").from("candidate_posts").insert(insert).select().single();
   if (error) return c.json({ error: error.message }, 400);
-  return c.json({ post: data }, 201);
+
+  const mentionIds = Array.isArray(body.mentioned_candidate_ids)
+    ? body.mentioned_candidate_ids.filter((id: unknown): id is string => typeof id === "string")
+    : [];
+  if (mentionIds.length > 0) {
+    const rows = mentionIds.map((mentioned_candidate_id: string) => ({ post_id: post.id, mentioned_candidate_id }));
+    await c.get("supabase").from("post_mentions").insert(rows);
+  }
+
+  return c.json({ post }, 201);
 });
 
 candidates.patch("/me/posts/:id", async (c) => {
@@ -867,6 +973,37 @@ candidates.get("/me/badges", async (c) => {
 
   if (error) return c.json({ error: error.message }, 400);
   return c.json({ badges: data });
+});
+
+// --- Profile header (Rounds/Network/Messages/Profile build, 2026-09-11) ---
+// Everything else Profile's self-view needs already comes from the existing
+// endpoints above (GET /me, /me/employment-history, /me/qualifications,
+// /me/skills, /me/badges, /me/dbs, /me/posts) — this fills the small gap of
+// what none of those return: the account's display name, the identity-
+// verified badge (same rule as candidate_peer_feed/candidate_discover,
+// 0037 — right_to_work actually set AND a DBS certificate number on file,
+// deliberately independent of DBS Update Service confirmation state per
+// spec §5), a connections count, and total care experience.
+candidates.get("/me/profile-header", async (c) => {
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+
+  const [accountResult, candidateResult, dbsResult, connectionsResult, experienceResult] = await Promise.all([
+    supabase.from("accounts").select("full_name").eq("id", userId).single(),
+    supabase.from("candidates").select("right_to_work").eq("id", userId).single(),
+    supabase.from("dbs_records").select("certificate_number").eq("candidate_id", userId).maybeSingle(),
+    supabase.from("my_connections").select("connection_id", { count: "exact", head: true }),
+    supabase.rpc("total_experience_months", { p_candidate: userId }),
+  ]);
+
+  if (accountResult.error) return c.json({ error: accountResult.error.message }, 400);
+
+  return c.json({
+    full_name: accountResult.data.full_name,
+    identity_verified: candidateResult.data?.right_to_work !== "not_stated" && !!dbsResult.data?.certificate_number,
+    connections_count: connectionsResult.count ?? 0,
+    experience_months: typeof experienceResult.data === "number" ? experienceResult.data : 0,
+  });
 });
 
 // --- Account settings (SPRINTS.md Sprint 5) ---

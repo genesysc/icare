@@ -5,6 +5,9 @@ import candidates from "./candidates";
 import employersApi from "./employers";
 import employerChat from "./employer-chat";
 import waitlist from "./waitlist";
+import rounds from "./rounds";
+import network from "./network";
+import messagesApi from "./messages";
 import landingPage from "./landing.html";
 import employerLandingPage from "./employers.html";
 import privacyPage from "./privacy.html";
@@ -15,6 +18,7 @@ import verifyPage from "./verify.html";
 import onboardingPage from "./onboarding.html";
 import dashboardPage from "./dashboard.html";
 import employerHomePage from "./employer-home.html";
+import appPage from "./app.html";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -29,6 +33,9 @@ app.route("/candidates", candidates);
 app.route("/employers", employersApi);
 app.route("/employers/chat", employerChat);
 app.route("/waitlist", waitlist);
+app.route("/rounds", rounds);
+app.route("/network", network);
+app.route("/messages", messagesApi);
 
 app.get("/", (c) => c.html(landingPage));
 app.get("/employers", (c) => c.html(employerLandingPage));
@@ -42,6 +49,7 @@ app.get("/verify", (c) => c.html(verifyPage));
 app.get("/onboarding", (c) => c.html(onboardingPage));
 app.get("/dashboard", (c) => c.html(dashboardPage));
 app.get("/employer/home", (c) => c.html(employerHomePage));
+app.get("/app", (c) => c.html(appPage));
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
