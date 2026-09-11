@@ -40,7 +40,14 @@ stop and ask the user — do not resolve it yourself.**
    `derived` (computed from platform data), `declared` (candidate said
    so, unchecked). UI must keep these visually distinct. No client write
    path to `candidate_badges` should ever exist (RLS: read-only to
-   clients).
+   clients). **Trap found and fixed 2026-09-11**: any DB-side function
+   that writes to `candidate_badges` — not just client routes — must be
+   `security definer`, or it inherits the calling client's role and
+   fails RLS. `refresh_experience_badges()` (fired by an AFTER trigger
+   on every `employment_history` change) was missing this and broke
+   Step 4 of onboarding for every candidate until migration `0032`
+   added it. `publish_my_profile()` already had it right — check any
+   *new* badge-writing path against that pattern, not just this one.
 3. **Never claim a DBS is "verified."** Only the employer can verify a
    DBS, via the DBS Update Service. Correct wording: *"Enhanced DBS · on
    Update Service."* Forbidden: "DBS Certified/Verified/Checked." The
