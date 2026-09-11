@@ -34,14 +34,21 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 app.route("/auth", auth);
 app.route("/candidates", candidates);
-app.route("/employers", employersApi);
-app.route("/employers/chat", employerChat);
-app.route("/employers/jobs", jobs);
 app.route("/waitlist", waitlist);
 
 app.get("/", (c) => c.html(landingPage));
 app.get("/welcome", (c) => c.html(welcomePage));
 app.get("/employers", (c) => c.html(employerLandingPage));
+
+// Must be registered after the public GET /employers landing-page route
+// above — employersApi mounts requireAuth on "*", and Hono runs matching
+// middleware in registration order, so mounting it first would 401 the
+// public page before the handler above ever runs (confirmed live on
+// icareltd.com after this session's PR #29 merge: GET /employers was
+// returning 401 instead of the marketing page).
+app.route("/employers", employersApi);
+app.route("/employers/chat", employerChat);
+app.route("/employers/jobs", jobs);
 app.get("/privacy", (c) => c.html(privacyPage));
 app.get("/terms", (c) => c.html(termsPage));
 app.get("/sign-in", (c) => c.html(signInPage));
