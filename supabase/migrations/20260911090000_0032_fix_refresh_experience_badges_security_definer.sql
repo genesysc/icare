@@ -1,0 +1,38 @@
+-- Fix: saving a role in employment_history failed for every candidate with
+-- "new row violates row-level security policy for table candidate_badges".
+--
+-- Root cause: employment_history has an AFTER trigger (employment_history_
+-- badges, added in 0001_init) that calls refresh_experience_badges(), which
+-- deletes/inserts rows in candidate_badges — a table whose RLS intentionally
+-- has no insert/update/delete policy at all ("writable only by the service
+-- role", per 0001's own comment). refresh_experience_badges() was never
+-- marked `security definer`, so it always ran as the invoking candidate's
+-- own role and always failed RLS the moment anyone saved an employment_
+-- history row (insert, update, or delete — the trigger fires on all three).
+--
+-- publish_my_profile() (0003_onboarding) already awards badges correctly
+-- because IT is `security definer` — and it happens to call
+-- refresh_experience_badges() itself at the end, which is why this bug
+-- never showed up there: a security-definer function's elevated privilege
+-- covers functions it calls during its own execution. The direct trigger
+-- path (fired on every employment_history save from the wizard, not just
+-- at publish time) had no such protection.
+--
+-- 0005_security_hardening.sql already did
+-- `alter function public.refresh_experience_badges(uuid) set search_path =
+-- public`, which only makes sense for a security-definer function — a
+-- strong sign this was meant to be one from the start and the actual
+-- `security definer` clause was simply missed.
+--
+-- Fix is a single ALTER — Postgres allows changing SECURITY DEFINER/INVOKER
+-- without redefining the function body.
+alter function public.refresh_experience_badges(uuid) security definer;
+
+-- No privilege grant changes needed: the function is still only ever
+-- invoked (a) by the employment_history trigger, itself running as the
+-- authenticated candidate, which needs EXECUTE on this function to call it
+-- at all, and (b) internally by publish_my_profile(). Revoking EXECUTE from
+-- `authenticated` would break (a). The function only ever reads the target
+-- candidate's own true employment_history and re-derives badges from it —
+-- it accepts no caller-supplied badge value, so there is nothing for a
+-- caller to forge even if they invoked it directly for another candidate id.
