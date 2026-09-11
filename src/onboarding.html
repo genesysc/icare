@@ -306,6 +306,10 @@
       <strong>We noticed but didn't extract:</strong> <span data-cv-sensitive-list></span> — we don't pull these from a CV automatically. Add them yourself only where the platform actually asks.
     </div>
 
+    <div class="sensitive-notice" data-cv-truncated-notice style="display:none;">
+      <strong>This CV was very long, so we only read part of it.</strong> Check the rest carefully, especially older roles and qualifications, and add anything missing yourself.
+    </div>
+
     <div class="field">
       <label for="cv-headline">Headline</label>
       <input id="cv-headline" type="text" maxlength="120" />
@@ -1024,7 +1028,7 @@ function icareRequireAuth(signInPath) {
     });
   }
 
-  function showCvReview(parsed, sensitiveFound) {
+  function showCvReview(parsed, sensitiveFound, truncated) {
     document.querySelector("[data-cv-intro]").style.display = "none";
     document.querySelector("[data-wizard-shell]").style.display = "none";
     document.querySelector("[data-cv-review]").style.display = "block";
@@ -1037,6 +1041,7 @@ function icareRequireAuth(signInPath) {
     } else {
       notice.style.display = "none";
     }
+    document.querySelector("[data-cv-truncated-notice]").style.display = truncated ? "block" : "none";
 
     document.getElementById("cv-headline").value = parsed.headline || "";
     document.getElementById("cv-about").value = parsed.about || "";
@@ -1534,7 +1539,7 @@ function icareRequireAuth(signInPath) {
         }
         cvImportId = cvImport.id;
         cvParsed = cvImport.parsed;
-        showCvReview(cvParsed, cvImport.sensitive_found || []);
+        showCvReview(cvParsed, cvImport.sensitive_found || [], !!result.body.cv_text_truncated);
       }).catch(function () {
         document.querySelector("[data-cv-parsing]").classList.remove("is-visible");
         resetCvIntroState();
