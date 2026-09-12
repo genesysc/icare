@@ -131,6 +131,7 @@
   .status { margin-top: 14px; font-size: 13.5px; display: none; }
   .status.is-visible { display: block; }
   .status.err { color: var(--err); }
+  .status.ok { color: var(--teal-700); }
 
   .holding { text-align: center; }
   .soon-tag {
@@ -1418,10 +1419,24 @@ function icareRequireAuth(signInPath) {
   }
 
   // ---- Photo (existing routes) ----
+  // GET /candidates/me/photo requires an Authorization bearer header (see
+  // middleware.ts) -- a plain <img src="..."> never sends one, so the
+  // browser loads it unauthenticated and gets a 401 back as the "image",
+  // which just renders as a broken-image icon. This was a real bug (found
+  // 2026-09-12 from a founder screenshot: the photo genuinely uploaded --
+  // it showed correctly on /home, which already fetches it the right way
+  // -- but never rendered here). Fetch it with the real auth header and
+  // hand the browser a blob: URL instead, same pattern home.html/
+  // network.html already use for peer photos.
   function renderPhotoPreview() {
     var preview = document.querySelector("[data-photo-preview]");
     if (candidate && candidate.photo_path) {
-      preview.innerHTML = '<img src="/candidates/me/photo?t=' + Date.now() + '" alt="Your photo" />';
+      preview.innerHTML = '<img alt="Your photo" />';
+      var img = preview.querySelector("img");
+      icareAuthFetch("/candidates/me/photo?t=" + Date.now())
+        .then(function (res) { return res.ok ? res.blob() : Promise.reject(new Error("load failed")); })
+        .then(function (blob) { img.src = URL.createObjectURL(blob); })
+        .catch(function () { preview.innerHTML = '<span class="photo-preview-empty">Couldn\'t load your photo</span>'; });
     } else {
       preview.innerHTML = '<span class="photo-preview-empty">No photo yet</span>';
     }
@@ -2055,6 +2070,7 @@ function icareRequireAuth(signInPath) {
           }
           candidate.photo_path = result.body.candidate.photo_path;
           renderPhotoPreview();
+          setStatus("photo", "ok", "Photo uploaded.");
         }).catch(function (err) {
           btn.disabled = false;
           setStatus("photo", "err", (err && err.message) || "Something went wrong. Please try again.");
