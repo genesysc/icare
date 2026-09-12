@@ -546,7 +546,22 @@ function icareRequireAuth(signInPath) {
     document.querySelector("[data-dashboard-content]").style.display = "block";
 
     if (candidate.photo_path) {
-      document.querySelector("[data-photo]").innerHTML = '<img src="/candidates/me/photo?t=' + Date.now() + '" alt="Your photo" />';
+      // GET /candidates/me/photo requires an Authorization bearer header
+      // (middleware.ts) -- a plain <img src="..."> never sends one, so it
+      // loads unauthenticated, gets a 401 back as the "image", and renders
+      // as a broken-image icon (real bug found 2026-09-12: the photo
+      // genuinely uploaded and showed correctly on /home, which already
+      // fetches it with auth -- it just never rendered here or on the
+      // onboarding wizard's own preview, same bug in both places). Fetch
+      // with the real auth header and hand the browser a blob: URL,
+      // same pattern home.html/network.html already use for peer photos.
+      var photoEl = document.querySelector("[data-photo]");
+      photoEl.innerHTML = '<img alt="Your photo" />';
+      var photoImg = photoEl.querySelector("img");
+      icareAuthFetch("/candidates/me/photo?t=" + Date.now())
+        .then(function (res) { return res.ok ? res.blob() : Promise.reject(new Error("load failed")); })
+        .then(function (blob) { photoImg.src = URL.createObjectURL(blob); })
+        .catch(function () { photoEl.innerHTML = '<span class="profile-photo-empty">Couldn\'t load photo</span>'; });
     }
     document.querySelector("[data-headline]").textContent = candidate.headline || "Your profile";
     var metaParts = [];
