@@ -1022,6 +1022,91 @@ candidates.delete("/network/:id", async (c) => {
   return c.body(null, 204);
 });
 
+// --- Messages (candidate-to-candidate direct messaging) ---
+// Gated to accepted connections only — enforced once, at conversation
+// creation, by the get_or_create_conversation() RPC (migration 0036),
+// not re-checked per message. That matches how nothing else in this
+// schema unwinds access once already granted (e.g. a shortlist's
+// consent isn't re-checked retroactively either): removing the
+// connection later doesn't retroactively hide an existing thread.
+// conversation_inbox (0037) is the query surface for the inbox list —
+// same bypass-RLS-via-view pattern as candidate_discover — joining in
+// the other party's name/photo and a last-message preview/unread count
+// so the client doesn't need a second round trip per conversation.
+
+candidates.get("/messages", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("conversation_inbox")
+    .select("*")
+    .order("last_message_at", { ascending: false, nullsFirst: false });
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ conversations: data });
+});
+
+// Lightweight check for the nav tab-bar's unread dot (see nav-shell.html) —
+// avoids every page having to pull the full inbox just to know if the dot
+// should show.
+candidates.get("/messages/unread-count", async (c) => {
+  const { data, error } = await c.get("supabase").from("conversation_inbox").select("unread_count");
+  if (error) return c.json({ error: error.message }, 400);
+  const unread = (data || []).reduce((sum, row) => sum + (row.unread_count || 0), 0);
+  return c.json({ unread });
+});
+
+candidates.post("/messages/start", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const otherId = typeof body?.candidate_id === "string" ? body.candidate_id : null;
+  if (!otherId) return c.json({ error: "candidate_id is required" }, 400);
+
+  const { data, error } = await c.get("supabase").rpc("get_or_create_conversation", { p_other_candidate_id: otherId });
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ conversation_id: data });
+});
+
+candidates.get("/messages/:id", async (c) => {
+  const conversationId = c.req.param("id");
+  const supabase = c.get("supabase");
+  const userId = c.get("userId");
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+  if (error) return c.json({ error: error.message }, 400);
+
+  // Mark the other party's messages read now that this candidate has
+  // opened the thread — RLS (messages_parties_update, 0036) restricts
+  // this to a conversation this candidate is actually a party to.
+  await supabase
+    .from("messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("conversation_id", conversationId)
+    .neq("sender_id", userId)
+    .is("read_at", null);
+
+  return c.json({ messages: data });
+});
+
+candidates.post("/messages/:id", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const text = typeof body?.body === "string" ? body.body.trim() : "";
+  if (!text) return c.json({ error: "body is required" }, 400);
+  if (text.length > 4000) return c.json({ error: "Message is too long — 4000 characters maximum" }, 400);
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("messages")
+    .insert({ conversation_id: c.req.param("id"), sender_id: c.get("userId"), body: text })
+    .select()
+    .single();
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ message: data }, 201);
+});
+
 // --- Incoming shortlists + consent (SPRINTS.md Sprint 9 remainder) ---
 // Consent unlocks photo/video/CV specifically for that employer — name/
 // job title/location are already visible pre-shortlist per non-negotiable

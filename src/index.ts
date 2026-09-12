@@ -22,6 +22,7 @@ import credentialsPage from "./credentials.html";
 import visibilityPage from "./visibility.html";
 import homePage from "./home.html";
 import networkPage from "./network.html";
+import messagesPage from "./messages.html";
 import employerHomePage from "./employer-home.html";
 
 type Bindings = {
@@ -64,6 +65,7 @@ app.get("/credentials", (c) => c.html(credentialsPage));
 app.get("/visibility", (c) => c.html(visibilityPage));
 app.get("/home", (c) => c.html(homePage));
 app.get("/network", (c) => c.html(networkPage));
+app.get("/messages", (c) => c.html(messagesPage));
 app.get("/employer/home", (c) => c.html(employerHomePage));
 
 app.get("/health", (c) => c.json({ status: "ok" }));

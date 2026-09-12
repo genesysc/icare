@@ -1,0 +1,388 @@
+<!--
+  iCare candidate Messages — direct 1:1 messaging between candidates.
+
+  Gated to accepted connections only (see candidates.ts's Messages
+  section and migration 0036's get_or_create_conversation() RPC) — there
+  is no message-request-with-a-note pattern here, that belongs to
+  Network's Connect flow. Reachable from network.html's Connections tab
+  ("Message" button) which links here as `/messages?with=<candidateId>`;
+  opening with that query param starts-or-resumes the thread immediately.
+
+  Same design system/conventions as network.html: plum/teal palette,
+  nav-shell tab-bar (now six items — this page adds the sixth), and the
+  same fetch-as-blob technique for another candidate's photo via GET
+  /candidates/:id/photo.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Messages — iCare</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533;
+    --plum-800: #382349;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --amber-600: #b8791f;
+    --amber-100: #faedd4;
+    --paper: #fefefc;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --err: #b23a24;
+    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  p { margin: 0; }
+  button { font-family: inherit; }
+  a { color: var(--teal-700); }
+
+  .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+  .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .sign-out:hover { color: var(--teal-700); }
+
+  /* Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment */
+  .tab-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; background: var(--white); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-bar-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint);
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-bar-item.is-active { color: var(--teal-700); }
+  .tab-bar-item .tab-bar-icon-wrap { position: relative; }
+  .tab-bar-dot {
+    position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px;
+    background: var(--teal-500); border: 1.5px solid var(--white); display: none;
+  }
+  .tab-bar-dot.is-visible { display: block; }
+
+  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; }
+
+  .page-head { margin-bottom: 18px; }
+  .page-head h1 { font-size: 24px; }
+  .page-head p { margin-top: 6px; font-size: 13.5px; color: var(--ink-faint); line-height: 1.5; }
+
+  .person-item { background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .person-item:hover { border-color: var(--teal-500); }
+  .person-avatar { width: 40px; height: 40px; border-radius: 999px; background: var(--paper-dim); border: 1.5px solid var(--line); flex: none; display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-faint); overflow: hidden; }
+  .person-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .person-meta { flex: 1; min-width: 0; }
+  .person-name { font-size: 14.5px; font-weight: 700; color: var(--plum-950); }
+  .person-sub { margin-top: 1px; font-size: 12.5px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .unread-badge { flex: none; background: var(--teal-500); color: var(--white); font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 700; min-width: 20px; height: 20px; border-radius: 10px; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+
+  .empty-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 30px 0; }
+  .loading-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 40px 0; }
+  .status { margin-top: 10px; font-size: 13px; display: none; }
+  .status.is-visible { display: block; }
+  .status.err { color: var(--err); }
+
+  /* Thread view */
+  .thread-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .back-btn { background: none; border: none; color: var(--teal-700); font-size: 20px; cursor: pointer; padding: 4px 6px 4px 0; }
+  .thread-name { font-size: 17px; font-weight: 700; color: var(--plum-950); }
+  .thread-messages { display: flex; flex-direction: column; gap: 8px; padding-bottom: 90px; }
+  .bubble { max-width: 78%; padding: 9px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.45; }
+  .bubble.sent { align-self: flex-end; background: var(--plum-950); color: var(--white); border-bottom-right-radius: 4px; }
+  .bubble.received { align-self: flex-start; background: var(--white); border: 1px solid var(--line); color: var(--ink-soft); border-bottom-left-radius: 4px; }
+  .thread-compose { position: fixed; bottom: 56px; left: 0; right: 0; z-index: 30; background: var(--white); border-top: 1px solid var(--line); padding: 10px 24px; display: flex; gap: 8px; }
+  .thread-compose-inner { max-width: 592px; margin: 0 auto; display: flex; gap: 8px; width: 100%; }
+  .thread-compose input { flex: 1; border: 1.5px solid var(--line); border-radius: 999px; padding: 10px 16px; font-family: inherit; font-size: 13.5px; color: var(--plum-950); }
+  .thread-compose input:focus { outline: none; border-color: var(--teal-500); }
+  .thread-compose button { background: var(--teal-500); color: var(--white); border: none; border-radius: 999px; padding: 10px 18px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .thread-compose button:hover { background: var(--teal-700); }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</header>
+
+<div class="wrap">
+  <p class="loading-note" data-loading>Loading your messages…</p>
+
+  <div data-inbox-view hidden>
+    <div class="page-head">
+      <h1>Messages</h1>
+      <p>Direct messages with your accepted connections. You can only message someone once you're both connected —
+        send a request from Network first.</p>
+    </div>
+    <div data-inbox-list></div>
+    <p class="empty-note" data-inbox-empty hidden>No conversations yet — message an accepted connection from your
+      Network to start one.</p>
+    <p class="status" data-status></p>
+  </div>
+
+  <div data-thread-view hidden>
+    <div class="thread-head">
+      <button type="button" class="back-btn" data-back-to-inbox>←</button>
+      <span class="thread-name" data-thread-name></span>
+    </div>
+    <div class="thread-messages" data-thread-messages></div>
+  </div>
+</div>
+
+<div class="thread-compose" data-thread-compose hidden>
+  <div class="thread-compose-inner">
+    <input type="text" placeholder="Write a message…" data-thread-input maxlength="4000" />
+    <button type="button" data-thread-send>Send</button>
+  </div>
+</div>
+
+<!-- Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment -->
+<nav class="tab-bar" aria-label="Main">
+  <a href="/home" class="tab-bar-item" data-tab="home">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="/invites" class="tab-bar-item" data-tab="invites">
+    <span class="tab-bar-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+      <span class="tab-bar-dot" data-invites-dot></span>
+    </span>
+    <span>Invites</span>
+  </a>
+  <a href="/pipelines" class="tab-bar-item" data-tab="pipelines">
+    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    <span>Pipelines</span>
+  </a>
+  <a href="/network" class="tab-bar-item" data-tab="network">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Network</span>
+  </a>
+  <a href="/messages" class="tab-bar-item is-active" data-tab="messages">
+    <span class="tab-bar-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="tab-bar-dot" data-messages-dot></span>
+    </span>
+    <span>Messages</span>
+  </a>
+  <a href="/dashboard" class="tab-bar-item" data-tab="profile">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Profile</span>
+  </a>
+</nav>
+
+<script>
+var ICARE_SESSION_KEY = "icare_session";
+function icareGetSession() {
+  try { var raw = localStorage.getItem(ICARE_SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+function icareClearSession() {
+  try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {}
+}
+function icareIsSessionExpired(session) {
+  if (!session || !session.expires_at) return true;
+  return Date.now() >= session.expires_at * 1000;
+}
+function icareAuthFetch(url, options) {
+  var session = icareGetSession();
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+function icareRequireAuth(signInPath) {
+  var session = icareGetSession();
+  if (!session || icareIsSessionExpired(session)) {
+    icareClearSession();
+    var next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = (signInPath || "/sign-in") + "?next=" + next;
+    return null;
+  }
+  return session;
+}
+
+(function () {
+  var session = icareRequireAuth();
+  if (!session) return;
+  var myId = session.user && session.user.id;
+
+  function jget(url) {
+    return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+  function jpost(url, payload) {
+    return icareAuthFetch(url, { method: "POST", body: JSON.stringify(payload || {}) })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+
+  function setStatus(text, isErr) {
+    var el = document.querySelector("[data-status]");
+    el.textContent = text;
+    el.className = text ? ("status is-visible" + (isErr ? " err" : "")) : "status";
+  }
+
+  function initials(text) {
+    if (!text) return "?";
+    var words = text.trim().split(/\s+/).slice(0, 2);
+    return words.map(function (w) { return w[0].toUpperCase(); }).join("");
+  }
+
+  function loadAvatarPhoto(imgEl, candidateId) {
+    icareAuthFetch("/candidates/" + candidateId + "/photo").then(function (res) {
+      if (!res.ok) return;
+      return res.blob().then(function (blob) { imgEl.src = URL.createObjectURL(blob); });
+    }).catch(function () {});
+  }
+
+  function fillAvatar(avatarEl, name, candidateId, hasPhoto) {
+    avatarEl.textContent = initials(name);
+    if (hasPhoto) {
+      var img = document.createElement("img");
+      img.alt = name;
+      avatarEl.textContent = "";
+      avatarEl.appendChild(img);
+      loadAvatarPhoto(img, candidateId);
+    }
+  }
+
+  function renderInbox(conversations) {
+    var list = document.querySelector("[data-inbox-list]");
+    var empty = document.querySelector("[data-inbox-empty]");
+    list.innerHTML = "";
+    if (!conversations || conversations.length === 0) { empty.hidden = false; return; }
+    empty.hidden = true;
+    conversations.forEach(function (conv) {
+      var item = document.createElement("div");
+      item.className = "person-item";
+      item.innerHTML =
+        '<div class="person-avatar"></div>' +
+        '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div></div>' +
+        (conv.unread_count ? '<span class="unread-badge"></span>' : "");
+      fillAvatar(item.querySelector(".person-avatar"), conv.other_full_name, conv.other_candidate_id, conv.other_has_photo);
+      item.querySelector(".person-name").textContent = conv.other_full_name || "A candidate";
+      item.querySelector(".person-sub").textContent = conv.last_message_body
+        ? (conv.last_message_sender_id === myId ? "You: " : "") + conv.last_message_body
+        : "Say hello 👋";
+      var badge = item.querySelector(".unread-badge");
+      if (badge) badge.textContent = conv.unread_count;
+      item.addEventListener("click", function () { openThread(conv.conversation_id, conv.other_full_name); });
+      list.appendChild(item);
+    });
+  }
+
+  function loadInbox() {
+    return jget("/candidates/messages").then(function (result) {
+      if (result.ok) renderInbox(result.body.conversations);
+      return result;
+    });
+  }
+
+  var activeConversationId = null;
+
+  function showInbox() {
+    activeConversationId = null;
+    document.querySelector("[data-inbox-view]").hidden = false;
+    document.querySelector("[data-thread-view]").hidden = true;
+    document.querySelector("[data-thread-compose]").hidden = true;
+    loadInbox();
+  }
+
+  function openThread(conversationId, otherName) {
+    activeConversationId = conversationId;
+    document.querySelector("[data-inbox-view]").hidden = true;
+    document.querySelector("[data-thread-view]").hidden = false;
+    document.querySelector("[data-thread-compose]").hidden = false;
+    document.querySelector("[data-thread-name]").textContent = otherName || "Conversation";
+
+    jget("/candidates/messages/" + conversationId).then(function (result) {
+      if (!result.ok) { setStatus(result.body.error || "Couldn't load that conversation.", true); return; }
+      var wrap = document.querySelector("[data-thread-messages]");
+      wrap.innerHTML = "";
+      (result.body.messages || []).forEach(function (m) {
+        var bubble = document.createElement("div");
+        bubble.className = "bubble " + (m.sender_id === myId ? "sent" : "received");
+        bubble.textContent = m.body;
+        wrap.appendChild(bubble);
+      });
+      window.scrollTo(0, document.body.scrollHeight);
+    });
+  }
+
+  document.querySelector("[data-back-to-inbox]").addEventListener("click", showInbox);
+
+  function sendMessage() {
+    var input = document.querySelector("[data-thread-input]");
+    var text = input.value.trim();
+    if (!text || !activeConversationId) return;
+    input.value = "";
+    jpost("/candidates/messages/" + activeConversationId, { body: text }).then(function (result) {
+      if (!result.ok) { setStatus(result.body.error || "Couldn't send that message.", true); return; }
+      openThread(activeConversationId, document.querySelector("[data-thread-name]").textContent);
+    });
+  }
+  document.querySelector("[data-thread-send]").addEventListener("click", sendMessage);
+  document.querySelector("[data-thread-input]").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") sendMessage();
+  });
+
+  var params = new URLSearchParams(window.location.search);
+  var startWith = params.get("with");
+
+  Promise.all([loadInbox(), jget("/candidates/me/shortlists")]).then(function (results) {
+    var inboxResult = results[0], shortlistsResult = results[1];
+    document.querySelector("[data-loading]").style.display = "none";
+    if (!inboxResult.ok) {
+      document.querySelector("[data-loading]").style.display = "block";
+      document.querySelector("[data-loading]").textContent = "Couldn't load your messages. Try refreshing the page.";
+      return;
+    }
+    document.querySelector("[data-inbox-view]").hidden = false;
+
+    if (shortlistsResult.ok) {
+      var hasNew = (shortlistsResult.body.shortlists || []).some(function (r) { return !r.candidate_consented_at && !r.closed_at; });
+      document.querySelector("[data-invites-dot]").classList.toggle("is-visible", hasNew);
+    }
+
+    if (startWith) {
+      jpost("/candidates/messages/start", { candidate_id: startWith }).then(function (result) {
+        if (result.ok) {
+          document.querySelector("[data-inbox-view]").hidden = true;
+          openThread(result.body.conversation_id, "");
+          loadInbox();
+        } else {
+          setStatus(result.body.error || "Couldn't start that conversation.", true);
+        }
+      });
+    }
+  }).catch(function () {
+    document.querySelector("[data-loading]").textContent = "Couldn't load your messages. Try refreshing the page.";
+  });
+
+  document.querySelector("[data-sign-out]").addEventListener("click", function () {
+    icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
+      icareClearSession();
+      window.location.href = "/";
+    });
+  });
+})();
+</script>
+</body>
+</html>
