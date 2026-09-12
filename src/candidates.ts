@@ -819,9 +819,21 @@ candidates.delete("/me/prompts/:promptId", async (c) => {
 // pattern of manual review via the Supabase dashboard (see employer
 // verification): an employer can call flag_candidate_post() (src/employers.ts),
 // which just sets is_flagged — nothing here polices content up front.
+//
+// Rounds composer (2026-09-12): five post types share this table
+// (candidate_posts.post_type, migration 0034). Media (photo/video/
+// document) is uploaded first via POST /me/posts/media, which returns a
+// media_path this endpoint then references — same two-step shape as the
+// CV import flow above, so a half-finished upload never leaves a
+// dangling R2 object with no referencing row. Check-in is a named-venue
+// field, never free text or device coordinates (see 0034's migration
+// comment) — checkin_venue_name is either an existing employer's
+// org_name (checkin_employer_id set) or a free-typed name for a
+// training centre/conference the employers table doesn't have.
 
 const POST_FIELDS = ["title", "body", "visibility"] as const;
 const POST_VISIBILITIES = ["public", "connections"] as const;
+const POST_TYPES = ["text", "photo", "video", "document", "checkin"] as const;
 
 candidates.get("/me/posts", async (c) => {
   const { data, error } = await c
@@ -835,13 +847,77 @@ candidates.get("/me/posts", async (c) => {
   return c.json({ posts: data });
 });
 
+// Upload media for a not-yet-created post. Returns a media_path to pass
+// to POST /me/posts — mirrors the profile photo/video upload pattern
+// above, but keyed by a fresh id per upload (a candidate can have many
+// posts with media, unlike the single profile photo/video slot).
+candidates.post("/me/posts/media", async (c) => {
+  const contentType = c.req.header("Content-Type");
+  const isImage = contentType?.startsWith("image/");
+  const isVideo = contentType?.startsWith("video/");
+  const isPdf = contentType === "application/pdf";
+  if (!isImage && !isVideo && !isPdf) {
+    return c.json({ error: "Content-Type must be image/*, video/*, or application/pdf" }, 400);
+  }
+
+  const userId = c.get("userId");
+  const body = await c.req.arrayBuffer();
+  if (body.byteLength === 0) return c.json({ error: "Empty file" }, 400);
+  const maxBytes = isVideo ? 100 * 1024 * 1024 : 20 * 1024 * 1024;
+  if (body.byteLength > maxBytes) {
+    return c.json({ error: `File too large — ${maxBytes / (1024 * 1024)}MB maximum` }, 400);
+  }
+
+  const mediaId = crypto.randomUUID();
+  const key = `candidates/${userId}/posts/${mediaId}`;
+  await c.env.MEDIA.put(key, body, { httpMetadata: { contentType } });
+
+  return c.json({
+    media_path: key,
+    media_filename: c.req.header("X-File-Name") || null,
+    media_size_bytes: body.byteLength,
+  });
+});
+
+// Media attached to any post this candidate can see — looked up via
+// candidate_peer_feed first (the query surface for everyone else's
+// posts, same bypass-RLS-via-view pattern as candidate_discover), falling
+// back to the candidate's own row (candidate_posts_self RLS) since
+// candidate_peer_feed excludes a candidate's own connections-only posts
+// from their own feed by design.
+candidates.get("/posts/:id/media", async (c) => {
+  const postId = Number(c.req.param("id"));
+  const supabase = c.get("supabase");
+
+  const { data: feedPost } = await supabase.from("candidate_peer_feed").select("media_path").eq("id", postId).maybeSingle();
+  let mediaPath = feedPost?.media_path ?? null;
+  if (!mediaPath) {
+    const { data: ownPost } = await supabase
+      .from("candidate_posts")
+      .select("media_path")
+      .eq("id", postId)
+      .eq("candidate_id", c.get("userId"))
+      .maybeSingle();
+    mediaPath = ownPost?.media_path ?? null;
+  }
+  if (!mediaPath) return c.json({ error: "Not found" }, 404);
+
+  const object = await c.env.MEDIA.get(mediaPath);
+  if (!object) return c.json({ error: "Not found" }, 404);
+
+  return new Response(object.body, {
+    headers: { "Content-Type": object.httpMetadata?.contentType || "application/octet-stream" },
+  });
+});
+
 candidates.post("/me/posts", async (c) => {
   const body = await c.req.json();
   const text = typeof body.body === "string" ? body.body.trim() : "";
   if (!text) return c.json({ error: "body is required" }, 400);
   if (text.length > 8000) return c.json({ error: "Post is too long — 8000 characters maximum" }, 400);
 
-  const insert: Record<string, unknown> = { candidate_id: c.get("userId"), body: text };
+  const postType = (POST_TYPES as readonly string[]).includes(body.post_type) ? body.post_type : "text";
+  const insert: Record<string, unknown> = { candidate_id: c.get("userId"), body: text, post_type: postType };
   const title = typeof body.title === "string" ? body.title.trim() : "";
   if (title) insert.title = title;
   // Sprint 24: public by default (matches what posts already were before
@@ -854,9 +930,171 @@ candidates.post("/me/posts", async (c) => {
     insert.visibility = body.visibility;
   }
 
-  const { data, error } = await c.get("supabase").from("candidate_posts").insert(insert).select().single();
+  if (postType === "photo" || postType === "video" || postType === "document") {
+    const mediaPath = typeof body.media_path === "string" ? body.media_path : "";
+    if (!mediaPath) return c.json({ error: "media_path is required for a photo/video/document post" }, 400);
+    insert.media_path = mediaPath;
+    insert.media_filename = typeof body.media_filename === "string" ? body.media_filename : null;
+    insert.media_size_bytes = typeof body.media_size_bytes === "number" ? body.media_size_bytes : null;
+    insert.media_duration_seconds = typeof body.media_duration_seconds === "number" ? body.media_duration_seconds : null;
+  }
+
+  if (postType === "checkin") {
+    const venueName = typeof body.checkin_venue_name === "string" ? body.checkin_venue_name.trim() : "";
+    if (!venueName) return c.json({ error: "checkin_venue_name is required for a check-in post" }, 400);
+    insert.checkin_venue_name = venueName;
+    if (typeof body.checkin_employer_id === "string" && body.checkin_employer_id) {
+      insert.checkin_venue_type = "employer";
+      insert.checkin_employer_id = body.checkin_employer_id;
+    } else {
+      insert.checkin_venue_type = "external";
+    }
+  }
+
+  const { data: post, error } = await c.get("supabase").from("candidate_posts").insert(insert).select().single();
   if (error) return c.json({ error: error.message }, 400);
-  return c.json({ post: data }, 201);
+
+  const mentionIds = Array.isArray(body.mentioned_candidate_ids)
+    ? body.mentioned_candidate_ids.filter((id: unknown): id is string => typeof id === "string")
+    : [];
+  if (mentionIds.length > 0) {
+    const rows = mentionIds.map((mentioned_candidate_id: string) => ({ post_id: post.id, mentioned_candidate_id }));
+    await c.get("supabase").from("post_mentions").insert(rows);
+  }
+
+  return c.json({ post }, 201);
+});
+
+// @Mention search while composing — platform-wide (candidates are
+// trusted with mentioning anyone, same tier of info Network's Discover
+// already shows), not limited to connections. candidate_mention_search
+// (migration 0038) deliberately doesn't share candidate_discover's
+// self/connection exclusions — you should be able to mention an existing
+// connection too.
+candidates.get("/mention-search", async (c) => {
+  const q = (c.req.query("q") || "").trim();
+  if (q.length < 2) return c.json({ candidates: [] });
+
+  const { data, error } = await c
+    .get("supabase")
+    .from("candidate_mention_search")
+    .select("*")
+    .ilike("full_name", `%${q}%`)
+    .neq("id", c.get("userId"))
+    .limit(8);
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ candidates: data });
+});
+
+// Check-in venue lookup — scoped, not open geolocation: the client sends
+// a free-text query plus an optional GPS-derived viewbox to narrow
+// results, and the response is only ever a list of NAMED places. Raw
+// coordinates never leave the browser or get stored anywhere here — only
+// a candidate's own final venue-name pick (POST /me/posts) is ever
+// saved. Employer venues from this platform's own directory are offered
+// first; OpenStreetMap Nominatim only fills in venues that aren't
+// already one of our employers (training centres, conference venues).
+candidates.get("/checkin/venues", async (c) => {
+  const q = (c.req.query("q") || "").trim();
+  if (!q || q.length < 2) return c.json({ employers: [], places: [] });
+
+  const supabase = c.get("supabase");
+  const { data: employerMatches } = await supabase
+    .from("employers")
+    .select("id, org_name")
+    .ilike("org_name", `%${q}%`)
+    .eq("is_verified", true)
+    .limit(8);
+
+  const viewbox = c.req.query("viewbox"); // "minLon,maxLat,maxLon,minLat" — optional GPS-derived bounding box
+  const params = new URLSearchParams({ q, format: "jsonv2", limit: "8", addressdetails: "0" });
+  if (viewbox && /^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(viewbox)) {
+    params.set("viewbox", viewbox);
+    params.set("bounded", "1");
+  }
+
+  let places: { name: string }[] = [];
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+      headers: { "User-Agent": "iCare-app/1.0 (info@icareltd.com)" },
+    });
+    if (res.ok) {
+      const results = await res.json<{ display_name: string; name?: string }[]>();
+      places = results.map((r) => ({ name: r.name || r.display_name.split(",")[0] }));
+    }
+  } catch {
+    // Nominatim hiccup — employer matches still work, just no external suggestions.
+  }
+
+  return c.json({
+    employers: (employerMatches || []).map((e) => ({ id: e.id, name: e.org_name })),
+    places,
+  });
+});
+
+// --- Reactions & comments (Rounds) ---
+// Exactly one reaction type ("Helpful") — no share/repost by design:
+// uncontrolled resharing works against the consent-gated visibility
+// model everywhere else on this platform. Both go through security-
+// definer RPCs (toggle_post_reaction/add_post_comment, migration 0035)
+// that re-check the same visibility rule candidate_peer_feed encodes, so
+// a candidate can't react to or comment on a post they can't actually see.
+
+candidates.post("/posts/:id/reaction", async (c) => {
+  const { data, error } = await c.get("supabase").rpc("toggle_post_reaction", { p_post_id: Number(c.req.param("id")) });
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ reacted: data });
+});
+
+candidates.get("/posts/:id/comments", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("post_comments_feed")
+    .select("*")
+    .eq("post_id", c.req.param("id"))
+    .order("created_at", { ascending: true });
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ comments: data });
+});
+
+candidates.post("/posts/:id/comments", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const text = typeof body?.body === "string" ? body.body.trim() : "";
+  if (!text) return c.json({ error: "body is required" }, 400);
+
+  const { data, error } = await c
+    .get("supabase")
+    .rpc("add_post_comment", { p_post_id: Number(c.req.param("id")), p_body: text });
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ comment_id: data }, 201);
+});
+
+candidates.delete("/comments/:id", async (c) => {
+  const { error } = await c
+    .get("supabase")
+    .from("post_comments")
+    .delete()
+    .eq("id", c.req.param("id"))
+    .eq("candidate_id", c.get("userId"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.body(null, 204);
+});
+
+// Who's mentioned in a post, resolved to directory-level info only — via
+// post_mentions_feed (migration 0037), never more than candidate_discover
+// already exposes to any candidate.
+candidates.get("/posts/:id/mentions", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("post_mentions_feed")
+    .select("*")
+    .eq("post_id", c.req.param("id"));
+
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ mentions: data });
 });
 
 candidates.patch("/me/posts/:id", async (c) => {
@@ -959,7 +1197,7 @@ candidates.get("/network", async (c) => {
 
   const { data: rows, error } = await supabase
     .from("connections")
-    .select("id, requester_id, addressee_id, status, created_at, responded_at")
+    .select("id, requester_id, addressee_id, status, created_at, responded_at, note")
     .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
   if (error) return c.json({ error: error.message }, 400);
 
@@ -969,7 +1207,7 @@ candidates.get("/network", async (c) => {
 
   const incoming = (rows || [])
     .filter((r) => r.status === "pending" && r.addressee_id === userId)
-    .map((r) => ({ connection_id: r.id, created_at: r.created_at, profile: profileById.get(r.requester_id) || null }));
+    .map((r) => ({ connection_id: r.id, created_at: r.created_at, note: r.note, profile: profileById.get(r.requester_id) || null }));
 
   const outgoing = (rows || [])
     .filter((r) => r.status === "pending" && r.requester_id === userId)
@@ -990,11 +1228,15 @@ candidates.post("/network/request", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const addresseeId = typeof body?.addressee_id === "string" ? body.addressee_id : null;
   if (!addresseeId) return c.json({ error: "addressee_id is required" }, 400);
+  // Optional note (migration 0034's connections.note) — the Connect flow
+  // reveals a textarea before sending, not a blind request; empty/absent
+  // is fine, don't require it (that would suppress low-friction connecting).
+  const note = typeof body?.note === "string" && body.note.trim() ? body.note.trim().slice(0, 500) : null;
 
   const { data, error } = await c
     .get("supabase")
     .from("connections")
-    .insert({ requester_id: c.get("userId"), addressee_id: addresseeId })
+    .insert({ requester_id: c.get("userId"), addressee_id: addresseeId, note })
     .select()
     .single();
 

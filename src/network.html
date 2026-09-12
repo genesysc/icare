@@ -108,6 +108,11 @@
   .tab { flex: 1; text-align: center; padding: 9px 8px; border-radius: 999px; border: none; background: none; font-size: 13.5px; font-weight: 600; color: var(--ink-faint); cursor: pointer; position: relative; }
   .tab.is-active { background: var(--plum-950); color: var(--white); }
   .tab-count { font-family: "IBM Plex Mono", monospace; font-size: 10px; margin-left: 3px; }
+  .panel-subheading { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); margin: 4px 0 10px; }
+  .connect-note { margin-top: 10px; width: 100%; }
+  .connect-note textarea { width: 100%; border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 11px; font-family: inherit; font-size: 12.5px; resize: vertical; min-height: 54px; color: var(--plum-950); }
+  .connect-note-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .request-note { font-size: 12px; color: var(--ink-faint); font-style: italic; margin: -6px 0 8px 52px; }
 
   .search-row { margin-bottom: 14px; }
   .search-input { width: 100%; padding: 12px 16px; border-radius: 999px; border: 1.5px solid var(--line); font-family: inherit; font-size: 14px; color: var(--plum-950); background: var(--white); }
@@ -158,21 +163,21 @@
     </div>
 
     <div class="tabs">
-      <button class="tab is-active" data-tab="connections">Connections</button>
-      <button class="tab" data-tab="requests">Requests<span class="tab-count" data-requests-count></span></button>
+      <button class="tab is-active" data-tab="connections">Connections<span class="tab-count" data-requests-count></span></button>
       <button class="tab" data-tab="discover">Discover</button>
     </div>
 
     <div data-panel="connections">
+      <div data-requests-section hidden>
+        <p class="panel-subheading">Requests</p>
+        <p class="empty-note" data-requests-empty hidden>No pending requests.</p>
+        <div data-incoming-list></div>
+        <div data-outgoing-list></div>
+      </div>
+      <p class="panel-subheading">Connections</p>
       <div data-connections-list></div>
       <p class="empty-note" data-connections-empty hidden>No connections yet — try Discover to find people to
         connect with.</p>
-    </div>
-
-    <div data-panel="requests" hidden>
-      <p class="empty-note" data-requests-empty hidden>No pending requests.</p>
-      <div data-incoming-list></div>
-      <div data-outgoing-list></div>
     </div>
 
     <div data-panel="discover" hidden>
@@ -190,9 +195,9 @@
 
 <!-- Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment -->
 <nav class="tab-bar" aria-label="Main">
-  <a href="/home" class="tab-bar-item" data-tab="home">
-    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-    <span>Home</span>
+  <a href="/rounds" class="tab-bar-item" data-tab="rounds">
+    <svg viewBox="0 0 24 24"><polyline points="2 14 6 14 9 5 14 21 17 14 22 14"/></svg>
+    <span>Rounds</span>
   </a>
   <a href="/invites" class="tab-bar-item" data-tab="invites">
     <span class="tab-bar-icon-wrap">
@@ -336,14 +341,13 @@ function icareRequireAuth(signInPath) {
     var incomingList = document.querySelector("[data-incoming-list]");
     var outgoingList = document.querySelector("[data-outgoing-list]");
     var empty = document.querySelector("[data-requests-empty]");
+    var section = document.querySelector("[data-requests-section]");
     incomingList.innerHTML = "";
     outgoingList.innerHTML = "";
 
-    if (latestNetwork.incoming.length === 0 && latestNetwork.outgoing.length === 0) {
-      empty.hidden = false;
-    } else {
-      empty.hidden = true;
-    }
+    var hasAny = latestNetwork.incoming.length > 0 || latestNetwork.outgoing.length > 0;
+    section.hidden = !hasAny;
+    empty.hidden = true;
 
     latestNetwork.incoming.forEach(function (row) {
       var label = personLabel(row.profile);
@@ -360,6 +364,12 @@ function icareRequireAuth(signInPath) {
       item.querySelector(".person-name").textContent = label.name;
       item.querySelector(".person-sub").textContent = label.sub;
       incomingList.appendChild(item);
+      if (row.note) {
+        var noteEl = document.createElement("p");
+        noteEl.className = "request-note";
+        noteEl.textContent = "“" + row.note + "”";
+        incomingList.appendChild(noteEl);
+      }
     });
 
     latestNetwork.outgoing.forEach(function (row) {
@@ -404,11 +414,20 @@ function icareRequireAuth(signInPath) {
       var actionHtml;
       if (state === "connected") actionHtml = '<span class="btn-sm btn-sm-sent">Connected</span>';
       else if (state === "outgoing") actionHtml = '<span class="btn-sm btn-sm-sent">Request sent</span>';
-      else if (state === "incoming") actionHtml = '<span class="btn-sm btn-sm-sent">Check Requests</span>';
+      else if (state === "incoming") actionHtml = '<span class="btn-sm btn-sm-sent">Check Connections</span>';
       else actionHtml = '<button type="button" class="btn-sm btn-sm-primary" data-connect="' + profile.id + '">Connect</button>';
       item.innerHTML =
         '<div class="person-avatar"></div>' +
-        '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div></div>' +
+        '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div>' +
+        (state ? "" :
+          '<div class="connect-note" data-connect-note hidden>' +
+            '<textarea placeholder="Add a note (optional)" maxlength="500" data-connect-note-text></textarea>' +
+            '<div class="connect-note-actions">' +
+              '<button type="button" class="btn-sm btn-sm-primary" data-send-request="' + profile.id + '">Send request</button>' +
+              '<button type="button" class="btn-sm btn-sm-outline" data-cancel-request>Cancel</button>' +
+            '</div>' +
+          '</div>') +
+        '</div>' +
         '<div class="person-actions">' + actionHtml + '</div>';
       fillAvatar(item.querySelector(".person-avatar"), label, profile);
       item.querySelector(".person-name").textContent = label.name;
@@ -452,17 +471,31 @@ function icareRequireAuth(signInPath) {
 
   document.querySelector("[data-network-content]").addEventListener("click", function (e) {
     var connectBtn = e.target.closest("[data-connect]");
+    var sendRequestBtn = e.target.closest("[data-send-request]");
+    var cancelRequestBtn = e.target.closest("[data-cancel-request]");
     var acceptBtn = e.target.closest("[data-accept]");
     var removeBtn = e.target.closest("[data-remove]");
 
     if (connectBtn) {
-      connectBtn.disabled = true;
-      connectBtn.textContent = "Sending…";
-      jpost("/candidates/network/request", { addressee_id: connectBtn.getAttribute("data-connect") }).then(function (result) {
+      // Reveals an optional note field instead of sending immediately —
+      // the note is optional by design, don't require it.
+      var noteBox = connectBtn.closest(".person-item").querySelector("[data-connect-note]");
+      noteBox.hidden = false;
+      connectBtn.style.display = "none";
+    } else if (cancelRequestBtn) {
+      var item = cancelRequestBtn.closest(".person-item");
+      item.querySelector("[data-connect-note]").hidden = true;
+      var btn = item.querySelector("[data-connect]");
+      if (btn) btn.style.display = "";
+    } else if (sendRequestBtn) {
+      sendRequestBtn.disabled = true;
+      sendRequestBtn.textContent = "Sending…";
+      var noteText = sendRequestBtn.closest(".person-item").querySelector("[data-connect-note-text]").value.trim();
+      jpost("/candidates/network/request", { addressee_id: sendRequestBtn.getAttribute("data-send-request"), note: noteText || undefined }).then(function (result) {
         if (!result.ok) {
           setStatus(result.body.error || "Couldn't send that request.", true);
-          connectBtn.disabled = false;
-          connectBtn.textContent = "Connect";
+          sendRequestBtn.disabled = false;
+          sendRequestBtn.textContent = "Send request";
           return;
         }
         loadNetwork().then(function () { loadDiscover(document.querySelector("[data-discover-search]").value); });

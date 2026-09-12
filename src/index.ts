@@ -20,7 +20,7 @@ import invitesPage from "./invites.html";
 import pipelinesPage from "./pipelines.html";
 import credentialsPage from "./credentials.html";
 import visibilityPage from "./visibility.html";
-import homePage from "./home.html";
+import roundsPage from "./rounds.html";
 import networkPage from "./network.html";
 import messagesPage from "./messages.html";
 import employerHomePage from "./employer-home.html";
@@ -63,7 +63,11 @@ app.get("/invites", (c) => c.html(invitesPage));
 app.get("/pipelines", (c) => c.html(pipelinesPage));
 app.get("/credentials", (c) => c.html(credentialsPage));
 app.get("/visibility", (c) => c.html(visibilityPage));
-app.get("/home", (c) => c.html(homePage));
+app.get("/rounds", (c) => c.html(roundsPage));
+// Renamed from Home to Rounds, 2026-09-12 — redirect anything still
+// linking the old path (nothing left in this repo does, but an external
+// bookmark or the browser's own history might).
+app.get("/home", (c) => c.redirect("/rounds", 301));
 app.get("/network", (c) => c.html(networkPage));
 app.get("/messages", (c) => c.html(messagesPage));
 app.get("/employer/home", (c) => c.html(employerHomePage));
