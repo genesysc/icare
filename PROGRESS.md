@@ -3606,3 +3606,75 @@ the previous fix (PR #35) is live, but the actual root cause — if it's
 a real bug and not a one-off — needs either a real retry from the
 founder or a way to drive an actual browser through this session's
 proxy (not currently possible here).
+
+## 2026-09-12 — Photo bug, finally root-caused (three rounds, then a screenshot broke it open)
+
+Founder retried after PR #35 (defensive try/catch) — still "still
+nothing at all" on iPhone Safari specifically, with the photo picker
+itself opening and a file visibly selectable (confirmed via a
+follow-up question), which ruled out the input/picker layer entirely.
+
+**Round 2 fix, PR #38**: since the backend was proven correct (30+
+direct API calls, previous entry) and every code path in the frontend
+handler already led to a status message, the remaining plausible
+explanation was a real, documented WebKit inconsistency: sending a
+raw `File`/`Blob` as a `fetch` body with a manually-set `Content-Type`
+(`file.type || "application/octet-stream"`, unlike the working CV
+upload's fixed `"application/pdf"`) behaves inconsistently on some
+Safari versions. Switched to `FormData` — the standard, most reliable
+way to send a file via `fetch` — and fixed a related latent bug in
+`icareAuthFetch` itself (it was defaulting to `Content-Type:
+application/json` for any body without an existing header, which
+would have silently corrupted a `FormData` body the moment anything
+used one). `POST /candidates/me/photo` updated to parse
+`multipart/form-data` via `Request.formData()`, with the old raw-body
+path kept as a fallback. Verified against a fresh throwaway test
+account: both the new multipart path and the old raw-body path work
+and round-trip correctly. Shipped honestly labelled as "not confirmed
+as THE fix" — no way to reproduce the exact failure without a real
+iPhone.
+
+**Round 3 — the founder sent an actual screenshot of Step 10**, and it
+changed everything: a file WAS selected (visible filename + thumbnail
+next to "Choose File", contradicting what a text-only answer had
+suggested), and critically: *"My photo is showing in the Home page
+but not in my profile page... upon clicking upload there is no
+prompt, message or anything that says it's uploaded."* That's not
+"the upload fails" — that's "the upload silently succeeds and nothing
+says so." A completely different, much more precise bug report than
+either "nothing happened" answer had conveyed on its own — the kind of
+detail only a screenshot reliably surfaces.
+
+**Actual root cause, confirmed by reading the code, not guessed**:
+`GET /candidates/me/photo` requires an `Authorization` bearer header
+(`requireAuth` middleware). Both `onboarding.html`'s Step 10 preview
+and `dashboard.html`'s profile view rendered the photo with a plain
+`<img src="/candidates/me/photo?t=...">` tag. A browser never attaches
+custom headers to a plain image load — so that request always hit the
+route unauthenticated, got a 401 JSON body back as the "image", and
+rendered as a broken-image icon, every single time, for every
+candidate, regardless of browser. `home.html` and `network.html`
+already had this right (`icareAuthFetch` → `.blob()` →
+`URL.createObjectURL`) for peer photos — that's exactly why the same
+photo displayed correctly on `/home` but not in the wizard or the
+dashboard. This explains the *entire* symptom on its own: the upload
+always worked (confirmed independently in the previous entry), the
+preview never could have worked, and there was never any success
+message to fall back on either.
+
+Fixed both `onboarding.html` and `dashboard.html` to use the same
+authenticated-fetch-to-blob-URL pattern as `home.html`/`network.html`,
+and added a "Photo uploaded." success status message on the wizard
+(there had genuinely been no positive confirmation at all before this
+— error paths existed, success didn't). Shipped as **PR #39**.
+
+**Lesson worth keeping**: two rounds of "what exactly happens" text
+answers ("nothing happened," "still nothing at all") pointed at
+plausible-but-wrong root causes (a synchronous JS throw, then a
+WebKit fetch-body quirk) that were reasonable hypotheses given the
+information available, and the fixes from those rounds (defensive
+try/catch, FormData) are still worth keeping as real hardening — but
+neither was the actual bug. The screenshot supplied the one fact that
+mattered ("it shows on Home but not on my profile") in a single
+glance. Ask for one when a bug report has been through more than one
+text-based round without resolving.
