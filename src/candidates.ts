@@ -186,14 +186,32 @@ candidates.post("/me/unpublish", async (c) => {
 });
 
 candidates.post("/me/photo", async (c) => {
-  const contentType = c.req.header("Content-Type");
-  if (!contentType?.startsWith("image/")) {
+  // multipart/form-data, not a raw body — a raw Blob body with a manually
+  // set Content-Type has known inconsistencies on some WebKit/Safari
+  // versions (a founder report of "Upload does nothing, no error, on
+  // iPhone Safari" that survived a defensive try/catch and full backend
+  // verification, 2026-09-12 — FormData is the standard, most reliably
+  // cross-browser way to send a file via fetch).
+  const requestContentType = c.req.header("Content-Type") || "";
+  let file: File | null = null;
+  if (requestContentType.startsWith("multipart/form-data")) {
+    const form = await c.req.formData().catch(() => null);
+    const value = form?.get("photo");
+    file = value instanceof File ? value : null;
+  } else if (requestContentType.startsWith("image/")) {
+    // Back-compat with any other caller still sending a raw image body.
+    file = new File([await c.req.arrayBuffer()], "photo", { type: requestContentType });
+  }
+  if (!file) return c.json({ error: "No image file found in the upload" }, 400);
+
+  const contentType = file.type || "application/octet-stream";
+  if (!contentType.startsWith("image/")) {
     return c.json({ error: "Content-Type must be an image/* type" }, 400);
   }
 
   const userId = c.get("userId");
   const key = `candidates/${userId}/photo`;
-  const body = await c.req.arrayBuffer();
+  const body = await file.arrayBuffer();
   await c.env.MEDIA.put(key, body, { httpMetadata: { contentType } });
 
   const { data, error } = await c

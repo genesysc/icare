@@ -814,7 +814,11 @@ function icareAuthFetch(url, options) {
   options = options || {};
   var headers = Object.assign({}, options.headers || {});
   if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
-  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  // FormData must NOT get a manual Content-Type — the browser sets its own
+  // multipart boundary, and overriding it (even accidentally, via the
+  // default below) breaks the upload silently.
+  var isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (options.body && !headers["Content-Type"] && !isFormData) headers["Content-Type"] = "application/json";
   return fetch(url, Object.assign({}, options, { headers: headers }));
 }
 function icareRequireAuth(signInPath) {
@@ -2031,10 +2035,17 @@ function icareRequireAuth(signInPath) {
       }
       btn.disabled = true;
       clearStatus("photo");
+      // FormData rather than a raw file body: sending a Blob/File directly
+      // as the fetch body with a manually-set Content-Type has known
+      // inconsistencies on some WebKit/Safari versions. FormData is the
+      // standard, most cross-browser-reliable way to upload a file via
+      // fetch — the browser sets its own correct multipart Content-Type
+      // (icareAuthFetch above now knows not to override it).
+      var formData = new FormData();
+      formData.append("photo", file, file.name || "photo");
       icareAuthFetch("/candidates/me/photo", {
         method: "POST",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
+        body: formData,
       }).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
         .then(function (result) {
           btn.disabled = false;
