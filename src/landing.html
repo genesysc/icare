@@ -3,6 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// Sprint 24 fix: if Supabase's magic-link redirect doesn't exactly match
+// an allow-listed Redirect URL in the Dashboard, it silently falls back
+// to the bare Site URL — this page's root — instead of our intended
+// /verify target, dropping the #access_token=... fragment on a page with
+// no code to handle it (previously a dead end: user stuck looping back
+// to the waitlist page after "successfully" clicking the email link).
+// GoTrue always appends that hash regardless of which URL it resolves
+// to, so recovering here — before anything else runs or paints — makes
+// sign-in work even if the Supabase Redirect URLs list is misconfigured,
+// rather than depending on getting that Dashboard-only setting exactly
+// right. See HANDOVER.md §6.
+(function () {
+  if (window.location.hash.indexOf("access_token=") !== -1) {
+    window.location.replace("/verify" + window.location.hash);
+  }
+})();
+</script>
 <title>iCare — the professional network for UK health and care</title>
 <meta name="description" content="iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile that shows your skills and experience — and, if you choose, the person behind them too.">
 <link rel="preconnect" href="https://fonts.googleapis.com">

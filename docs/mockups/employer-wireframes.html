@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iCare — employer wireframes</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --line:#B8B4C0; --line2:#DCD9E2; --fill:#EFEDF2; --fill2:#F7F6F9;
+  --ink:#2A2733; --mid:#6E6A78; --pale:#9A96A4; --page:#fff; --key:#4A4553;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:#E8E6EC;color:var(--ink);font-family:'Public Sans',system-ui,sans-serif;font-size:14px}
+a{color:inherit}
+:focus-visible{outline:2px solid #444;outline-offset:2px}
+
+.nav{position:fixed;inset:auto 0 0 0;z-index:99;background:#211E29;display:flex;overflow-x:auto;
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase}
+.nav button{flex:0 0 auto;appearance:none;border:0;background:transparent;color:rgba(255,255,255,.5);
+  padding:13px 14px;cursor:pointer;font:inherit;border-right:1px solid rgba(255,255,255,.12);white-space:nowrap}
+.nav button[aria-pressed="true"]{background:#fff;color:#211E29;font-weight:600}
+.view{display:none;padding:22px 16px 78px}
+.view.on{display:block}
+@media (min-width:960px){
+  .nav{inset:0 auto 0 0;flex-direction:column;width:212px;overflow-y:auto;overflow-x:hidden}
+  .nav button{text-align:left;border-right:0;border-bottom:1px solid rgba(255,255,255,.1);padding:14px 16px;white-space:normal}
+  .nav::before{content:'iRecruit · wireframes';display:block;color:#8F8A9B;padding:20px 16px 10px;font-size:9.5px;line-height:1.5}
+  .view{margin-left:212px;padding:34px 40px 60px}
+}
+
+.vhead{max-width:1120px;margin:0 auto 22px}
+.vhead h2{font-size:19px;margin:0 0 6px;letter-spacing:-.01em}
+.vhead p{margin:0;color:var(--mid);line-height:1.6;max-width:74ch;font-size:13.5px}
+.canvas{max-width:1120px;margin:0 auto}
+
+.desk{background:var(--page);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.capt{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--pale);margin:0 0 8px}
+.phone{max-width:390px;margin:0 auto;background:var(--page);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.pair{display:grid;gap:26px}
+@media (min-width:1000px){.pair{grid-template-columns:1.3fr .9fr;align-items:start}}
+.pair.wide{grid-template-columns:1fr}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;
+  border-bottom:1px solid var(--line2);background:var(--fill2)}
+.brand{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.04em}
+.ico{width:24px;height:24px;border:1px solid var(--line);border-radius:5px;flex:none;background:var(--fill)}
+.icorow{display:flex;gap:8px;align-items:center}
+.side-rail{display:flex}
+.railnav{width:150px;flex:none;border-right:1px solid var(--line2);background:var(--fill2);padding:14px 10px}
+.railnav div{padding:8px 10px;border-radius:6px;font-size:12px;color:var(--mid);margin-bottom:2px}
+.railnav div.act{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--line2)}
+.mainpane{flex:1;min-width:0;padding:18px}
+
+.blk{background:var(--fill);border:1px solid var(--line2);border-radius:7px;padding:11px;margin-bottom:10px}
+.blk:last-child{margin-bottom:0}
+.blk.plain{background:#fff}
+.blk.dash{background:repeating-linear-gradient(45deg,#F4F3F7,#F4F3F7 6px,#EBE9F0 6px,#EBE9F0 12px);
+  border-style:dashed;text-align:center;color:var(--pale);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:16px 11px}
+.lbl{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--pale);margin-bottom:7px}
+.h{font-weight:700;font-size:14px;margin:0 0 5px;line-height:1.3}
+.t{color:var(--mid);font-size:12.5px;line-height:1.5;margin:0}
+.ln{height:8px;background:var(--line2);border-radius:4px;margin-bottom:6px}
+.ln.s{width:45%}.ln.m{width:70%}.ln.l{width:92%}
+.row{display:flex;align-items:center;gap:10px}
+.av{width:40px;height:40px;border-radius:9px;background:var(--fill);border:1px solid var(--line);flex:none}
+.av.blurred{background:repeating-linear-gradient(45deg,#EEE,#EEE 5px,#E3E1E8 5px,#E3E1E8 10px)}
+.btn{display:inline-block;background:var(--key);color:#fff;border-radius:7px;padding:9px 15px;
+  font-size:12.5px;font-weight:600;text-align:center;border:0;cursor:pointer;font-family:inherit}
+.btn.o{background:#fff;color:var(--key);border:1px solid var(--line)}
+.btn.w{display:block;width:100%}
+.btn.sm{padding:6px 11px;font-size:11px}
+.btns{display:flex;gap:8px;margin-top:10px}
+.chip{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.07em;
+  text-transform:uppercase;border:1px solid var(--line);border-radius:4px;padding:3px 7px;color:var(--mid);
+  background:#fff;margin:0 4px 4px 0}
+.chip.k{background:var(--key);color:#fff;border-color:var(--key)}
+.chip.warn{background:#fff;color:var(--mid);border-style:dashed}
+.note{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale);line-height:1.6;
+  border-left:2px solid var(--line);padding-left:9px;margin:12px 0 0}
+.split{display:grid;gap:11px}
+@media (min-width:700px){.split.two{grid-template-columns:1fr 1fr}.split.three{grid-template-columns:repeat(3,1fr)}.split.four{grid-template-columns:repeat(4,1fr)}}
+.list{border:1px solid var(--line2);border-radius:7px;overflow:hidden}
+.item{padding:11px;border-bottom:1px solid var(--line2);background:#fff}
+.item:last-child{border-bottom:0}
+.meta{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--pale);margin-top:4px}
+.tabs{display:flex;border-bottom:1px solid var(--line2);background:#fff;overflow-x:auto}
+.tabs span{padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale);
+  border-bottom:2px solid transparent;white-space:nowrap}
+.tabs span.act{color:var(--ink);border-bottom-color:var(--key);font-weight:600}
+.searchbar{display:flex;gap:8px;margin-bottom:12px}
+.searchbar .blk{flex:1;margin:0;background:#fff}
+
+/* kanban */
+.kanban{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+.kcol{flex:0 0 200px;background:var(--fill2);border:1px solid var(--line2);border-radius:8px;padding:9px}
+.kcol h4{margin:0 0 8px;font-size:10.5px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--mid);display:flex;justify-content:space-between}
+.kcard{background:#fff;border:1px solid var(--line2);border-radius:6px;padding:9px;margin-bottom:8px;font-size:12px}
+.kcard .n{font-weight:700;margin-bottom:3px}
+.kcard .m{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--pale)}
+
+/* sitemap */
+.map{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px}
+.mapgrid{display:grid;gap:20px}
+@media (min-width:900px){.mapgrid{grid-template-columns:repeat(3,1fr)}}
+.zone{border:1px solid var(--line2);border-radius:8px;padding:14px;background:var(--fill2)}
+.zone h3{margin:0 0 4px;font-size:13.5px}
+.zone .sub{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--pale);
+  letter-spacing:.08em;text-transform:uppercase;margin-bottom:11px}
+.tree{list-style:none;margin:0;padding:0;font-size:13px}
+.tree li{padding:6px 0 6px 13px;border-left:1px solid var(--line);position:relative;line-height:1.45}
+.tree li::before{content:'';position:absolute;left:0;top:14px;width:8px;height:1px;background:var(--line)}
+.tree ul{list-style:none;margin:5px 0 0;padding:0;font-size:12.5px;color:var(--mid)}
+.tree .k{font-weight:600}
+.ext{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--pale);letter-spacing:.06em}
+.legend{margin-top:18px;padding-top:14px;border-top:1px solid var(--line2);font-size:12.5px;color:var(--mid);line-height:1.7}
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Wireframe screens">
+  <button data-v="e0" aria-pressed="true">00 · Sitemap</button>
+  <button data-v="e1" aria-pressed="false">01 · Home (dashboard)</button>
+  <button data-v="e1b" aria-pressed="false">01b · Chat</button>
+  <button data-v="e2" aria-pressed="false">02 · Post a job</button>
+  <button data-v="e3" aria-pressed="false">03 · Search candidates</button>
+  <button data-v="e4" aria-pressed="false">04 · Candidate preview</button>
+  <button data-v="e5" aria-pressed="false">05 · Send invite</button>
+  <button data-v="e6" aria-pressed="false">06 · Job pipeline</button>
+  <button data-v="e7" aria-pressed="false">07 · Bookmarks</button>
+  <button data-v="e8" aria-pressed="false">08 · Team &amp; billing</button>
+</nav>
+
+<!-- ============ 00 SITEMAP ============ -->
+<section class="view on" id="e0">
+  <div class="vhead">
+    <h2>Sitemap — iRecruit</h2>
+    <p>Separate domain from icareltd.com. Employers and agencies never see a jobseeker view here, and jobseekers never see this domain — the only bridge between the two products is a sent invite and, later, an accepted one.</p>
+  </div>
+  <div class="canvas">
+    <div class="map">
+      <div class="mapgrid">
+
+        <div class="zone">
+          <h3>Public</h3>
+          <div class="sub">Signed out · indexed</div>
+          <ul class="tree">
+            <li class="k">/ — Landing page</li>
+            <li class="k">/pricing
+              <ul><li>Paid tiers live here — never on icareltd.com</li></ul>
+            </li>
+            <li class="k">/how-it-works</li>
+            <li class="k">/compliance
+              <ul><li>Employer-pays model · badge grades explained · what iCare doesn't verify</li></ul>
+            </li>
+            <li class="k">/help</li>
+            <li class="k">/legal</li>
+            <li class="k">For candidates <span class="ext">↗ icareltd.com</span></li>
+          </ul>
+        </div>
+
+        <div class="zone">
+          <h3>Auth &amp; org setup</h3>
+          <div class="sub">Organisation accounts, seats</div>
+          <ul class="tree">
+            <li class="k">/join — organisation sign-up</li>
+            <li class="k">/verify</li>
+            <li class="k">/setup
+              <ul>
+                <li>1 · Organisation details</li>
+                <li>2 · Verify as a real employer/agency</li>
+                <li>3 · Invite teammates</li>
+                <li>4 · Choose plan</li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+
+        <div class="zone">
+          <h3>Signed in</h3>
+          <div class="sub">The app</div>
+          <ul class="tree">
+            <li class="k">/home — dashboard, default landing</li>
+            <li class="k">/chat
+              <ul><li>Own nav tab · nested conversation-history rail · hands off to other routes, never renders results itself</li></ul>
+            </li>
+            <li class="k">/jobs
+              <ul><li>/jobs/new</li><li>/jobs/:id — job + its pipeline</li></ul>
+            </li>
+            <li class="k">/search
+              <ul><li>/search/candidate/:id — redacted preview</li></ul>
+            </li>
+            <li class="k">/invites
+              <ul><li>Sent · Accepted · Declined · Expired</li></ul>
+            </li>
+            <li class="k">/bookmarks
+              <ul><li>Private. Not a consent event.</li></ul>
+            </li>
+            <li class="k">/team
+              <ul><li>Seats · Roles · Permissions</li></ul>
+            </li>
+            <li class="k">/billing
+              <ul><li>Plan · Usage · Invoices</li></ul>
+            </li>
+            <li class="k">/settings
+              <ul><li>Organisation profile · Notifications</li></ul>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+      <p class="legend">
+        <strong>Two things this sitemap enforces structurally.</strong> First, <em>/search</em> and <em>/bookmarks</em> never expose name, photo or contact details — that's not a display choice on this screen, it's that the underlying candidate record simply doesn't carry those fields until an invite tied to a specific job is accepted. Second, <em>/pricing</em> and <em>/billing</em> exist only here — nothing about payment appears anywhere on the candidate-facing domain, by design.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 01 HOME ============ -->
+<section class="view" id="e1">
+  <div class="vhead">
+    <h2>01 · Home — dashboard only</h2>
+    <p>Chat has moved to its own tab (see 01b) — Home is the dashboard and nothing else. This is the landing screen after sign-in: live, actionable metrics, no conversational surface embedded in it.</p>
+  </div>
+  <div class="canvas">
+    <div class="desk">
+      <div class="bar"><span class="brand">iCare for employers</span>
+        <span class="icorow"><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">Beechwood House ▾</span><span class="ico"></span></span>
+      </div>
+      <div class="side-rail">
+        <div class="railnav">
+          <div class="act">Home</div><div>Chat</div><div>Jobs</div><div>Search</div><div>Invites</div><div>Bookmarks</div><div>Team</div><div>Billing</div>
+        </div>
+        <div class="mainpane">
+          <div class="split four" style="margin-bottom:10px">
+            <div class="blk plain"><div class="lbl">Open roles</div><p class="h" style="font-size:22px">4</p></div>
+            <div class="blk plain"><div class="lbl">Invites awaiting</div><p class="h" style="font-size:22px">6</p></div>
+            <div class="blk plain"><div class="lbl">Active pipelines</div><p class="h" style="font-size:22px">11</p></div>
+            <div class="blk plain"><div class="lbl">Bookmarked</div><p class="h" style="font-size:22px">14</p></div>
+          </div>
+          <div class="blk plain" style="margin-bottom:10px">
+            <div class="lbl">Pipeline breakdown — all jobs</div>
+            <div class="row" style="flex-wrap:wrap;gap:8px">
+              <span class="chip">Shortlisted · 4</span>
+              <span class="chip">Invited for Interview · 2</span>
+              <span class="chip">Pending Interview Result · 3</span>
+              <span class="chip k">Successful · 1</span>
+              <span class="chip warn">Rejected · 1</span>
+              <span class="chip k">Onboarding · 1</span>
+            </div>
+          </div>
+          <div class="blk plain">
+            <div class="lbl">Needs a decision</div>
+            <div class="row" style="justify-content:space-between;margin-bottom:8px"><span>2 candidates · Pending Interview Result &gt; 5 days</span><span class="chip">Senior Care Assistant</span></div>
+            <div class="row" style="justify-content:space-between"><span>1 invite expiring tomorrow</span><span class="chip warn">Practice Nurse</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:14px">This is the same dashboard content as before, just no longer sharing the screen with anything conversational. Still the piece to push visually futuristic in the high-fidelity pass.</p>
+  </div>
+</section>
+
+<!-- ============ 01b CHAT ============ -->
+<section class="view" id="e1b">
+  <div class="vhead">
+    <h2>01b · Chat — its own tab</h2>
+    <p>A dedicated, full-height surface — same pattern as ChatGPT or Claude's own chat: a slim conversation-history sidebar nested inside the app's rail, and the transcript filling the rest. Chat never renders result lists, pipeline boards, or forms itself — it summarises, then hands off with a link to the real screen where that content actually lives.</p>
+  </div>
+  <div class="canvas">
+    <div class="desk">
+      <div class="bar"><span class="brand">iCare for employers</span>
+        <span class="icorow"><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">Beechwood House ▾</span><span class="ico"></span></span>
+      </div>
+      <div class="side-rail">
+        <div class="railnav">
+          <div>Home</div><div class="act">Chat</div><div>Jobs</div><div>Search</div><div>Invites</div><div>Bookmarks</div><div>Team</div><div>Billing</div>
+        </div>
+
+        <!-- nested conversation-history rail, ChatGPT/Claude pattern -->
+        <div class="railnav" style="border-right:1px solid var(--line2)">
+          <div class="blk dash" style="margin:0 0 10px;padding:10px">+ New chat</div>
+          <div class="act" style="font-size:11px">Nights, Barnet search</div>
+          <div style="font-size:11px">Pending interview follow-up</div>
+          <div style="font-size:11px">New Band 6 Physio role</div>
+          <div style="font-size:11px">Team seat question</div>
+        </div>
+
+        <div class="mainpane">
+          <!-- returning-session memory prompt -->
+          <div class="row" style="margin-bottom:14px">
+            <div class="blk" style="background:var(--fill2);margin:0;max-width:82%;border:1px dashed var(--line)">
+              <p class="meta" style="margin:0 0 6px;text-transform:none;letter-spacing:0;font-size:10.5px">REMEMBERED FROM LAST SESSION</p>
+              <p class="t" style="margin:0 0 8px">Welcome back. Last week you were searching for night-shift residential care roles near Enfield — want to pick that up, or see what's changed since?</p>
+              <div><span class="chip warn">Resume that search</span><span class="chip warn">What's changed</span><span class="chip warn">Start something new</span></div>
+            </div>
+          </div>
+
+          <!-- turn 1: search resolves to a hand-off, not an inline list -->
+          <div class="row" style="justify-content:flex-end;margin-bottom:10px">
+            <div class="blk" style="background:var(--fill2);margin:0;max-width:78%"><p class="t" style="margin:0;color:var(--ink)">find someone good for nights again, but this time in Barnet</p></div>
+          </div>
+          <div class="row" style="margin-bottom:16px">
+            <div class="blk plain" style="border:1px solid var(--line2);margin:0;max-width:82%">
+              <p class="t" style="margin:0 0 8px">Using your usual filters — residential, night shifts — just swapping the location to Barnet: 9 candidates match, sorted by distance, unranked.</p>
+              <p class="t" style="margin:0 0 10px">Want to see the list?</p>
+              <span class="btn sm">View in Search →</span>
+              <p class="meta" style="margin-top:8px">Clicking through opens screen 03 with these filters already applied — chat doesn't render the candidates itself.</p>
+            </div>
+          </div>
+
+          <!-- turn 2: command hands off to the pipeline board, not a chat list -->
+          <div class="row" style="justify-content:flex-end;margin-bottom:10px">
+            <div class="blk" style="background:var(--fill2);margin:0;max-width:78%"><p class="t" style="margin:0;color:var(--ink)">show me the names of people waiting for a job offer</p></div>
+          </div>
+          <div class="row" style="margin-bottom:6px">
+            <div class="blk plain" style="border:1px solid var(--line2);margin:0;max-width:82%">
+              <p class="t" style="margin:0 0 8px">Which stage did you mean?</p>
+              <div><span class="chip warn">Pending Interview Result (3)</span><span class="chip warn">Successful, not yet Onboarding (1)</span></div>
+            </div>
+          </div>
+          <div class="row" style="justify-content:flex-end;margin-bottom:10px">
+            <div class="blk" style="background:var(--fill2);margin:0;max-width:78%"><p class="t" style="margin:0;color:var(--ink)">Pending Interview Result</p></div>
+          </div>
+          <div class="row" style="margin-bottom:14px">
+            <div class="blk plain" style="border:1px solid var(--line2);margin:0;max-width:82%">
+              <p class="t" style="margin:0 0 6px">3 candidates, Pending Interview Result, across 2 jobs — Senior Care Assistant (2), Practice Nurse (1).</p>
+              <p class="t" style="margin:0 0 10px">Want to open their pipelines?</p>
+              <span class="btn sm">View in Pipelines →</span>
+              <p class="meta" style="margin-top:8px">Names stay hidden until an accepted invite exists for that role — same as everywhere else. The link opens screen 06, filtered to this stage.</p>
+            </div>
+          </div>
+
+          <!-- proactive suggestion drawn from history -->
+          <div class="row" style="margin-bottom:14px">
+            <div class="blk" style="background:var(--fill2);margin:0;max-width:82%;border:1px dashed var(--line)">
+              <p class="meta" style="margin:0 0 6px;text-transform:none;letter-spacing:0;font-size:10.5px">SUGGESTED, BASED ON YOUR HISTORY</p>
+              <p class="t" style="margin:0 0 8px">You usually check on Pending Interview Result candidates before the weekend — 2 of your 3 have now passed 5 days waiting. Want a reminder set for Friday mornings?</p>
+              <div><span class="chip warn">Yes, remind me</span><span class="chip warn">Not now</span></div>
+            </div>
+          </div>
+
+          <div class="blk" style="background:#fff;border:1.5px solid var(--key);margin:0">
+            <p class="t" style="margin:0;color:var(--pale)">Ask something, or type a command…</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="note" style="margin-top:14px"><strong>Decided: chat is a hand-off layer, not a rendering surface.</strong> It never displays a candidate list, a pipeline board, or a form inline — every substantive result ends in a link to the actual screen (03, 06, 02, etc.) with the relevant filters or context already applied. This keeps exactly one place in the product where candidate results are ever displayed, which is what makes the no-ranking rule enforceable in the first place — a second rendering path in chat would be a second place that rule could quietly get broken.</p>
+    <p class="note"><strong>Conversation history sits in its own nested rail</strong>, the same pattern as ChatGPT or Claude — past conversations are named, listed, and reopenable, distinct from the app's main nav rail on the left of it.</p>
+    <p class="note"><strong>Decided: memory is shared across the organisation's team seats</strong>, not scoped to the individual recruiter. If two people use the same Beechwood House account, one person's search history and suggestions carry over to the other. Worth a visible "who searched this" trace in the conversation history sidebar so a shared thread doesn't feel anonymous or confusing to whoever didn't start it.</p>
+    <p class="note"><strong>Guardrail that still holds:</strong> memory can change how fast chat resolves a query and what it proactively suggests to the recruiter. It never changes which candidates are shown or in what order once handed off — that screen's own unranked, plain-filter logic is untouched by anything chat remembers.</p>
+  </div>
+</section>
+
+<!-- ============ 02 POST A JOB ============ -->
+<section class="view" id="e2">
+  <div class="vhead">
+    <h2>02 · Post a job</h2>
+    <p>A job record is what an invite is tied to, and what a pipeline is scoped against — so its fields need to be exactly what shows up later on the candidate's invite screen (role, employer, setting, hours, location).</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Desktop — form</p>
+      <div class="desk"><div class="mainpane" style="padding:22px">
+        <p class="h" style="font-size:17px;margin-bottom:14px">New job</p>
+        <div class="split two">
+          <div class="blk plain"><div class="lbl">Role title</div><div class="ln l"></div></div>
+          <div class="blk plain"><div class="lbl">Setting</div><div class="ln m"></div></div>
+        </div>
+        <div class="split two" style="margin-top:11px">
+          <div class="blk plain"><div class="lbl">Location</div><div class="ln m"></div></div>
+          <div class="blk plain"><div class="lbl">Hours &amp; pattern</div><div class="ln m"></div></div>
+        </div>
+        <div class="blk plain" style="margin-top:11px"><div class="lbl">Sponsorship</div>
+          <p class="t" style="margin:0 0 6px">Is a Certificate of Sponsorship available for this role?</p>
+          <div class="btns"><span class="btn o sm">Yes</span><span class="btn o sm">No</span></div>
+        </div>
+        <div class="blk plain" style="margin-top:11px;border-color:var(--key)">
+          <p class="t" style="margin:0"><strong>Reminder:</strong> sponsorship for Care Worker and Senior Care Worker roles has been closed since July 2025. This field is disabled for those role types.</p>
+        </div>
+        <div class="btns" style="margin-top:14px"><span class="btn o" style="flex:1">Save as draft</span><span class="btn" style="flex:1">Publish &amp; start searching</span></div>
+      </div></div>
+    </div>
+    <div>
+      <p class="capt">Notes</p>
+      <div class="desk"><div class="mainpane" style="padding:18px">
+        <p class="t"><strong>These fields are the ones an invite later displays verbatim on the candidate side.</strong> Role title, setting, location, hours — whatever's captured here is what a candidate reads on iCare's invite detail screen, so copy consistency matters between the two domains even though they're separately built.</p>
+        <p class="note">The sponsorship restriction is enforced here at the point of job creation, not left to a compliance check later — the field disables itself for the two closed role types rather than accepting the input and rejecting it after the fact.</p>
+        <p class="note" style="margin-top:8px"><strong>Action item, not a design question:</strong> the exact wording of the three sponsorship options (no sponsorship / can sponsor an existing visa holder switching employer / can sponsor a new applicant) still needs sign-off from an immigration or employment lawyer before this ships. Getting the phrasing wrong here risks misleading candidates or exposing iCare to compliance risk — this is a review to schedule, not something the wireframe can resolve.</p>
+        <p class="note" style="margin-top:8px"><strong>New on the candidate side:</strong> candidates now declare their own sponsorship need at registration and can update it any time (see icareltd.com screen 07). This job-level field states what the employer can offer for this specific role; the candidate's field states what they need. They're separate settings, not the same field shown twice.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 SEARCH CANDIDATES ============ -->
+<section class="view" id="e3">
+  <div class="vhead">
+    <h2>03 · Search candidates</h2>
+    <p>Every result is redacted by construction — this isn't a display filter, the underlying record has no name, photo or contact field populated for this employer until an invite is accepted. No ranking or score is shown; results can be filtered and sorted by plain attributes only.</p>
+  </div>
+  <div class="canvas pair wide">
+    <div>
+      <p class="capt">Desktop — results</p>
+      <div class="desk">
+        <div class="bar"><span class="brand">Search candidates</span><span class="ext" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--pale)">Job: Senior Care Assistant ▾</span></div>
+        <div class="mainpane" style="padding:16px">
+          <div class="searchbar">
+            <div class="blk" style="margin:0"><div class="lbl">Setting</div><div class="ln s"></div></div>
+            <div class="blk" style="margin:0"><div class="lbl">Distance</div><div class="ln s"></div></div>
+            <div class="blk" style="margin:0"><div class="lbl">Registration</div><div class="ln s"></div></div>
+            <div class="blk" style="margin:0"><div class="lbl">Availability</div><div class="ln s"></div></div>
+          </div>
+          <p class="meta" style="margin-bottom:10px">38 candidates match · sorted by distance</p>
+          <div class="list">
+            <div class="item">
+              <div class="row" style="justify-content:space-between">
+                <div class="row"><span class="av blurred"></span><div>
+                  <p class="h" style="margin:0 0 3px">Registered Nurse — Adult</p>
+                  <p class="t" style="margin:0;font-size:12px">Enfield · 2.1 mi · Available in 2 weeks</p>
+                </div></div>
+                <div class="btns" style="margin:0"><span class="btn o sm">Bookmark</span><span class="btn sm">Invite</span></div>
+              </div>
+              <div style="margin-top:8px"><span class="chip k">Verified reg.</span><span class="chip">6 yrs experience</span></div>
+            </div>
+            <div class="item">
+              <div class="row" style="justify-content:space-between">
+                <div class="row"><span class="av blurred"></span><div>
+                  <p class="h" style="margin:0 0 3px">Senior Care Assistant</p>
+                  <p class="t" style="margin:0;font-size:12px">Waltham Cross · 3.4 mi · Available now</p>
+                </div></div>
+                <div class="btns" style="margin:0"><span class="btn o sm">Bookmark</span><span class="btn sm">Invite</span></div>
+              </div>
+              <div style="margin-top:8px"><span class="chip">Dementia care</span><span class="chip">4 yrs experience</span></div>
+            </div>
+            <div class="item">
+              <div class="row" style="justify-content:space-between">
+                <div class="row"><span class="av blurred"></span><div>
+                  <p class="h" style="margin:0 0 3px">Senior Care Assistant</p>
+                  <p class="t" style="margin:0;font-size:12px">Barnet · 6.8 mi · Available in 4 weeks</p>
+                </div></div>
+                <div class="btns" style="margin:0"><span class="btn o sm">Bookmark</span><span class="btn sm">Invite</span></div>
+              </div>
+              <div style="margin-top:8px"><span class="chip">Moving &amp; handling</span><span class="chip">9 yrs experience</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="note" style="margin-top:12px">No relevance score, star rating, or "top match" label anywhere in this list — sort options are limited to distance, availability date, and years of experience, all plainly explainable to the candidate if they ever ask why they were found.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 CANDIDATE PREVIEW ============ -->
+<section class="view" id="e4">
+  <div class="vhead">
+    <h2>04 · Candidate preview — before an invite</h2>
+    <p>This screen is the employer-facing mirror of the candidate's own "preview as employer" screen. They should render identically — this is the actual honesty test of the whole consent model, not two teams' separate interpretations of it.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Desktop</p>
+      <div class="desk"><div class="mainpane" style="padding:20px">
+        <div class="row" style="margin-bottom:14px">
+          <span class="av blurred" style="width:56px;height:56px;border-radius:14px"></span>
+          <div><p class="h" style="font-size:18px;margin:0">Registered Nurse — Adult</p><p class="meta">Enfield · available in 2 weeks</p></div>
+        </div>
+        <div class="blk plain"><div class="lbl">About</div><div class="ln l"></div><div class="ln l"></div><div class="ln m"></div></div>
+        <div class="blk plain"><div class="lbl">Experience</div><div class="ln l"></div><div class="ln m"></div></div>
+        <div class="blk plain"><div class="lbl">Registrations &amp; training</div>
+          <div class="row" style="justify-content:space-between;margin-bottom:7px"><span class="ln m" style="margin:0"></span><span class="chip k">Verified</span></div>
+          <div class="row" style="justify-content:space-between"><span class="ln s" style="margin:0"></span><span class="chip">Declared</span></div>
+        </div>
+        <div class="blk" style="border-style:dashed">
+          <div class="lbl">Hidden until this candidate accepts an invite</div>
+          <p class="t" style="margin:0;font-size:12px">Full name · Photo · Phone &amp; email · Exact address · Current employer name</p>
+        </div>
+        <div class="btns"><span class="btn o" style="flex:1">Bookmark</span><span class="btn" style="flex:1">Send invite for this job</span></div>
+      </div></div>
+    </div>
+    <div>
+      <p class="capt">Notes</p>
+      <div class="desk"><div class="mainpane" style="padding:18px">
+        <p class="t"><strong>We don't claim to verify DBS certificates anywhere on this screen.</strong> If a DBS line appears here at all, it must use one of the three agreed states and never the word "Verified" or "clean" — same rule as the candidate side.</p>
+        <p class="t" style="margin-top:14px"><strong>"Send invite" only appears scoped to a job.</strong> There's no generic "contact this candidate" action — every invite is tied to the specific job record selected in Search, which is what makes the consent and the eventual pipeline meaningful.</p>
+        <p class="note"><strong>Decided: this must match the candidate's own preview exactly, field for field.</strong> Not a nice-to-have — any drift between what iCare shows a candidate ("this is what employers see") and what iRecruit actually shows an employer is a broken promise, not a cosmetic inconsistency. Both screens should likely be generated from one shared redaction rule, not built twice by two separate teams interpreting the same spec.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 SEND INVITE ============ -->
+<section class="view" id="e5">
+  <div class="vhead">
+    <h2>05 · Send invite</h2>
+    <p>The employer-side mirror of the candidate's consent screen. Confirms exactly what the candidate will be told is at stake, so an employer can't send an invite without seeing the same consequence language the candidate sees.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Desktop</p>
+      <div class="desk"><div class="mainpane" style="padding:20px">
+        <p class="h" style="font-size:17px;margin-bottom:12px">Invite to Senior Care Assistant</p>
+        <div class="blk plain"><div class="lbl">Candidate</div><p class="t" style="margin:0">Registered Nurse — Adult · Enfield <span style="color:var(--pale)">(identity hidden until accepted)</span></p></div>
+        <div class="blk" style="border-color:var(--key);margin-top:11px">
+          <div class="lbl">What the candidate will see</div>
+          <p class="t" style="margin:0 0 6px">"If you accept, Beechwood House will see your name, photo and contact details for this role only."</p>
+          <p class="t" style="margin:0">"Expires in 7 days. If you don't respond, we'll let Beechwood House know."</p>
+        </div>
+        <div class="blk plain" style="margin-top:11px"><div class="lbl">Optional note</div><div class="ln m"></div></div>
+        <span class="btn w" style="margin-top:14px">Send invite</span>
+      </div></div>
+    </div>
+    <div>
+      <p class="capt">Notes</p>
+      <div class="desk"><div class="mainpane" style="padding:18px">
+        <p class="t"><strong>Decided elsewhere, reflected here:</strong> 7-day expiry, and the employer is notified either way — on timeout, or on an active decline, which always carries a reason from a fixed six-option list (down to "prefer not to say," which is itself a complete answer).</p>
+        <p class="note"><strong>Decided: the reason appears verbatim on this invite record.</strong> When a candidate declines, the employer sees the actual reason selected — not an aggregated or anonymised summary — directly on this same invite, once it moves to Declined status.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 06 JOB PIPELINE ============ -->
+<section class="view" id="e6">
+  <div class="vhead">
+    <h2>06 · Job pipeline</h2>
+    <p>One board per job, using the same six stage names as the candidate's own pipeline screen — Shortlisted, Invited for Interview, Pending Interview Result, Successful, Rejected, Onboarding — so moving a card here is exactly the event the candidate sees worded as a status change on their side.</p>
+  </div>
+  <div class="canvas">
+    <div class="desk"><div class="mainpane" style="padding:16px">
+      <p class="h" style="font-size:16px;margin-bottom:10px">Senior Care Assistant · Beechwood House</p>
+      <div class="kanban">
+        <div class="kcol"><h4>Shortlisted <span>3</span></h4>
+          <div class="kcard"><div class="n">Candidate — RN Adult</div><div class="m">Accepted 3 days ago</div></div>
+          <div class="kcard"><div class="n">Candidate — SCA</div><div class="m">Accepted 1 day ago</div></div>
+          <div class="kcard"><div class="n">Candidate — SCA</div><div class="m">Accepted today</div></div>
+        </div>
+        <div class="kcol"><h4>Invited for Interview <span>1</span></h4>
+          <div class="kcard"><div class="n">Candidate — SCA</div><div class="m">Thu 12 Sep · 2:00pm</div></div>
+        </div>
+        <div class="kcol"><h4>Pending Result <span>1</span></h4>
+          <div class="kcard"><div class="n">Candidate — SCA</div><div class="m">Interviewed 2 days ago</div></div>
+        </div>
+        <div class="kcol"><h4>Successful <span>0</span></h4>
+          <div class="blk dash" style="margin:0">Drag here</div>
+        </div>
+        <div class="kcol"><h4>Onboarding <span>0</span></h4>
+          <div class="blk dash" style="margin:0">Drag here</div>
+        </div>
+        <div class="kcol"><h4>Rejected <span>1</span></h4>
+          <div class="kcard"><div class="n">Candidate — HCA</div><div class="m">Access to this profile has ended</div></div>
+        </div>
+      </div>
+    </div></div>
+    <p class="note" style="margin-top:12px">Moving a card to Rejected must trigger the same access-revocation the candidate sees on their side — "Beechwood House no longer has access to your profile for this role." This board can't just relabel a column; it has to actually close the access grant.</p>
+  </div>
+</section>
+
+<!-- ============ 07 BOOKMARKS ============ -->
+<section class="view" id="e7">
+  <div class="vhead">
+    <h2>07 · Bookmarks</h2>
+    <p>Private to the employer. Bookmarking is explicitly not a consent event — a candidate is never told they've been bookmarked, and it doesn't affect their searchability or anything on their side.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Desktop</p>
+      <div class="desk"><div class="mainpane" style="padding:18px">
+        <div class="list">
+          <div class="item"><div class="row" style="justify-content:space-between">
+            <div class="row"><span class="av blurred"></span><div><p class="h" style="margin:0 0 2px">Registered Nurse — Adult</p><p class="meta">Bookmarked 5 days ago</p></div></div>
+            <span class="btn o sm">Invite to a job</span>
+          </div></div>
+          <div class="item"><div class="row" style="justify-content:space-between">
+            <div class="row"><span class="av blurred"></span><div><p class="h" style="margin:0 0 2px">Practice Nurse</p><p class="meta">Bookmarked 2 weeks ago</p></div></div>
+            <span class="btn o sm">Invite to a job</span>
+          </div></div>
+        </div>
+      </div></div>
+    </div>
+    <div>
+      <p class="capt">Notes</p>
+      <div class="desk"><div class="mainpane" style="padding:18px">
+        <p class="t"><strong>This list is genuinely private, not just quiet.</strong> No aggregate or anonymised signal from it should ever reach the candidate side — not a "you've been shortlisted by 3 employers" counter, nothing. Bookmarking only becomes visible to a candidate the moment it converts into an actual invite tied to a job.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 08 TEAM & BILLING ============ -->
+<section class="view" id="e8">
+  <div class="vhead">
+    <h2>08 · Team &amp; billing</h2>
+    <p>Where the employer-pays model actually lives. This is the only domain in the whole product where a card number or invoice appears — never on icareltd.com, per the platform's core commercial split.</p>
+  </div>
+  <div class="canvas pair">
+    <div>
+      <p class="capt">Desktop — Team</p>
+      <div class="desk"><div class="mainpane" style="padding:18px">
+        <p class="h" style="font-size:15px;margin-bottom:10px">Team members</p>
+        <div class="list">
+          <div class="item"><div class="row" style="justify-content:space-between"><span>You</span><span class="chip k">Admin</span></div></div>
+          <div class="item"><div class="row" style="justify-content:space-between"><span>Recruitment Lead</span><span class="chip">Member</span></div></div>
+        </div>
+        <div class="blk dash" style="margin-top:11px">+ Invite a teammate</div>
+      </div></div>
+    </div>
+    <div>
+      <p class="capt">Desktop — Billing</p>
+      <div class="desk"><div class="mainpane" style="padding:18px">
+        <p class="h" style="font-size:15px;margin-bottom:10px">Plan &amp; usage</p>
+        <div class="blk plain"><div class="lbl">Current plan</div><div class="ln m"></div></div>
+        <div class="blk plain"><div class="lbl">Seats used</div><div class="ln s"></div></div>
+        <div class="blk plain"><div class="lbl">Invoices</div><div class="ln l"></div><div class="ln m"></div></div>
+      </div></div>
+    </div>
+  </div>
+  <p class="note" style="margin-top:12px">Nothing on this page has any equivalent on icareltd.com. If a feature ever needs to reference cost or a plan tier to a candidate, that's a signal something has leaked across the domain boundary and needs correcting.</p>
+</section>
+
+<script>
+const b=[...document.querySelectorAll('.nav button')];
+b.forEach(x=>x.addEventListener('click',()=>{
+  b.forEach(y=>y.setAttribute('aria-pressed',String(y===x)));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id===x.dataset.v));
+  window.scrollTo(0,0);
+}));
+</script>
+</body>
+</html>

@@ -4,11 +4,10 @@ import auth from "./auth";
 import candidates from "./candidates";
 import employersApi from "./employers";
 import employerChat from "./employer-chat";
+import jobs from "./jobs";
 import waitlist from "./waitlist";
-import rounds from "./rounds";
-import network from "./network";
-import messagesApi from "./messages";
 import landingPage from "./landing.html";
+import welcomePage from "./welcome.html";
 import employerLandingPage from "./employers.html";
 import privacyPage from "./privacy.html";
 import termsPage from "./terms.html";
@@ -17,8 +16,13 @@ import employerSignInPage from "./employer-sign-in.html";
 import verifyPage from "./verify.html";
 import onboardingPage from "./onboarding.html";
 import dashboardPage from "./dashboard.html";
+import invitesPage from "./invites.html";
+import pipelinesPage from "./pipelines.html";
+import credentialsPage from "./credentials.html";
+import visibilityPage from "./visibility.html";
+import homePage from "./home.html";
+import networkPage from "./network.html";
 import employerHomePage from "./employer-home.html";
-import appPage from "./app.html";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -30,15 +34,21 @@ const app = new Hono<{ Bindings: Bindings }>();
 
 app.route("/auth", auth);
 app.route("/candidates", candidates);
-app.route("/employers", employersApi);
-app.route("/employers/chat", employerChat);
 app.route("/waitlist", waitlist);
-app.route("/rounds", rounds);
-app.route("/network", network);
-app.route("/messages", messagesApi);
 
 app.get("/", (c) => c.html(landingPage));
+app.get("/welcome", (c) => c.html(welcomePage));
 app.get("/employers", (c) => c.html(employerLandingPage));
+
+// Must be registered after the public GET /employers landing-page route
+// above — employersApi mounts requireAuth on "*", and Hono runs matching
+// middleware in registration order, so mounting it first would 401 the
+// public page before the handler above ever runs (confirmed live on
+// icareltd.com after this session's PR #29 merge: GET /employers was
+// returning 401 instead of the marketing page).
+app.route("/employers", employersApi);
+app.route("/employers/chat", employerChat);
+app.route("/employers/jobs", jobs);
 app.get("/privacy", (c) => c.html(privacyPage));
 app.get("/terms", (c) => c.html(termsPage));
 app.get("/sign-in", (c) => c.html(signInPage));
@@ -48,8 +58,13 @@ app.get("/employer/sign-up", (c) => c.html(employerSignInPage));
 app.get("/verify", (c) => c.html(verifyPage));
 app.get("/onboarding", (c) => c.html(onboardingPage));
 app.get("/dashboard", (c) => c.html(dashboardPage));
+app.get("/invites", (c) => c.html(invitesPage));
+app.get("/pipelines", (c) => c.html(pipelinesPage));
+app.get("/credentials", (c) => c.html(credentialsPage));
+app.get("/visibility", (c) => c.html(visibilityPage));
+app.get("/home", (c) => c.html(homePage));
+app.get("/network", (c) => c.html(networkPage));
 app.get("/employer/home", (c) => c.html(employerHomePage));
-app.get("/app", (c) => c.html(appPage));
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 

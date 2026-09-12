@@ -33,11 +33,16 @@ auth.post("/request-code", async (c) => {
     return c.json({ error: "role must be 'candidate' or 'employer'" }, 400);
   }
 
+  const redirectTo = new URL("/verify", c.req.url);
+  redirectTo.searchParams.set("email", email);
+  if (create && role) redirectTo.searchParams.set("role", role);
+
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: create,
+      emailRedirectTo: redirectTo.toString(),
       data: create ? { signup_role: role, full_name, org_name, terms_version } : undefined,
     },
   });

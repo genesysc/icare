@@ -40,7 +40,14 @@ stop and ask the user — do not resolve it yourself.**
    `derived` (computed from platform data), `declared` (candidate said
    so, unchecked). UI must keep these visually distinct. No client write
    path to `candidate_badges` should ever exist (RLS: read-only to
-   clients).
+   clients). **Trap found and fixed 2026-09-11**: any DB-side function
+   that writes to `candidate_badges` — not just client routes — must be
+   `security definer`, or it inherits the calling client's role and
+   fails RLS. `refresh_experience_badges()` (fired by an AFTER trigger
+   on every `employment_history` change) was missing this and broke
+   Step 4 of onboarding for every candidate until migration `0032`
+   added it. `publish_my_profile()` already had it right — check any
+   *new* badge-writing path against that pattern, not just this one.
 3. **Never claim a DBS is "verified."** Only the employer can verify a
    DBS, via the DBS Update Service. Correct wording: *"Enhanced DBS · on
    Update Service."* Forbidden: "DBS Certified/Verified/Checked." The
@@ -108,8 +115,28 @@ stop and ask the user — do not resolve it yourself.**
   cost (founder decision, 2026-08-26). Default to Workers AI for any
   future LLM feature (e.g. Sprint 8's chat search) unless the user says
   otherwise.
-- Email (transactional/waitlist) is planned via **Sender.net**, not yet
-  active — see §8.
+- Email (transactional/waitlist) sends live via **Sender.net** — see §8
+  item 3. OTP/magic-link delivery (via Supabase Auth's own SMTP, not
+  this path) had a real regression fixed on 2026-09-10 (stale DMARC
+  record + a sender-address conflict, see the same section) — confirm
+  it's still working before assuming so.
+- **Email address ownership — firm rule, don't blur this again**: three
+  separate mail systems touch this domain and each owns exactly one
+  address, never overlapping:
+  - `info@icareltd.com` → a real, human-read inbox on **Zoho Mail**. The
+    app must never send automated mail claiming to be this address —
+    mixing a real mailbox's identity with automated sending from a
+    different provider (Sender.net) is what caused the 2026-09-10 OTP
+    delivery regression (Gmail silently discarding it, invisible to
+    both Sender.net's logs and us).
+  - `hello@icareltd.com` → all automated app mail, always via
+    **Sender.net** — OTP/magic-link (Supabase Auth's custom SMTP relay,
+    Dashboard-configured) and our own stage-completion emails
+    (`src/email.ts`'s direct API call). Never a real inbox anywhere.
+  - Supabase Auth itself only generates the OTP code/magic-link token
+    and needs *some* mail transport handed to it — it doesn't own an
+    address, it just uses whichever one its SMTP relay is configured
+    with (`hello@`, per the above).
 
 ---
 
@@ -143,55 +170,56 @@ stop and ask the user — do not resolve it yourself.**
 
 | File | What |
 |---|---|
-| `wrangler.jsonc` | Worker config — account id, vars (Supabase URL/key), R2 binding, the `Text` import rule for `.html` |
+| `wrangler.jsonc` | Production Worker config (`icare`, bound to `icareltd.com`) — account id, vars (Supabase URL/key, `SENDER_FROM_EMAIL`/`SENDER_FROM_NAME`), R2 binding, the `Text` import rule for `.html`. `SENDER_API_KEY` is a secret (`wrangler secret put`), not in this file |
+| `wrangler.staging.jsonc` | Added 2026-09-02, not committed-and-forgotten — a real, reusable staging deploy target (`icare-staging`, `workers.dev` only, no custom-domain routes) so unmerged branches can be tested end-to-end against the same real Supabase/R2/Sender.net backend without touching production. Deploy: `CLOUDFLARE_API_TOKEN=<token> npx wrangler deploy --config wrangler.staging.jsonc`. Live at `https://icare-staging.icare-181.workers.dev`. `deploy.yml`'s `workflow_dispatch` also gained a `target: production\|staging` input for the same purpose via CI, though the CLI path above is what actually got used this session (CI runner was slow/queued once, see PROGRESS.md) |
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/badges`, `/qualification-types`, `/prompts`, `/media-check` |
 | `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
-| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish, professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, see §5; now 5 post types incl. media/check-in, `/me/posts/media` two-step upload, 2026-09-11), a published peer's photo (`GET /:id/photo` — directory-level info, not consent-gated, 2026-09-11), `/me/profile-header` (name/identity-verified/connections-count/experience, 2026-09-11), incoming shortlists + consent (`/me/shortlists*`, Sprint 9), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
-| `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post; `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9); `GET /candidates/:id/{photo,video,cv}` — consent-gated media (Sprint 9) |
-| `src/employer-chat.ts` | Employer chat — six tools behind `POST /employers/chat` (guardrail → Workers AI tool call → deterministic DB action → persist), `GET /employers/chat` (replay thread): `search_candidates` (Sprint 8, extended for posts, `min_experience_years`, `qualification_type_id`), `shortlist_candidates`/`move_candidate_stage`/`get_pipeline_status` (Sprint 9), `bulk_move_stage` (Sprint 11), `who_is_summary` (Sprint 10) |
+| `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish + new `/me/unpublish` (Sprint 21 — the reversible other half of publish, see §14), professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, now with a `visibility` public/connections field, Sprint 24 — see §5/§14), `GET /feed` (Sprint 22 — reads `candidate_peer_feed`, see §14), `GET /discover`, `GET /network`, `POST /network/request`, `POST /network/:id/accept`, `DELETE /network/:id` (Sprint 23 — connections, see §14), new `GET /:id/photo` (Sprint 24 — peer-to-peer photo, no consent gate, only `current_role_is('candidate')` + `candidate_is_published()` — see §14), incoming shortlists + consent (`/me/shortlists*`, Sprint 9, re-scoped to per-pipeline `/me/shortlists/:id/consent` + new `/withdraw` in Sprint 14/15 — see §14; `/withdraw` now also takes an optional `reason` from a fixed list, stored as `decline_reason` — Sprint 18), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
+| `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post; `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9, now with `job_title`); `GET /candidates/:id/{photo,video,cv}` — consent-gated media (Sprint 9); `GET /bookmarks`, `DELETE /bookmarks/:candidateId` (Sprint 14) |
+| `src/employer-chat.ts` | Employer chat — seven tools behind `POST /employers/chat` (guardrail → Workers AI tool call → deterministic DB action → persist), `GET /employers/chat` (replay thread): `search_candidates` (Sprint 8, extended for posts, `min_experience_years`, `qualification_type_id`), `bookmark_candidates`/`send_invite` (Sprint 14, replacing Sprint 9's `shortlist_candidates` — see §14), `move_candidate_stage` (Sprint 9, now keyed by `pipeline_id` not `candidate_id`, Sprint 14)/`get_pipeline_status` (Sprint 9), `bulk_move_stage` (Sprint 11), `who_is_summary` (Sprint 10) |
 | `src/employer-chat-guardrail.ts` | Protected-characteristics keyword/proximity guardrail — the deterministic layer behind the chat's non-negotiable #5 compliance, see §7 |
-| `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` (format regex + live MX-record check via Cloudflare DoH + typo-similarity check against known consumer providers) |
-| `src/rounds.ts` | Rounds (feed) — `GET /rounds/feed`, `POST /rounds/posts/:id/reaction`, comments, `GET /rounds/mention-search` (platform-wide), `GET /rounds/checkin/venues` (employer-directory matches + Nominatim), `GET /rounds/media/:postId` (post photo/video/document, visibility-checked) — 2026-09-11 |
-| `src/network.ts` | Network — `GET /network/discover` ("people you may know"), `/connections`, `/requests`, `POST /connect` (optional note), accept/decline/cancel — 2026-09-11 |
-| `src/messages.ts` | Messages — inbox (`GET /messages/`), start-or-resume a thread (gated to accepted connections only, via `get_or_create_conversation` RPC), thread read (marks the other party's messages read), send — 2026-09-11 |
-| `src/email.ts` | `sendTransactionalEmail` — currently a deliberate no-op, see §8 |
-| `src/emails/waitlist-welcome.ts`, `employer-waitlist.ts`, `candidate-profile-published.ts`, `employer-verification-submitted.ts`, `employer-verified.ts` | Stage-completion email subject/HTML, all unused until `email.ts` is wired up (see §8 item 3). The first two are for the waitlist; the latter three are candidate/employer product-stage emails, added 2026-08-26 |
-| `src/landing.html` | Candidate waitlist landing page — single file, inline CSS/JS, GSAP via CDN |
+| `src/jobs.ts` | Jobs module (Sprint 13, mounted at `/employers/jobs`): `POST /draft` (Workers AI drafts the description body), `POST /`, `GET /`, `GET /:id`, `PATCH /:id`, `PATCH /:id/close` — see §14 |
+| `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
+| `src/email.ts` | `sendTransactionalEmail` — real Sender.net API call, live since 2026-09-02, see §8 item 3 |
+| `src/emails/waitlist-welcome.ts`, `employer-waitlist.ts`, `candidate-profile-published.ts`, `employer-verification-submitted.ts`, `employer-verified.ts` | Stage-completion email subject/HTML, wired at their call sites and actually sending as of 2026-09-02 (see §8 item 3). The first two are for the waitlist; the latter three are candidate/employer product-stage emails, added 2026-08-26 |
+| `src/landing.html` | Candidate waitlist landing page — single file, inline CSS/JS, GSAP via CDN. Also now recovers a magic-link sign-in that lands here by mistake (2026-09-02 fix, see §14/PROGRESS.md) — checks for `#access_token=` in the URL hash on load, before anything else runs, and forwards to `/verify` |
+| `src/welcome.html` | **NEW 2026-09-10.** Launched-state landing page at `/welcome` — reuses `landing.html`'s design system (same CSS vars/fonts/section markup) but swaps the waitlist capture form for real product entry points: primary CTA → `/sign-up`, secondary → `/sign-in`, employer cross-link → `/employer/sign-up`. Added because `/` is deliberately staying the pre-launch waitlist page for now (user's explicit call — see §8/§14) and there was no page anywhere with an actual login/sign-up CTA on it. Not yet linked from `/` or from anywhere else in the app; nothing currently points here except direct navigation. Decide later whether this replaces `/` at actual launch or `/` gets retired in favor of it |
 | `src/employers.html` | Employer waitlist landing page — separate design system, same self-contained pattern |
 | `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
 | `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
 | `src/employer-sign-in.html` | Employer sign-up/sign-in (Sprint 6), mounted at both `/employer/sign-up` and `/employer/sign-in`, own purple/teal design system |
-| `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me` |
+| `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me`. Also now handles being opened via the emailed magic link directly (2026-09-02 fix) — reads `#access_token=&refresh_token=` off the URL hash (the implicit-flow shape `auth.ts`'s new `emailRedirectTo` produces) and completes sign-in without the manual code form. Code input widened to `maxlength="10"` — this Supabase project issues 8-digit codes, not 6 |
 | `src/employer-home.html` | Employer home, `/employer/home` — verification card (Sprint 7, now including a read-only org profile summary once verified — Sprint 11) + chat-based candidate search (Sprint 8) + iRecruit pipeline card (Sprint 9, now showing consent-gated photo/video/CV buttons) |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
-| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure. Links out to `/app` (2026-09-11). **Known bug, not fixed**: its own profile photo `<img src="/candidates/me/photo">` can't carry the Bearer token that route requires — likely silently broken |
-| `src/app.html` | Rounds/Network/Messages/Profile — one self-contained page, 4-tab bottom nav, built 2026-09-11 against the real API (not the uploaded mockup's demo data). All photo/media goes through fetch-as-blob (`authedImageUrl()`), never a plain `<img src>` |
+| `src/dashboard.html` | The real candidate dashboard (Sprint 5) — profile summary, badges (read-only), a per-section "at a glance" list with edit links back into the wizard, posts (compose/list/delete), incoming shortlists + consent toggle (Sprint 9), account closure. This is the wireframe's **Profile** tab (Sprint 19) — the tab-bar shell now sits at the bottom of every signed-in page instead of a text nav link. Its own inline shortlist section is unchanged/still functional, not yet consolidated into `invites.html`/`pipelines.html` |
+| `src/invites.html` | Jobseeker Invites screen (Sprint 18), `/invites` — implements wireframe screens 03/04 against the existing `/me/shortlists*` routes: New/Accepted/Declined tabs (derived client-side from `candidate_consented_at`/`closed_at`, no new status field) and a detail view per tab — undecided invites get the full "if you accept" consent panel with Accept/Decline/Decide later and a fixed six-option decline-reason picker; accepted ones get a Withdraw action; declined ones are read-only. Does NOT implement the wireframe's 7-day auto-expiry countdown (needs an `expires_at` column set at invite creation plus a scheduled job — real scope, flagged not built) |
+| `src/pipelines.html` | Jobseeker Pipelines screen (Sprint 19), `/pipelines` — implements wireframe screen 05 against the same `/me/shortlists*` data as `invites.html`. Active/Closed tabs, but scoped to rows that were actually accepted (`candidate_consented_at` set) — an invite declined before ever being accepted lives only on `invites.html`'s Declined tab, never here, matching the wireframe's own stated principle that a pipeline is a state you sit in *after* the invite decision. Detail view renders a real six-stage tracker (done/current/upcoming) plus a Withdraw action for active pipelines, or a closing note for closed ones. One deliberate deviation from the wireframe's own screen-05 example, documented in the file's header comment: a Successful/Onboarding pipeline stays in Active here (this backend's `closed_at` means access-revoked, not "reached a terminal stage" — see `employer-chat.ts`'s `move_candidate_stage`) |
+| `src/home.html` | The real Home feed (Sprint 22, **corrected Sprint 24 — see §14**), `/home` — pinned "new invites" strip, a composer (`POST /me/posts`, now with a `visibility` public/connections toggle) and a real cross-candidate feed (`GET /candidates/feed` → `candidate_peer_feed` view). Identity (real name + photo) shown unconditionally, free-for-all between candidates — Sprint 24 reversed Sprint 22's name-free attribution, which was a mistaken extension of the employer-consent pattern |
+| `src/network.html` | The real Network (Sprint 23, **corrected Sprint 24 — see §14**), `/network` — LinkedIn-style connections: Connections/Requests/Discover tabs against `connections` table + `candidate_discover` view. Discovery is profession/location search, not name (names aren't searchable anywhere else either). Identity (real name + photo) is shown unconditionally in all three tabs, not gated by connection status — Sprint 24 reversed Sprint 23's "accept reveals name" mechanic, which was a mistaken extension of employer consent to the peer-to-peer context. Connections list itself stays private (RLS: only the two parties in a row can read it). Org "Follow" explicitly deprioritised by the founder, not built |
+| `src/credentials.html` | Credentials & documents (Sprint 20), `/credentials` — implements wireframe screen 07, reached from `dashboard.html`'s badges card rather than a sixth tab-bar destination (matches the wireframe's own information architecture — Credentials sits one level under Profile, not beside it). Badges section is copied verbatim from `dashboard.html`'s own rendering; DBS and sponsorship-status (`right_to_work`) blocks are new but read/write only existing fields via existing routes. Deliberately does NOT implement the wireframe's three-state DBS model ("Not Yet Verified" / "Current — no new information" / "New information reported") — see the file's header comment and the note below for why |
+| `src/visibility.html` | Visibility (Sprint 21), `/visibility` — implements wireframe screen 08, reached from a new "Visibility" card on `dashboard.html`. The master "Findable by employers" switch is real and reversible: `candidates.is_published` existed already but had no way back to `false` short of closing the whole account, so this sprint added `POST /candidates/me/unpublish` (`candidates.ts`) as the missing other half of the existing `/me/publish`. The wireframe's field-by-field visibility matrix (About/Experience Public, Registrations/Availability Employers-only, etc., each independently toggleable) is NOT built — no such preference exists anywhere in the schema, `candidate_search` is a single fixed view. This page shows a read-only, accurate breakdown of what's actually exposed instead of fake per-field toggles — see the file's header comment |
+| `src/nav-shell.html` | Reference file for the signed-in tab-bar shell (Sprint 19) — same "not imported, copy verbatim" convention as `auth-client.js`. Five destinations (Home/Invites/Pipelines/Network/Profile) as a bottom-fixed bar at every viewport size (this codebase has no other desktop-specific layout), hand-authored inline SVG icons, an unread dot on Invites. Copied into `dashboard.html`, `invites.html`, `pipelines.html`, `home.html`, `network.html` — update all five if this file changes |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
 | `SPRINTS.md` | Forward-looking roadmap — candidate journey sprints, then employer journey sprints. Check here before picking "what's next" |
 | `AGENTS.md` / `CLAUDE.md` | Pointer files: read `PROGRESS.md` (and now this file) first, update before ending a session |
 
-**`supabase/migrations/*.sql` mirrors the live database, with a known
-gap: `0020`-`0033` are missing.** As of 2026-08-26 all 19 migrations to
-date (`0001_init` through `0019_candidate_dossier_rpc`) were committed as
-files, fetched verbatim from `supabase_migrations.schema_migrations`. Since
-then, migrations `0020` through `0033` were applied directly to the live
-project (by an earlier/other session — `jobs`, `bookmarks`, the six-stage
-pipeline, frozen `profile_summaries`, `candidate_peer_feed`,
-`candidate_discover`, `connections`) but **never saved as files here** —
-discovered 2026-09-11 while building Rounds/Network/Messages/Profile
-(`0034` onward, which ARE mirrored, pick up right after the gap). The real
-schema was verified directly against the live DB before building on it, so
-nothing is broken — this is purely a missing-files gap in the mirror, not a
-schema-correctness problem. Worth backfilling (`supabase_migrations.
-schema_migrations`'s `statements` column still holds the exact original
-SQL) next time someone's in this area. **Whoever adds a new migration
-going forward should write the matching file here at the time**, the same
-way `PROGRESS.md`/`HANDOVER.md` are expected to be kept current by hand —
-that's the discipline that lapsed and produced this gap.
+**`supabase/migrations/*.sql` now mirrors the live database**
+(2026-08-26) — all 19 migrations to date (`0001_init` through
+`0019_candidate_dossier_rpc`) are committed as files,
+fetched verbatim from `supabase_migrations.schema_migrations`
+(its `statements` column holds the exact SQL each migration ran). This
+is a point-in-time backup/version-control mirror, not a live sync —
+migrations are still applied to the real project via `apply_migration`
+(MCP) as before; **whoever adds a new migration going forward should
+also write the matching file here** to keep the mirror current, the
+same way this repo already expects `PROGRESS.md`/`HANDOVER.md` to be
+kept current by hand. Nothing here changes how `apply_migration` itself
+works — this is purely a "so it isn't only visible from inside
+Supabase" archive.
 
 ---
 
@@ -251,38 +279,6 @@ definer — the structured-data source for Sprint 10's `who_is_summary`;
 `employment_history`/`qualifications` have no employer-facing RLS at
 all, so this one RPC is the actual gate, checked once rather than
 bolted onto five tables).
-
-**Rounds/Network/Messages/Profile schema (migrations `0034`-`0039`,
-2026-09-11)**, built on top of the pre-existing `connections`/`jobs`/
-`bookmarks`/`profile_summaries` foundation (see the mirror-gap note
-above): `candidate_posts` gained `post_type` (`text`/`photo`/`video`/
-`document`/`checkin`) and media/check-in columns; `connections` gained an
-optional `note`. New tables: `post_reactions` (one "Helpful" reaction per
-candidate per post, toggled via `toggle_post_reaction()` — no direct
-client write path), `post_comments` (`add_post_comment()` RPC to write,
-own-row RLS delete), `post_mentions` (platform-wide per the build spec —
-inserted by a post's own author only), `conversations`/`messages` (1:1
-DMs, gated to accepted connections only at creation time via
-`get_or_create_conversation()`, canonical `candidate_a_id < candidate_b_id`
-ordering so a unique constraint enforces one conversation per pair). New
-security-definer helper: `candidate_can_view_post(post_id)` — the same
-visibility rule `candidate_peer_feed` encodes, extracted once and reused
-by the reaction/comment RPCs (same pattern `0029` used for a similar RLS-
-duplication problem). Extended views: `candidate_peer_feed` and
-`candidate_discover` gained `identity_verified` (`right_to_work <>
-'not_stated'` AND a `dbs_records.certificate_number` on file —
-deliberately independent of `on_update_service`, the spec's explicit
-requirement), current job title/employer (same `LATERAL` join
-`candidate_search` uses), and (peer_feed only) reaction/comment counts +
-`my_reacted`; `candidate_discover` also gained `connection_status`/
-`connection_requester_id`/`connection_id` and now excludes the viewer's
-own row and already-accepted connections (the former was a real
-pre-existing bug — a candidate could see themselves in their own "people
-you may know" — fixed opportunistically while already touching this view,
-not as a separate pass). New views: `my_connections`, `my_pending_
-requests`, `post_comments_feed`, `post_mentions_feed`,
-`candidate_mention_search` (platform-wide, unlike `candidate_discover`),
-`conversation_inbox`.
 
 ---
 
@@ -470,31 +466,74 @@ deploy confirmation yet.
    raw candidate app.
 2. **Supabase email template fix** (`{{ .Token }}`) — see §6. Manual
    Dashboard step.
-3. **Sender.net API integration itself** — `src/email.ts` has a stub with
-   clear activation instructions in a comment, but the actual
-   transactional-send request was never written. **Genuinely tried to
-   unblock this on 2026-08-26**, not just left alone: the Sender MCP
-   connector disconnected mid-session (can't inspect the live account —
-   verified domains, templates, workflows), and `WebFetch` to
-   `api.sender.net`/`www.sender.net`/`developers.sender.net` all came
-   back `EGRESS_BLOCKED` from this sandbox's network proxy — the same
-   class of restriction that blocks `*.supabase.co` and
-   `api.anthropic.com` elsewhere. Did **not** guess the request shape to
-   route around it. What *is* done: three stage-completion email
+3. ~~**Sender.net API integration itself**~~ — **resolved 2026-09-02**:
+   the Sender MCP connector reconnected and confirmed `icareltd.com` is
+   a fully verified sending domain (SPF/DKIM/DMARC all passing at the
+   time). `src/email.ts`'s `sendTransactionalEmail()` now makes a real
+   `POST https://api.sender.net/v2/message/send` call (confirmed against
+   Sender's own current docs, not guessed), gated on a `SENDER_API_KEY`
+   Worker secret (provisioned via `wrangler secret put`, never a plain
+   `wrangler.jsonc` var) plus `SENDER_FROM_EMAIL`/`SENDER_FROM_NAME`
+   vars (`hello@icareltd.com` / `iCare`). Verified with a real send
+   (`emailId` returned, delivered). The three stage-completion email
    templates (`src/emails/candidate-profile-published.ts`,
    `employer-verification-submitted.ts`, `employer-verified.ts`) are
-   written and — for the two with a real trigger point — wired at their
-   call sites (`POST /candidates/me/publish` in `candidates.ts`,
-   `POST /employers/me/verification-requests` in `employers.ts`); both
-   calls go through the same safe no-op `sendTransactionalEmail()`, so
-   nothing breaks with sending still off. `employer-verified.ts` has
-   **no trigger to wire it to yet** — `is_verified` is only ever flipped
-   by a manual Supabase dashboard edit, no API call behind it — that
-   needs either a Postgres database webhook or a real admin review
-   route, a decision for the founder. To finish #3: reconnect the
-   Sender MCP (or paste the relevant API docs directly) so the actual
-   `fetch()` call in `email.ts` can be filled in against real docs, not
-   guessed.
+   wired at their call sites as before and now actually send.
+   `employer-verified.ts` **still has no trigger** — `is_verified` is
+   only ever flipped by a manual Supabase dashboard edit — that's still
+   open, a decision for the founder (Postgres database webhook vs. a
+   real admin review route).
+   **✅ Resolved 2026-09-10** (was broken, found and fixed same day):
+   OTP/magic-link delivery (a *separate* path — Supabase Auth's own
+   SMTP, not this route, see §6) started silently failing after working
+   correctly for several days. Diagnosed live: Sender.net account/domain/recipient all
+   checked healthy (not suspended, domain still `ready_to_send`,
+   recipient's `temail` channel status `active`, no bounce), and even a
+   **direct Sender.net API test send** (bypassing Supabase entirely)
+   returned success — but never arrived, not even in spam. Root cause
+   found via DNS: **two conflicting `_dmarc.icareltd.com` TXT records**
+   — Sender.net's intended `v=DMARC1; p=none;` alongside a stale
+   **GoDaddy default record** (`rua=mailto:dmarc_rua@onsecureserver.net`)
+   left over from before DNS moved to Cloudflare. Two DMARC records at
+   the same name is invalid per spec and is a known cause of Gmail
+   silently discarding mail rather than spam-foldering it — matches the
+   symptom exactly. No tool available here edits Cloudflare DNS records
+   (only Workers/D1/KV/R2/Hyperdrive) — **the founder was given the
+   exact record to delete via the Cloudflare dashboard (DNS → Records →
+   `_dmarc`) and has not yet confirmed it's done or re-tested delivery.
+   Pick this up first on the next session** — see PROGRESS.md's
+   2026-09-10 entry for the full diagnostic trail before re-doing any of
+   this work.
+   **Update, same day, DMARC fix applied but not yet sufficient**: the
+   founder deleted the stale GoDaddy DMARC record (confirmed via fresh
+   DNS lookup — only `v=DMARC1; p=none;` remains now) and a fresh test
+   OTP send was triggered. Sender.net's own delivery log shows it as
+   **delivered** (SMTP accepted by Gmail) — a genuine improvement, the
+   earlier direct-API test never even got that far — but it still never
+   reached the inbox or spam. "Delivered" here only means Gmail's server
+   accepted the SMTP handoff, not that Gmail actually surfaces it to the
+   user; Gmail is known to silently accept-then-discard mail it's
+   suspicious of, invisible to both Sender.net and us.
+   **Real candidate root cause, founder-confirmed 2026-09-10, not yet
+   applied**: the Supabase SMTP relay's configured sender address is
+   **`info@icareltd.com`** — but that exact mailbox is a real, separate
+   inbox hosted on **Zoho Mail** (MX/SPF/DKIM for Zoho were set up for
+   it when the domain was configured, see item 1 above). Sending OTP
+   mail claiming to be from that address via a *different* provider
+   (Sender.net, not Zoho) is a real infrastructure mismatch, and exactly
+   the kind of pattern (an address with sending history on one system
+   suddenly sending from another, on a young domain, on a shared-IP free
+   ESP tier) that triggers Gmail's silent-discard behavior specifically.
+   **Fix applied and confirmed working**: founder changed the SMTP
+   relay's "Sender email" in Supabase Dashboard → Authentication →
+   Emails → SMTP Settings from `info@icareltd.com` to
+   `hello@icareltd.com` — the address `email.ts`'s direct-API path
+   already used successfully, with no separate real mailbox behind it.
+   Re-tested the same way (`POST /auth/request-code` on staging,
+   `recovery_sent_at` confirmed processed within 2 seconds) — founder
+   confirmed the email arrived. OTP/magic-link delivery is working
+   end-to-end again. See §2's "Email address ownership" rule — don't
+   let `info@` and `hello@` blur back together.
 
 **Next, no particular blocker**
 
@@ -531,6 +570,21 @@ deploy confirmation yet.
    the simple structured-field search assumed elsewhere in this doc and
    in `SPRINTS.md`.** Treat `SPRINTS.md`'s employer track as stale until
    it's revised against this — it has been (see §13).
+10. ~~Launched-state marketing landing page with real Log In / Sign Up
+    entry points~~ — **built 2026-09-10** (`src/welcome.html`, mounted
+    at `GET /welcome`). The user flagged this twice: `/` only ever had a
+    waitlist-capture form, no way to actually sign in once someone's
+    account exists — `/home` (the post-login candidate feed) isn't a
+    substitute, and neither is the magic-link recovery fix in
+    `landing.html`. `/welcome` reuses `landing.html`'s exact design
+    system but its primary/secondary CTAs are `/sign-up` and `/sign-in`
+    (plus a cross-link to `/employer/sign-up`) instead of the waitlist
+    form. **Deliberately not wired up as `/` yet** — the user's explicit
+    call was to keep `/` as the waitlist page for now and decide later
+    whether `/welcome` replaces it at actual launch or stays a separate
+    path. Nothing links to `/welcome` yet either (not from `/`, not from
+    nav) — it's reachable only by direct URL until that decision is
+    made.
 
 ---
 
@@ -1026,3 +1080,353 @@ the domain question at all.
 
 As always: check current branch/PR state before assuming anything in
 this doc is deployed to `main`.
+
+---
+
+## 14. Group strategy, revised B2B workflow spec & Next.js reference track — uploaded 2026-08-30, reconciliation needed before employer-track work continues
+
+The founder uploaded four documents this session, now stored under `docs/`
+(not wired into the live Worker — reference material only):
+
+- `docs/iCare_Group_Strategy_Handover.md` — brand architecture + B2B/B2C
+  pricing, dated 27 Aug 2026.
+- `docs/iCare_B2B_Recruitment_Workflow_Handover.md` — already existed in
+  the repo (added on a prior PR); confirmed unchanged.
+- `docs/iCare_NextJS_Candidate_Track_Handover.md` — a fuller, more current
+  handover for the **separate Next.js candidate-side build** referenced
+  elsewhere in this doc (§1, §3's "architecture note"). Supersedes the
+  fragments of that build previously summarised here.
+- `docs/mockups/jobseeker-wireframes.html` and
+  `docs/mockups/employer-wireframes.html` — the click-through wireframes
+  the Next.js track and the workflow spec were designed against.
+- `docs/icare-jobseeker-app-code/icare-jobseeker-app/` — the actual
+  Next.js/Tailwind source for the candidate side (28 files: `lib/types.ts`,
+  `app/*/page.tsx`, `components/**/*.tsx`), pushed straight to `main` by
+  the founder outside any PR. Wireframe-fidelity, mock-data-only, no
+  Supabase wiring, no auth — a UI/logic reference, not a runnable app
+  (`layout.tsx`, `package.json`, etc. weren't included). Onboarding step 3
+  is the only fully-built step; steps 1/2/4–7 are placeholders.
+
+**Why this matters:** these describe the *same product* this repo
+(Cloudflare Workers) is building, but the candidate-side has now been
+built twice in two different stacks, and the employer-side workflow spec
+here is **materially different** from what Sprints 6–11 already shipped
+in this repo. Nothing below is broken — both are internally consistent —
+but they don't agree with each other, and only the founder can say which
+is authoritative going forward.
+
+### Group strategy — summary (full detail in the stored file)
+
+- **Brand architecture**: iRecruit becomes the single B2B/employer brand
+  across verticals; iCare is the health & social care candidate-facing
+  vertical (current build), with iBuilt/iHost/iFinance/iTech-or-iCode/
+  iLaw/iTeach as future verticals, each its own domain. Parent/holding
+  company name (must include "work") still undecided.
+- **B2C**: paid visibility/ranking boosts confirmed **blocked pending legal
+  review** (Employment Agencies Act 1973) — consistent with non-negotiable
+  #1 above. An **analytics tier** (viewer identity, search-appearance
+  counts, comparative benchmarking framed as improvement not ranking,
+  skills-gap insight, saved-search alerts) was selected as the priority
+  paid feature — not built. Pricing: ~£5–£10/mo or a £4.99/7-day burst
+  pass.
+- **B2B pricing — finalised for two of three segments** (not yet built
+  anywhere, no pricing page exists):
+  - **In-house teams**: flat tiers gated by *concurrent active pipelines*
+    (not seats, not search volume): Starter £99/mo (1 pipeline), Growth
+    £169/mo (5, "Most Popular"), Scale £229/mo (unlimited + analytics).
+  - **Agencies**: tiers gated by *client accounts held* (not pipelines —
+    agencies bill clients a retainer regardless of hiring activity):
+    Starter £249/mo (≤3 clients), Growth £419/mo (≤10), Scale £549/mo
+    (unlimited). Unlimited users/search/pipelines in every tier — the
+    per-client (not per-seat) model is flagged as a real differentiator
+    vs. Bullhorn/Vincere/ATSpro.
+  - **White label**: setup fee £1,000–£2,000 agreed; ongoing monthly fee
+    **still open**, parked for a follow-up session.
+- **Confirmed: no traditional job postings/apply flow, ever** — the
+  employer's natural-language search *is* the discovery mechanism. This
+  does **not** conflict with the "job module" below — see next section.
+
+### Revised B2B workflow — what's different from what's already built here
+
+The workflow handover (`docs/iCare_B2B_Recruitment_Workflow_Handover.md`)
+and the wireframes describe employer-side mechanics that don't match
+Sprints 6–11 as shipped in this repo. Concretely:
+
+| Area | What this repo already built (Sprints 6–11) | What the new spec describes |
+|---|---|---|
+| Save/shortlist action | ~~One action — `shortlist_candidates` chat tool creates a `shortlists` row directly~~ — **shipped 2026-08-30, Sprint 14**: `bookmark_candidates` (own `bookmarks` table, private, no pipeline) vs. `send_invite` (job-gated, creates the pipeline entry, snapshots the job) |
+| Pipeline stages | ~~`shortlists.stage` check-constrained to `shortlisted`/`interview`/`offer`/`hired`/`rejected`~~ — **migrated 2026-08-30, Sprint 14** (migration `0021`): **Shortlisted → Invited for Interview → Pending Interview Result → Successful/Rejected → Onboarding** — matches the wireframes and `lib/types.ts`'s `PipelineStage` exactly |
+| Job record | ~~No `jobs`/vacancy entity exists~~ — **shipped 2026-08-30, Sprint 13**: `jobs` table (migration `0020_jobs`) + `src/jobs.ts`, never public/browsable, no apply button (doesn't reopen "no postings"). Mandatory 3-state sponsorship field DB-enforced (option 3 blocked for `care_assistant`/`senior_carer`). **Send Invite is not yet gated on it** — that hard gate is Sprint 14. |
+| Profile access on accept | ~~`set_shortlist_consent()` — a boolean consent flag unlocking photo/video/CV, no documented expiry-on-close mechanic~~ — **shipped 2026-08-30, Sprint 15**: `shortlists.closed_at` + `set_shortlist_consent()`/`get_candidate_dossier()` both require `closed_at is null`; moving a pipeline to Rejected (or closing its job) sets it. New `profile_summaries` table freezes the AI profile view once, at acceptance (candidate's `POST /me/shortlists/:id/consent`), for that pipeline's lifetime — `who_is_summary` in `employer-chat.ts` reads it instead of regenerating live. |
+| Search exclusion scope | Not explicitly documented as scoped | **Not yet built** — true (company × job) exclusion needs `search_candidates` itself to be job-scoped, which it isn't yet; deliberately deferred out of Sprint 14 rather than half-built (see `SPRINTS.md`). Exclusion should only trigger on Send Invite (never on Bookmark), and should **not be permanent** — a declined/rejected candidate should return to that company's pool for future jobs with a visible history flag. The one permanent block is candidate-initiated "do not contact me again." |
+| Interview stage | Not built yet in this repo (pipeline stages stop at `offer`/`hired`) | Async self-scheduled video interview, system transcribes + summarises **for time only, never scored/ranked** — extends non-negotiable #5 explicitly to video. |
+| Candidate consent response | Not documented as binary | Binary only: **Interested / Not interested** — no partial states. |
+| Profile UI | No employer-facing candidate-detail screen built yet | A "dossier" concept exists in two mockup passes, current one at `docs/mockups/candidate-profile-dossier-v2.html` — three-column desktop-first layout, References/Employment history/Qualifications columns are **new profile sections with no data model here yet** (`employment_history` already exists in this repo's schema; a dedicated `references`-as-nominated-referees flow with its own third-party-consent question does not). Type system: Libre Caslon Text (name + descriptive-summary quote only) / Courier Prime (body) / Space Grotesk (chrome) — already noted as the planned employer-dossier system in §5 above; now there's a real mockup to build against. |
+
+**Not a contradiction, just not built yet — new fields confirmed by both
+sources**: candidates declaring their own sponsorship need (already
+reflected in §12 above) now has a concrete home (onboarding step 1) and a
+counterpart on the job record (previous paragraph); DBS mechanism detail
+(Update Service subscription is the *only* legitimate "confirmed" path,
+open question whether an online check alone is sufficient vs. the
+employer must also view the physical certificate — needs legal input)
+sharpens, doesn't change, non-negotiable #3.
+
+### What this means practically — flag to the founder, don't resolve silently
+
+1. **Candidate side is now built twice**, in two different stacks
+   (Cloudflare Workers + vanilla HTML, live and deployed here; Next.js +
+   Tailwind, mock-data reference, pushed to `docs/` on `main`). They're
+   functionally aligned (same non-negotiables, same field set, same
+   pipeline stage names even) but are not the same codebase and will
+   drift if both are treated as live. **Needs a founder decision**: is
+   the Next.js code purely a design/logic reference (as the original
+   architecture note in §3 already decided for the *first* Next.js
+   handover), or does the founder want a real migration to Next.js? Default
+   assumption, unless told otherwise: **stays a reference — Cloudflare
+   Workers remains the one deployed candidate-side app**, same as the
+   standing 2026-08-25 decision.
+2. ~~Employer-side pipeline stage names have to be decided~~ — **migrated
+   2026-08-30, Sprint 14** (migration `0021`): six-stage model, matching
+   the wireframes/workflow spec/Next.js types.
+3. ~~Bookmark vs. Invite is a genuine gap~~ — **shipped 2026-08-30, Sprint
+   14**: `bookmark_candidates` (private, own `bookmarks` table) split out
+   from `send_invite` (job-gated) in `employer-chat.ts`.
+4. ~~The `jobs` module is a real, unstarted piece of scope~~ — **shipped
+   2026-08-30 as Sprint 13**: `jobs` table (migration `0020_jobs`) +
+   `src/jobs.ts` (`/employers/jobs`). Creatable/listable/closeable, with
+   the sponsorship-restriction check DB-enforced. **Now gates Send
+   Invite** too, as of Sprint 14 — `send_invite` in `employer-chat.ts`
+   requires a valid `job_id` from the employer's own active jobs.
+5. ~~Scoped/revocable/frozen-at-acceptance profile access~~ — **shipped
+   2026-08-30, Sprint 15**: `shortlists.closed_at` + `set_shortlist_
+   consent()`/`get_candidate_dossier()` both gated on it; new
+   `profile_summaries` table freezes the AI view at acceptance.
+
+**Founder confirmed 2026-08-30: migrate now**, with this stage mapping
+for in-flight data (`shortlists` had 0 rows at the time, so no real
+backfill risk): `interview → invited_for_interview`, `offer → pending_
+interview_result`, `hired → successful` (`shortlisted`/`rejected` keep
+their names, `onboarding` is new). Build order, Sprints 13–17 in
+`SPRINTS.md`: (a) `jobs` table — **shipped, Sprint 13** — (b) split
+Bookmark out + migrate `shortlists.stage` to the six-stage enum +
+hard-gate Send Invite on a `job_id` — **shipped, Sprint 14** (also fixed a
+real bug found while building it: `shortlists`' old uniqueness on
+`(employer_id, candidate_id)` made multiple pipelines per candidate
+impossible, contradicting the workflow spec — see `SPRINTS.md` Sprint
+14) — (c) rework profile-access grant to be pipeline-scoped + revocable +
+frozen-at-acceptance — **shipped, Sprint 15** (fixed two more real bugs
+found mid-build: `set_shortlist_consent()` was still employer-scoped, not
+per-pipeline, so consenting to one invite would have silently touched
+every pipeline with that employer; `shortlistConsented()` in
+`employers.ts` used `.maybeSingle()`, which throws the moment a candidate
+has two pipelines with one employer — both fixed, see `SPRINTS.md` Sprint
+15) — (d) interview stage (Sprint 16, not started), (e) the dossier UI
+(Sprint 17, not started). See `SPRINTS.md` for the full per-sprint scope.
+
+**Wireframe testing links** (candidate + employer click-throughs, all 19
+screens combined across both) were also published as private Claude
+Artifacts this session for the founder to review visually — not part of
+the repo, not live, links given directly to the founder in chat.
+
+**2026-08-31 — founder flagged the gap directly:** Sprints 13–15 above
+reconciled the employer-track *backend* against the wireframe/workflow
+spec, but the jobseeker-facing pages (`sign-in.html`, `onboarding.html`,
+`dashboard.html`) were never rebuilt against `docs/mockups/jobseeker-
+wireframes.html` — they predate it. Founder confirmed via the live-site
+walkthrough that what's deployed doesn't match the wireframe (no tab
+bar, no dedicated Invites/Pipelines/Network/Credentials/Visibility
+screens, no consent-moment screen). Asked to start on the frontend;
+first slice:
+
+- **Sprint 18 — jobseeker Invites screen — shipped 2026-08-31**: new
+  `src/invites.html` (`/invites`) implements wireframe screens 03
+  (Invites list, New/Accepted/Declined tabs) and 04 (Invite detail — the
+  consent moment) against the *existing* `/me/shortlists*` routes; no new
+  backend concept, "accept" = existing per-pipeline consent, "decline" =
+  existing withdraw route. Added migration `0025` (`shortlists.decline_
+  reason`, a fixed six-value list matching the wireframe's decline-reason
+  picker) and extended `POST /me/shortlists/:id/withdraw` to accept an
+  optional `reason` — a real, if small, product decision the wireframe
+  calls out explicitly ("prefer not to say" must be a valid, complete
+  answer; there's no way to decline with nothing shared), not something
+  that could be faked purely in the frontend. Linked from `dashboard.html`
+  (nav link + new-invites count badge); the dashboard's own inline
+  shortlist/consent section was left in place rather than removed, to
+  avoid breaking working functionality in the same pass — worth
+  consolidating once the rest of the shell exists.
+- **Sprint 19 — tab-bar shell + Pipelines screen — shipped 2026-08-31**:
+  founder asked to build the shell first, then Pipelines. `src/nav-
+  shell.html` is the new reference tab bar (Home/Invites/Pipelines/
+  Network/Profile), copied into all five signed-in pages —
+  `dashboard.html` is now understood as the wireframe's Profile tab
+  rather than a standalone page. `src/pipelines.html` implements
+  wireframe screen 05 (Active/Closed, six-stage tracker), scoped to
+  ever-accepted rows only per the wireframe's own invite-vs-pipeline
+  distinction. `src/home.html`/`src/network.html` are minimal, honest
+  placeholders so all five tab destinations resolve — see the file map
+  above and `SPRINTS.md`'s Sprint 19 note for the real feature work each
+  still needs and the one deliberate wireframe deviation (a Successful/
+  Onboarding pipeline stays in Active, not Closed — this backend's
+  `closed_at` means access-revoked specifically, not "reached a terminal
+  stage").
+- **Sprint 20 — Credentials screen — shipped 2026-08-31**:
+  `src/credentials.html` (wireframe screen 07), linked from
+  `dashboard.html`. Badges + DBS + sponsorship-status (`right_to_work`)
+  sections, all against existing routes. **Real gap surfaced while
+  building this, not new**: the wireframe's three-state DBS model
+  ("Not Yet Verified" / "Current — no new information" / "New
+  information reported") was already flagged as unbuilt in the
+  2026-08-30 PROGRESS.md entry (no `state` column on `dbs_records`, no
+  staff confirmation workflow, and the underlying policy question — DBS
+  guidance wants the physical certificate viewed too, no clean answer
+  for a remote-first platform — explicitly needs legal input, not
+  decided). This page does not fake that model: it shows only what's
+  actually on file (level, Update Service registration, consent) rather
+  than inventing a confirmation the platform has never performed.
+  Building the real three-state flow needs that policy decision first.
+- **Sprint 21 — Visibility screen — shipped 2026-08-31**:
+  `src/visibility.html` (wireframe screen 08), linked from a new
+  "Visibility" card on `dashboard.html`. The master "Findable by
+  employers" switch is real and reversible — new `POST /candidates/
+  me/unpublish` fills the gap that `is_published` previously had no way
+  back to `false` except by closing the whole account. Verified against
+  the live schema (RLS-scoped publish/unpublish round trip, confirmed a
+  candidate can't write another candidate's row). The wireframe's
+  field-by-field visibility matrix (About/Experience Public,
+  Registrations/Availability Employers-only, etc.) is explicitly NOT
+  built — no such preference exists anywhere in the schema, and the
+  wireframe's own claim that "About you" is Public doesn't even match
+  reality (`about`/`proud_of` are excluded from `candidate_search`
+  entirely). The page shows a read-only, accurate breakdown instead of
+  fake toggles.
+- **Sprint 22 — real Home feed (peer visibility) — shipped 2026-08-31**:
+  founder explicitly asked to build the real cross-candidate feed, not
+  the you-only-content fallback that was offered as the safer default —
+  see the exchange in this session's own log if exact wording matters.
+  **Real gap found before building**: no path anywhere let one
+  candidate read another's posts — `candidate_posts_self` RLS is
+  self-only, `candidate_post_search` is employer-only
+  (`is_verified_employer()`-gated). This was already flagged in an
+  earlier session as deliberately unbuilt ("no surface exists for
+  'visible to other candidates only,' and none was asked for" —
+  PROGRESS.md, Sprint 8-era note). Building it meant a genuine new
+  privacy surface, so this session stopped and asked before adding it
+  rather than deciding alone; founder confirmed. New migration `0026`
+  adds `candidate_peer_feed` (same security-definer-view pattern already
+  used by `candidate_search`/`candidate_post_search`, gated by
+  `current_role_is('candidate')` instead of `is_verified_employer()`),
+  new `GET /candidates/feed` route, and `src/home.html` rebuilt from the
+  Sprint 19 placeholder into the real page: pinned new-invites strip,
+  composer, and the feed itself. Attribution is deliberately name-free —
+  headline, primary profession, town — the exact same fields already
+  shown to employers pre-consent via `candidate_search`, not a wider
+  disclosure just because the audience changed. Verified directly
+  against the live schema with two test candidates (one posts, the
+  other reads the feed via the real RLS-scoped path) plus a negative
+  test confirming a verified employer account gets zero rows from the
+  new view.
+- **Sprint 23 — real Network (LinkedIn-style connections) — shipped
+  2026-08-31**: founder gave direct product instruction — send/accept/
+  decline connection requests, LinkedIn-style; org "Follow" explicitly
+  deprioritised. Migration `0027` adds `connections` (requester/
+  addressee/status, order-independent unique pair index) and
+  `candidate_discover` (same `current_role_is('candidate')`-gated
+  pattern as `candidate_peer_feed`). Two real gaps found and fixed
+  **during live-schema testing, before shipping** (both documented in
+  their own migrations, not silently patched):
+  - `0028` — `candidate_discover`'s reveal logic: `accounts_read_self`
+    RLS means a candidate could never read another's `full_name`
+    directly, even once connected, so the view folds the reveal
+    condition into itself (`full_name` populated only when an accepted
+    `connections` row exists between viewer and subject) rather than
+    relying on a route to enforce it.
+  - `0029` — the insert policy's own `exists(...)` check for "is the
+    addressee published" ran under the *requester's* RLS, and
+    candidates RLS only ever let a candidate read their own row or let
+    a verified *employer* read published rows — so every request was
+    silently blocked until a `candidate_is_published()` security-
+    definer helper replaced the inline check.
+  Discovery is profession/location search only, matching the fact names
+  aren't searchable anywhere else in this product either. Verified with
+  three test candidates end to end: request → duplicate-request
+  correctly rejected (unique index) → accept restricted to the real
+  addressee (a third party's accept attempt correctly blocked) → mutual
+  name reveal confirmed both directions → an uninvolved fourth party
+  still sees no name → remove/cleanup. `get_advisors` showed exactly the
+  expected two new findings (the new view + new function, same accepted
+  class as existing ones).
+- **Sprint 24 — correct peer-visibility model: identity free-for-all
+  within iCare — shipped 2026-08-31**: founder gave a direct, explicit
+  course correction (see PROGRESS.md for the verbatim instruction):
+  Sprints 22 and 23 had wrongly extended the employer-consent
+  identity-hiding pattern to candidate-to-candidate visibility. The
+  founder's actual model: inside iCare, everyone is assumed to be a
+  fellow healthcare professional, never someone evaluating another for
+  recruitment — so names and photos should be visible free-for-all,
+  never gated behind a connection. **The identity-hidden-until-consent
+  rule applies only on the employer/iRecruit side**, unchanged there.
+  Posts instead get a visibility choice at compose time — public
+  (anyone, even non-connections) vs. connections-only (hidden from
+  anyone outside the poster's accepted-connections network) — with the
+  Connect/Accept/Decline mechanic from Sprint 23 kept exactly as built,
+  now gating post visibility rather than identity reveal.
+  Migration `0030`: added `candidate_posts.visibility` (`public`/
+  `connections`, default `public`, check constraint); rewrote
+  `candidate_discover` to always return `full_name`/`has_photo`
+  unconditionally (dropped the Sprint 23 conditional-reveal `case
+  when exists(...)` logic entirely); rewrote `candidate_peer_feed` to
+  always return `full_name`/`has_photo` and filter rows by
+  `visibility = 'public' OR an accepted connection exists between
+  viewer and poster` instead of `is_published` alone; updated
+  `candidate_post_search` (the employer-facing view) to also require
+  `visibility = 'public'`, so a connections-only post never surfaces in
+  employer search either. One real Postgres error hit and fixed before
+  applying: `CREATE OR REPLACE VIEW` can only append trailing columns,
+  never reorder or insert mid-list (42P16) — the first draft put
+  `visibility` before `created_at` in `candidate_peer_feed`'s column
+  list, which changed an existing column's position; fixed by moving
+  it to the end, preserving migration 0026's original column order
+  exactly.
+  New `GET /candidates/:id/photo` route (`src/candidates.ts`) — peer
+  photo access with no consent gate, only `current_role_is('candidate')`
+  + a new `candidate_is_published(p_candidate_id)` security-definer
+  check (deliberately not the employer side's `shortlistConsented()`
+  gate in `employers.ts`, which stays untouched). `POST /me/posts`
+  validates the new optional `visibility` field against a fixed
+  `['public','connections']` list.
+  `src/home.html`/`src/network.html` rewritten to show real name +
+  photo unconditionally (photo loaded via the new authenticated route,
+  same blob/object-URL pattern already used in `employer-home.html`,
+  since `<img src>` can't carry a bearer token); `src/home.html`/
+  `src/dashboard.html` composers gained the public/connections-only
+  toggle, and `dashboard.html`'s own post list now shows which
+  visibility each post has.
+  Verified directly against the live schema with two test candidates:
+  `candidate_discover` reveals name/photo with zero connection
+  required; a connections-only post is hidden from an unconnected
+  viewer and becomes visible once an accepted connection exists;
+  `candidate_post_search` (employer view) correctly excludes
+  connections-only posts; a verified-employer account correctly fails
+  `current_role_is('candidate')` and is blocked from the new peer
+  photo route. All test rows deleted after, confirmed 0 leftover.
+  `get_advisors` showed no new findings beyond the expected/pre-existing
+  security-definer-view class. `tsc --noEmit` clean; `wrangler deploy
+  --dry-run` clean (1330.28 KiB / 267.44 KiB gzip). Mock-shim
+  click-through (Home feed + composer toggle, Network Connections +
+  Discover tabs) confirmed correct rendering with zero JS errors: real
+  names shown unconditionally everywhere, the connections-only tag
+  renders correctly on a gated post, and the visibility toggle's active
+  state switches correctly on click.
+- **Still not built, in wireframe order**: the 7-day invite auto-expiry
+  (needs an `expires_at` column set at invite creation in `employer-
+  chat.ts`'s `send_invite` handler, plus a scheduled job — flagged, not
+  started); org "Follow" (explicitly deprioritised this sprint, not
+  decided against, just not now); real per-field visibility preferences
+  (a genuine backend project — new preference storage plus rewriting
+  `candidate_search` to select conditionally, not a frontend wire-up);
+  the real DBS three-state confirmation flow (blocked on the legal/
+  operational question in the Sprint 20 note); onboarding's step count/
+  content still doesn't match the wireframe's 7-step outline (11 steps,
+  different structure — not just renumbered). Sequencing these is an
+  open question for the founder, not decided here.

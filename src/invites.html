@@ -1,0 +1,648 @@
+<!--
+  iCare candidate invites — SPRINTS.md Sprint 18.
+
+  Implements the jobseeker wireframe's screens 03 (Invites list) and 04
+  (Invite detail — the consent moment) against the EXISTING backend:
+  GET /candidates/me/shortlists, POST /candidates/me/shortlists/:id/consent
+  (accept = consent:true), POST /candidates/me/shortlists/:id/withdraw
+  (decline/withdraw, now takes an optional reason — see candidates.ts and
+  migration 0025).
+
+  "New" / "Accepted" / "Declined" are derived client-side from the same
+  three columns dashboard.html already reads — candidate_consented_at and
+  closed_at — not a separate status field:
+    New       = candidate_consented_at is null AND closed_at is null
+    Accepted  = candidate_consented_at is set  AND closed_at is null
+    Declined  = closed_at is set (covers both an outright decline and a
+                later withdrawal, and also an employer rejection or job
+                closure — the wireframe's three-tab model doesn't
+                distinguish who closed it, only that it's closed)
+
+  Deliberately NOT built here (see HANDOVER.md §14 / SPRINTS.md Sprint 18
+  note): the wireframe's 7-day auto-expiry countdown. That needs an
+  expires_at column set at invite creation (employer-chat.ts's send_invite
+  handler) plus a scheduled job to auto-close and notify the employer on
+  lapse — real scope beyond a candidate-side screen, flagged rather than
+  half-built. This page's "New" tab has no countdown as a result.
+
+  Reuses dashboard.html's design tokens/fonts for visual consistency —
+  this is the same product, not a new one.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Your invites — iCare</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533;
+    --plum-800: #382349;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --amber-600: #b8791f;
+    --amber-100: #faedd4;
+    --paper: #fefefc;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --err: #b23a24;
+    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  p { margin: 0; }
+  button { font-family: inherit; }
+  a { color: var(--teal-700); }
+
+  .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+  .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .sign-out:hover { color: var(--teal-700); }
+
+  /* Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment */
+  .tab-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; background: var(--white); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-bar-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint);
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-bar-item.is-active { color: var(--teal-700); }
+  .tab-bar-item .tab-bar-icon-wrap { position: relative; }
+  .tab-bar-dot {
+    position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px;
+    background: var(--teal-500); border: 1.5px solid var(--white); display: none;
+  }
+  .tab-bar-dot.is-visible { display: block; }
+
+  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; }
+
+  .page-head { margin-bottom: 18px; }
+  .page-head h1 { font-size: 24px; }
+  .page-head p { margin-top: 6px; font-size: 13.5px; color: var(--ink-faint); line-height: 1.5; }
+
+  .tabs { display: flex; gap: 4px; background: var(--white); border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin-bottom: 18px; }
+  .tab { flex: 1; text-align: center; padding: 9px 8px; border-radius: 999px; border: none; background: none; font-size: 13.5px; font-weight: 600; color: var(--ink-faint); cursor: pointer; }
+  .tab.is-active { background: var(--plum-950); color: var(--white); }
+
+  .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 26px 24px; }
+
+  .invite-item { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px; cursor: pointer; background: var(--white); text-align: left; width: 100%; display: block; }
+  .invite-item:last-child { margin-bottom: 0; }
+  .invite-item:hover { border-color: var(--teal-500); }
+  .invite-role { font-size: 15.5px; font-weight: 700; color: var(--plum-950); }
+  .invite-org { margin-top: 2px; font-size: 13px; color: var(--ink-soft); }
+  .invite-meta-row { margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .stage-chip { display: inline-flex; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; background: var(--paper-dim); color: var(--ink-faint); }
+  .stage-chip.is-key { background: var(--teal-100); color: var(--teal-700); font-weight: 600; }
+  .invite-date { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); }
+  .invite-declined-note { margin-top: 8px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; }
+
+  .empty-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 30px 0; }
+  .loading-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 40px 0; }
+
+  /* Detail view */
+  .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; color: var(--ink-faint); text-decoration: none; margin-bottom: 16px; background: none; border: none; padding: 0; cursor: pointer; }
+  .back-link:hover { color: var(--teal-700); }
+  .detail-org { font-size: 13.5px; color: var(--ink-faint); }
+  .detail-role { font-size: 22px; margin-top: 4px; }
+  .detail-section { margin-top: 20px; }
+  .detail-label { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 6px; }
+  .detail-value { font-size: 14px; color: var(--plum-950); line-height: 1.6; white-space: pre-wrap; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .accept-panel { margin-top: 22px; padding: 18px; border-radius: 14px; border: 1.5px solid var(--teal-500); background: var(--teal-100); }
+  .accept-panel .detail-label { color: var(--teal-700); }
+  .accept-panel p { font-size: 13.5px; color: var(--plum-800); line-height: 1.55; }
+  .accept-panel p + p { margin-top: 8px; }
+
+  .btn { padding: 12px 22px; border-radius: 999px; font-weight: 700; font-size: 14.5px; cursor: pointer; border: none; width: 100%; text-align: center; }
+  .btn-primary { background: var(--teal-500); color: var(--white); margin-top: 20px; }
+  .btn-primary:hover { background: var(--teal-700); }
+  .btn-primary:disabled { opacity: 0.6; cursor: default; }
+  .btn-row { display: flex; gap: 10px; margin-top: 10px; }
+  .btn-outline { background: transparent; color: var(--ink-soft); border: 1.5px solid var(--line); flex: 1; }
+  .btn-outline:hover { border-color: var(--ink-faint); }
+  .btn-outline.danger { color: var(--err); }
+  .btn-outline.danger:hover { border-color: var(--err); background: #fbe9e5; }
+  .btn-outline.is-consented { color: var(--ink-faint); }
+
+  .fine-note { margin-top: 14px; font-size: 12px; color: var(--ink-faint); line-height: 1.5; }
+
+  /* Decline reason picker */
+  .reason-option { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border: 1.5px solid var(--line); border-radius: 12px; margin-bottom: 9px; cursor: pointer; font-size: 14px; color: var(--plum-950); }
+  .reason-option:hover { border-color: var(--teal-500); }
+  .reason-option.is-selected { border-color: var(--teal-500); background: var(--teal-100); }
+  .reason-dot { width: 18px; height: 18px; border-radius: 999px; border: 1.5px solid var(--line); flex: none; }
+  .reason-option.is-selected .reason-dot { border-color: var(--teal-500); background: var(--teal-500); box-shadow: inset 0 0 0 3px var(--white); }
+
+  .status { margin-top: 14px; font-size: 13.5px; display: none; }
+  .status.is-visible { display: block; }
+  .status.err { color: var(--err); }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</header>
+
+<div class="wrap">
+  <p class="loading-note" data-loading>Loading your invites…</p>
+
+  <div data-invites-content hidden>
+
+    <!-- List view -->
+    <div data-view="list">
+      <div class="page-head">
+        <h1>Your invites</h1>
+        <p>When an employer wants to take you forward for a specific role, it shows up here. Accepting shares your
+          name, photo and contact details with that employer, for that role only.</p>
+      </div>
+      <div class="tabs">
+        <button class="tab is-active" data-tab="new">New</button>
+        <button class="tab" data-tab="accepted">Accepted</button>
+        <button class="tab" data-tab="declined">Declined</button>
+      </div>
+      <div data-invite-list></div>
+      <p class="empty-note" data-invites-empty hidden></p>
+    </div>
+
+    <!-- Detail view: undecided invite -->
+    <div data-view="detail-new" hidden>
+      <button type="button" class="back-link" data-back>← Back to invites</button>
+      <div class="card">
+        <p class="detail-org" data-detail-org></p>
+        <h2 class="detail-role" data-detail-role></h2>
+
+        <div class="detail-section">
+          <div class="detail-label">The role</div>
+          <div class="detail-value" data-detail-description></div>
+        </div>
+        <div class="detail-section detail-grid">
+          <div>
+            <div class="detail-label">Location</div>
+            <div class="detail-value" data-detail-location></div>
+          </div>
+          <div>
+            <div class="detail-label">Pay</div>
+            <div class="detail-value" data-detail-pay></div>
+          </div>
+          <div>
+            <div class="detail-label">Hours</div>
+            <div class="detail-value" data-detail-hours></div>
+          </div>
+          <div>
+            <div class="detail-label">Contract</div>
+            <div class="detail-value" data-detail-contract></div>
+          </div>
+        </div>
+        <div class="detail-section" data-detail-sponsorship-wrap>
+          <div class="detail-label">Sponsorship</div>
+          <div class="detail-value" data-detail-sponsorship></div>
+        </div>
+        <div class="detail-section" data-detail-qualifications-wrap hidden>
+          <div class="detail-label">Qualifications required</div>
+          <div class="detail-value" data-detail-qualifications></div>
+        </div>
+
+        <div class="accept-panel">
+          <div class="detail-label">If you accept</div>
+          <p><strong data-detail-org-inline></strong> will see your name, photo and contact details <strong>for this
+            role only</strong>.</p>
+          <p>Their access ends if the role closes, you withdraw, or you're not taken forward.</p>
+        </div>
+
+        <button type="button" class="btn btn-primary" data-accept-btn>Accept invite</button>
+        <div class="btn-row">
+          <button type="button" class="btn btn-outline danger" data-decline-open>Decline</button>
+          <button type="button" class="btn btn-outline" data-back>Decide later</button>
+        </div>
+        <p class="fine-note">Declining doesn't hide you from this employer's future searches — it closes this role
+          only.</p>
+        <p class="status" data-status="detail"></p>
+      </div>
+    </div>
+
+    <!-- Decline reason picker -->
+    <div data-view="decline" hidden>
+      <button type="button" class="back-link" data-decline-cancel>← Back</button>
+      <div class="card">
+        <h2 style="font-size:18px;">Why isn't this the right fit?</h2>
+        <p style="margin-top:6px;font-size:13.5px;color:var(--ink-faint);line-height:1.5;">This is shared with
+          <strong data-decline-org-inline></strong>. Pick whichever is closest.</p>
+        <div style="margin-top:18px;" data-reason-list>
+          <div class="reason-option" data-reason="not_looking"><span>Not looking for work at the moment</span><span class="reason-dot"></span></div>
+          <div class="reason-option" data-reason="wrong_pattern"><span>Not available for this pattern</span><span class="reason-dot"></span></div>
+          <div class="reason-option" data-reason="too_far"><span>Too far to travel</span><span class="reason-dot"></span></div>
+          <div class="reason-option" data-reason="wrong_role"><span>Not the right role for me right now</span><span class="reason-dot"></span></div>
+          <div class="reason-option" data-reason="accepted_elsewhere"><span>Already accepted another offer</span><span class="reason-dot"></span></div>
+          <div class="reason-option" data-reason="prefer_not_to_say"><span>Prefer not to say</span><span class="reason-dot"></span></div>
+        </div>
+        <button type="button" class="btn btn-primary" data-decline-send disabled>Send decline</button>
+        <p class="fine-note">A reason is always sent — "Prefer not to say" is a valid, complete answer. There's no
+          option to decline with nothing shared.</p>
+        <p class="status" data-status="decline"></p>
+      </div>
+    </div>
+
+    <!-- Detail view: accepted (ongoing pipeline) -->
+    <div data-view="detail-accepted" hidden>
+      <button type="button" class="back-link" data-back>← Back to invites</button>
+      <div class="card">
+        <p class="detail-org" data-accepted-org></p>
+        <h2 class="detail-role" data-accepted-role></h2>
+        <div class="detail-section">
+          <span class="stage-chip is-key" data-accepted-stage></span>
+        </div>
+        <p class="fine-note" style="margin-top:16px;">They can see your name, photo, video, and CV for this role.</p>
+        <button type="button" class="btn btn-outline danger" style="width:100%;margin-top:16px;" data-withdraw-open>Withdraw</button>
+        <p class="status" data-status="accepted"></p>
+      </div>
+    </div>
+
+    <!-- Detail view: declined / closed -->
+    <div data-view="detail-declined" hidden>
+      <button type="button" class="back-link" data-back>← Back to invites</button>
+      <div class="card">
+        <p class="detail-org" data-declined-org></p>
+        <h2 class="detail-role" data-declined-role></h2>
+        <p class="fine-note" style="margin-top:16px;font-size:13.5px;" data-declined-note></p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment -->
+<nav class="tab-bar" aria-label="Main">
+  <a href="/home" class="tab-bar-item" data-tab="home">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="/invites" class="tab-bar-item is-active" data-tab="invites">
+    <span class="tab-bar-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+      <span class="tab-bar-dot" data-invites-dot></span>
+    </span>
+    <span>Invites</span>
+  </a>
+  <a href="/pipelines" class="tab-bar-item" data-tab="pipelines">
+    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    <span>Pipelines</span>
+  </a>
+  <a href="/network" class="tab-bar-item" data-tab="network">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Network</span>
+  </a>
+  <a href="/dashboard" class="tab-bar-item" data-tab="profile">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Profile</span>
+  </a>
+</nav>
+
+<script>
+// ---- Shared auth helper (src/auth-client.js, copied per this repo's no-build-step convention) ----
+var ICARE_SESSION_KEY = "icare_session";
+function icareGetSession() {
+  try { var raw = localStorage.getItem(ICARE_SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+function icareClearSession() {
+  try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {}
+}
+function icareIsSessionExpired(session) {
+  if (!session || !session.expires_at) return true;
+  return Date.now() >= session.expires_at * 1000;
+}
+function icareAuthFetch(url, options) {
+  var session = icareGetSession();
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+function icareRequireAuth(signInPath) {
+  var session = icareGetSession();
+  if (!session || icareIsSessionExpired(session)) {
+    icareClearSession();
+    var next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = (signInPath || "/sign-in") + "?next=" + next;
+    return null;
+  }
+  return session;
+}
+// ---- End shared auth helper ----
+
+(function () {
+  var session = icareRequireAuth();
+  if (!session) return;
+
+  var STAGE_LABELS = {
+    shortlisted: "Shortlisted",
+    invited_for_interview: "Invited for Interview",
+    pending_interview_result: "Pending Interview Result",
+    successful: "Successful",
+    rejected: "Rejected",
+    onboarding: "Onboarding",
+  };
+
+  var SPONSORSHIP_LABELS = {
+    none: "Not offered for this role",
+    transitional_switch_only: "In-country visa switching only",
+    new_applicant: "Available, including new overseas applicants",
+  };
+
+  var CONTRACT_LABELS = {
+    permanent: "Permanent",
+    fixed_term: "Fixed term",
+    locum: "Locum",
+    bank: "Bank",
+  };
+
+  var DECLINE_LABELS = {
+    not_looking: "not looking for work at the moment",
+    wrong_pattern: "not available for this pattern",
+    too_far: "too far to travel",
+    wrong_role: "not the right role right now",
+    accepted_elsewhere: "already accepted another offer",
+    prefer_not_to_say: "prefer not to say",
+  };
+
+  var allRows = [];
+  var activeTab = "new";
+  var currentRow = null;
+  var pendingReason = null;
+
+  function jget(url) {
+    return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+  function jpost(url, payload) {
+    return icareAuthFetch(url, { method: "POST", body: JSON.stringify(payload || {}) })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+
+  function bucketOf(row) {
+    if (row.closed_at) return "declined";
+    if (row.candidate_consented_at) return "accepted";
+    return "new";
+  }
+
+  function showView(name) {
+    document.querySelectorAll("[data-view]").forEach(function (el) {
+      el.hidden = el.getAttribute("data-view") !== name;
+    });
+    window.scrollTo(0, 0);
+  }
+
+  function renderList() {
+    var list = document.querySelector("[data-invite-list]");
+    var empty = document.querySelector("[data-invites-empty]");
+    var rows = allRows.filter(function (r) { return bucketOf(r) === activeTab; });
+    list.innerHTML = "";
+
+    if (rows.length === 0) {
+      empty.hidden = false;
+      empty.textContent =
+        activeTab === "new" ? "No new invites. Your profile is still findable." :
+        activeTab === "accepted" ? "No accepted invites yet." :
+        "No declined or closed invites.";
+      return;
+    }
+    empty.hidden = true;
+
+    rows.forEach(function (row) {
+      var jobTitle = (row.job_snapshot && row.job_snapshot.title) || "A role";
+      var orgName = (row.employers && row.employers.org_name) || "An employer";
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "invite-item";
+      item.setAttribute("data-invite-id", row.id);
+
+      var metaHtml = "";
+      if (activeTab === "new") {
+        metaHtml = '<span class="invite-date">Invited ' + timeAgo(row.created_at) + '</span>';
+      } else if (activeTab === "accepted") {
+        metaHtml = '<span class="stage-chip is-key"></span>';
+      } else {
+        metaHtml = '<span class="invite-date">Closed ' + timeAgo(row.closed_at) + '</span>';
+      }
+
+      item.innerHTML =
+        '<div class="invite-role"></div>' +
+        '<div class="invite-org"></div>' +
+        '<div class="invite-meta-row">' + metaHtml + '</div>' +
+        (activeTab === "declined" ? '<div class="invite-declined-note"></div>' : "");
+
+      item.querySelector(".invite-role").textContent = jobTitle;
+      item.querySelector(".invite-org").textContent = orgName;
+      if (activeTab === "accepted") item.querySelector(".stage-chip").textContent = STAGE_LABELS[row.stage] || row.stage;
+      if (activeTab === "declined") {
+        var note = row.decline_reason
+          ? "You declined — " + (DECLINE_LABELS[row.decline_reason] || row.decline_reason) + "."
+          : (orgName + " no longer has access to your profile for this role.");
+        item.querySelector(".invite-declined-note").textContent = note;
+      }
+      list.appendChild(item);
+    });
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return "";
+    var ms = Date.now() - new Date(iso).getTime();
+    var days = Math.floor(ms / 86400000);
+    if (days <= 0) return "today";
+    if (days === 1) return "1 day ago";
+    return days + " days ago";
+  }
+
+  function openDetail(row) {
+    currentRow = row;
+    var jobTitle = (row.job_snapshot && row.job_snapshot.title) || "A role";
+    var orgName = (row.employers && row.employers.org_name) || "An employer";
+    var snap = row.job_snapshot || {};
+    var bucket = bucketOf(row);
+
+    if (bucket === "new") {
+      document.querySelector("[data-detail-org]").textContent = orgName;
+      document.querySelector("[data-detail-org-inline]").textContent = orgName;
+      document.querySelector("[data-detail-role]").textContent = jobTitle;
+      document.querySelector("[data-detail-description]").textContent = snap.description_body || "No further description provided.";
+      document.querySelector("[data-detail-location]").textContent = snap.location || "—";
+      document.querySelector("[data-detail-pay]").textContent = snap.pay_range || "—";
+      document.querySelector("[data-detail-hours]").textContent = snap.hours || "—";
+      document.querySelector("[data-detail-contract]").textContent = CONTRACT_LABELS[snap.contract_type] || snap.contract_type || "—";
+      document.querySelector("[data-detail-sponsorship]").textContent = SPONSORSHIP_LABELS[snap.sponsorship_offered] || snap.sponsorship_offered || "—";
+      var qualEl = document.querySelector("[data-detail-qualifications-wrap]");
+      if (snap.qualifications_required) {
+        qualEl.hidden = false;
+        document.querySelector("[data-detail-qualifications]").textContent = snap.qualifications_required;
+      } else {
+        qualEl.hidden = true;
+      }
+      setStatus("detail", "");
+      showView("detail-new");
+    } else if (bucket === "accepted") {
+      document.querySelector("[data-accepted-org]").textContent = orgName;
+      document.querySelector("[data-accepted-role]").textContent = jobTitle;
+      document.querySelector("[data-accepted-stage]").textContent = STAGE_LABELS[row.stage] || row.stage;
+      setStatus("accepted", "");
+      showView("detail-accepted");
+    } else {
+      document.querySelector("[data-declined-org]").textContent = orgName;
+      document.querySelector("[data-declined-role]").textContent = jobTitle;
+      document.querySelector("[data-declined-note]").textContent = row.decline_reason
+        ? "You declined this invite — " + (DECLINE_LABELS[row.decline_reason] || row.decline_reason) + ". " + orgName + " no longer has access to your profile for this role."
+        : orgName + " no longer has access to your profile for this role.";
+      showView("detail-declined");
+    }
+  }
+
+  function setStatus(key, text, isErr) {
+    var el = document.querySelector('[data-status="' + key + '"]');
+    el.textContent = text;
+    el.className = text ? ("status is-visible" + (isErr ? " err" : "")) : "status";
+  }
+
+  function loadInvites() {
+    return jget("/candidates/me/shortlists").then(function (result) {
+      if (result.ok) {
+        allRows = result.body.shortlists || [];
+        renderList();
+        var hasNew = allRows.some(function (r) { return bucketOf(r) === "new"; });
+        document.querySelector("[data-invites-dot]").classList.toggle("is-visible", hasNew);
+      }
+      return result;
+    });
+  }
+
+  // Scoped to .tabs .tab, not the broader [data-tab] selector — the
+  // bottom tab-bar's nav links (Sprint 19) reuse the data-tab attribute
+  // name for their own destinations (home/invites/pipelines/...) and
+  // must not be caught by this in-page tab switcher.
+  document.querySelectorAll(".tabs .tab").forEach(function (tabBtn) {
+    tabBtn.addEventListener("click", function () {
+      activeTab = tabBtn.getAttribute("data-tab");
+      document.querySelectorAll(".tabs .tab").forEach(function (t) { t.classList.toggle("is-active", t === tabBtn); });
+      renderList();
+    });
+  });
+
+  document.querySelector("[data-invite-list]").addEventListener("click", function (e) {
+    var item = e.target.closest("[data-invite-id]");
+    if (!item) return;
+    var row = allRows.filter(function (r) { return r.id === item.getAttribute("data-invite-id"); })[0];
+    if (row) openDetail(row);
+  });
+
+  document.querySelectorAll("[data-back]").forEach(function (btn) {
+    btn.addEventListener("click", function () { showView("list"); });
+  });
+
+  document.querySelector("[data-accept-btn]").addEventListener("click", function () {
+    if (!currentRow) return;
+    var btn = this;
+    btn.disabled = true;
+    setStatus("detail", "");
+    jpost("/candidates/me/shortlists/" + currentRow.id + "/consent", { consent: true }).then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) {
+        setStatus("detail", result.body.error || "Something went wrong. Please try again.", true);
+        return;
+      }
+      loadInvites().then(function () { showView("list"); });
+    });
+  });
+
+  document.querySelector("[data-decline-open]").addEventListener("click", function () {
+    pendingReason = null;
+    document.querySelectorAll("[data-reason]").forEach(function (el) { el.classList.remove("is-selected"); });
+    document.querySelector("[data-decline-send]").disabled = true;
+    document.querySelector("[data-decline-org-inline]").textContent = (currentRow.employers && currentRow.employers.org_name) || "this employer";
+    setStatus("decline", "");
+    showView("decline");
+  });
+
+  document.querySelector("[data-decline-cancel]").addEventListener("click", function () {
+    showView("detail-new");
+  });
+
+  document.querySelector("[data-reason-list]").addEventListener("click", function (e) {
+    var opt = e.target.closest("[data-reason]");
+    if (!opt) return;
+    pendingReason = opt.getAttribute("data-reason");
+    document.querySelectorAll("[data-reason]").forEach(function (el) { el.classList.toggle("is-selected", el === opt); });
+    document.querySelector("[data-decline-send]").disabled = false;
+  });
+
+  document.querySelector("[data-decline-send]").addEventListener("click", function () {
+    if (!currentRow || !pendingReason) return;
+    var btn = this;
+    btn.disabled = true;
+    jpost("/candidates/me/shortlists/" + currentRow.id + "/withdraw", { reason: pendingReason }).then(function (result) {
+      if (!result.ok) {
+        btn.disabled = false;
+        setStatus("decline", result.body.error || "Something went wrong. Please try again.", true);
+        return;
+      }
+      loadInvites().then(function () { showView("list"); });
+    });
+  });
+
+  document.querySelector("[data-withdraw-open]").addEventListener("click", function () {
+    if (!currentRow) return;
+    var btn = this;
+    btn.disabled = true;
+    jpost("/candidates/me/shortlists/" + currentRow.id + "/withdraw", {}).then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) {
+        setStatus("accepted", result.body.error || "Something went wrong. Please try again.", true);
+        return;
+      }
+      loadInvites().then(function () { showView("list"); });
+    });
+  });
+
+  document.querySelector("[data-sign-out]").addEventListener("click", function () {
+    icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
+      icareClearSession();
+      window.location.href = "/";
+    });
+  });
+
+  loadInvites().then(function (result) {
+    document.querySelector("[data-loading]").style.display = "none";
+    document.querySelector("[data-invites-content]").hidden = false;
+    if (!result.ok) {
+      document.querySelector("[data-loading]").style.display = "block";
+      document.querySelector("[data-loading]").textContent = "Couldn't load your invites. Try refreshing the page.";
+      document.querySelector("[data-invites-content]").hidden = true;
+    }
+  }).catch(function () {
+    document.querySelector("[data-loading]").textContent = "Couldn't load your invites. Try refreshing the page.";
+  });
+})();
+</script>
+</body>
+</html>

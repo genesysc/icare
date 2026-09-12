@@ -1,0 +1,479 @@
+<!--
+  iCare candidate pipelines — SPRINTS.md Sprint 19.
+
+  Implements wireframe screen 05 (My pipelines) against the SAME
+  GET /candidates/me/shortlists route invites.html already uses — no new
+  backend route. The wireframe's own stated principle is what draws the
+  line between the two pages: "an invite is a decision you make once, a
+  pipeline is a state you sit in afterwards" — so this page only ever
+  shows rows where candidate_consented_at is set (i.e. was actually
+  accepted at some point). A row that was declined before ever being
+  accepted belongs to invites.html's Declined tab, never here.
+
+  Active  = candidate_consented_at is set AND closed_at is null
+  Closed  = candidate_consented_at is set AND closed_at is set
+            (employer rejected, candidate withdrew after accepting, or
+            the job closed — see closeNote() below for which)
+
+  One deliberate deviation from the wireframe's own screen 05 example:
+  it shows a "Successful" pipeline under "Closed" ("moved to Onboarding").
+  In this backend, reaching the Successful/Onboarding stage does NOT set
+  closed_at (see employer-chat.ts's move_candidate_stage — only a move to
+  Rejected does that, same as a candidate withdrawing or a job closing).
+  So a Successful/Onboarding pipeline stays in Active here, which is the
+  more honest reflection of what "closed_at" actually means in this
+  schema (access-revoked, not merely "no longer needs attention") —
+  flagged rather than silently drawn to match the wireframe's example.
+
+  Withdraw reuses the existing POST /me/shortlists/:id/withdraw (no
+  reason needed once already accepted — matches invites.html's Accepted-
+  tab behaviour, this page shows the same pipelines from the other side).
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Your pipelines — iCare</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533;
+    --plum-800: #382349;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --amber-600: #b8791f;
+    --amber-100: #faedd4;
+    --paper: #fefefc;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --err: #b23a24;
+    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  p { margin: 0; }
+  button { font-family: inherit; }
+  a { color: var(--teal-700); }
+
+  .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+  .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .sign-out:hover { color: var(--teal-700); }
+
+  /* Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment */
+  .tab-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; background: var(--white); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-bar-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint);
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-bar-item.is-active { color: var(--teal-700); }
+  .tab-bar-item .tab-bar-icon-wrap { position: relative; }
+  .tab-bar-dot {
+    position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px;
+    background: var(--teal-500); border: 1.5px solid var(--white); display: none;
+  }
+  .tab-bar-dot.is-visible { display: block; }
+
+  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; }
+
+  .page-head { margin-bottom: 18px; }
+  .page-head h1 { font-size: 24px; }
+  .page-head p { margin-top: 6px; font-size: 13.5px; color: var(--ink-faint); line-height: 1.5; }
+
+  .tabs { display: flex; gap: 4px; background: var(--white); border: 1px solid var(--line); border-radius: 999px; padding: 4px; margin-bottom: 18px; }
+  .tab { flex: 1; text-align: center; padding: 9px 8px; border-radius: 999px; border: none; background: none; font-size: 13.5px; font-weight: 600; color: var(--ink-faint); cursor: pointer; }
+  .tab.is-active { background: var(--plum-950); color: var(--white); }
+
+  .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 26px 24px; }
+
+  .pipeline-item { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 12px; cursor: pointer; background: var(--white); text-align: left; width: 100%; display: block; }
+  .pipeline-item:last-child { margin-bottom: 0; }
+  .pipeline-item:hover { border-color: var(--teal-500); }
+  .pipeline-role { font-size: 15.5px; font-weight: 700; color: var(--plum-950); }
+  .pipeline-org { margin-top: 2px; font-size: 13px; color: var(--ink-soft); }
+  .pipeline-meta-row { margin-top: 10px; }
+  .stage-chip { display: inline-flex; font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; background: var(--paper-dim); color: var(--ink-faint); }
+  .stage-chip.is-key { background: var(--teal-100); color: var(--teal-700); font-weight: 600; }
+  .stage-chip.is-terminal { background: var(--amber-100); color: var(--amber-600); font-weight: 600; }
+  .pipeline-closed-note { margin-top: 8px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.5; }
+
+  .empty-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 30px 0; }
+  .loading-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 40px 0; }
+
+  /* Detail view */
+  .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; color: var(--ink-faint); text-decoration: none; margin-bottom: 16px; background: none; border: none; padding: 0; cursor: pointer; }
+  .back-link:hover { color: var(--teal-700); }
+  .detail-org { font-size: 13.5px; color: var(--ink-faint); }
+  .detail-role { font-size: 22px; margin-top: 4px; }
+  .detail-label { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 6px; }
+
+  /* Stage tracker */
+  .stage-tracker { display: flex; flex-direction: column; gap: 0; margin-top: 20px; }
+  .stage-tracker-item { display: flex; align-items: flex-start; gap: 12px; padding: 3px 0; }
+  .stage-tracker-marker { width: 20px; flex: none; display: flex; flex-direction: column; align-items: center; }
+  .stage-tracker-dot { width: 12px; height: 12px; border-radius: 999px; border: 2px solid var(--line); background: var(--white); }
+  .stage-tracker-line { width: 2px; flex: 1; min-height: 22px; background: var(--line); }
+  .stage-tracker-item:last-child .stage-tracker-line { display: none; }
+  .stage-tracker-label { font-size: 13.5px; font-weight: 600; color: var(--ink-faint); padding-top: 1px; }
+  .stage-tracker-item.is-done .stage-tracker-dot { border-color: var(--teal-500); background: var(--teal-500); }
+  .stage-tracker-item.is-done .stage-tracker-line { background: var(--teal-500); }
+  .stage-tracker-item.is-done .stage-tracker-label { color: var(--plum-950); }
+  .stage-tracker-item.is-current .stage-tracker-dot { border-color: var(--teal-500); background: var(--white); box-shadow: 0 0 0 3px var(--teal-100); }
+  .stage-tracker-item.is-current .stage-tracker-label { color: var(--teal-700); font-weight: 700; }
+  .stage-tracker-item.is-rejected .stage-tracker-dot { border-color: var(--err); background: var(--err); }
+  .stage-tracker-item.is-rejected .stage-tracker-label { color: var(--err); font-weight: 700; }
+
+  .btn { padding: 12px 22px; border-radius: 999px; font-weight: 700; font-size: 14.5px; cursor: pointer; border: none; width: 100%; text-align: center; }
+  .btn-outline { background: transparent; color: var(--err); border: 1.5px solid var(--line); }
+  .btn-outline:hover { border-color: var(--err); background: #fbe9e5; }
+  .fine-note { margin-top: 14px; font-size: 12px; color: var(--ink-faint); line-height: 1.5; }
+  .status { margin-top: 14px; font-size: 13.5px; display: none; }
+  .status.is-visible { display: block; }
+  .status.err { color: var(--err); }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</header>
+
+<div class="wrap">
+  <p class="loading-note" data-loading>Loading your pipelines…</p>
+
+  <div data-pipelines-content hidden>
+
+    <!-- List view -->
+    <div data-view="list">
+      <div class="page-head">
+        <h1>Your pipelines</h1>
+        <p>Roles you've accepted an invite for. Each one moves through its own stages — you can hold several at
+          once, one per role.</p>
+      </div>
+      <div class="tabs">
+        <button class="tab is-active" data-tab="active">Active</button>
+        <button class="tab" data-tab="closed">Closed</button>
+      </div>
+      <div data-pipeline-list></div>
+      <p class="empty-note" data-pipelines-empty hidden></p>
+    </div>
+
+    <!-- Detail view -->
+    <div data-view="detail" hidden>
+      <button type="button" class="back-link" data-back>← Back to pipelines</button>
+      <div class="card">
+        <p class="detail-org" data-detail-org></p>
+        <h2 class="detail-role" data-detail-role></h2>
+
+        <div class="stage-tracker" data-stage-tracker></div>
+
+        <div data-closed-note-wrap hidden>
+          <p class="fine-note" style="margin-top:18px;font-size:13.5px;" data-closed-note></p>
+        </div>
+
+        <button type="button" class="btn btn-outline" style="margin-top:20px;" data-withdraw-open hidden>Withdraw</button>
+        <p class="status" data-status="detail"></p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment -->
+<nav class="tab-bar" aria-label="Main">
+  <a href="/home" class="tab-bar-item" data-tab="home">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="/invites" class="tab-bar-item" data-tab="invites">
+    <span class="tab-bar-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+      <span class="tab-bar-dot" data-invites-dot></span>
+    </span>
+    <span>Invites</span>
+  </a>
+  <a href="/pipelines" class="tab-bar-item is-active" data-tab="pipelines">
+    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    <span>Pipelines</span>
+  </a>
+  <a href="/network" class="tab-bar-item" data-tab="network">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Network</span>
+  </a>
+  <a href="/dashboard" class="tab-bar-item" data-tab="profile">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Profile</span>
+  </a>
+</nav>
+
+<script>
+// ---- Shared auth helper (src/auth-client.js, copied per this repo's no-build-step convention) ----
+var ICARE_SESSION_KEY = "icare_session";
+function icareGetSession() {
+  try { var raw = localStorage.getItem(ICARE_SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+function icareClearSession() {
+  try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {}
+}
+function icareIsSessionExpired(session) {
+  if (!session || !session.expires_at) return true;
+  return Date.now() >= session.expires_at * 1000;
+}
+function icareAuthFetch(url, options) {
+  var session = icareGetSession();
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+function icareRequireAuth(signInPath) {
+  var session = icareGetSession();
+  if (!session || icareIsSessionExpired(session)) {
+    icareClearSession();
+    var next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = (signInPath || "/sign-in") + "?next=" + next;
+    return null;
+  }
+  return session;
+}
+// ---- End shared auth helper ----
+
+(function () {
+  var session = icareRequireAuth();
+  if (!session) return;
+
+  var PIPELINE_STAGES = ["shortlisted", "invited_for_interview", "pending_interview_result", "successful", "onboarding"];
+  var STAGE_LABELS = {
+    shortlisted: "Shortlisted",
+    invited_for_interview: "Invited for Interview",
+    pending_interview_result: "Pending Interview Result",
+    successful: "Successful",
+    rejected: "Rejected",
+    onboarding: "Onboarding",
+  };
+
+  var DECLINE_LABELS = {
+    not_looking: "not looking for work at the moment",
+    wrong_pattern: "not available for this pattern",
+    too_far: "too far to travel",
+    wrong_role: "not the right role right now",
+    accepted_elsewhere: "already accepted another offer",
+    prefer_not_to_say: "prefer not to say",
+  };
+
+  var allRows = [];
+  var activeTab = "active";
+  var currentRow = null;
+
+  function jget(url) {
+    return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+  function jpost(url, payload) {
+    return icareAuthFetch(url, { method: "POST", body: JSON.stringify(payload || {}) })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+
+  // Only ever-accepted rows are pipelines at all — see file header note.
+  function isPipeline(row) { return !!row.candidate_consented_at; }
+  function bucketOf(row) { return row.closed_at ? "closed" : "active"; }
+
+  function showView(name) {
+    document.querySelectorAll("[data-view]").forEach(function (el) {
+      el.hidden = el.getAttribute("data-view") !== name;
+    });
+    window.scrollTo(0, 0);
+  }
+
+  function closeNote(row, orgName) {
+    if (row.decline_reason) {
+      return "You withdrew — " + (DECLINE_LABELS[row.decline_reason] || row.decline_reason) + ". " + orgName + " no longer has access to your profile for this role.";
+    }
+    if (row.stage === "rejected") {
+      return orgName + " moved this role to Rejected — their access to your profile is now revoked.";
+    }
+    return orgName + " no longer has access to your profile for this role — most likely because the role closed.";
+  }
+
+  function renderList() {
+    var list = document.querySelector("[data-pipeline-list]");
+    var empty = document.querySelector("[data-pipelines-empty]");
+    var rows = allRows.filter(function (r) { return isPipeline(r) && bucketOf(r) === activeTab; });
+    list.innerHTML = "";
+
+    if (rows.length === 0) {
+      empty.hidden = false;
+      empty.textContent = activeTab === "active"
+        ? "No active pipelines yet — accept an invite to start one."
+        : "No closed pipelines.";
+      return;
+    }
+    empty.hidden = true;
+
+    rows.forEach(function (row) {
+      var jobTitle = (row.job_snapshot && row.job_snapshot.title) || "A role";
+      var orgName = (row.employers && row.employers.org_name) || "An employer";
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "pipeline-item";
+      item.setAttribute("data-pipeline-id", row.id);
+
+      var chipClass = row.stage === "successful" ? "stage-chip is-key" : row.stage === "rejected" ? "stage-chip is-terminal" : "stage-chip";
+
+      item.innerHTML =
+        '<div class="pipeline-role"></div>' +
+        '<div class="pipeline-org"></div>' +
+        '<div class="pipeline-meta-row"><span class="' + chipClass + '"></span></div>' +
+        (activeTab === "closed" ? '<div class="pipeline-closed-note"></div>' : "");
+
+      item.querySelector(".pipeline-role").textContent = jobTitle;
+      item.querySelector(".pipeline-org").textContent = orgName;
+      item.querySelector(".stage-chip").textContent = STAGE_LABELS[row.stage] || row.stage;
+      if (activeTab === "closed") item.querySelector(".pipeline-closed-note").textContent = closeNote(row, orgName);
+      list.appendChild(item);
+    });
+  }
+
+  function renderStageTracker(row) {
+    var tracker = document.querySelector("[data-stage-tracker]");
+    tracker.innerHTML = "";
+
+    if (row.stage === "rejected") {
+      // Rejected is a terminal outcome reached from wherever the pipeline
+      // was, not a step on the normal five-stage ladder — show it as its
+      // own single marker rather than pretending it fits the sequence.
+      var el = document.createElement("div");
+      el.className = "stage-tracker-item is-rejected";
+      el.innerHTML = '<div class="stage-tracker-marker"><div class="stage-tracker-dot"></div></div><div class="stage-tracker-label"></div>';
+      el.querySelector(".stage-tracker-label").textContent = "Rejected";
+      tracker.appendChild(el);
+      return;
+    }
+
+    var currentIndex = PIPELINE_STAGES.indexOf(row.stage);
+    PIPELINE_STAGES.forEach(function (stage, i) {
+      var el = document.createElement("div");
+      var state = i < currentIndex ? "is-done" : i === currentIndex ? "is-current" : "";
+      el.className = "stage-tracker-item " + state;
+      el.innerHTML =
+        '<div class="stage-tracker-marker"><div class="stage-tracker-dot"></div><div class="stage-tracker-line"></div></div>' +
+        '<div class="stage-tracker-label"></div>';
+      el.querySelector(".stage-tracker-label").textContent = STAGE_LABELS[stage];
+      tracker.appendChild(el);
+    });
+  }
+
+  function openDetail(row) {
+    currentRow = row;
+    var jobTitle = (row.job_snapshot && row.job_snapshot.title) || "A role";
+    var orgName = (row.employers && row.employers.org_name) || "An employer";
+    var closed = !!row.closed_at;
+
+    document.querySelector("[data-detail-org]").textContent = orgName;
+    document.querySelector("[data-detail-role]").textContent = jobTitle;
+    renderStageTracker(row);
+
+    document.querySelector("[data-closed-note-wrap]").hidden = !closed;
+    if (closed) document.querySelector("[data-closed-note]").textContent = closeNote(row, orgName);
+    document.querySelector("[data-withdraw-open]").hidden = closed;
+    setStatus("detail", "");
+    showView("detail");
+  }
+
+  function setStatus(key, text, isErr) {
+    var el = document.querySelector('[data-status="' + key + '"]');
+    el.textContent = text;
+    el.className = text ? ("status is-visible" + (isErr ? " err" : "")) : "status";
+  }
+
+  function loadPipelines() {
+    return jget("/candidates/me/shortlists").then(function (result) {
+      if (result.ok) {
+        allRows = result.body.shortlists || [];
+        renderList();
+        var hasNew = allRows.some(function (r) { return !r.candidate_consented_at && !r.closed_at; });
+        document.querySelector("[data-invites-dot]").classList.toggle("is-visible", hasNew);
+      }
+      return result;
+    });
+  }
+
+  // Scoped to .tabs .tab, not the broader [data-tab] selector — the
+  // bottom tab-bar's nav links (Sprint 19) reuse the data-tab attribute
+  // name for their own destinations and must not be caught here.
+  document.querySelectorAll(".tabs .tab").forEach(function (tabBtn) {
+    tabBtn.addEventListener("click", function () {
+      activeTab = tabBtn.getAttribute("data-tab");
+      document.querySelectorAll(".tabs .tab").forEach(function (t) { t.classList.toggle("is-active", t === tabBtn); });
+      renderList();
+    });
+  });
+
+  document.querySelector("[data-pipeline-list]").addEventListener("click", function (e) {
+    var item = e.target.closest("[data-pipeline-id]");
+    if (!item) return;
+    var row = allRows.filter(function (r) { return r.id === item.getAttribute("data-pipeline-id"); })[0];
+    if (row) openDetail(row);
+  });
+
+  document.querySelector("[data-back]").addEventListener("click", function () { showView("list"); });
+
+  document.querySelector("[data-withdraw-open]").addEventListener("click", function () {
+    if (!currentRow) return;
+    var btn = this;
+    btn.disabled = true;
+    jpost("/candidates/me/shortlists/" + currentRow.id + "/withdraw", {}).then(function (result) {
+      btn.disabled = false;
+      if (!result.ok) {
+        setStatus("detail", result.body.error || "Something went wrong. Please try again.", true);
+        return;
+      }
+      loadPipelines().then(function () { showView("list"); });
+    });
+  });
+
+  document.querySelector("[data-sign-out]").addEventListener("click", function () {
+    icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
+      icareClearSession();
+      window.location.href = "/";
+    });
+  });
+
+  loadPipelines().then(function (result) {
+    document.querySelector("[data-loading]").style.display = "none";
+    document.querySelector("[data-pipelines-content]").hidden = false;
+    if (!result.ok) {
+      document.querySelector("[data-loading]").style.display = "block";
+      document.querySelector("[data-loading]").textContent = "Couldn't load your pipelines. Try refreshing the page.";
+      document.querySelector("[data-pipelines-content]").hidden = true;
+    }
+  }).catch(function () {
+    document.querySelector("[data-loading]").textContent = "Couldn't load your pipelines. Try refreshing the page.";
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iCare — the professional network for UK health and care</title>
+<meta name="description" content="iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile that shows your skills and experience — and, if you choose, the person behind them too.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Public+Sans:ital,wght@0,300..800;1,300..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1C0F33;
+  --purple:#330072;
+  --purple-dk:#25004F;
+  --teal:#00A499;
+  --teal-dk:#00726B;
+  --paper:#F4F1F8;
+  --card:#fff;
+  --mute:#6B6280;
+  --hair:rgba(28,15,51,.10);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:'Public Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+img{max-width:100%;display:block}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--teal);outline-offset:3px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto}}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+.skip{position:absolute;left:-9999px;background:var(--purple);color:#fff;padding:12px 18px;border-radius:6px}
+.skip:focus{left:16px;top:16px;z-index:99}
+
+/* ---------- nav ---------- */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 0;gap:18px;flex-wrap:wrap}
+.logo{font-family:'Fraunces',serif;font-weight:800;font-size:22px;letter-spacing:-.02em;text-decoration:none}
+.logo span{color:var(--teal)}
+.navlinks{display:flex;align-items:center;gap:22px}
+.navlink{font-size:14px;text-decoration:none;font-weight:600;color:var(--purple)}
+.navlink.btn-outline{border:1.5px solid var(--purple);padding:9px 18px;border-radius:100px}
+.navlink.btn-solid{background:var(--purple);color:#fff;padding:10px 20px;border-radius:100px;
+  box-shadow:0 8px 22px -10px var(--purple);transition:transform .15s,box-shadow .15s,background .15s}
+.navlink.btn-solid:hover{transform:translateY(-2px);background:var(--purple-dk)}
+
+/* ---------- shared type ---------- */
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--teal-dk);margin:0 0 18px;display:flex;align-items:center;gap:10px}
+.eyebrow::before{content:'';width:26px;height:1px;background:var(--teal);flex:none}
+.btn{display:inline-block;background:var(--purple);color:#fff;text-decoration:none;font-weight:700;
+  padding:16px 28px;border-radius:100px;font-size:16px;border:0;cursor:pointer;
+  transition:transform .15s,box-shadow .15s,background .15s;
+  box-shadow:0 8px 22px -10px var(--purple)}
+.btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px -12px var(--purple);background:var(--purple-dk)}
+.btn.ghost{background:transparent;color:var(--purple);box-shadow:none;border:1.5px solid var(--purple)}
+.btn.ghost:hover{background:rgba(51,0,114,.06);box-shadow:none;transform:none}
+
+/* ---------- hero ---------- */
+.hero{padding:26px 0 56px}
+.hero h1{font-family:'Fraunces',serif;font-weight:700;font-size:clamp(38px,8.5vw,76px);line-height:1.02;
+  letter-spacing:-.03em;margin:0 0 20px;max-width:15ch}
+.hero h1 em{font-style:italic;color:var(--purple)}
+.hero h1 u{text-decoration:none;background:linear-gradient(transparent 62%,rgba(0,164,153,.35) 62%)}
+.lede{font-size:clamp(17px,2.2vw,20px);line-height:1.55;color:var(--mute);max-width:46ch;margin:0 0 28px}
+.ctarow{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.rolestag{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--purple);
+  background:rgba(0,164,153,.14);padding:8px 14px;border-radius:100px;font-weight:500}
+
+.deck{margin-top:44px;position:relative}
+.ivt{background:var(--card);border-radius:18px;padding:20px;margin-bottom:-12px;position:relative;
+  box-shadow:0 18px 40px -24px rgba(28,15,51,.45);border:1px solid rgba(28,15,51,.07);
+  transform-origin:top center;animation:rise .7s cubic-bezier(.2,.8,.3,1) backwards}
+.ivt:nth-child(1){transform:rotate(-1.4deg) scale(.955);animation-delay:.05s;z-index:1}
+.ivt:nth-child(2){transform:rotate(.9deg) scale(.978);animation-delay:.18s;z-index:2}
+.ivt:nth-child(3){transform:rotate(-.3deg);animation-delay:.31s;z-index:3;margin-bottom:0}
+@keyframes rise{from{opacity:0;transform:translateY(26px) rotate(0) scale(.94)}}
+.ivt-top{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.avatar{width:42px;height:42px;border-radius:12px;flex:none;
+  background:linear-gradient(140deg,var(--purple),var(--teal));display:grid;place-items:center;
+  color:#fff;font-weight:700;font-size:15px;font-family:'Fraunces',serif}
+.ivt-org{font-weight:700;font-size:15px;line-height:1.25}
+.ivt-meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute)}
+.ivt-role{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 6px}
+.ivt-line{font-size:14px;color:var(--mute);margin:0 0 16px;line-height:1.5}
+.ivt-acts{display:flex;gap:8px}
+.mini{font-size:13px;font-weight:700;padding:10px 16px;border-radius:100px;border:0;cursor:pointer;
+  font-family:inherit}
+.mini.yes{background:var(--teal);color:#04231F}
+.mini.no{background:rgba(28,15,51,.06);color:var(--mute)}
+.stamp{position:absolute;top:16px;right:18px;font-family:'IBM Plex Mono',monospace;
+  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal-dk)}
+@media (min-width:900px){
+  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:70px;align-items:center;padding:60px 0 90px}
+  .deck{margin-top:0}
+}
+
+/* ---------- purple band ---------- */
+.band{background:var(--purple);color:#fff;padding:54px 0}
+.band .wrap{display:grid;gap:26px}
+.band h2{font-family:'Fraunces',serif;font-size:clamp(26px,4vw,38px);line-height:1.15;margin:0;
+  letter-spacing:-.02em;max-width:20ch}
+.band p{margin:0;color:rgba(255,255,255,.78);line-height:1.6;max-width:52ch}
+.band strong{color:#5FE0D6;font-weight:600}
+@media (min-width:900px){.band .wrap{grid-template-columns:1fr 1fr;gap:60px;align-items:start}}
+
+/* ---------- three columns ---------- */
+.why{padding:70px 0 64px}
+.why h2{font-family:'Fraunces',serif;font-weight:400;font-size:clamp(27px,4.4vw,44px);
+  letter-spacing:-.025em;line-height:1.16;margin:0 0 46px;max-width:22ch}
+.why h2 em{font-style:italic;color:var(--purple)}
+.cols{display:grid;gap:34px}
+.col .lbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--teal-dk);padding-bottom:12px;margin-bottom:16px;
+  border-bottom:1px solid rgba(0,164,153,.35)}
+.col h3{font-family:'Fraunces',serif;font-size:21px;font-weight:600;margin:0 0 10px}
+.col p{color:var(--mute);line-height:1.65;margin:0;font-size:15px}
+@media (min-width:820px){.cols{grid-template-columns:repeat(3,1fr);gap:48px}}
+
+/* ---------- badges ---------- */
+.badges{background:var(--ink);color:#fff;padding:66px 0}
+.badges h2{font-family:'Fraunces',serif;font-size:clamp(25px,4vw,38px);margin:0 0 10px;letter-spacing:-.025em;max-width:22ch}
+.badges .sub{color:rgba(255,255,255,.66);margin:0 0 34px;max-width:50ch;line-height:1.6}
+.grades{display:grid;gap:1px;background:rgba(255,255,255,.16);
+  border:1px solid rgba(255,255,255,.16);border-radius:14px;overflow:hidden}
+.grade{background:var(--ink);padding:24px 20px}
+.gname{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;margin-bottom:11px}
+.g1 .gname{color:#5FE0D6}
+.g2 .gname{color:#B79BE8}
+.g3 .gname,.g4 .gname{color:rgba(255,255,255,.55)}
+.grade p{margin:0;font-size:14.5px;line-height:1.6;color:rgba(255,255,255,.7)}
+@media (min-width:820px){.grades{grid-template-columns:repeat(4,1fr)}}
+.note{margin:24px 0 0;font-size:13.5px;color:rgba(255,255,255,.62);line-height:1.65;max-width:64ch}
+
+/* ---------- never do ---------- */
+.promise{background:var(--purple);color:#fff;padding:60px 0}
+.promise h2{font-family:'Fraunces',serif;font-size:clamp(26px,3.9vw,38px);margin:0 0 26px;
+  letter-spacing:-.022em;max-width:14ch}
+.plist{list-style:none;padding:0;margin:0;display:grid;gap:16px}
+.plist li{display:flex;gap:13px;color:rgba(255,255,255,.8);line-height:1.6;font-size:15.5px}
+.plist b{color:#fff;font-weight:700}
+.pk{color:#5FE0D6;font-weight:800;flex:none;margin-top:1px}
+@media (min-width:900px){
+  .promise .wrap{display:grid;grid-template-columns:.85fr 1.15fr;gap:60px;align-items:start}
+  .promise h2{margin:0}
+}
+
+/* ---------- final ---------- */
+.final{background:var(--ink);color:#fff;padding:84px 0;text-align:center;
+  border-top:1px solid rgba(255,255,255,.08)}
+.final h2{font-family:'Fraunces',serif;font-weight:300;font-style:italic;
+  font-size:clamp(30px,5.6vw,54px);letter-spacing:-.03em;line-height:1.12;
+  margin:0 auto 20px;max-width:17ch}
+.final p{color:rgba(255,255,255,.7);margin:0 auto 30px;max-width:42ch;line-height:1.65}
+.final .btn{background:var(--teal);color:#04231F;box-shadow:none}
+.final .btn:hover{background:#00C4B6;box-shadow:none}
+.final .btn.ghost{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.35)}
+.final .btn.ghost:hover{background:rgba(255,255,255,.08);transform:none}
+.final .ctarow{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-bottom:22px}
+.final .switch{font-size:14px;color:rgba(255,255,255,.55)}
+.final .switch a{color:#5FE0D6;font-weight:600;text-decoration:underline}
+
+footer{background:var(--ink);color:rgba(255,255,255,.5);padding:0 0 32px;text-align:center}
+footer .wrap{border-top:1px solid rgba(255,255,255,.1);padding-top:26px;display:flex;flex-direction:column;gap:10px;align-items:center}
+footer p{margin:0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.06em}
+footer .flinks{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+footer .flinks a{font-size:12.5px;color:rgba(255,255,255,.55);text-decoration:none}
+footer .flinks a:hover{color:#fff}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="wrap">
+  <header class="topbar">
+    <a class="logo" href="/welcome">i<span>Care</span></a>
+    <nav class="navlinks">
+      <a class="navlink" href="/employers">For employers</a>
+      <a class="navlink btn-outline" href="/sign-in">Log in</a>
+      <a class="navlink btn-solid" href="/sign-up">Sign up</a>
+    </nav>
+  </header>
+</div>
+
+<main id="main">
+
+  <!-- HERO -->
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">For everyone who works in health and care</p>
+        <h1>One profile. Every healthcare employer <u>looking for you.</u></h1>
+        <p class="lede">Put your registrations, experience and availability in one place. Employers search it, send you an invite, and see nothing more until you accept.</p>
+        <div class="ctarow">
+          <a class="btn" href="/sign-up">Create your profile</a>
+          <a class="btn ghost" href="/sign-in">Log in</a>
+        </div>
+      </div>
+
+      <div class="deck" aria-label="Example invites">
+        <article class="ivt">
+          <div class="ivt-top">
+            <div class="avatar" aria-hidden="true">SG</div>
+            <div><div class="ivt-org">St Gabriel's Trust</div><div class="ivt-meta">Acute · Enfield · 3.2 mi</div></div>
+          </div>
+          <h3 class="ivt-role">Band 6 Physiotherapist</h3>
+          <p class="ivt-line">Rotational post across stroke and respiratory. Full time.</p>
+          <div class="ivt-acts"><button class="mini yes">Accept</button><button class="mini no">Not for me</button></div>
+        </article>
+        <article class="ivt">
+          <div class="ivt-top">
+            <div class="avatar" aria-hidden="true">MH</div>
+            <div><div class="ivt-org">Meadowvale Health Group</div><div class="ivt-meta">Primary care · Barnet · 5.8 mi</div></div>
+          </div>
+          <h3 class="ivt-role">Practice Nurse</h3>
+          <p class="ivt-line">Weekdays, no weekends. Long-term conditions clinics.</p>
+          <div class="ivt-acts"><button class="mini yes">Accept</button><button class="mini no">Not for me</button></div>
+        </article>
+        <article class="ivt">
+          <span class="stamp">New</span>
+          <div class="ivt-top">
+            <div class="avatar" aria-hidden="true">BH</div>
+            <div><div class="ivt-org">Beechwood House</div><div class="ivt-meta">Residential · Waltham Cross · 2.1 mi</div></div>
+          </div>
+          <h3 class="ivt-role">Senior Care Assistant</h3>
+          <p class="ivt-line">Nights, 3 on 4 off. Dementia experience welcome.</p>
+          <div class="ivt-acts"><button class="mini yes">Accept</button><button class="mini no">Not for me</button></div>
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <!-- BAND -->
+  <section class="band">
+    <div class="wrap">
+      <h2>You are better at this job than you are at applying for it.</h2>
+      <p>Healthcare roles are won and lost on a CV that can't hold the important bits — that you're the one colleagues come to, that you stayed late, that you're calm when it matters. iCare gives you somewhere to put all of that, and puts it in front of the people hiring. <strong>Nursing, medicine, allied health, care and support, healthcare science, practice and admin teams.</strong></p>
+    </div>
+  </section>
+
+  <!-- THREE COLUMNS -->
+  <section class="why">
+    <div class="wrap">
+      <h2>A CV is a list of places you left. It says almost <em>nothing</em> about how you work.</h2>
+      <div class="cols">
+        <div class="col">
+          <div class="lbl">What we hold</div>
+          <h3>The whole record</h3>
+          <p>Registrations, specialties, settings, training and the hours that fit around your life. Written once, kept current, yours to edit.</p>
+        </div>
+        <div class="col">
+          <div class="lbl">What changes</div>
+          <h3>They come to you</h3>
+          <p>Employers search for what they need. If that's you, they send an invite — you choose whether to open the door.</p>
+        </div>
+        <div class="col">
+          <div class="lbl">Who it's for</div>
+          <h3>The whole workforce</h3>
+          <p>Nursing, medicine, allied health, care and support, healthcare science, practice management and admin. One network, not a dozen job boards.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BADGES -->
+  <section class="badges">
+    <div class="wrap">
+      <h2>We show employers what's checked — and what isn't.</h2>
+      <p class="sub">Every line on your profile carries a label so nobody has to guess how much weight to give it. Honest beats impressive.</p>
+      <div class="grades">
+        <div class="grade g1"><div class="gname">Verified</div><p>Checked by us directly at source.</p></div>
+        <div class="grade g2"><div class="gname">Evidenced</div><p>You've uploaded a document that supports it.</p></div>
+        <div class="grade g3"><div class="gname">Derived</div><p>Worked out from other things on your profile.</p></div>
+        <div class="grade g4"><div class="gname">Declared</div><p>You've told us, and we've said so plainly.</p></div>
+      </div>
+      <p class="note">We don't claim to verify DBS certificates. Your employer runs their own pre-employment checks, as they must — we just make sure nothing on your profile pretends to be more solid than it is.</p>
+    </div>
+  </section>
+
+  <!-- NEVER DO -->
+  <section class="promise">
+    <div class="wrap">
+      <h2>What we will never do</h2>
+      <ul class="plist">
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Score or rank you.</b> No hidden rating decides who sees you. Employers get plain, explainable reasons for every match.</span></li>
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Show your details before you say yes.</b> Your name, photo and contact details stay hidden until you accept an invite.</span></li>
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Keep the door open after.</b> When a role closes or you withdraw, that employer's access to your profile ends.</span></li>
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Share what you've kept private.</b> You set what's public, what's for employers, and what nobody sees — and you can change it whenever.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- FINAL / GET STARTED -->
+  <section class="final" id="get-started">
+    <div class="wrap">
+      <h2>The right people should already know your name.</h2>
+      <p>Build your profile in minutes — no password, just your email. Employers can't see a thing about you until you say yes.</p>
+
+      <div class="ctarow">
+        <a class="btn" href="/sign-up">Create your profile</a>
+        <a class="btn ghost" href="/sign-in">Log in</a>
+      </div>
+      <p class="switch">Hiring instead? <a href="/employer/sign-up">Sign up as an employer</a></p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>iCare · The professional network for UK health and care</p>
+    <div class="flinks">
+      <a href="/employers">For employers</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
