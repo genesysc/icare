@@ -95,6 +95,11 @@
     display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
     border-radius: 999px; background: #330072; color: var(--white); font-size: 11px; font-weight: 700; flex: none;
   }
+  /* Two tiers (build spec, 2026-09-13): purple = fully verified (ID + right
+     to work + DBS certificate + certificate copy all manually checked),
+     teal = identity-only (ID/passport checked, matches this codebase's
+     existing "verified" badge-grade colour used everywhere else). */
+  .verified-check.is-identity-only { background: var(--teal-500); }
   .profile-position { margin-top: 3px; font-size: 14px; font-weight: 600; color: var(--ink-soft); }
   .identity-line { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; gap: 20px; flex-wrap: wrap; }
   .identity-fact-label { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); }
@@ -638,15 +643,31 @@ function icareRequireAuth(signInPath) {
     document.querySelector("[data-meta]").textContent = metaParts.length ? metaParts.join(" · ") : "No details yet";
     document.querySelector("[data-published-tag]").style.display = candidate.is_published ? "inline-flex" : "none";
 
-    // Identity-verified check (purple, not teal) — same rule as
-    // candidate_peer_feed/candidate_discover (migration 0041): right_to_work
-    // actually set AND a DBS certificate number on file AND a human has
-    // reviewed it against the government DBS checker (dbs.reviewed_at).
-    // Deliberately NOT wired to dbs.on_update_service — see non-negotiable
-    // #3, a DBS confirmation state is a different fact from identity being
-    // real, and this badge is anti-catfishing, not a DBS status claim.
-    var identityVerified = !!(candidate.right_to_work && candidate.right_to_work !== "not_stated" && dbs && dbs.certificate_number && dbs.reviewed_at);
-    document.querySelector("[data-verified-check]").hidden = !identityVerified;
+    // Identity check, two tiers (2026-09-13, replaces the earlier single-
+    // tier boolean) — driven by candidate_badges, not raw field presence.
+    // Both badges are manual-only (staff awards them via a direct Supabase
+    // insert once they've actually checked the document — no self-serve
+    // upload exists, see PROGRESS.md): id_verified (govt photo ID/passport
+    // checked) and dbs_certificate_verified (DBS certificate number checked
+    // against secure.crbonline.gov.uk AND the certificate copy/"green slip"
+    // reviewed). Deliberately NOT wired to dbs.on_update_service — see
+    // non-negotiable #3, a DBS confirmation state is a different fact from
+    // identity being real, and this badge is anti-catfishing, not a DBS
+    // status claim.
+    var badgeRows = badgesResult.ok ? (badgesResult.body.badges || []) : [];
+    var activeBadgeCodes = badgeRows
+      .filter(function (b) { return !b.expires_at || new Date(b.expires_at) > new Date(); })
+      .map(function (b) { return b.badge_code; });
+    var hasIdCheck = activeBadgeCodes.indexOf("id_verified") !== -1;
+    var hasDbsCheck = activeBadgeCodes.indexOf("dbs_certificate_verified") !== -1;
+    var rightToWorkStated = !!(candidate.right_to_work && candidate.right_to_work !== "not_stated");
+    var fullyVerified = hasIdCheck && hasDbsCheck && rightToWorkStated;
+    var identityOnlyVerified = hasIdCheck && !fullyVerified;
+
+    var checkEl = document.querySelector("[data-verified-check]");
+    checkEl.hidden = !(fullyVerified || identityOnlyVerified);
+    checkEl.classList.toggle("is-identity-only", identityOnlyVerified);
+    checkEl.title = fullyVerified ? "Fully Verified" : "Identity Verified";
 
     document.querySelector("[data-rtw-value]").textContent = RTW_LABELS[candidate.right_to_work] || RTW_LABELS.not_stated;
     // No passport/ID upload exists anywhere in this app yet (checked
@@ -655,7 +676,7 @@ function icareRequireAuth(signInPath) {
     // building the actual upload is a separate, deliberately deferred piece.
     document.querySelector("[data-id-value]").textContent = "Not yet collected";
 
-    renderBadges(badgesResult.ok ? badgesResult.body.badges : []);
+    renderBadges(badgeRows);
 
     var list = document.querySelector("[data-section-list]");
     addSectionRow(list, "Professions", professionNames.length ? professionNames.join(", ") : "None picked yet", 1);
