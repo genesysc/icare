@@ -90,6 +90,15 @@
 
   /* Profile summary */
   .profile-head { display: flex; gap: 18px; align-items: center; }
+  .profile-name-row { display: flex; align-items: center; gap: 7px; }
+  .verified-check {
+    display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+    border-radius: 999px; background: #330072; color: var(--white); font-size: 11px; font-weight: 700; flex: none;
+  }
+  .profile-position { margin-top: 3px; font-size: 14px; font-weight: 600; color: var(--ink-soft); }
+  .identity-line { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; gap: 20px; flex-wrap: wrap; }
+  .identity-fact-label { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); }
+  .identity-fact-value { margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--plum-950); }
   .profile-photo {
     width: 72px; height: 72px; border-radius: 999px; background: var(--paper-dim);
     border: 1.5px solid var(--line); flex: none; overflow: hidden;
@@ -196,6 +205,7 @@
   .status.err { color: var(--err); }
 
   .loading-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 40px 0; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -213,8 +223,22 @@
       <div class="profile-head">
         <div class="profile-photo" data-photo><span class="profile-photo-empty">No photo</span></div>
         <div>
-          <h1 class="profile-name" data-headline>—</h1>
+          <div class="profile-name-row">
+            <h1 class="profile-name" data-full-name>—</h1>
+            <span class="verified-check" data-verified-check title="Identity verified" hidden>✓</span>
+          </div>
+          <p class="profile-position" data-position hidden></p>
           <p class="profile-meta" data-meta>—</p>
+        </div>
+      </div>
+      <div class="identity-line">
+        <div>
+          <div class="identity-fact-label">Right to work</div>
+          <div class="identity-fact-value" data-rtw-value>—</div>
+        </div>
+        <div>
+          <div class="identity-fact-label">ID on file</div>
+          <div class="identity-fact-value" data-id-value>Not yet collected</div>
         </div>
       </div>
       <span class="published-tag" data-published-tag>Published · visible to employers</span>
@@ -528,6 +552,16 @@ function icareRequireAuth(signInPath) {
     list.appendChild(row);
   }
 
+  var RTW_LABELS = {
+    british_irish: "British/Irish citizen",
+    settled: "Settled status",
+    pre_settled: "Pre-settled status",
+    indefinite_leave: "Indefinite leave to remain",
+    visa_with_work_rights: "Visa with work rights",
+    requires_sponsorship: "Requires sponsorship",
+    not_stated: "Not yet stated",
+  };
+
   Promise.all([
     jget("/candidates/me"),
     jget("/candidates/me/professions"),
@@ -538,10 +572,12 @@ function icareRequireAuth(signInPath) {
     jget("/candidates/me/references"),
     jget("/candidates/me/prompts"),
     jget("/candidates/me/badges"),
+    jget("/auth/me"),
   ]).then(function (results) {
     var candidateResult = results[0], professionsResult = results[1], employmentResult = results[2];
     var qualificationsResult = results[3], registrationsResult = results[4], dbsResult = results[5];
     var referencesResult = results[6], promptsResult = results[7], badgesResult = results[8];
+    var accountResult = results[9];
 
     if (!candidateResult.ok) {
       document.querySelector("[data-loading]").textContent = "Couldn't load your profile. Try refreshing the page.";
@@ -570,16 +606,7 @@ function icareRequireAuth(signInPath) {
         .then(function (blob) { photoImg.src = URL.createObjectURL(blob); })
         .catch(function () { photoEl.innerHTML = '<span class="profile-photo-empty">Couldn\'t load photo</span>'; });
     }
-    document.querySelector("[data-headline]").textContent = candidate.headline || "Your profile";
-    var metaParts = [];
-    if (candidate.town) metaParts.push(candidate.town);
-    if (candidate.postcode_district) metaParts.push(candidate.postcode_district);
-    if (candidate.availability) metaParts.push(candidate.availability.replace(/_/g, " "));
-    document.querySelector("[data-meta]").textContent = metaParts.length ? metaParts.join(" · ") : "No details yet";
-    document.querySelector("[data-published-tag]").style.display = candidate.is_published ? "inline-flex" : "none";
-
-    renderBadges(badgesResult.ok ? badgesResult.body.badges : []);
-
+    var account = accountResult.ok ? accountResult.body.account : null;
     var professionRows = professionsResult.ok ? (professionsResult.body.professions || []) : [];
     var professionNames = professionRows.map(function (r) { return r.professions ? r.professions.name : r.profession_id; });
     var employmentRows = employmentResult.ok ? (employmentResult.body.employment_history || []) : [];
@@ -588,6 +615,47 @@ function icareRequireAuth(signInPath) {
     var dbs = dbsResult.ok ? dbsResult.body.dbs : null;
     var referenceRows = referencesResult.ok ? (referencesResult.body.references || []) : [];
     var promptRows = promptsResult.ok ? (promptsResult.body.prompts || []) : [];
+
+    document.querySelector("[data-full-name]").textContent = (account && account.full_name) || "Your profile";
+
+    // "Position now" — the candidate's actual current role from their work
+    // history, not the free-text headline (which stayed a tagline field,
+    // shown further down the profile-at-a-glance list instead).
+    var currentRole = employmentRows.filter(function (r) { return r.is_current; })[0];
+    var positionEl = document.querySelector("[data-position]");
+    if (currentRole && currentRole.job_title) {
+      positionEl.textContent = currentRole.job_title + (currentRole.employer ? " · " + currentRole.employer : "");
+      positionEl.hidden = false;
+    } else {
+      positionEl.hidden = true;
+    }
+
+    // Location — town only, never the postcode district (real bug fixed
+    // 2026-09-13: this used to append postcode_district here).
+    var metaParts = [];
+    if (candidate.town) metaParts.push(candidate.town);
+    if (candidate.availability) metaParts.push(candidate.availability.replace(/_/g, " "));
+    document.querySelector("[data-meta]").textContent = metaParts.length ? metaParts.join(" · ") : "No details yet";
+    document.querySelector("[data-published-tag]").style.display = candidate.is_published ? "inline-flex" : "none";
+
+    // Identity-verified check (purple, not teal) — same rule as
+    // candidate_peer_feed/candidate_discover (migration 0041): right_to_work
+    // actually set AND a DBS certificate number on file AND a human has
+    // reviewed it against the government DBS checker (dbs.reviewed_at).
+    // Deliberately NOT wired to dbs.on_update_service — see non-negotiable
+    // #3, a DBS confirmation state is a different fact from identity being
+    // real, and this badge is anti-catfishing, not a DBS status claim.
+    var identityVerified = !!(candidate.right_to_work && candidate.right_to_work !== "not_stated" && dbs && dbs.certificate_number && dbs.reviewed_at);
+    document.querySelector("[data-verified-check]").hidden = !identityVerified;
+
+    document.querySelector("[data-rtw-value]").textContent = RTW_LABELS[candidate.right_to_work] || RTW_LABELS.not_stated;
+    // No passport/ID upload exists anywhere in this app yet (checked
+    // 2026-09-13) — right_to_work is a self-declared dropdown with no
+    // evidence collection. Show that honestly rather than imply otherwise;
+    // building the actual upload is a separate, deliberately deferred piece.
+    document.querySelector("[data-id-value]").textContent = "Not yet collected";
+
+    renderBadges(badgesResult.ok ? badgesResult.body.badges : []);
 
     var list = document.querySelector("[data-section-list]");
     addSectionRow(list, "Professions", professionNames.length ? professionNames.join(", ") : "None picked yet", 1);
