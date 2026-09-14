@@ -3862,3 +3862,79 @@ the launched-state page while `/` stayed the waitlist. With `/` now
 being that page, keeping both would have meant two near-identical
 pages drifting apart; `/welcome` 302s to `/` so the live URL still
 works.
+
+---
+
+## 2026-09-14 (later) — New-user signup email has been broken since the 09-10 relay change
+
+Founder asked whether a new account existed for "Monique Murillo". One
+did — `mariamoniquemurillo@gmail.com`, created 06:56:19 UTC, role
+`candidate`, terms accepted, and fully provisioned (`accounts`,
+`candidates` and `candidate_contact` rows all created by
+`handle_new_user()`). But `email_confirmed_at` was null, there were zero
+sessions, and the `confirmation_token` in `auth.one_time_tokens` was
+still sitting there unused. The founder confirmed the email never
+arrived.
+
+**What made this diagnosable was comparing it against a send that
+worked, an hour later, on the same morning.** Supabase Auth fires a
+*different email template per action*:
+
+| Time | Address | Action | Template | Outcome |
+|---|---|---|---|---|
+| 06:56:21 | mariamoniquemurillo@ | `user_confirmation_requested` | **Confirm signup** | never arrived |
+| 07:58:09 | mjm.refugio@ | `user_recovery_requested` | **Magic Link** | login succeeded 07:58:22 — 13 seconds |
+
+Same relay, same sending domain, same recipient domain (gmail.com), 62
+minutes apart. One worked, one vanished. The only variable is the
+template.
+
+Ruled out, with evidence, so nobody re-diagnoses them: the send itself
+(`POST /otp` → 200 in 1.82s, no error, `confirmation_sent_at` stamped);
+the sending domain (Sender.net reports `icareltd.com` verified with SPF,
+DKIM *and* DMARC passing, `ready_to_send: true` — the 09-10 DMARC
+failure has not returned); and the relay (proven working 62 minutes
+later).
+
+**Root cause: the 09-10 fix only ever covered half the problem.** That
+session fixed and verified the **Magic Link** template. "Confirm signup"
+is a separate template and was never touched — grepping HANDOVER.md and
+PROGRESS.md, every `{{ .Token }}` and template reference in the entire
+project history is about Magic Link. Confirm signup appears nowhere
+before today.
+
+**It stayed invisible for four days because nobody signed up.** Every
+confirmed account in `auth.users` (08-31, 09-02 ×2) predates the relay
+change. Monique's is the *first* new-user signup attempted since — and
+the first to fail. The front door was broken the whole time and
+everything looked fine, because the only path anyone exercised was the
+returning-user one.
+
+**Two independent bugs, not one.** Fixing delivery alone would still
+leave new users stuck: Supabase's default Confirm-signup template
+contains `{{ .ConfirmationURL }}` and **no `{{ .Token }}`**, while
+`/verify` presents an 8-digit code box. A delivered email would have no
+code in it. The same default also leads with a raw `supabase.co` link,
+which is a far stronger spam signal than a plain numeric code on a young
+domain sending via a shared-IP free ESP tier — the likely delivery cause
+too.
+
+A replacement template fixing both is checked in at
+`docs/email-templates/supabase-confirm-signup.html`, ready to paste into
+Dashboard → Authentication → Emails → Confirm signup.
+
+**Not yet resolved** — the decisive test needs dashboard access:
+Sender.net's activity log for 06:56 UTC. No record ⇒ Supabase-side, and
+the template is the fix. "Delivered" ⇒ Gmail silently discarded it, and
+the durable answer is to stop using Supabase's email layer for auth at
+all — mint the token via the admin `generateLink` API and send through
+`src/email.ts` / `src/emails/` on the Sender.net **API** path that
+already works for waitlist and profile mail.
+
+**Lesson worth keeping.** Two templates, one tested. The tested one was
+the one that happened to be easy to test (the founder already had an
+account). Whenever an auth or email change ships, the check that matters
+is the one nobody can do casually — a real signup from a clean address.
+Nothing in the system currently reports failing signups, so a broken
+front door is silent by default; that monitoring gap is the real find
+here, not the template.

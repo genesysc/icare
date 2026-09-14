@@ -536,6 +536,66 @@ deploy confirmation yet.
    confirmed the email arrived. OTP/magic-link delivery is working
    end-to-end again. See §2's "Email address ownership" rule — don't
    let `info@` and `hello@` blur back together.
+   **STILL BROKEN for NEW signups, found 2026-09-14. The 09-10 fix only
+   ever covered returning users.** Supabase Auth uses a *different email
+   template per action*, and only one of the two was ever fixed:
+
+   | Action | Template | State |
+   |---|---|---|
+   | `user_recovery_requested` (existing user signs in) | **Magic Link** | fixed + verified 09-10, works |
+   | `user_confirmation_requested` (**new** signup) | **Confirm signup** | never touched, never tested |
+
+   Every `{{ .Token }}` / template mention anywhere in HANDOVER.md and
+   PROGRESS.md refers to the Magic Link template. "Confirm signup" appears
+   nowhere in the project's history before today.
+
+   This went unnoticed for four days because **no new-user signup was
+   attempted between the 09-10 relay change and 09-14**. Every confirmed
+   account in `auth.users` (08-31, 09-02 x2) predates the change; the
+   first signup after it (`mariamoniquemurillo@gmail.com`, 09-14 06:56
+   UTC) never arrived and never confirmed.
+
+   What the evidence rules OUT — don't re-diagnose these:
+   - Not the send: `POST /otp` returned 200 in 1.82s, no error,
+     `confirmation_sent_at` stamped, `one_time_tokens` row created.
+   - Not the domain: Sender.net reports `icareltd.com` verified with SPF,
+     DKIM **and** DMARC all passing, `ready_to_send: true`. The 09-10
+     DMARC-class failure has not returned.
+   - Not the relay: a Magic Link OTP to `mjm.refugio@gmail.com` at
+     07:58:09 the same morning produced a successful login at 07:58:22 —
+     13 seconds, same relay, same sending domain, same recipient domain.
+
+   **Two independent bugs sit on the signup path**, and fixing delivery
+   alone leaves the second one live:
+   1. *Delivery.* Supabase's default Confirm-signup template leads with a
+      raw `supabase.co` link — a much stronger spam signal than a plain
+      numeric code on a young domain via a shared-IP free ESP tier.
+   2. *Unusable even when delivered.* The default template contains
+      `{{ .ConfirmationURL }}` and **no `{{ .Token }}`**, but `/verify`
+      presents an 8-digit code box. A new user would get an email with no
+      code in it.
+
+   A ready-to-paste replacement that fixes both is checked in at
+   `docs/email-templates/supabase-confirm-signup.html`. **Keep it in sync
+   with the Magic Link template** — if one changes and the other doesn't,
+   new signups and returning sign-ins drift apart again, which is exactly
+   how this happened.
+
+   **The decisive test not yet run** (needs dashboard access): Sender.net's
+   activity log for 09-14 06:56 UTC. No record there ⇒ the failure is
+   Supabase-side and the template is the cause. "Delivered" there ⇒
+   Sender.net handed it to Gmail and Gmail silently discarded it, in which
+   case the durable fix is to stop using Supabase's email layer for auth
+   entirely: mint the token with the admin `generateLink` API and send it
+   through `src/email.ts` / `src/emails/` on the Sender.net **API** path
+   that already works for waitlist and profile mail (needs a service-role
+   key as a Worker secret).
+
+   **Process gap worth closing:** nothing currently surfaces failing
+   signups. An unconfirmed-signup check, or simply running one real
+   signup from a clean address after any auth change, would have caught
+   this on day one instead of day four.
+
 
 **Next, no particular blocker**
 
