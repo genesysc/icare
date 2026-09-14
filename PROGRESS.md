@@ -4022,3 +4022,30 @@ durable as the assumption that the bug will keep landing there. Sprint
 one page tested against, not the one property that mattered (any
 GoTrue redirect fallback, wherever it lands). The fix that actually
 lasts is the one keyed to the invariant, not the observation.
+
+---
+
+## 2026-09-14 (final) — New-user signup confirmed fully working end-to-end
+
+Founder pasted `docs/email-templates/supabase-confirm-signup.html` into
+Dashboard → Authentication → Emails → Confirm signup, then tested with
+a genuinely fresh signup (a `+`-tagged Gmail alias — same inbox, but
+unseen by Supabase before, so it exercises the real Confirm-signup path
+rather than Magic Link). Result: the email arrived with a visible code,
+and typing it into `/verify` completed sign-in successfully.
+
+That closes the whole 09-14 signup investigation, three separate issues
+found and fixed across one day:
+1. Delivery was never actually broken (ruled out early, correctly).
+2. The Confirm-signup template had no `{{ .Token }}` — fixed by the
+   founder pasting in the replacement template (Dashboard change, no
+   code).
+3. The link, when clicked, dead-ended on `/sign-in` instead of
+   completing sign-in — fixed in code (`018f497`, shipped as PR #42).
+
+New signups now have two independent, both-verified paths: click the
+link, or type the code. Only remaining loose end, not blocking anything:
+whether the *returning-user* Magic Link template has the same missing-
+token gap is still unconfirmed — every success on it so far has been via
+the link, never by typing a code. Worth a similar fresh-alias check next
+time auth is touched, not urgent today.
