@@ -1,22 +1,32 @@
 <!--
-  iCare candidate dashboard — SPRINTS.md Sprint 5.
+  iCare candidate Profile — SPRINTS.md Sprint 5, rebuilt LinkedIn-style
+  2026-09-14 per founder request ("go through LinkedIn and copy their
+  format"). This isn't a literal scrape of LinkedIn's current DOM (their
+  profile pages sit behind a login wall, not fetchable from here) — it's
+  the well-established, unchanged-in-years standard LinkedIn profile
+  shape: a banner+photo header, About, Experience, Licenses &
+  Certifications, Skills, Activity, in that order. Flagged, not silently
+  assumed.
 
-  Replaces the Sprint 1 stub outright. Reachable once publish_my_profile()
-  has set candidates.onboarding_done = true (verify.html's redirect logic
-  already checks this — no change needed there).
+  Reachable once publish_my_profile() has set candidates.onboarding_done
+  = true (verify.html's redirect logic already checks this).
 
-  Loads the published profile + badges (read-only — non-negotiable #2: no
-  client write path to candidate_badges) and shows a compact per-section
-  view with "Edit" links back into the wizard. Editing itself is NOT
-  duplicated here: src/onboarding.html already has full, pre-filled forms
-  for every section and already resumes correctly, so "Edit" links reuse
-  it via a new `?step=N` query override (onboarding.html normally always
-  resumes at the highest step reached; the override lets it jump to an
-  earlier already-completed step instead, for editing).
+  Editing is NOT duplicated here: src/onboarding.html already has full,
+  pre-filled forms for every section and resumes correctly, so every
+  "Edit" link/pencil reuses it via `?step=N` (onboarding.html's own
+  override to jump to an already-completed step instead of always
+  resuming at the highest one).
 
-  Account settings: a "close account" flow calling the EXISTING
-  close_my_account() RPC via a NEW POST /candidates/me/close-account route
-  built alongside this page.
+  Badges (2026-09-14): folded into one collapsible section instead of an
+  always-open grid — a compact row of icon-only circles by default, "Show
+  all" expands the full family-grouped list. Each badge now renders with
+  a hand-authored SVG icon matching its family (no icon library/font
+  dependency, same convention as nav-shell.html's icons) instead of being
+  purely a text-in-a-pill chip — icon + colour is the primary signal,
+  text is the secondary/accessible label, not the other way around.
+
+  Account settings: "close account" via the existing close_my_account()
+  RPC through POST /candidates/me/close-account (Sprint 5), unchanged.
 -->
 <!doctype html>
 <html lang="en">
@@ -32,6 +42,7 @@
   :root {
     --plum-950: #241533;
     --plum-800: #382349;
+    --purple: #330072;
     --ink-soft: #5b5670;
     --ink-faint: #8a8599;
     --teal-700: #0e8c7f;
@@ -55,6 +66,7 @@
   h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
   p { margin: 0; }
   button { font-family: inherit; }
+  svg.icon { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
   .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
   .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
@@ -82,63 +94,113 @@
   }
   .tab-bar-dot.is-visible { display: block; }
 
-  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; display: flex; flex-direction: column; gap: 20px; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; display: flex; flex-direction: column; gap: 16px; }
 
-  .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 30px 28px; }
-  .card-title { font-size: 20px; }
+  .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); overflow: hidden; }
+  .card-body { padding: 26px 28px; }
+  .card-title { font-size: 18px; display: flex; align-items: center; gap: 9px; }
+  .card-title svg { color: var(--teal-700); }
   .card-sub { margin-top: 6px; font-size: 13.5px; color: var(--ink-faint); line-height: 1.55; }
+  .card-edit-link { flex: none; margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--teal-700); text-decoration: none; }
+  .card-edit-link:hover { color: var(--plum-950); }
+  .card-head-row { display: flex; align-items: center; gap: 9px; }
 
-  /* Profile summary */
-  .profile-head { display: flex; gap: 18px; align-items: center; }
+  /* ---- LinkedIn-style header: banner + overlapping photo ---- */
+  .profile-banner { height: 84px; background: linear-gradient(120deg, var(--purple) 0%, var(--teal-700) 100%); }
+  .profile-head { padding: 0 28px 22px; margin-top: -40px; position: relative; }
   .profile-photo {
-    width: 72px; height: 72px; border-radius: 999px; background: var(--paper-dim);
-    border: 1.5px solid var(--line); flex: none; overflow: hidden;
+    width: 92px; height: 92px; border-radius: 999px; background: var(--paper-dim);
+    border: 4px solid var(--white); box-shadow: 0 2px 8px rgba(36,21,51,0.15); overflow: hidden;
     display: flex; align-items: center; justify-content: center;
   }
+  .profile-photo.is-open-ring { border-color: var(--teal-500); }
   .profile-photo img { width: 100%; height: 100%; object-fit: cover; }
   .profile-photo-empty { font-family: "IBM Plex Mono", monospace; font-size: 9px; color: var(--ink-faint); text-align: center; }
-  .profile-name { font-size: 21px; }
+  .profile-head-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .edit-profile-btn {
+    margin-top: 14px; display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border-radius: 999px;
+    border: 1.5px solid var(--plum-950); color: var(--plum-950); background: var(--white); font-size: 13px;
+    font-weight: 700; text-decoration: none; white-space: nowrap;
+  }
+  .edit-profile-btn:hover { background: var(--paper-dim); }
+  .profile-name-row { display: flex; align-items: center; gap: 7px; margin-top: 12px; }
+  .verified-check {
+    display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+    border-radius: 999px; background: var(--purple); color: var(--white); font-size: 11px; font-weight: 700; flex: none;
+  }
+  .verified-check.is-identity-only { background: var(--teal-500); }
+  .profile-name { font-size: 22px; }
+  .profile-position { margin-top: 3px; font-size: 15px; font-weight: 600; color: var(--ink-soft); }
   .profile-meta { margin-top: 4px; font-size: 13.5px; color: var(--ink-faint); }
+  .open-to-pill {
+    display: none; margin-top: 12px; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
+    color: var(--teal-700); background: var(--teal-100); padding: 5px 11px; border-radius: 999px; width: fit-content;
+  }
+  .open-to-pill.is-visible { display: inline-flex; }
   .published-tag {
-    display: inline-flex; margin-top: 10px; font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    display: inline-flex; margin-top: 10px; margin-left: 8px; font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
     font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--teal-700);
     background: var(--teal-100); padding: 4px 9px; border-radius: 999px;
   }
-  .edit-profile-link {
-    margin-top: 16px; display: inline-block; font-size: 13.5px; font-weight: 700; color: var(--teal-700);
-    text-decoration: none;
-  }
-  .edit-profile-link:hover { color: var(--plum-950); }
+  .identity-line { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; gap: 20px; flex-wrap: wrap; }
+  .identity-fact-label { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); }
+  .identity-fact-value { margin-top: 2px; font-size: 13px; font-weight: 600; color: var(--plum-950); }
 
-  /* Badges */
+  /* ---- About ---- */
+  .about-text { font-size: 13.5px; line-height: 1.65; color: var(--ink-soft); white-space: pre-wrap; }
+
+  /* ---- Badges: collapsed by default ---- */
+  .badge-preview-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .badge-icon-circle {
+    width: 34px; height: 34px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex: none;
+  }
+  .badge-icon-circle svg { width: 17px; height: 17px; }
+  .grade-verified-fill { background: var(--teal-500); color: var(--white); }
+  .grade-evidenced-fill { background: var(--plum-800); color: var(--white); }
+  .grade-derived-fill { background: var(--teal-100); color: var(--teal-700); border: 1.5px solid var(--teal-500); }
+  .grade-declared-fill { background: var(--amber-100); color: var(--amber-600); border: 1.5px solid var(--amber-600); }
+  .badge-toggle {
+    background: none; border: none; font-size: 12.5px; font-weight: 700; color: var(--teal-700); cursor: pointer;
+    padding: 0; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .badge-toggle:hover { color: var(--plum-950); }
+  .badge-toggle svg { width: 13px; height: 13px; transition: transform 0.15s; }
+  .badge-toggle.is-open svg { transform: rotate(180deg); }
+  .badge-full-list { margin-top: 14px; }
+  .badge-full-list[hidden] { display: none; }
   .badge-family { margin-top: 16px; }
   .badge-family:first-of-type { margin-top: 4px; }
   .badge-family-label {
     font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.05em;
     text-transform: uppercase; color: var(--ink-faint);
   }
-  .badge-grid { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
-  .badge-chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
-  .badge-chip .grade-tag { font-family: "IBM Plex Mono", monospace; font-size: 9px; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.85; }
-  .badge-chip.grade-verified { background: var(--teal-500); color: var(--white); }
-  .badge-chip.grade-evidenced { background: var(--plum-800); color: var(--white); }
-  .badge-chip.grade-derived { background: transparent; color: var(--teal-700); border: 1.5px solid var(--teal-500); }
-  .badge-chip.grade-declared { background: transparent; color: var(--amber-600); border: 1.5px solid var(--amber-600); }
+  .badge-grid { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .badge-row-item { display: flex; align-items: center; gap: 10px; }
+  .badge-row-text { flex: 1; min-width: 0; }
+  .badge-row-label { font-size: 13.5px; font-weight: 700; color: var(--plum-950); }
+  .badge-row-grade { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); }
   .empty-note { font-size: 13.5px; color: var(--ink-faint); margin-top: 10px; }
 
-  /* Section list (view + edit) */
-  .section-list { margin-top: 4px; display: flex; flex-direction: column; }
-  .section-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 13px 0; border-bottom: 1px solid var(--line);
+  /* ---- Experience / Licenses & Certifications (LinkedIn-style timeline rows) ---- */
+  .timeline-list { display: flex; flex-direction: column; }
+  .timeline-item { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .timeline-item:last-child { border-bottom: none; }
+  .timeline-icon {
+    width: 40px; height: 40px; border-radius: 8px; background: var(--paper-dim); color: var(--teal-700);
+    display: flex; align-items: center; justify-content: center; flex: none;
   }
-  .section-row:last-child { border-bottom: none; }
-  .section-row-label { font-size: 14px; font-weight: 600; color: var(--plum-950); }
-  .section-row-value { margin-top: 2px; font-size: 12.5px; color: var(--ink-faint); }
-  .section-edit-link { flex: none; font-size: 12.5px; font-weight: 700; color: var(--teal-700); text-decoration: none; }
-  .section-edit-link:hover { color: var(--plum-950); }
+  .timeline-body { flex: 1; min-width: 0; }
+  .timeline-title { font-size: 14px; font-weight: 700; color: var(--plum-950); }
+  .timeline-sub { margin-top: 1px; font-size: 12.5px; color: var(--ink-soft); }
+  .timeline-dates { margin-top: 2px; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); }
+  .timeline-desc { margin-top: 6px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; white-space: pre-wrap; }
+  .timeline-current-tag { font-size: 10.5px; font-weight: 700; color: var(--teal-700); background: var(--teal-100); padding: 2px 7px; border-radius: 999px; margin-left: 6px; }
 
-  /* Posts */
+  /* ---- Skills ---- */
+  .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag-pill { font-size: 12.5px; font-weight: 600; color: var(--plum-950); background: var(--paper-dim); border: 1px solid var(--line); padding: 6px 13px; border-radius: 999px; }
+
+  /* Posts / Activity */
   .post-hint { font-size: 12.5px; color: var(--ink-faint); line-height: 1.55; background: var(--paper-dim); border-radius: 10px; padding: 10px 12px; margin-top: 14px; }
   .post-form { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
   .post-form input, .post-form textarea {
@@ -178,6 +240,15 @@
   .btn-outline:hover { background: var(--teal-100); }
   .btn-outline.is-consented { color: var(--ink-faint); border-color: var(--line); }
 
+  /* Slim "more about you" list (items with no dedicated LinkedIn-style section) */
+  .section-list { margin-top: 4px; display: flex; flex-direction: column; }
+  .section-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+  .section-row:last-child { border-bottom: none; }
+  .section-row-label { font-size: 14px; font-weight: 600; color: var(--plum-950); }
+  .section-row-value { margin-top: 2px; font-size: 12.5px; color: var(--ink-faint); }
+  .section-edit-link { flex: none; font-size: 12.5px; font-weight: 700; color: var(--teal-700); text-decoration: none; }
+  .section-edit-link:hover { color: var(--plum-950); }
+
   /* Account settings */
   .danger-zone { border-color: #f0dcd6; }
   .btn { padding: 11px 20px; border-radius: 999px; font-weight: 700; font-size: 14px; cursor: pointer; border: none; }
@@ -196,6 +267,7 @@
   .status.err { color: var(--err); }
 
   .loading-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 40px 0; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -208,100 +280,200 @@
 <div class="wrap">
   <p class="loading-note" data-loading>Loading your profile…</p>
 
-  <div data-dashboard-content style="display:none;">
+  <div data-dashboard-content style="display:none; flex-direction:column; gap:16px;">
+
+    <!-- Header: LinkedIn-style banner + overlapping photo -->
     <div class="card">
+      <div class="profile-banner"></div>
       <div class="profile-head">
-        <div class="profile-photo" data-photo><span class="profile-photo-empty">No photo</span></div>
-        <div>
-          <h1 class="profile-name" data-headline>—</h1>
-          <p class="profile-meta" data-meta>—</p>
+        <div class="profile-head-top">
+          <div class="profile-photo" data-photo><span class="profile-photo-empty">No photo</span></div>
+          <a class="edit-profile-btn" href="/onboarding?step=1">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Edit profile
+          </a>
         </div>
-      </div>
-      <span class="published-tag" data-published-tag>Published · visible to employers</span>
-      <div>
-        <a class="edit-profile-link" href="/onboarding?step=1">Edit your profile →</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2 class="card-title">Your badges</h2>
-      <p class="card-sub">Badges are earned automatically as you complete your profile — never bought, never
-        hand-adjusted. <strong>Verified</strong> and <strong>evidenced</strong> badges have been checked against a
-        register or a document; <strong>derived</strong> badges are calculated from your data;
-        <strong>declared</strong> badges are what you've told us, unchecked.</p>
-      <div data-badges-list></div>
-      <p class="empty-note" data-badges-empty style="display:none;">No badges yet — as you add more to your
-        profile (a DBS on the Update Service, more work history, and so on), badges appear here automatically.</p>
-      <a href="/credentials" class="edit-profile-link" style="display:inline-block;margin-top:14px;">View credentials & DBS →</a>
-    </div>
-
-    <div class="card">
-      <h2 class="card-title">Your profile at a glance</h2>
-      <div class="section-list" data-section-list></div>
-    </div>
-
-    <div class="card">
-      <h2 class="card-title">Your posts</h2>
-      <p class="card-sub">Share an experience, an opinion, a win — your own words. Public posts are visible to
-        everyone on iCare and to employers who search; Connections-only posts are visible only to people you're
-        connected to.</p>
-      <p class="post-hint">Before you post: don't name or make identifiable any patient, service user, colleague, or
-        employer. Everything else is yours to share.</p>
-      <form class="post-form" data-post-form>
-        <input type="text" maxlength="200" placeholder="Title (optional)" data-post-title />
-        <textarea maxlength="8000" placeholder="What's on your mind?" data-post-body required></textarea>
-        <div class="post-char-count" data-post-char-count>0 / 8000</div>
-        <div class="post-form-foot">
-          <div class="visibility-select" data-visibility-select>
-            <button type="button" class="visibility-option is-active" data-visibility="public">Public</button>
-            <button type="button" class="visibility-option" data-visibility="connections">Connections only</button>
+        <div class="profile-name-row">
+          <h1 class="profile-name" data-full-name>—</h1>
+          <span class="verified-check" data-verified-check title="Identity verified" hidden>✓</span>
+        </div>
+        <p class="profile-position" data-position hidden></p>
+        <p class="profile-meta" data-meta>—</p>
+        <span class="open-to-pill" data-open-to-pill>
+          <svg class="icon" style="width:13px;height:13px;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+          Open to new roles
+        </span>
+        <span class="published-tag" data-published-tag>Published · visible to employers</span>
+        <div class="identity-line">
+          <div>
+            <div class="identity-fact-label">Right to work</div>
+            <div class="identity-fact-value" data-rtw-value>—</div>
           </div>
-          <button type="submit" class="btn btn-primary" data-post-submit>Post</button>
+          <div>
+            <div class="identity-fact-label">ID on file</div>
+            <div class="identity-fact-value" data-id-value>Not yet collected</div>
+          </div>
         </div>
-        <p class="status" data-status="post"></p>
-      </form>
-      <div class="post-list" data-post-list></div>
-      <p class="empty-note" data-posts-empty style="display:none;">You haven't posted anything yet.</p>
+      </div>
+    </div>
+
+    <!-- About -->
+    <div class="card" data-about-card hidden>
+      <div class="card-body">
+        <div class="card-head-row">
+          <h2 class="card-title">About</h2>
+          <a class="card-edit-link" href="/onboarding?step=1">Edit</a>
+        </div>
+        <p class="about-text" data-about-text style="margin-top:12px;"></p>
+      </div>
+    </div>
+
+    <!-- Badges — folded into one collapsible section -->
+    <div class="card">
+      <div class="card-body">
+        <div class="card-head-row">
+          <h2 class="card-title">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 2l7 3v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V5l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+            Badges
+          </h2>
+          <a href="/credentials" class="card-edit-link">Credentials & DBS →</a>
+        </div>
+        <p class="card-sub">Earned automatically or checked by iCare staff — never bought, never hand-adjusted.</p>
+        <div class="badge-preview-row" data-badges-preview></div>
+        <button type="button" class="badge-toggle" data-badge-toggle hidden style="margin-top:12px;">
+          <span data-badge-toggle-label>Show all badges</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="badge-full-list" data-badges-full hidden></div>
+        <p class="empty-note" data-badges-empty style="display:none;">No badges yet — as you add more to your
+          profile (a DBS on the Update Service, more work history, and so on), badges appear here automatically.</p>
+      </div>
+    </div>
+
+    <!-- Experience -->
+    <div class="card">
+      <div class="card-body">
+        <div class="card-head-row">
+          <h2 class="card-title">
+            <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            Experience
+          </h2>
+          <a class="card-edit-link" href="/onboarding?step=4">Edit</a>
+        </div>
+        <div class="timeline-list" data-experience-list style="margin-top:8px;"></div>
+        <p class="empty-note" data-experience-empty style="display:none;">No work history added yet.</p>
+      </div>
+    </div>
+
+    <!-- Licenses & Certifications (Qualifications + Registrations + DBS) -->
+    <div class="card">
+      <div class="card-body">
+        <div class="card-head-row">
+          <h2 class="card-title">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg>
+            Licenses &amp; Certifications
+          </h2>
+          <a class="card-edit-link" href="/onboarding?step=5">Edit</a>
+        </div>
+        <div class="timeline-list" data-certs-list style="margin-top:8px;"></div>
+        <p class="empty-note" data-certs-empty style="display:none;">No qualifications, registrations, or DBS added yet.</p>
+      </div>
+    </div>
+
+    <!-- Skills / Specialisms -->
+    <div class="card">
+      <div class="card-body">
+        <div class="card-head-row">
+          <h2 class="card-title">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18.5 21 12 16.5 5.5 21l2-7.5L2 9h7z"/></svg>
+            Skills
+          </h2>
+          <a class="card-edit-link" href="/onboarding?step=1">Edit</a>
+        </div>
+        <div class="tag-row" data-skills-list style="margin-top:12px;"></div>
+        <p class="empty-note" data-skills-empty style="display:none;">No skills or professions added yet.</p>
+      </div>
+    </div>
+
+    <!-- More about you (items without a dedicated LinkedIn-style section) -->
+    <div class="card">
+      <div class="card-body">
+        <h2 class="card-title">More about you</h2>
+        <div class="section-list" data-section-list></div>
+      </div>
+    </div>
+
+    <!-- Activity / Posts -->
+    <div class="card">
+      <div class="card-body">
+        <h2 class="card-title">Activity</h2>
+        <p class="card-sub">Share an experience, an opinion, a win — your own words. Public posts are visible to
+          everyone on iCare and to employers who search; Connections-only posts are visible only to people you're
+          connected to.</p>
+        <p class="post-hint">Before you post: don't name or make identifiable any patient, service user, colleague, or
+          employer. Everything else is yours to share.</p>
+        <form class="post-form" data-post-form>
+          <input type="text" maxlength="200" placeholder="Title (optional)" data-post-title />
+          <textarea maxlength="8000" placeholder="What's on your mind?" data-post-body required></textarea>
+          <div class="post-char-count" data-post-char-count>0 / 8000</div>
+          <div class="post-form-foot">
+            <div class="visibility-select" data-visibility-select>
+              <button type="button" class="visibility-option is-active" data-visibility="public">Public</button>
+              <button type="button" class="visibility-option" data-visibility="connections">Connections only</button>
+            </div>
+            <button type="submit" class="btn btn-primary" data-post-submit>Post</button>
+          </div>
+          <p class="status" data-status="post"></p>
+        </form>
+        <div class="post-list" data-post-list></div>
+        <p class="empty-note" data-posts-empty style="display:none;">You haven't posted anything yet.</p>
+      </div>
     </div>
 
     <div class="card">
-      <h2 class="card-title">Employer interest</h2>
-      <p class="card-sub">Employers who've shortlisted you. Your name, current job title, and location are already
-        visible to them from search — consenting here additionally unlocks your photo, video, and CV for that
-        specific employer. You can withdraw consent at any time.</p>
-      <div data-shortlist-list></div>
-      <p class="empty-note" data-shortlists-empty style="display:none;">No employer has shortlisted you yet.</p>
+      <div class="card-body">
+        <h2 class="card-title">Employer interest</h2>
+        <p class="card-sub">Employers who've shortlisted you. Your name, current job title, and location are already
+          visible to them from search — consenting here additionally unlocks your photo, video, and CV for that
+          specific employer. You can withdraw consent at any time.</p>
+        <div data-shortlist-list></div>
+        <p class="empty-note" data-shortlists-empty style="display:none;">No employer has shortlisted you yet.</p>
+      </div>
     </div>
 
     <div class="card">
-      <h2 class="card-title">Visibility</h2>
-      <p class="card-sub">Whether employers can find you in search at all.</p>
-      <a href="/visibility" class="edit-profile-link" style="display:inline-block;margin-top:14px;">Manage visibility →</a>
+      <div class="card-body">
+        <h2 class="card-title">Visibility</h2>
+        <p class="card-sub">Whether employers can find you in search at all.</p>
+        <a href="/visibility" class="section-edit-link" style="display:inline-block;margin-top:14px;">Manage visibility →</a>
+      </div>
     </div>
 
     <div class="card danger-zone">
-      <h2 class="card-title">Account</h2>
-      <p class="card-sub">Closing your account unpublishes your profile immediately and lets us know you want to
-        leave — it doesn't erase your data on its own. Contact us if you also want your data deleted.</p>
-      <button type="button" class="btn btn-danger-ghost" data-close-account-open style="margin-top:14px;">Close my account</button>
-      <div class="close-account-confirm" data-close-account-confirm>
-        <p>This is a real request, not a preview — your profile stops being visible to employers as soon as you
-          confirm. Are you sure?</p>
-        <div class="close-account-actions">
-          <button type="button" class="btn btn-danger" data-close-account-confirm-btn>Yes, close my account</button>
-          <button type="button" class="btn btn-ghost" data-close-account-cancel>Cancel</button>
+      <div class="card-body">
+        <h2 class="card-title">Account</h2>
+        <p class="card-sub">Closing your account unpublishes your profile immediately and lets us know you want to
+          leave — it doesn't erase your data on its own. Contact us if you also want your data deleted.</p>
+        <button type="button" class="btn btn-danger-ghost" data-close-account-open style="margin-top:14px;">Close my account</button>
+        <div class="close-account-confirm" data-close-account-confirm>
+          <p>This is a real request, not a preview — your profile stops being visible to employers as soon as you
+            confirm. Are you sure?</p>
+          <div class="close-account-actions">
+            <button type="button" class="btn btn-danger" data-close-account-confirm-btn>Yes, close my account</button>
+            <button type="button" class="btn btn-ghost" data-close-account-cancel>Cancel</button>
+          </div>
         </div>
+        <p class="status" data-status="account"></p>
       </div>
-      <p class="status" data-status="account"></p>
     </div>
   </div>
 </div>
 
 <!-- Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment -->
 <nav class="tab-bar" aria-label="Main">
-  <a href="/home" class="tab-bar-item" data-tab="home">
-    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-    <span>Home</span>
+  <a href="/rounds" class="tab-bar-item" data-tab="rounds">
+    <svg viewBox="0 0 24 24"><polyline points="2 14 6 14 9 5 14 21 17 14 22 14"/></svg>
+    <span>Rounds</span>
   </a>
   <a href="/invites" class="tab-bar-item" data-tab="invites">
     <span class="tab-bar-icon-wrap">
@@ -317,6 +489,13 @@
   <a href="/network" class="tab-bar-item" data-tab="network">
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
     <span>Network</span>
+  </a>
+  <a href="/messages" class="tab-bar-item" data-tab="messages">
+    <span class="tab-bar-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="tab-bar-dot" data-messages-dot></span>
+    </span>
+    <span>Messages</span>
   </a>
   <a href="/dashboard" class="tab-bar-item is-active" data-tab="profile">
     <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -365,17 +544,69 @@ function icareRequireAuth(signInPath) {
     return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
   }
 
+  function fmtDate(d) {
+    if (!d) return "";
+    return new Date(d).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  }
+
+  // Hand-authored SVG icon per badge family — no icon library/font
+  // dependency, same convention as nav-shell.html. Icon + colour is the
+  // primary signal now (2026-09-14); text stays as the accessible label.
+  var FAMILY_ICON_PATHS = {
+    Availability: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/>',
+    Eligibility: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 12l2 2 4-4"/>',
+    Experience: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+    Identity: '<rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10h6M14 14h4"/>',
+    Practical: '<path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11"/><rect x="2" y="11" width="20" height="7" rx="2"/><circle cx="7" cy="18" r="1.5"/><circle cx="17" cy="18" r="1.5"/>',
+    Qualification: '<path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1 3 3 6 3s6-2 6-3v-5"/>',
+    Registration: '<path d="M12 2l7 3v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V5l7-3z"/><path d="M9 12l2 2 4-4"/>',
+    Safeguarding: '<path d="M12 2l7 3v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V5l7-3z"/><line x1="12" y1="8" x2="12" y2="12.5"/><circle cx="12" cy="15.5" r="0.75" fill="currentColor"/>',
+    Training: '<path d="M2 5c3-1.5 6-1.5 9 0v14c-3-1.5-6-1.5-9 0V5z"/><path d="M22 5c-3-1.5-6-1.5-9 0v14c3-1.5 6-1.5 9 0V5z"/>',
+    Trust: '<polygon points="12 2 15 9 22 9 16.5 13.5 18.5 21 12 16.5 5.5 21 7.5 13.5 2 9 9 9"/>',
+  };
+  function familyIcon(family) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+      (FAMILY_ICON_PATHS[family] || FAMILY_ICON_PATHS.Trust) + "</svg>";
+  }
+
   var GRADE_LABELS = { verified: "Verified", evidenced: "Evidenced", derived: "Derived", declared: "Declared" };
 
   function renderBadges(rows) {
-    var list = document.querySelector("[data-badges-list]");
+    var previewRow = document.querySelector("[data-badges-preview]");
+    var fullList = document.querySelector("[data-badges-full]");
+    var toggle = document.querySelector("[data-badge-toggle]");
     var empty = document.querySelector("[data-badges-empty]");
-    list.innerHTML = "";
+    previewRow.innerHTML = "";
+    fullList.innerHTML = "";
+
     if (!rows || rows.length === 0) {
       empty.style.display = "block";
+      toggle.hidden = true;
       return;
     }
     empty.style.display = "none";
+
+    // Preview row: one icon circle per badge, most "important" grade first
+    // (verified > evidenced > derived > declared), capped at 6 so it stays
+    // a glanceable row, not a wall of icons.
+    var gradeOrder = { verified: 0, evidenced: 1, derived: 2, declared: 3 };
+    var sorted = rows.slice().sort(function (a, b) {
+      var ga = (a.badges && gradeOrder[a.badges.grade]) || 9;
+      var gb = (b.badges && gradeOrder[b.badges.grade]) || 9;
+      return ga - gb;
+    });
+    sorted.slice(0, 6).forEach(function (r) {
+      var b = r.badges || {};
+      var circle = document.createElement("span");
+      circle.className = "badge-icon-circle grade-" + b.grade + "-fill";
+      circle.title = (b.label || r.badge_code) + " — " + (GRADE_LABELS[b.grade] || b.grade);
+      circle.innerHTML = familyIcon(b.family);
+      previewRow.appendChild(circle);
+    });
+
+    toggle.hidden = false;
+    toggle.setAttribute("data-count", rows.length);
+    toggle.querySelector("[data-badge-toggle-label]").textContent = "Show all " + rows.length + (rows.length === 1 ? " badge" : " badges");
 
     var families = [];
     rows.forEach(function (r) {
@@ -393,16 +624,121 @@ function icareRequireAuth(signInPath) {
       grid.className = "badge-grid";
       rows.filter(function (r) { return ((r.badges && r.badges.family) || "Other") === family; }).forEach(function (r) {
         var b = r.badges || {};
-        var chip = document.createElement("span");
-        chip.className = "badge-chip grade-" + b.grade;
-        chip.title = b.description || "";
-        chip.innerHTML = '<span></span><span class="grade-tag"></span>';
-        chip.children[0].textContent = b.label || r.badge_code;
-        chip.children[1].textContent = GRADE_LABELS[b.grade] || b.grade;
-        grid.appendChild(chip);
+        var item = document.createElement("div");
+        item.className = "badge-row-item";
+        item.title = b.description || "";
+        item.innerHTML =
+          '<span class="badge-icon-circle grade-' + b.grade + '-fill">' + familyIcon(b.family) + "</span>" +
+          '<div class="badge-row-text"><div class="badge-row-label"></div><div class="badge-row-grade"></div></div>';
+        item.querySelector(".badge-row-label").textContent = b.label || r.badge_code;
+        item.querySelector(".badge-row-grade").textContent = GRADE_LABELS[b.grade] || b.grade;
+        grid.appendChild(item);
       });
       section.appendChild(grid);
-      list.appendChild(section);
+      fullList.appendChild(section);
+    });
+  }
+
+  document.querySelector("[data-badge-toggle]").addEventListener("click", function () {
+    var fullList = document.querySelector("[data-badges-full]");
+    var isOpen = !fullList.hidden;
+    var count = this.getAttribute("data-count") || "0";
+    fullList.hidden = isOpen;
+    this.classList.toggle("is-open", !isOpen);
+    this.querySelector("[data-badge-toggle-label]").textContent = isOpen
+      ? "Show all " + count + (count === "1" ? " badge" : " badges")
+      : "Hide badges";
+  });
+
+  function renderExperience(rows) {
+    var list = document.querySelector("[data-experience-list]");
+    var empty = document.querySelector("[data-experience-empty]");
+    list.innerHTML = "";
+    if (!rows || rows.length === 0) { empty.style.display = "block"; return; }
+    empty.style.display = "none";
+    var sorted = rows.slice().sort(function (a, b) {
+      if (a.is_current !== b.is_current) return a.is_current ? -1 : 1;
+      return (b.started_on || "").localeCompare(a.started_on || "");
+    });
+    sorted.forEach(function (row) {
+      var item = document.createElement("div");
+      item.className = "timeline-item";
+      item.innerHTML =
+        '<div class="timeline-icon"><svg class="icon" style="width:20px;height:20px;" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>' +
+        '<div class="timeline-body">' +
+          '<div class="timeline-title"></div>' +
+          '<div class="timeline-sub"></div>' +
+          '<div class="timeline-dates"></div>' +
+          (row.description ? '<div class="timeline-desc"></div>' : "") +
+        "</div>";
+      var titleEl = item.querySelector(".timeline-title");
+      titleEl.textContent = row.job_title || "Role";
+      if (row.is_current) {
+        var tag = document.createElement("span");
+        tag.className = "timeline-current-tag";
+        tag.textContent = "Current";
+        titleEl.appendChild(tag);
+      }
+      item.querySelector(".timeline-sub").textContent = [row.employer, row.setting].filter(Boolean).join(" · ");
+      item.querySelector(".timeline-dates").textContent = fmtDate(row.started_on) + " — " + (row.is_current ? "Present" : fmtDate(row.ended_on));
+      if (row.description) item.querySelector(".timeline-desc").textContent = row.description;
+      list.appendChild(item);
+    });
+  }
+
+  var DBS_LEVEL_LABELS = { basic: "Basic DBS", standard: "Standard DBS", enhanced: "Enhanced DBS", enhanced_barred: "Enhanced DBS, with barred list check" };
+
+  function renderCertifications(qualificationRows, registrationRows, dbs) {
+    var list = document.querySelector("[data-certs-list]");
+    var empty = document.querySelector("[data-certs-empty]");
+    list.innerHTML = "";
+    var total = (qualificationRows || []).length + (registrationRows || []).length + (dbs ? 1 : 0);
+    if (total === 0) { empty.style.display = "block"; return; }
+    empty.style.display = "none";
+
+    function addCert(title, sub, dateText) {
+      var item = document.createElement("div");
+      item.className = "timeline-item";
+      item.innerHTML =
+        '<div class="timeline-icon"><svg class="icon" style="width:20px;height:20px;" viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg></div>' +
+        '<div class="timeline-body"><div class="timeline-title"></div><div class="timeline-sub"></div>' +
+        (dateText ? '<div class="timeline-dates"></div>' : "") + "</div>";
+      item.querySelector(".timeline-title").textContent = title;
+      item.querySelector(".timeline-sub").textContent = sub;
+      if (dateText) item.querySelector(".timeline-dates").textContent = dateText;
+      list.appendChild(item);
+    }
+
+    (qualificationRows || []).forEach(function (q) {
+      addCert(q.title, q.awarding_body || "Qualification", q.awarded_on ? fmtDate(q.awarded_on) : "");
+    });
+    (registrationRows || []).forEach(function (r) {
+      addCert(r.register_name || r.regulator.toUpperCase(), "Reg. no. " + r.reg_number, r.expires_on ? "Expires " + fmtDate(r.expires_on) : "");
+    });
+    if (dbs) {
+      // Never call this "verified" — non-negotiable #3, only the DBS
+      // Update Service itself confirms a DBS, employer-side.
+      addCert(
+        DBS_LEVEL_LABELS[dbs.level] || dbs.level,
+        dbs.on_update_service ? "On the DBS Update Service" : "Not on the Update Service",
+        dbs.issued_on ? "Issued " + fmtDate(dbs.issued_on) : ""
+      );
+    }
+  }
+
+  function renderSkills(professionRows, skillRows) {
+    var list = document.querySelector("[data-skills-list]");
+    var empty = document.querySelector("[data-skills-empty]");
+    list.innerHTML = "";
+    var names = (professionRows || []).map(function (r) { return r.professions ? r.professions.name : r.profession_id; })
+      .concat((skillRows || []).map(function (r) { return r.clinical_skills ? r.clinical_skills.label : r.skill_id; }));
+    if (names.length === 0) { empty.style.display = "block"; return; }
+    empty.style.display = "none";
+    names.forEach(function (name) {
+      var pill = document.createElement("span");
+      pill.className = "tag-pill";
+      pill.textContent = name;
+      list.appendChild(pill);
     });
   }
 
@@ -521,6 +857,16 @@ function icareRequireAuth(signInPath) {
     list.appendChild(row);
   }
 
+  var RTW_LABELS = {
+    british_irish: "British/Irish citizen",
+    settled: "Settled status",
+    pre_settled: "Pre-settled status",
+    indefinite_leave: "Indefinite leave to remain",
+    visa_with_work_rights: "Visa with work rights",
+    requires_sponsorship: "Requires sponsorship",
+    not_stated: "Not yet stated",
+  };
+
   Promise.all([
     jget("/candidates/me"),
     jget("/candidates/me/professions"),
@@ -531,10 +877,13 @@ function icareRequireAuth(signInPath) {
     jget("/candidates/me/references"),
     jget("/candidates/me/prompts"),
     jget("/candidates/me/badges"),
+    jget("/auth/me"),
+    jget("/candidates/me/skills"),
   ]).then(function (results) {
     var candidateResult = results[0], professionsResult = results[1], employmentResult = results[2];
     var qualificationsResult = results[3], registrationsResult = results[4], dbsResult = results[5];
     var referencesResult = results[6], promptsResult = results[7], badgesResult = results[8];
+    var accountResult = results[9], skillsResult = results[10];
 
     if (!candidateResult.ok) {
       document.querySelector("[data-loading]").textContent = "Couldn't load your profile. Try refreshing the page.";
@@ -543,18 +892,15 @@ function icareRequireAuth(signInPath) {
     var candidate = candidateResult.body.candidate;
 
     document.querySelector("[data-loading]").style.display = "none";
-    document.querySelector("[data-dashboard-content]").style.display = "block";
+    document.querySelector("[data-dashboard-content]").style.display = "flex";
 
     if (candidate.photo_path) {
       // GET /candidates/me/photo requires an Authorization bearer header
       // (middleware.ts) -- a plain <img src="..."> never sends one, so it
       // loads unauthenticated, gets a 401 back as the "image", and renders
-      // as a broken-image icon (real bug found 2026-09-12: the photo
-      // genuinely uploaded and showed correctly on /home, which already
-      // fetches it with auth -- it just never rendered here or on the
-      // onboarding wizard's own preview, same bug in both places). Fetch
-      // with the real auth header and hand the browser a blob: URL,
-      // same pattern home.html/network.html already use for peer photos.
+      // as a broken-image icon (real bug found 2026-09-12). Fetch with the
+      // real auth header and hand the browser a blob: URL, same pattern
+      // rounds.html/network.html already use for peer photos.
       var photoEl = document.querySelector("[data-photo]");
       photoEl.innerHTML = '<img alt="Your photo" />';
       var photoImg = photoEl.querySelector("img");
@@ -563,16 +909,7 @@ function icareRequireAuth(signInPath) {
         .then(function (blob) { photoImg.src = URL.createObjectURL(blob); })
         .catch(function () { photoEl.innerHTML = '<span class="profile-photo-empty">Couldn\'t load photo</span>'; });
     }
-    document.querySelector("[data-headline]").textContent = candidate.headline || "Your profile";
-    var metaParts = [];
-    if (candidate.town) metaParts.push(candidate.town);
-    if (candidate.postcode_district) metaParts.push(candidate.postcode_district);
-    if (candidate.availability) metaParts.push(candidate.availability.replace(/_/g, " "));
-    document.querySelector("[data-meta]").textContent = metaParts.length ? metaParts.join(" · ") : "No details yet";
-    document.querySelector("[data-published-tag]").style.display = candidate.is_published ? "inline-flex" : "none";
-
-    renderBadges(badgesResult.ok ? badgesResult.body.badges : []);
-
+    var account = accountResult.ok ? accountResult.body.account : null;
     var professionRows = professionsResult.ok ? (professionsResult.body.professions || []) : [];
     var professionNames = professionRows.map(function (r) { return r.professions ? r.professions.name : r.profession_id; });
     var employmentRows = employmentResult.ok ? (employmentResult.body.employment_history || []) : [];
@@ -581,13 +918,81 @@ function icareRequireAuth(signInPath) {
     var dbs = dbsResult.ok ? dbsResult.body.dbs : null;
     var referenceRows = referencesResult.ok ? (referencesResult.body.references || []) : [];
     var promptRows = promptsResult.ok ? (promptsResult.body.prompts || []) : [];
+    var skillRows = skillsResult.ok ? (skillsResult.body.skills || []) : [];
+
+    document.querySelector("[data-full-name]").textContent = (account && account.full_name) || "Your profile";
+
+    // "Position now" — the candidate's actual current role from their work
+    // history, not the free-text headline (which no longer has its own
+    // slot on this page — it was never a great "position" proxy anyway).
+    var currentRole = employmentRows.filter(function (r) { return r.is_current; })[0];
+    var positionEl = document.querySelector("[data-position]");
+    if (currentRole && currentRole.job_title) {
+      positionEl.textContent = currentRole.job_title + (currentRole.employer ? " · " + currentRole.employer : "");
+      positionEl.hidden = false;
+    } else {
+      positionEl.hidden = true;
+    }
+
+    // Location — town only, never the postcode district.
+    var metaParts = [];
+    if (candidate.town) metaParts.push(candidate.town);
+    document.querySelector("[data-meta]").textContent = metaParts.length ? metaParts.join(" · ") : "No details yet";
+    document.querySelector("[data-published-tag]").style.display = candidate.is_published ? "inline-flex" : "none";
+
+    // "Open to new roles" pill (LinkedIn's #OpenToWork, in this app's own
+    // vocabulary) — availability is self-controlled, already collected.
+    document.querySelector("[data-open-to-pill]").classList.toggle(
+      "is-visible",
+      candidate.availability && candidate.availability !== "not_looking"
+    );
+    document.querySelector("[data-photo]").classList.toggle(
+      "is-open-ring",
+      candidate.availability && candidate.availability !== "not_looking"
+    );
+
+    // About
+    if (candidate.about) {
+      document.querySelector("[data-about-text]").textContent = candidate.about;
+      document.querySelector("[data-about-card]").hidden = false;
+    }
+
+    // Identity check, two tiers (2026-09-13/14) — driven by
+    // candidate_badges, not raw field presence. Both badges are
+    // manual-only (staff awards them via a direct Supabase insert once
+    // they've actually checked the document — no self-serve upload
+    // exists): id_verified (govt photo ID/passport checked) and
+    // dbs_certificate_verified (DBS certificate number checked against
+    // secure.crbonline.gov.uk AND the certificate copy/"green slip"
+    // reviewed). Deliberately NOT wired to dbs.on_update_service — see
+    // non-negotiable #3.
+    var badgeRows = badgesResult.ok ? (badgesResult.body.badges || []) : [];
+    var activeBadgeCodes = badgeRows
+      .filter(function (b) { return !b.expires_at || new Date(b.expires_at) > new Date(); })
+      .map(function (b) { return b.badge_code; });
+    var hasIdCheck = activeBadgeCodes.indexOf("id_verified") !== -1;
+    var hasDbsCheck = activeBadgeCodes.indexOf("dbs_certificate_verified") !== -1;
+    var rightToWorkStated = !!(candidate.right_to_work && candidate.right_to_work !== "not_stated");
+    var fullyVerified = hasIdCheck && hasDbsCheck && rightToWorkStated;
+    var identityOnlyVerified = hasIdCheck && !fullyVerified;
+
+    var checkEl = document.querySelector("[data-verified-check]");
+    checkEl.hidden = !(fullyVerified || identityOnlyVerified);
+    checkEl.classList.toggle("is-identity-only", identityOnlyVerified);
+    checkEl.title = fullyVerified ? "Fully Verified" : "Identity Verified";
+
+    document.querySelector("[data-rtw-value]").textContent = RTW_LABELS[candidate.right_to_work] || RTW_LABELS.not_stated;
+    // No passport/ID upload exists anywhere in this app yet — right_to_work
+    // is a self-declared dropdown with no evidence collection. Show that
+    // honestly rather than imply otherwise.
+    document.querySelector("[data-id-value]").textContent = "Not yet collected";
+
+    renderBadges(badgeRows);
+    renderExperience(employmentRows);
+    renderCertifications(qualificationRows, registrationRows, dbs);
+    renderSkills(professionRows, skillRows);
 
     var list = document.querySelector("[data-section-list]");
-    addSectionRow(list, "Professions", professionNames.length ? professionNames.join(", ") : "None picked yet", 1);
-    addSectionRow(list, "Work history", employmentRows.length + (employmentRows.length === 1 ? " role" : " roles"), 4);
-    addSectionRow(list, "Qualifications", qualificationRows.length + " added", 5);
-    addSectionRow(list, "Registrations", registrationRows.length + " added", 6);
-    addSectionRow(list, "DBS status", dbs ? "On file" : "Not added yet", 7);
     addSectionRow(list, "References", referenceRows.length + " added", 8);
     addSectionRow(list, "Your own words", promptRows.length + (promptRows.length === 1 ? " prompt answered" : " prompts answered"), 9);
 

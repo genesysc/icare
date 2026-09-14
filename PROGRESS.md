@@ -3681,6 +3681,92 @@ text-based round without resolving.
 
 ---
 
+## 2026-09-12 — Candidate-to-candidate Messages shipped; a parallel duplicate build reconciled first
+
+**Context worth recording carefully, since it explains an unusual git history entry on this branch.** A different agent session (out of credits, handed off) built Sprints 13-24 directly on `main` — Home feed, Network, Invites, Pipelines, Credentials, Visibility, the `nav-shell.html` tab-bar shell, real Sender.net email — none of which was visible to this session until now, because this session had been working from an older branch checkpoint. Meanwhile this session independently built its own parallel "Rounds/Network/Messages/Profile" feature (referred to in conversation as "the Clone") on a stale base, unaware of the above — substantial overlap with the already-live Home/Network/Profile screens (referred to as "Production"), under a completely different file/route structure (`rounds.ts`/`network.ts`/`app.html`/4-tab nav vs. Production's routes-in-`candidates.ts`/5-tab nav). The user caught this before it shipped and asked for the two to be compared rather than the Clone being merged as-is.
+
+**A real live incident was found and fixed during that investigation**: this session's migrations had already been applied directly to the shared Supabase project (the two efforts share one database), and one of them (a `candidate_discover` view change excluding already-accepted connections) broke Production's live Network "Connections" tab in place — that route looks candidates up by id through the same view regardless of connection status. Reverted immediately (migration `0040`) once found.
+
+**Decision**: don't ship the Clone's parallel Home/Network/Profile duplicate. Its non-duplicate pieces (reactions, comments, @mentions, check-in with media, direct messaging) stay parked for the user to decide on individually. Today's ask was specifically: ship messaging.
+
+**What shipped**: candidate-to-candidate 1:1 messaging, gated to accepted connections only.
+- Schema was already live from the Clone's earlier work and needed no changes: `conversations`/`messages` tables (migration `0036`), `get_or_create_conversation()` RPC (hard-requires an accepted `connections` row, canonical `candidate_a_id < candidate_b_id` ordering so a unique constraint caps one conversation per pair), `conversation_inbox` view (migration `0037` — other party's name/photo + last-message preview + unread count, same bypass-RLS-via-view pattern as `candidate_discover`).
+- Merged current `main` into this branch, resolved conflicts in Production's favor everywhere (kept Production's real `candidates.ts`/`index.ts`/`dashboard.html`; removed the Clone's now-superseded `rounds.ts`/`network.ts`/`messages.ts`/`app.html` and their post-media/check-in additions to `candidates.ts` — none of that shipped).
+- New routes directly in `candidates.ts`, matching how Production already keeps candidate-side routes (not a separate file): `GET /messages` (inbox), `GET /messages/unread-count`, `POST /messages/start` (calls the RPC), `GET /messages/:id` (thread, marks the other party's messages read on open), `POST /messages/:id` (send).
+- New `src/messages.html`, same design system/conventions as `network.html` (plum/teal palette, fetch-as-blob photo loading, `jget`/`jpost` helpers). Reachable via a new "Message" button on `network.html`'s Connections tab (`/messages?with=<id>`, starts-or-resumes the thread on load) and via a new sixth tab-bar destination.
+- `nav-shell.html`'s tab bar gained a sixth item (Messages, between Network and Profile) — copied into all six pages that embed it (`dashboard.html`, `invites.html`, `pipelines.html`, `home.html`, `network.html`, `messages.html`), per that file's own "copy verbatim, update every page" convention. Each page's tab-bar markup now carries a `data-messages-dot` element for a future unread indicator — **not wired up yet** (only `messages.html` itself computes/shows it correctly right now); deliberately scoped out to keep this change small, see "Not started yet."
+- Verified: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean, `candidates.ts` diffed byte-identical against `origin/main` before the messaging routes were added (confirms nothing Clone-specific leaked in unnoticed), headless-Chromium smoke test on `messages.html` (inbox render, unread badge, open thread, send, back-to-inbox) with zero page errors. No real accepted-connection pair exists yet in the live DB to test the RPC end-to-end against real rows — logic-verified only, not yet exercised by a real user action.
+
+---
+
+## 2026-09-12 (continued) — Rounds reactions/comments/composer media, Network requests merged into Connections
+
+Same session, immediate follow-up to the messaging ship above — the founder reviewed the live site against what had been discussed and asked for several more pieces from the Clone to be turned on, plus one structural change to Network.
+
+**Shipped:**
+- **Reactions and comments turned on** in the real feed (now Rounds, see below) — `POST /candidates/posts/:id/reaction` (toggle_post_reaction RPC), `GET`/`POST /candidates/posts/:id/comments` (post_comments_feed view / add_post_comment RPC), `DELETE /candidates/comments/:id`. All backed by schema already live from the earlier Clone work (migration 0035) — no new migrations needed.
+- **Post visibility toggle (Public/Connections only) kept as-is**, unchanged — explicitly not touched per the founder's instruction.
+- **"Profile strength" card removed** from the feed page.
+- **Home renamed to Rounds** — file `src/home.html` → `src/rounds.html`, route `/home` → `/rounds` (old path 301-redirects), nav-shell tab label/icon updated across all 8 pages that embed it (`dashboard.html`, `invites.html`, `pipelines.html`, `network.html`, `messages.html`, `credentials.html`, `visibility.html`, `nav-shell.html` itself).
+- **Composer gained the Clone's progressive-disclosure "+ Add to your post"** — Photo/Video/Document/Mention/Check-in, collapsed by default. New routes: `POST /candidates/me/posts/media` (two-step upload), `GET /candidates/posts/:id/media` (serves any visible post's media, checked via `candidate_peer_feed` first then the candidate's own row), `GET /candidates/mention-search` (platform-wide, `candidate_mention_search` view, migration 0038), `GET /candidates/checkin/venues` (employer directory + Nominatim, named venue only — never raw coordinates), `GET /candidates/posts/:id/mentions` (post_mentions_feed). `POST /me/posts` extended to accept `post_type`/media fields/check-in fields/`mentioned_candidate_ids` alongside the existing title/body/visibility fields — visibility handling untouched.
+- **Network: Requests folded into the Connections tab**, presented above the connections list (was a separate third tab) — Discover stays a fully separate tab, untouched otherwise per the founder's explicit instruction ("the rest of the Network Tab on live should not be touched"). The Connections tab button now carries the pending-request count badge that used to live on the removed Requests tab.
+- **Connect flow gained an optional note** — tapping Connect no longer sends immediately; it reveals a note textarea + Send request/Cancel, matching the Clone's UX. `connections.note` (migration 0034) already existed; `POST /candidates/network/request` now accepts it, `GET /candidates/network` now returns it on incoming requests, rendered as a quoted line under the request.
+
+**Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean, headless-Chromium smoke tests on both `rounds.html` (feed render sans profile-strength, reactions, comments open/read/write, check-in line, mention chip, composer add-toggle → mention search → attach, checkin search → attach, submit) and `network.html` (Connections tab shows Requests above Connections with the note rendered, Discover tab separate, Connect reveals note box, Send request) — zero page errors in either.
+
+**Not done in this pass** (not asked for): reworking Discover's own search/rendering, video/photo/document rendering polish beyond what the Clone had, and the messages-unread nav dot on pages other than `messages.html` (pre-existing gap, noted in the previous entry).
+
+---
+
+## 2026-09-13 — Profile page reworked: name/position/location header, purple identity-verified check gated on manual DBS review
+
+Founder request, investigated before building (real schema/code checked, not guessed):
+
+- **Real bug found and fixed**: `dashboard.html`'s location line was showing the postcode district (`candidate.postcode_district`) alongside the town — the founder's "don't show postcode" ask was catching a real, currently-live behavior, not a hypothetical.
+- **Header rebuilt**: photo (already left-positioned) → Name (now the account's real `full_name`, fetched via the existing `GET /auth/me` — previously this H1 showed the free-text `headline` field, not the candidate's actual name at all) → Position now (the current role from `employment_history` where `is_current`, not `headline`) → Location (town only) → Badges section below, unchanged position.
+- **Identity-verified check added, purple not teal** — the `identity_verified` boolean has existed in `candidate_peer_feed`/`candidate_discover`/`my_connections` since migration 0037 but was never rendered on any shipped page. It was also fully automatic (right_to_work set + a DBS certificate number present, no human check). Per the founder's explicit instruction, this needed a real human review step — for now, checking the certificate number manually against the government DBS checker (secure.crbonline.gov.uk). Migration 0041 adds `dbs_records.reviewed_at`/`reviewed_by` (same pattern already used by `qualifications`/`employer_verification_requests`) and the three views now require `reviewed_at IS NOT NULL` too. Marking a DBS reviewed is a manual Supabase-dashboard edit for now — there's no admin UI anywhere in this app, matching how qualification/employer review already work.
+- **Right to work + ID line added**, showing the real `right_to_work` label next to an honest "ID on file: Not yet collected" — investigated first: there is genuinely no passport/ID upload anywhere in this app (onboarding's right-to-work step is a bare dropdown, `credentials.html`'s own header comment already flagged this exact gap on 2026-08-30). Asked the founder whether to build the upload now or show the gap honestly — chose the latter (`AskUserQuestion`, "Recommended" option): Profile now accurately reflects that no ID evidence exists yet, rather than building a new sensitive-document upload pipeline (non-negotiable #6 territory) without a deliberate design pass.
+- **Real CSS bug found and fixed during testing**: the new `.verified-check` class set its own `display: inline-flex`, which — because author CSS always beats the UA stylesheet — silently defeated the element's `hidden` attribute (an author rule of equal specificity to `[hidden]` wins over the browser default). `dashboard.html` had no global `[hidden] { display: none !important; }` override (unlike `rounds.html`/`network.html`/`messages.html`, which already have one) — added it. Caught by an actual Playwright render test across three DBS states (not reviewed / reviewed / none), not by reading the CSS: the check mark rendered visible in all three before the fix.
+
+**Not done, flagged for later**: `credentials.html`'s own DBS section still doesn't surface the new `reviewed_at` state — it continues to show exactly what it showed before (this page wasn't part of this request); passport/ID upload itself remains unbuilt, a deliberate, separate decision.
+
+**Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean, headless-Chromium test across three DBS states confirming the verified check only shows when a certificate number AND a review timestamp are both present, position/location/name/right-to-work render correctly, no page errors.
+
+---
+
+## 2026-09-13 (continued) — Two-tier identity check (purple/teal), reusing the existing badges system
+
+Founder clarified the identity check from earlier today should be icon+colour (matching the Clone's small circle-check, not a text label) and split into two tiers, plus a separate verified-driver concept. Investigated before building — found the codebase already has almost exactly this catalogued in `badges`/`candidate_badges` (the existing non-negotiable #2 grade system: verified/evidenced/derived/declared), just unused for identity:
+
+- `id_verified` (family Identity, grade verified, "Government-issued photo ID checked") already existed in the `badges` catalog table but **nothing ever awarded it** — confirmed by checking every badge-writing function (`publish_my_profile()`, `refresh_experience_badges()`); only `available_now`, `driver` (self-declared — `has_driving_licence` + `has_own_vehicle`, no evidence), `sponsorship`, `dbs_update` (self-declared consent, "we have not verified the certificate" per its own description), and `exp_*` are ever actually inserted.
+- Migration 0042 adds two more catalog rows: `dbs_certificate_verified` (verified/Safeguarding — the certificate number checked against secure.crbonline.gov.uk AND the certificate copy/"green slip" reviewed) and `driving_licence_verified` (verified/Practical — an actual licence shown, distinct from the existing self-declared `driver` badge, left untouched). Both are manual-only: staff awards a `candidate_badges` row via a direct Supabase-dashboard insert, same as every other review step in this app (no admin UI exists anywhere).
+- `dashboard.html`'s identity check is now driven by these badges, not raw field presence: **purple** ("Fully Verified") requires `id_verified` + `dbs_certificate_verified` + `right_to_work` actually stated; **teal** ("Identity Verified") shows when only `id_verified` is present — teal deliberately reuses this codebase's existing "verified" badge-grade colour (already used for NMC/HCPC/GMC-registered chips), not a new arbitrary colour. Superseding this morning's migration-0041-based single-tier boolean on this page (0041's view-level `identity_verified` column is left in place, unused by any shipped page currently — noted as a future reconciliation item, not touched now since it wasn't asked).
+- Verified driver: no new UI needed — `driving_licence_verified` renders correctly as a teal "verified"-grade chip in the existing "Your badges" card once awarded, the same as any other badge.
+
+**Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean, headless-Chromium test across four badge states (none / id_verified only / both / dbs-only-without-id) confirming exactly the right tier (or none) shows each time, zero page errors.
+
+---
+
+## 2026-09-14 — Profile page rebuilt LinkedIn-style; badges folded into one section with real icons
+
+Founder asked to rebuild the Profile page copying LinkedIn's format, with badges folded into one collapsible section instead of an always-open grid, and real icons per badge rather than text-in-a-pill.
+
+**Honesty note, stated up front rather than silently assumed**: this isn't a literal scrape of LinkedIn's current live DOM — their profile pages sit behind a login wall from this sandbox. It replicates the well-established, essentially unchanged-in-years standard LinkedIn profile shape (banner + overlapping photo header → About → Experience → Licenses & Certifications → Skills → Activity) from general knowledge, not a fresh fetch.
+
+**What changed** (`src/dashboard.html`, full rebuild, same backend endpoints/data — no new migrations):
+- **Header**: LinkedIn-style gradient banner with the profile photo overlapping it (LinkedIn's signature layout), name + purple/teal identity check, position, location, an "Open to new roles" pill (this app's #OpenToWork equivalent, driven by the existing `availability` field — also puts a teal ring around the photo when open, another LinkedIn touch), published tag, right-to-work/ID line unchanged from yesterday.
+- **New About section** — `candidates.about` was already a real column but had never been rendered anywhere on this page; now shown LinkedIn-About-style, hidden entirely if empty rather than showing a placeholder.
+- **Badges folded into one section**: a compact row of icon-only circles (top 6 by grade priority: verified > evidenced > derived > declared) is always visible; a "Show all N badges" toggle expands the full family-grouped list. Every badge now renders with a hand-authored SVG icon matching its family (Identity, Safeguarding, Experience, Practical, Qualification, Registration, Availability, Eligibility, Training, Trust — 10 icons, no icon library/font dependency, same convention as `nav-shell.html`) instead of being a plain text-in-a-pill chip.
+- **New Experience section**: real inline entries (job title, employer, setting, dates, description, a "Current" tag) instead of the old flat "Work history: 3 roles → Edit" summary row.
+- **New Licenses & Certifications section**: qualifications + registrations + DBS combined into one LinkedIn-cert-style list (icon + title + issuing body + date) — DBS entry still never says "verified," per non-negotiable #3.
+- **New Skills section**: professions + clinical skills (added a `GET /me/skills` fetch, that route already existed) rendered as tag pills.
+- The old flat "Your profile at a glance" list is retained only for the two items with no LinkedIn-shaped home (References, Your own words/prompts), renamed "More about you."
+- Activity (posts), Employer interest, Visibility, and Account sections kept functionally identical, restyled to match the new card system.
+
+**Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean, a full headless-Chromium render + screenshot (fed realistic mock data across every section) confirming the header, collapsed→expanded badge toggle, Experience/Certifications/Skills all render correctly with zero page errors — screenshot reviewed visually, not just DOM-asserted, given how visual this request was.
+
+---
+
 ## 2026-09-14 — `/` rebuilt as the real landing page, from the market-research handover
 
 The user supplied `icare-market-research-findings.md` and asked for
