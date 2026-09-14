@@ -7,7 +7,9 @@ import employerChat from "./employer-chat";
 import jobs from "./jobs";
 import waitlist from "./waitlist";
 import landingPage from "./landing.html";
-import welcomePage from "./welcome.html";
+import heroClinicianJpg from "./assets/hero-clinician.jpg";
+import careHandsJpg from "./assets/care-hands.jpg";
+import workforceCorridorJpg from "./assets/workforce-corridor.jpg";
 import employerLandingPage from "./employers.html";
 import privacyPage from "./privacy.html";
 import termsPage from "./terms.html";
@@ -37,7 +39,37 @@ app.route("/candidates", candidates);
 app.route("/waitlist", waitlist);
 
 app.get("/", (c) => c.html(landingPage));
-app.get("/welcome", (c) => c.html(welcomePage));
+
+// /welcome only ever existed because `/` was still the pre-launch waitlist page
+// and there was nowhere with real Log in / Sign up entry points (2026-09-10).
+// The 2026-09-14 rebuild made `/` exactly that page, so the two would otherwise
+// be near-identical and drift apart. Redirect rather than delete the route:
+// the URL was live, and anything already pointing at it should still land
+// somewhere sensible.
+app.get("/welcome", (c) => c.redirect("/", 302));
+
+// Landing-page photography, bundled into the Worker as Data modules rather
+// than hotlinked from a stock-photo CDN (see src/assets/CREDITS.md for the
+// licensing and the reasoning). Served from a fixed map, never a path read
+// off the request, so there's no traversal surface. Immutable + a year of
+// cache: the filenames are content-stable, and if a photo is ever swapped
+// the filename changes with it.
+const LANDING_ASSETS: Record<string, ArrayBuffer> = {
+  "hero-clinician.jpg": heroClinicianJpg,
+  "care-hands.jpg": careHandsJpg,
+  "workforce-corridor.jpg": workforceCorridorJpg,
+};
+
+app.get("/assets/:name", (c) => {
+  const asset = LANDING_ASSETS[c.req.param("name")];
+  if (!asset) return c.json({ error: "Not found" }, 404);
+  return new Response(asset, {
+    headers: {
+      "Content-Type": "image/jpeg",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
+  });
+});
 app.get("/employers", (c) => c.html(employerLandingPage));
 
 // Must be registered after the public GET /employers landing-page route

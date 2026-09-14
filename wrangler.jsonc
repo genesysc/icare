@@ -24,7 +24,8 @@
     "binding": "AI"
   },
   "rules": [
-    { "type": "Text", "globs": ["**/*.html"], "fallthrough": true }
+    { "type": "Text", "globs": ["**/*.html"], "fallthrough": true },
+    { "type": "Data", "globs": ["**/*.jpg"], "fallthrough": true }
   ],
   "observability": {
     "enabled": true

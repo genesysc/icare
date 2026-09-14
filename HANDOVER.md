@@ -183,8 +183,9 @@ stop and ask the user — do not resolve it yourself.**
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — real Sender.net API call, live since 2026-09-02, see §8 item 3 |
 | `src/emails/waitlist-welcome.ts`, `employer-waitlist.ts`, `candidate-profile-published.ts`, `employer-verification-submitted.ts`, `employer-verified.ts` | Stage-completion email subject/HTML, wired at their call sites and actually sending as of 2026-09-02 (see §8 item 3). The first two are for the waitlist; the latter three are candidate/employer product-stage emails, added 2026-08-26 |
-| `src/landing.html` | Candidate waitlist landing page — single file, inline CSS/JS, GSAP via CDN. Also now recovers a magic-link sign-in that lands here by mistake (2026-09-02 fix, see §14/PROGRESS.md) — checks for `#access_token=` in the URL hash on load, before anything else runs, and forwards to `/verify` |
-| `src/welcome.html` | **NEW 2026-09-10.** Launched-state landing page at `/welcome` — reuses `landing.html`'s design system (same CSS vars/fonts/section markup) but swaps the waitlist capture form for real product entry points: primary CTA → `/sign-up`, secondary → `/sign-in`, employer cross-link → `/employer/sign-up`. Added because `/` is deliberately staying the pre-launch waitlist page for now (user's explicit call — see §8/§14) and there was no page anywhere with an actual login/sign-up CTA on it. Not yet linked from `/` or from anywhere else in the app; nothing currently points here except direct navigation. Decide later whether this replaces `/` at actual launch or `/` gets retired in favor of it |
+| `src/landing.html` | **Rebuilt 2026-09-14.** The public launched-state landing page at `/` — single self-contained file, inline CSS, three bundled photos from `src/assets/`, and (deliberately) **no JavaScript at all except the magic-link recovery below**. Positioning comes from the founder's market-research handover: *"iCare is your passport for your next job in health and care"* — verify once, carry that trust to every employer. Sections: hero → the problem (three cited stats) → how it works (three steps) → badge grades (dark band) → precedent (NHS staff banks prove the model, scoped to NHS temp/bank only) → who it's for → what we will never do → employers strip → final CTA → footer. CTAs are real product entry points (`/sign-up`, `/sign-in`, `/employers`); the waitlist capture form that used to live here is **gone** (the `POST /waitlist` API and the employer page's own form are untouched). Still recovers a magic-link sign-in that lands here by mistake (2026-09-02 fix, see §14/PROGRESS.md) — checks for `#access_token=` in the URL hash on load, before anything else runs, and forwards to `/verify`. **Keep that script first in `<head>` through any future rewrite.** |
+| `src/assets/` | **NEW 2026-09-14.** Landing-page photography: `hero-clinician.jpg`, `care-hands.jpg`, `workforce-corridor.jpg`, plus `CREDITS.md` recording the Unsplash License, the source URL and fetch params for each. Bundled into the Worker as `Data` modules (see the `rules` entry in both `wrangler*.jsonc`) rather than hotlinked from a stock-photo CDN — no third-party request from a page that talks about privacy, and no silent breakage if the CDN changes URLs. `src/assets.d.ts` declares `*.jpg` as `ArrayBuffer` for TypeScript. Served by `GET /assets/:name` from a fixed map in `index.ts` (never a path read off the request — no traversal surface), `immutable` + one year of cache |
+| ~~`src/welcome.html`~~ | **Deleted 2026-09-14.** Existed 2026-09-10 → 2026-09-14 only because `/` was still the pre-launch waitlist page and nothing anywhere had a real Log in / Sign up CTA. The 2026-09-14 rebuild made `/` exactly that page, so keeping both would have meant two near-identical pages drifting apart. `GET /welcome` now **302s to `/`** rather than 404ing — the URL was live, so anything already pointing at it still lands somewhere sensible |
 | `src/employers.html` | Employer waitlist landing page — separate design system, same self-contained pattern |
 | `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
@@ -571,20 +572,21 @@ deploy confirmation yet.
    in `SPRINTS.md`.** Treat `SPRINTS.md`'s employer track as stale until
    it's revised against this — it has been (see §13).
 10. ~~Launched-state marketing landing page with real Log In / Sign Up
-    entry points~~ — **built 2026-09-10** (`src/welcome.html`, mounted
-    at `GET /welcome`). The user flagged this twice: `/` only ever had a
-    waitlist-capture form, no way to actually sign in once someone's
-    account exists — `/home` (the post-login candidate feed) isn't a
-    substitute, and neither is the magic-link recovery fix in
-    `landing.html`. `/welcome` reuses `landing.html`'s exact design
-    system but its primary/secondary CTAs are `/sign-up` and `/sign-in`
-    (plus a cross-link to `/employer/sign-up`) instead of the waitlist
-    form. **Deliberately not wired up as `/` yet** — the user's explicit
-    call was to keep `/` as the waitlist page for now and decide later
-    whether `/welcome` replaces it at actual launch or stays a separate
-    path. Nothing links to `/welcome` yet either (not from `/`, not from
-    nav) — it's reachable only by direct URL until that decision is
-    made.
+    entry points~~ — **done 2026-09-14: `/` *is* that page now.**
+    Two-step history worth keeping, because the first step was
+    deliberately reversed. On 2026-09-10 this shipped as a *separate*
+    page at `/welcome`, because the user's explicit call at the time was
+    to keep `/` as the pre-launch waitlist page. On 2026-09-14 the user
+    supplied a market-research handover and asked for `/` itself to be
+    rebuilt from it — so `src/landing.html` was rewritten as the real
+    launched-state page, `src/welcome.html` was deleted, and `/welcome`
+    now 302s to `/`. **The waitlist capture form is no longer on `/`.**
+    `POST /waitlist` and `GET /waitlist/count` still exist and still
+    work, and the employer page (`/employers`) still has its own
+    waitlist form — only the candidate-side form is gone, replaced by
+    Create-your-profile / Log in. If candidate waitlist capture is ever
+    wanted again it needs a deliberate decision about where it lives,
+    because `/` is now a login-first page.
 
 ---
 
