@@ -25,6 +25,22 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<script>
+// Found 2026-09-14: a signup confirmation link landed here with an unhandled
+// #access_token=...&refresh_token=... hash — GoTrue's Redirect URLs allow-list
+// (or Site URL) fell back to this page instead of /verify, dropping a valid
+// session on a page with no code to read it. Same class of bug as the
+// landing.html fix from Sprint 24, just a different fallback target this
+// time — which is exactly why this needs to be on every page a magic link
+// could plausibly land on, not just one. Recovers by forwarding to /verify,
+// which already knows how to complete sign-in from this hash.
+// Do not remove without checking HANDOVER.md §6.
+(function () {
+  if (window.location.hash.indexOf("access_token=") !== -1) {
+    window.location.replace("/verify" + window.location.hash);
+  }
+})();
+</script>
 <title>Employer sign in — iCare</title>
 <meta name="robots" content="noindex" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />

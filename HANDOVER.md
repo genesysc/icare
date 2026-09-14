@@ -591,6 +591,62 @@ deploy confirmation yet.
    that already works for waitlist and profile mail (needs a service-role
    key as a Worker secret).
 
+   **Update, same day — founder confirmed the email DID arrive, which
+   answers the decisive test above without needing the Sender.net log:**
+   delivery is fine. It confirmed the *other* half of the two-bug
+   diagnosis above (point 2 — no `{{ .Token }}` in the template) and
+   surfaced a **third, separate bug** that the diagnosis above didn't
+   anticipate: the link in the email doesn't land on `/verify` at all —
+   it lands on **`/sign-in`**, which just shows the plain "enter your
+   email" form again. Confirmed by the founder for both the original
+   signup email and the resend triggered from `/sign-in`'s own "send
+   code" button — same dead end both times.
+
+   **Root cause, found by reading `verify.html`'s own logic, not
+   guessed:** GoTrue always appends `#access_token=...&refresh_token=...`
+   to wherever it resolves the link to (see the Sprint 24 comment in
+   `landing.html`) — but which page that is depends on the Dashboard's
+   Site URL / Redirect URLs allow-list, which nothing in this codebase
+   controls or can inspect. When that resolves to `/sign-in` instead of
+   `/verify`, the hash just sits there unread, and `verify.html`'s own
+   `if (!email) { window.location.href = signInPath; }` fallback (for
+   when it's opened with neither a hash nor a `?email=` query string)
+   doesn't even apply here — the hash never gets *to* verify.html at all,
+   because `sign-in.html` had no code to forward it there in the first
+   place. `landing.html` got this exact fix in Sprint 24, precisely
+   because it was then the known fallback target — but `sign-in.html`,
+   `employer-sign-in.html` and `employers.html` never did, because
+   nobody had reason to think the fallback would ever land anywhere but
+   `/`.
+
+   **Fixed 2026-09-14 (later same day):** the identical hash-recovery
+   script from `landing.html` is now the first thing in `<head>` on
+   `sign-in.html`, `employer-sign-in.html` and `employers.html` too —
+   every public page a signed-out visitor could plausibly land on.
+   Deliberately not narrowed to "just fix whichever page the Dashboard
+   currently falls back to" — that setting isn't visible or controllable
+   from this codebase, so the only version of this fix that survives the
+   Dashboard drifting again is putting the recovery script everywhere a
+   drift could land, exactly the reasoning the original Sprint 24 comment
+   already stated. **Verified in a real Chromium**, not just read: served
+   the three pages locally, navigated to each with a synthetic
+   `#access_token=` hash attached, and confirmed the navigation trail
+   passes through `/verify` with the hash intact on all three — the fake
+   token then fails cleanly against `/auth/verify-code` with `verify.html`'s
+   own existing error message, exactly as a real expired/reused token
+   would, with no JS error either way.
+
+   **Still open, and now the only remaining piece:** the template gap
+   (point 2 in the diagnosis above — no `{{ .Token }}`) is unfixed and
+   needs the Dashboard. `docs/email-templates/supabase-confirm-signup.html`
+   is ready to paste in. Worth checking whether "Magic Link" has the same
+   gap, since the `mjm.refugio@` success on 09-14 only ever proved the
+   *link* path (hash → `/verify` → session), never the *code* path (a
+   human typing digits from the email) — nobody has actually seen a code
+   from either template yet. Once both templates carry `{{ .Token }}`,
+   new signups have two independent working paths (click the link, or
+   type the code) instead of the current one fragile one.
+
    **Process gap worth closing:** nothing currently surfaces failing
    signups. An unconfirmed-signup check, or simply running one real
    signup from a clean address after any auth change, would have caught
