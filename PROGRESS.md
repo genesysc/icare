@@ -3744,3 +3744,23 @@ Founder clarified the identity check from earlier today should be icon+colour (m
 - Verified driver: no new UI needed — `driving_licence_verified` renders correctly as a teal "verified"-grade chip in the existing "Your badges" card once awarded, the same as any other badge.
 
 **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean, headless-Chromium test across four badge states (none / id_verified only / both / dbs-only-without-id) confirming exactly the right tier (or none) shows each time, zero page errors.
+
+---
+
+## 2026-09-14 — Profile page rebuilt LinkedIn-style; badges folded into one section with real icons
+
+Founder asked to rebuild the Profile page copying LinkedIn's format, with badges folded into one collapsible section instead of an always-open grid, and real icons per badge rather than text-in-a-pill.
+
+**Honesty note, stated up front rather than silently assumed**: this isn't a literal scrape of LinkedIn's current live DOM — their profile pages sit behind a login wall from this sandbox. It replicates the well-established, essentially unchanged-in-years standard LinkedIn profile shape (banner + overlapping photo header → About → Experience → Licenses & Certifications → Skills → Activity) from general knowledge, not a fresh fetch.
+
+**What changed** (`src/dashboard.html`, full rebuild, same backend endpoints/data — no new migrations):
+- **Header**: LinkedIn-style gradient banner with the profile photo overlapping it (LinkedIn's signature layout), name + purple/teal identity check, position, location, an "Open to new roles" pill (this app's #OpenToWork equivalent, driven by the existing `availability` field — also puts a teal ring around the photo when open, another LinkedIn touch), published tag, right-to-work/ID line unchanged from yesterday.
+- **New About section** — `candidates.about` was already a real column but had never been rendered anywhere on this page; now shown LinkedIn-About-style, hidden entirely if empty rather than showing a placeholder.
+- **Badges folded into one section**: a compact row of icon-only circles (top 6 by grade priority: verified > evidenced > derived > declared) is always visible; a "Show all N badges" toggle expands the full family-grouped list. Every badge now renders with a hand-authored SVG icon matching its family (Identity, Safeguarding, Experience, Practical, Qualification, Registration, Availability, Eligibility, Training, Trust — 10 icons, no icon library/font dependency, same convention as `nav-shell.html`) instead of being a plain text-in-a-pill chip.
+- **New Experience section**: real inline entries (job title, employer, setting, dates, description, a "Current" tag) instead of the old flat "Work history: 3 roles → Edit" summary row.
+- **New Licenses & Certifications section**: qualifications + registrations + DBS combined into one LinkedIn-cert-style list (icon + title + issuing body + date) — DBS entry still never says "verified," per non-negotiable #3.
+- **New Skills section**: professions + clinical skills (added a `GET /me/skills` fetch, that route already existed) rendered as tag pills.
+- The old flat "Your profile at a glance" list is retained only for the two items with no LinkedIn-shaped home (References, Your own words/prompts), renamed "More about you."
+- Activity (posts), Employer interest, Visibility, and Account sections kept functionally identical, restyled to match the new card system.
+
+**Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean, a full headless-Chromium render + screenshot (fed realistic mock data across every section) confirming the header, collapsed→expanded badge toggle, Experience/Certifications/Skills all render correctly with zero page errors — screenshot reviewed visually, not just DOM-asserted, given how visual this request was.
