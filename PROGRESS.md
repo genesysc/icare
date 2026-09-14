@@ -3862,3 +3862,163 @@ the launched-state page while `/` stayed the waitlist. With `/` now
 being that page, keeping both would have meant two near-identical
 pages drifting apart; `/welcome` 302s to `/` so the live URL still
 works.
+
+---
+
+## 2026-09-14 (later) — New-user signup email has been broken since the 09-10 relay change
+
+Founder asked whether a new account existed for "Monique Murillo". One
+did — `mariamoniquemurillo@gmail.com`, created 06:56:19 UTC, role
+`candidate`, terms accepted, and fully provisioned (`accounts`,
+`candidates` and `candidate_contact` rows all created by
+`handle_new_user()`). But `email_confirmed_at` was null, there were zero
+sessions, and the `confirmation_token` in `auth.one_time_tokens` was
+still sitting there unused. The founder confirmed the email never
+arrived.
+
+**What made this diagnosable was comparing it against a send that
+worked, an hour later, on the same morning.** Supabase Auth fires a
+*different email template per action*:
+
+| Time | Address | Action | Template | Outcome |
+|---|---|---|---|---|
+| 06:56:21 | mariamoniquemurillo@ | `user_confirmation_requested` | **Confirm signup** | never arrived |
+| 07:58:09 | mjm.refugio@ | `user_recovery_requested` | **Magic Link** | login succeeded 07:58:22 — 13 seconds |
+
+Same relay, same sending domain, same recipient domain (gmail.com), 62
+minutes apart. One worked, one vanished. The only variable is the
+template.
+
+Ruled out, with evidence, so nobody re-diagnoses them: the send itself
+(`POST /otp` → 200 in 1.82s, no error, `confirmation_sent_at` stamped);
+the sending domain (Sender.net reports `icareltd.com` verified with SPF,
+DKIM *and* DMARC passing, `ready_to_send: true` — the 09-10 DMARC
+failure has not returned); and the relay (proven working 62 minutes
+later).
+
+**Root cause: the 09-10 fix only ever covered half the problem.** That
+session fixed and verified the **Magic Link** template. "Confirm signup"
+is a separate template and was never touched — grepping HANDOVER.md and
+PROGRESS.md, every `{{ .Token }}` and template reference in the entire
+project history is about Magic Link. Confirm signup appears nowhere
+before today.
+
+**It stayed invisible for four days because nobody signed up.** Every
+confirmed account in `auth.users` (08-31, 09-02 ×2) predates the relay
+change. Monique's is the *first* new-user signup attempted since — and
+the first to fail. The front door was broken the whole time and
+everything looked fine, because the only path anyone exercised was the
+returning-user one.
+
+**Two independent bugs, not one.** Fixing delivery alone would still
+leave new users stuck: Supabase's default Confirm-signup template
+contains `{{ .ConfirmationURL }}` and **no `{{ .Token }}`**, while
+`/verify` presents an 8-digit code box. A delivered email would have no
+code in it. The same default also leads with a raw `supabase.co` link,
+which is a far stronger spam signal than a plain numeric code on a young
+domain sending via a shared-IP free ESP tier — the likely delivery cause
+too.
+
+A replacement template fixing both is checked in at
+`docs/email-templates/supabase-confirm-signup.html`, ready to paste into
+Dashboard → Authentication → Emails → Confirm signup.
+
+**Not yet resolved** — the decisive test needs dashboard access:
+Sender.net's activity log for 06:56 UTC. No record ⇒ Supabase-side, and
+the template is the fix. "Delivered" ⇒ Gmail silently discarded it, and
+the durable answer is to stop using Supabase's email layer for auth at
+all — mint the token via the admin `generateLink` API and send through
+`src/email.ts` / `src/emails/` on the Sender.net **API** path that
+already works for waitlist and profile mail.
+
+**Lesson worth keeping.** Two templates, one tested. The tested one was
+the one that happened to be easy to test (the founder already had an
+account). Whenever an auth or email change ships, the check that matters
+is the one nobody can do casually — a real signup from a clean address.
+Nothing in the system currently reports failing signups, so a broken
+front door is silent by default; that monitoring gap is the real find
+here, not the template.
+
+---
+
+## 2026-09-14 (later still) — Confirmed by the founder: signup email arrives, but dead-ends on /sign-in with no code
+
+Founder confirmed the confirmation email genuinely arrives — so the
+09-14 diagnosis's "decisive test" (Sender.net's delivery log) is moot,
+delivery was never the problem. What she actually reported: the email
+contains only a link, no code; clicking it lands on `/sign-in`, which
+just asks for her email again; requesting a fresh code from there sends
+another email with the same symptom — link only, same dead end.
+
+That confirmed one predicted bug and revealed a second, unpredicted one.
+
+**Confirmed: no `{{ .Token }}` in the live template**, exactly as
+suspected earlier today — the email has no code in it at all, so the
+code-entry form was never going to be usable regardless of anything
+else.
+
+**New: the link doesn't even reach `/verify`.** Found by reading
+`verify.html`'s own logic rather than guessing: GoTrue always appends
+`#access_token=...&refresh_token=...` to wherever it resolves the
+link's redirect target — and that target depends on the Supabase
+Dashboard's Site URL / Redirect URLs allow-list, which this codebase
+has no visibility into. `landing.html` already has a defensive fix for
+exactly this (the Sprint 24 comment: "GoTrue's fallback always targets
+Site URL's root... this works regardless of whether the Redirect URLs
+list is ever exactly right") — but that fix only ever lived on
+`landing.html`, because Sprint 24's own testing confirmed the fallback
+landed at `/` at the time. Nobody had reason to think it would ever
+resolve anywhere else. It now resolves to `/sign-in`, which had zero
+hash-handling code, so the token silently sits unread in the URL bar
+while the page just shows its default "enter your email" form —
+exactly what the founder described, twice.
+
+**Fixed**: copied the identical recovery script — verbatim from
+`landing.html`, same comment convention, same placement (first thing in
+`<head>`, right after the charset/viewport metas) — onto every other
+public page a signed-out visitor could plausibly land on:
+`sign-in.html`, `employer-sign-in.html`, `employers.html`. Deliberately
+not scoped down to "just fix whichever page the Dashboard currently
+falls back to" — that setting isn't controllable or even readable from
+this codebase, so the only version of this fix that survives the
+Dashboard drifting again (as it evidently already has once) is covering
+every page a drift could land on.
+
+**Verified in a real Chromium, not just read.** Extended the local
+static-server harness from earlier today (`serve.js` → `serve2.js`) to
+also route `/sign-in`, `/employer/sign-in`, `/employers` and `/verify`,
+then navigated to each of the three patched pages with a synthetic
+`#access_token=fake...&refresh_token=fake...` hash attached — exactly
+the shape GoTrue produces. Captured the actual navigation trail via
+Playwright's `framenavigated` event rather than trusting the final
+`page.url()` (which is misleading here: `verify.html` deliberately
+calls `history.replaceState()` to strip the hash once it's parsed the
+tokens, so the hash is gone by the time the page settles — that had to
+be understood, not just observed, before the test could tell success
+from failure correctly). All three: `/sign-in#access_token=...` →
+`/verify#access_token=...` → `/verify` (hash stripped after parsing).
+The fake token then fails cleanly against a live network call
+(`ERR_CONNECTION_RESET`, no backend in this harness) and `verify.html`'s
+own existing error handling shows its normal "something went wrong,
+try the code instead" message with the code-entry form beneath it — no
+JS error, no blank page, no silent failure. That's the exact same
+graceful path a real expired or already-consumed token would take.
+`tsc --noEmit` clean; `wrangler deploy --dry-run` clean at 1614.76 KiB
+gzip.
+
+**What's still open, and now the only remaining piece**: the template
+gap. `docs/email-templates/supabase-confirm-signup.html` (written
+earlier today) is ready to paste into Dashboard → Authentication →
+Emails → Confirm signup. Also worth checking whether "Magic Link" has
+the identical gap — the one successful send today (`mjm.refugio@`,
+07:58) only ever proved the *link* path works (hash → `/verify` →
+session); nobody has actually seen a rendered code from either template
+yet, so the code-entry path is still unverified for both.
+
+**Lesson worth keeping, on top of the one from earlier today**: a
+defensive fix scoped to "the page we observed the bug on" is only as
+durable as the assumption that the bug will keep landing there. Sprint
+24 fixed the right *mechanism* but the wrong *scope* — it protected the
+one page tested against, not the one property that mattered (any
+GoTrue redirect fallback, wherever it lands). The fix that actually
+lasts is the one keyed to the invariant, not the observation.
