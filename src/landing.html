@@ -2,27 +2,28 @@
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <script>
-// Sprint 24 fix: if Supabase's magic-link redirect doesn't exactly match
-// an allow-listed Redirect URL in the Dashboard, it silently falls back
-// to the bare Site URL — this page's root — instead of our intended
-// /verify target, dropping the #access_token=... fragment on a page with
-// no code to handle it (previously a dead end: user stuck looping back
-// to the waitlist page after "successfully" clicking the email link).
-// GoTrue always appends that hash regardless of which URL it resolves
-// to, so recovering here — before anything else runs or paints — makes
-// sign-in work even if the Supabase Redirect URLs list is misconfigured,
-// rather than depending on getting that Dashboard-only setting exactly
-// right. See HANDOVER.md §6.
+// Sprint 24 fix, kept through the 2026-09-14 rebuild: if Supabase's magic-link
+// redirect doesn't exactly match an allow-listed Redirect URL in the Dashboard,
+// it silently falls back to the bare Site URL — this page — instead of our
+// intended /verify target, dropping the #access_token=... fragment on a page
+// with no code to handle it. GoTrue always appends that hash regardless of
+// which URL it resolves to, so recovering here, before anything else runs or
+// paints, makes sign-in work even if that Dashboard-only setting drifts.
+// Do not remove without checking HANDOVER.md §6.
 (function () {
   if (window.location.hash.indexOf("access_token=") !== -1) {
     window.location.replace("/verify" + window.location.hash);
   }
 })();
 </script>
-<title>iCare — the professional network for UK health and care</title>
-<meta name="description" content="iCare is a new kind of platform for carers, nurses and healthcare professionals. Build a profile that shows your skills and experience — and, if you choose, the person behind them too.">
+<title>iCare — your passport for your next job in health and care</title>
+<meta name="description" content="Prove your registrations, training and checks once, then carry them to every employer on iCare. A professional network built for UK health and social care — nursing, medicine, allied health, social care, dental and pharmacy.">
+<meta name="theme-color" content="#330072">
+<meta property="og:title" content="iCare — your passport for your next job in health and care">
+<meta property="og:description" content="Verify once. Carry that trust to every opportunity in UK health and social care.">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Public+Sans:ital,wght@0,300..800;1,300..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -37,161 +38,239 @@
   --card:#fff;
   --mute:#6B6280;
   --hair:rgba(28,15,51,.10);
+  --shell:22px;
 }
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
 body{margin:0;background:var(--paper);color:var(--ink);
-  font-family:'Public Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-img{max-width:100%;display:block}
+  font-family:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  overflow-x:hidden}
+img{max-width:100%;height:auto;display:block}
 a{color:inherit}
 :focus-visible{outline:3px solid var(--teal);outline-offset:3px;border-radius:4px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto}}
 
-.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 var(--shell)}
 .skip{position:absolute;left:-9999px;background:var(--purple);color:#fff;padding:12px 18px;border-radius:6px}
 .skip:focus{left:16px;top:16px;z-index:99}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 
+/* ---------- entrance ----------
+   Deliberately CSS-only and load-triggered, NOT a scroll-reveal. An earlier
+   draft hid every section at opacity:0 until an IntersectionObserver fired,
+   and a full-page render showed exactly why that's a bad idea on a content
+   page: anything the observer hasn't reached is simply blank. Fast scrolling,
+   a bfcache restore, a JS failure or a print all strand real content. This
+   animates only what's on screen at load, from a state that is already
+   visible, so nothing can ever be left invisible. */
+@media (prefers-reduced-motion:no-preference){
+  .rise{animation:rise .55s cubic-bezier(.2,.8,.3,1) both}
+  .rise-2{animation-delay:.08s}
+  .rise-3{animation-delay:.16s}
+}
+@keyframes rise{from{opacity:.001;transform:translateY(14px)}to{opacity:1;transform:none}}
+
 /* ---------- nav ---------- */
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 0}
-.logo{font-family:'Fraunces',serif;font-weight:800;font-size:22px;letter-spacing:-.02em;text-decoration:none}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:18px 0;flex-wrap:wrap}
+.logo{font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:22px;
+  letter-spacing:-.02em;text-decoration:none;flex:none}
 .logo span{color:var(--teal)}
-.navlink{font-size:14px;text-decoration:none;font-weight:600;color:var(--purple)}
-
-/* ---------- shared type ---------- */
-.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--teal-dk);margin:0 0 18px;display:flex;align-items:center;gap:10px}
-.eyebrow::before{content:'';width:26px;height:1px;background:var(--teal);flex:none}
-.btn{display:inline-block;background:var(--purple);color:#fff;text-decoration:none;font-weight:700;
-  padding:16px 28px;border-radius:100px;font-size:16px;border:0;cursor:pointer;
-  transition:transform .15s,box-shadow .15s,background .15s;
-  box-shadow:0 8px 22px -10px var(--purple)}
-.btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px -12px var(--purple);background:var(--purple-dk)}
-.btn:disabled{opacity:.6;cursor:default;transform:none}
-
-/* ---------- hero ---------- */
-.hero{padding:26px 0 56px}
-.hero h1{font-family:'Fraunces',serif;font-weight:700;font-size:clamp(38px,8.5vw,76px);line-height:1.02;
-  letter-spacing:-.03em;margin:0 0 20px;max-width:15ch}
-.hero h1 em{font-style:italic;color:var(--purple)}
-.hero h1 u{text-decoration:none;background:linear-gradient(transparent 62%,rgba(0,164,153,.35) 62%)}
-.lede{font-size:clamp(17px,2.2vw,20px);line-height:1.55;color:var(--mute);max-width:46ch;margin:0 0 28px}
-.ctarow{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
-.rolestag{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--purple);
-  background:rgba(0,164,153,.14);padding:8px 14px;border-radius:100px;font-weight:500}
-
-.deck{margin-top:44px;position:relative}
-.ivt{background:var(--card);border-radius:18px;padding:20px;margin-bottom:-12px;position:relative;
-  box-shadow:0 18px 40px -24px rgba(28,15,51,.45);border:1px solid rgba(28,15,51,.07);
-  transform-origin:top center;animation:rise .7s cubic-bezier(.2,.8,.3,1) backwards}
-.ivt:nth-child(1){transform:rotate(-1.4deg) scale(.955);animation-delay:.05s;z-index:1}
-.ivt:nth-child(2){transform:rotate(.9deg) scale(.978);animation-delay:.18s;z-index:2}
-.ivt:nth-child(3){transform:rotate(-.3deg);animation-delay:.31s;z-index:3;margin-bottom:0}
-@keyframes rise{from{opacity:0;transform:translateY(26px) rotate(0) scale(.94)}}
-.ivt-top{display:flex;align-items:center;gap:12px;margin-bottom:14px}
-.avatar{width:42px;height:42px;border-radius:12px;flex:none;
-  background:linear-gradient(140deg,var(--purple),var(--teal));display:grid;place-items:center;
-  color:#fff;font-weight:700;font-size:15px;font-family:'Fraunces',serif}
-.ivt-org{font-weight:700;font-size:15px;line-height:1.25}
-.ivt-meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute)}
-.ivt-role{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 6px}
-.ivt-line{font-size:14px;color:var(--mute);margin:0 0 16px;line-height:1.5}
-.ivt-acts{display:flex;gap:8px}
-.mini{font-size:13px;font-weight:700;padding:10px 16px;border-radius:100px;border:0;cursor:pointer;
-  font-family:inherit}
-.mini.yes{background:var(--teal);color:#04231F}
-.mini.no{background:rgba(28,15,51,.06);color:var(--mute)}
-.stamp{position:absolute;top:16px;right:18px;font-family:'IBM Plex Mono',monospace;
-  font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal-dk)}
-@media (min-width:900px){
-  .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:70px;align-items:center;padding:60px 0 90px}
-  .deck{margin-top:0}
+.navlinks{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.navlink{font-size:14.5px;text-decoration:none;font-weight:600;color:var(--purple);
+  padding:9px 14px;border-radius:100px;white-space:nowrap}
+.navlink.ghost{border:1.5px solid rgba(51,0,114,.25)}
+.navlink.solid{background:var(--purple);color:#fff;
+  transition:background .15s,transform .15s}
+.navlink.solid:hover{background:var(--purple-dk);transform:translateY(-1px)}
+.navlink.plain{padding-left:4px;padding-right:4px}
+@media (max-width:430px){
+  .navlink.plain{display:none}
 }
 
-/* ---------- purple band ---------- */
-.band{background:var(--purple);color:#fff;padding:54px 0}
-.band .wrap{display:grid;gap:26px}
-.band h2{font-family:'Fraunces',serif;font-size:clamp(26px,4vw,38px);line-height:1.15;margin:0;
-  letter-spacing:-.02em;max-width:20ch}
-.band p{margin:0;color:rgba(255,255,255,.78);line-height:1.6;max-width:52ch}
-.band strong{color:#5FE0D6;font-weight:600}
-@media (min-width:900px){.band .wrap{grid-template-columns:1fr 1fr;gap:60px;align-items:start}}
+/* ---------- shared type ---------- */
+.eyebrow{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--teal-dk);
+  margin:0 0 18px;display:flex;align-items:center;gap:10px}
+.eyebrow::before{content:'';width:26px;height:1px;background:var(--teal);flex:none}
+.eyebrow.on-dark{color:#5FE0D6}
+.eyebrow.on-dark::before{background:#5FE0D6}
+.btn{display:inline-block;background:var(--purple);color:#fff;text-decoration:none;
+  font-weight:700;padding:15px 26px;border-radius:100px;font-size:16px;border:0;
+  cursor:pointer;text-align:center;
+  transition:transform .15s,box-shadow .15s,background .15s;
+  box-shadow:0 8px 22px -10px var(--purple)}
+.btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px -12px var(--purple);
+  background:var(--purple-dk)}
+.btn.ghost{background:transparent;color:var(--purple);box-shadow:none;
+  border:1.5px solid rgba(51,0,114,.3)}
+.btn.ghost:hover{background:rgba(51,0,114,.06);transform:none;box-shadow:none}
+.btn.teal{background:var(--teal);color:#04231F;box-shadow:none}
+.btn.teal:hover{background:#00C4B6;box-shadow:none}
+.ctarow{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.h2{font-family:'Fraunces',Georgia,serif;font-weight:600;
+  font-size:clamp(27px,4.4vw,42px);line-height:1.15;letter-spacing:-.025em;margin:0}
+.h2 em{font-style:italic;color:var(--purple)}
+.lede{font-size:clamp(16.5px,2.1vw,19px);line-height:1.6;color:var(--mute);margin:0}
 
-/* ---------- three columns ---------- */
-.why{padding:70px 0 64px}
-.why h2{font-family:'Fraunces',serif;font-weight:400;font-size:clamp(27px,4.4vw,44px);
-  letter-spacing:-.025em;line-height:1.16;margin:0 0 46px;max-width:22ch}
-.why h2 em{font-style:italic;color:var(--purple)}
-.cols{display:grid;gap:34px}
-.col .lbl{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.16em;
-  text-transform:uppercase;color:var(--teal-dk);padding-bottom:12px;margin-bottom:16px;
+/* ---------- hero ---------- */
+.hero{padding:22px 0 52px}
+.hero h1{font-family:'Fraunces',Georgia,serif;font-weight:700;
+  font-size:clamp(34px,7.6vw,68px);line-height:1.03;letter-spacing:-.03em;
+  margin:0 0 20px;max-width:16ch}
+.hero h1 u{text-decoration:none;
+  background:linear-gradient(transparent 62%,rgba(0,164,153,.35) 62%)}
+.hero .lede{max-width:48ch;margin-bottom:26px}
+.hero-note{margin:18px 0 0;font-size:13.5px;color:var(--mute);max-width:44ch}
+.hero-media{margin-top:36px;position:relative}
+.hero-media img{width:100%;border-radius:18px;
+  box-shadow:0 24px 50px -28px rgba(28,15,51,.55);
+  border:1px solid rgba(28,15,51,.07);aspect-ratio:3/2;object-fit:cover}
+.hero-chip{position:absolute;left:14px;bottom:14px;right:14px;
+  background:rgba(255,255,255,.95);border-radius:12px;padding:12px 14px;
+  display:flex;align-items:center;gap:11px;
+  box-shadow:0 10px 26px -14px rgba(28,15,51,.5)}
+.hero-chip .dot{width:34px;height:34px;border-radius:10px;flex:none;
+  background:linear-gradient(140deg,var(--purple),var(--teal));display:grid;
+  place-items:center;color:#fff;font-weight:700;font-size:13px;
+  font-family:'Fraunces',Georgia,serif}
+.hero-chip-t{display:block;font-weight:700;font-size:13.5px;line-height:1.3}
+.hero-chip-s{display:block;margin-top:2px;font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:10.5px;color:var(--mute);letter-spacing:.03em}
+@media (min-width:900px){
+  .hero{display:grid;grid-template-columns:1.02fr .98fr;gap:64px;align-items:center;
+    padding:52px 0 84px}
+  .hero-media{margin-top:0}
+}
+
+/* ---------- stat band ---------- */
+.problem{background:var(--card);border-top:1px solid var(--hair);
+  border-bottom:1px solid var(--hair);padding:58px 0}
+.problem .h2{max-width:20ch;margin-bottom:16px}
+.problem .lede{max-width:56ch}
+.stats{display:grid;gap:24px;margin-top:38px}
+.stat{border-top:2px solid var(--teal);padding-top:14px}
+.stat b{display:block;font-family:'Fraunces',Georgia,serif;font-weight:600;
+  font-size:clamp(28px,5vw,38px);line-height:1.05;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+.stat span{display:block;margin-top:7px;font-size:14.5px;color:var(--mute);
+  line-height:1.5}
+.stat cite{display:block;margin-top:7px;font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:10.5px;font-style:normal;color:var(--mute);letter-spacing:.04em;
+  text-transform:uppercase}
+@media (min-width:760px){.stats{grid-template-columns:repeat(3,1fr);gap:34px}}
+
+/* ---------- steps ---------- */
+.steps{padding:66px 0 60px}
+.steps .h2{max-width:22ch;margin-bottom:12px}
+.steps .lede{max-width:52ch}
+.stepgrid{display:grid;gap:30px;margin-top:44px}
+.step .num{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;
+  letter-spacing:.16em;color:var(--teal-dk);padding-bottom:12px;margin-bottom:16px;
   border-bottom:1px solid rgba(0,164,153,.35)}
-.col h3{font-family:'Fraunces',serif;font-size:21px;font-weight:600;margin:0 0 10px}
-.col p{color:var(--mute);line-height:1.65;margin:0;font-size:15px}
-@media (min-width:820px){.cols{grid-template-columns:repeat(3,1fr);gap:48px}}
+.step h3{font-family:'Fraunces',Georgia,serif;font-size:21px;font-weight:600;
+  margin:0 0 10px;line-height:1.25}
+.step p{color:var(--mute);line-height:1.65;margin:0;font-size:15.5px}
+@media (min-width:820px){.stepgrid{grid-template-columns:repeat(3,1fr);gap:44px}}
 
-/* ---------- badges ---------- */
-.badges{background:var(--ink);color:#fff;padding:66px 0}
-.badges h2{font-family:'Fraunces',serif;font-size:clamp(25px,4vw,38px);margin:0 0 10px;letter-spacing:-.025em;max-width:22ch}
-.badges .sub{color:rgba(255,255,255,.66);margin:0 0 34px;max-width:50ch;line-height:1.6}
+/* ---------- grades (dark) ---------- */
+.grades-sec{background:var(--ink);color:#fff;padding:66px 0}
+.grades-sec .h2{color:#fff;max-width:22ch}
+.grades-sec .h2 em{color:#B79BE8}
+.grades-sec .sub{color:rgba(255,255,255,.68);margin:14px 0 0;max-width:54ch;
+  line-height:1.6;font-size:16.5px}
 .grades{display:grid;gap:1px;background:rgba(255,255,255,.16);
-  border:1px solid rgba(255,255,255,.16);border-radius:14px;overflow:hidden}
+  border:1px solid rgba(255,255,255,.16);border-radius:14px;overflow:hidden;
+  margin-top:36px}
 .grade{background:var(--ink);padding:24px 20px}
-.gname{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;
-  text-transform:uppercase;margin-bottom:11px}
+.gname{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;
+  letter-spacing:.14em;text-transform:uppercase;margin-bottom:11px}
 .g1 .gname{color:#5FE0D6}
 .g2 .gname{color:#B79BE8}
 .g3 .gname,.g4 .gname{color:rgba(255,255,255,.55)}
-.grade p{margin:0;font-size:14.5px;line-height:1.6;color:rgba(255,255,255,.7)}
+.grade p{margin:0;font-size:14.5px;line-height:1.6;color:rgba(255,255,255,.72)}
 @media (min-width:820px){.grades{grid-template-columns:repeat(4,1fr)}}
-.note{margin:24px 0 0;font-size:13.5px;color:rgba(255,255,255,.62);line-height:1.65;max-width:64ch}
+.note{margin:26px 0 0;font-size:14px;color:rgba(255,255,255,.62);line-height:1.65;
+  max-width:66ch}
+.note b{color:rgba(255,255,255,.9);font-weight:600}
 
-/* ---------- never do ---------- */
-.promise{background:var(--purple);color:#fff;padding:60px 0}
-.promise h2{font-family:'Fraunces',serif;font-size:clamp(26px,3.9vw,38px);margin:0 0 26px;
-  letter-spacing:-.022em;max-width:14ch}
-.plist{list-style:none;padding:0;margin:0;display:grid;gap:16px}
-.plist li{display:flex;gap:13px;color:rgba(255,255,255,.8);line-height:1.6;font-size:15.5px}
-.plist b{color:#fff;font-weight:700}
-.pk{color:#5FE0D6;font-weight:800;flex:none;margin-top:1px}
+/* ---------- precedent (split w/ photo) ---------- */
+.precedent{padding:70px 0}
+.split{display:grid;gap:34px;align-items:center}
+.split img{width:100%;border-radius:18px;aspect-ratio:4/3;object-fit:cover;
+  box-shadow:0 22px 46px -30px rgba(28,15,51,.5);
+  border:1px solid rgba(28,15,51,.07)}
+.split .h2{max-width:18ch;margin-bottom:16px}
+.split p{color:var(--mute);line-height:1.7;margin:0 0 14px;font-size:16px}
+.split p:last-child{margin-bottom:0}
+.split strong{color:var(--ink);font-weight:600}
 @media (min-width:900px){
-  .promise .wrap{display:grid;grid-template-columns:.85fr 1.15fr;gap:60px;align-items:start}
-  .promise h2{margin:0}
+  .split{grid-template-columns:1fr 1fr;gap:62px}
+  .split.flip .split-media{order:2}
+}
+
+/* ---------- audience ---------- */
+.audience{background:var(--purple);color:#fff;padding:64px 0}
+.audience .h2{color:#fff;max-width:20ch}
+.audience p{color:rgba(255,255,255,.78);line-height:1.65;margin:16px 0 0;
+  max-width:52ch;font-size:16.5px}
+.roles{list-style:none;padding:0;margin:30px 0 0;display:flex;flex-wrap:wrap;gap:9px}
+.roles li{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);
+  padding:8px 13px;border-radius:100px;letter-spacing:.02em}
+.aud-grid{display:grid;gap:34px;align-items:center}
+.aud-grid img{width:100%;border-radius:18px;aspect-ratio:4/3;object-fit:cover;
+  border:1px solid rgba(255,255,255,.15)}
+@media (min-width:900px){.aud-grid{grid-template-columns:1.05fr .95fr;gap:60px}}
+
+/* ---------- promise ---------- */
+.promise{padding:66px 0}
+.promise .h2{max-width:16ch}
+.plist{list-style:none;padding:0;margin:0;display:grid;gap:18px}
+.plist li{display:flex;gap:13px;color:var(--mute);line-height:1.65;font-size:15.5px}
+.plist b{color:var(--ink);font-weight:700}
+.pk{color:var(--teal-dk);font-weight:800;flex:none;margin-top:1px}
+@media (min-width:900px){
+  .promise .wrap{display:grid;grid-template-columns:.8fr 1.2fr;gap:58px;
+    align-items:start}
+}
+
+/* ---------- employers strip ---------- */
+.employers{background:var(--card);border-top:1px solid var(--hair);
+  border-bottom:1px solid var(--hair);padding:50px 0}
+.employers .inner{display:grid;gap:20px;align-items:center}
+.employers h2{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:23px;
+  margin:0 0 8px;letter-spacing:-.015em}
+.employers p{margin:0;color:var(--mute);line-height:1.6;max-width:56ch;font-size:15.5px}
+@media (min-width:820px){
+  .employers .inner{grid-template-columns:1fr auto;gap:40px}
 }
 
 /* ---------- final ---------- */
-.final{background:var(--ink);color:#fff;padding:84px 0;text-align:center;
-  border-top:1px solid rgba(255,255,255,.08)}
-.final h2{font-family:'Fraunces',serif;font-weight:300;font-style:italic;
-  font-size:clamp(30px,5.6vw,54px);letter-spacing:-.03em;line-height:1.12;
-  margin:0 auto 20px;max-width:17ch}
-.final p{color:rgba(255,255,255,.7);margin:0 auto 30px;max-width:42ch;line-height:1.65}
-.final .btn{background:var(--teal);color:#04231F;box-shadow:none}
-.final .btn:hover{background:#00C4B6;box-shadow:none}
+.final{background:var(--ink);color:#fff;padding:78px 0;text-align:center}
+.final h2{font-family:'Fraunces',Georgia,serif;font-weight:300;font-style:italic;
+  font-size:clamp(29px,5.4vw,50px);letter-spacing:-.03em;line-height:1.14;
+  margin:0 auto 18px;max-width:18ch}
+.final p{color:rgba(255,255,255,.72);margin:0 auto 30px;max-width:44ch;
+  line-height:1.65;font-size:16.5px}
+.final .ctarow{justify-content:center}
+.final .btn.ghost{background:transparent;color:#fff;
+  border:1.5px solid rgba(255,255,255,.35)}
+.final .btn.ghost:hover{background:rgba(255,255,255,.08);transform:none}
+.final .fine{margin:26px auto 0;font-size:13.5px;color:rgba(255,255,255,.5);
+  max-width:46ch}
 
-/* ---------- waitlist form ---------- */
-.join-form{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;
-  margin:0 auto 14px;max-width:560px}
-.join-form input{flex:1 1 190px;padding:15px 20px;border-radius:100px;border:1px solid rgba(255,255,255,.16);
-  font-family:inherit;font-size:15px;background:rgba(255,255,255,.06);color:#fff}
-.join-form input::placeholder{color:rgba(255,255,255,.45)}
-.join-form input:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
-.join-form .btn{flex:none}
-.join-status{min-height:20px;font-size:14px;margin:0 0 6px;color:rgba(255,255,255,.7)}
-.join-status.err{color:#FF9B9B}
-.join-status.ok{color:#5FE0D6}
-.join-note{font-size:13px;color:rgba(255,255,255,.5);margin:0 0 20px}
-.join-success{display:none;margin:8px auto 20px;max-width:440px}
-.join-success.is-visible{display:block}
-.join-success h3{font-family:'Fraunces',serif;font-size:22px;margin:0 0 8px;color:#fff;font-style:normal}
-.join-success p{color:rgba(255,255,255,.72);margin:0;line-height:1.6}
-.counter-row{font-family:'IBM Plex Mono',monospace;font-size:13px;color:rgba(255,255,255,.55)}
-.counter-num{font-weight:700;color:#5FE0D6;font-size:16px}
-@media (max-width:560px){.join-form{flex-direction:column;align-items:stretch}.join-form input,.join-form .btn{flex:none;width:100%}}
-
-footer{background:var(--ink);color:rgba(255,255,255,.5);padding:0 0 32px;text-align:center}
-footer .wrap{border-top:1px solid rgba(255,255,255,.1);padding-top:26px}
-footer p{margin:0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.06em}
+footer{background:var(--ink);color:rgba(255,255,255,.5);
+  padding:0 0 calc(30px + env(safe-area-inset-bottom));text-align:center}
+footer .wrap{border-top:1px solid rgba(255,255,255,.1);padding-top:26px;
+  display:flex;flex-direction:column;gap:12px;align-items:center}
+footer p{margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11.5px;
+  letter-spacing:.06em;line-height:1.6}
+footer .flinks{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+footer .flinks a{font-size:13px;color:rgba(255,255,255,.66);text-decoration:none;
+  padding:11px 6px;display:inline-block;min-height:44px;line-height:22px}
+footer .flinks a:hover{color:#fff;text-decoration:underline}
 </style>
 </head>
 <body>
@@ -199,7 +278,12 @@ footer p{margin:0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-
 
 <div class="wrap">
   <header class="topbar">
-    <a class="logo" href="#">i<span>Care</span></a>
+    <a class="logo" href="/">i<span>Care</span></a>
+    <nav class="navlinks" aria-label="Main">
+      <a class="navlink plain" href="/employers">For employers</a>
+      <a class="navlink ghost" href="/sign-in">Log in</a>
+      <a class="navlink solid" href="/sign-up">Sign up</a>
+    </nav>
   </header>
 </div>
 
@@ -209,219 +293,244 @@ footer p{margin:0;font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-
   <div class="wrap">
     <section class="hero">
       <div>
-        <p class="eyebrow">For everyone who works in health and care</p>
-        <h1>One profile. Every healthcare employer <u>looking for you.</u></h1>
-        <p class="lede">Put your registrations, experience and availability in one place. Employers search it, send you an invite, and see nothing more until you accept.</p>
+        <p class="eyebrow rise">For everyone who works in UK health and care</p>
+        <h1 class="rise rise-2">Your passport for your next job in <u>health and care.</u></h1>
+        <p class="lede">Set out your registrations, training, experience and checks once.
+          Then carry them with you to every employer on iCare — instead of starting the
+          same paperwork from scratch at every application.</p>
         <div class="ctarow">
-          <a class="btn" href="#join">Join the waiting list</a>
-          <span class="rolestag">Nursing · Medicine · AHPs · Care · Practice teams</span>
+          <a class="btn" href="/sign-up">Create your profile</a>
+          <a class="btn ghost" href="/sign-in">Log in</a>
         </div>
+        <p class="hero-note">Free for candidates. Your name, photo and contact details
+          stay hidden from employers until you accept an invite.</p>
       </div>
 
-      <div class="deck" aria-label="Example invites">
-        <article class="ivt">
-          <div class="ivt-top">
-            <div class="avatar" aria-hidden="true">SG</div>
-            <div><div class="ivt-org">St Gabriel's Trust</div><div class="ivt-meta">Acute · Enfield · 3.2 mi</div></div>
-          </div>
-          <h3 class="ivt-role">Band 6 Physiotherapist</h3>
-          <p class="ivt-line">Rotational post across stroke and respiratory. Full time.</p>
-          <div class="ivt-acts"><button class="mini yes">Accept</button><button class="mini no">Not for me</button></div>
-        </article>
-        <article class="ivt">
-          <div class="ivt-top">
-            <div class="avatar" aria-hidden="true">MH</div>
-            <div><div class="ivt-org">Meadowvale Health Group</div><div class="ivt-meta">Primary care · Barnet · 5.8 mi</div></div>
-          </div>
-          <h3 class="ivt-role">Practice Nurse</h3>
-          <p class="ivt-line">Weekdays, no weekends. Long-term conditions clinics.</p>
-          <div class="ivt-acts"><button class="mini yes">Accept</button><button class="mini no">Not for me</button></div>
-        </article>
-        <article class="ivt">
-          <span class="stamp">New</span>
-          <div class="ivt-top">
-            <div class="avatar" aria-hidden="true">BH</div>
-            <div><div class="ivt-org">Beechwood House</div><div class="ivt-meta">Residential · Waltham Cross · 2.1 mi</div></div>
-          </div>
-          <h3 class="ivt-role">Senior Care Assistant</h3>
-          <p class="ivt-line">Nights, 3 on 4 off. Dementia experience welcome.</p>
-          <div class="ivt-acts"><button class="mini yes">Accept</button><button class="mini no">Not for me</button></div>
-        </article>
+      <div class="hero-media rise rise-3">
+        <img src="/assets/hero-clinician.jpg" width="1200" height="800"
+             alt="A clinician in a white coat with a stethoscope, using a phone"
+             fetchpriority="high" decoding="async">
+        <div class="hero-chip">
+          <span class="dot" aria-hidden="true">iC</span>
+          <span>
+            <span class="hero-chip-t">One profile, carried with you</span>
+            <span class="hero-chip-s">Registrations · Training · Checks · Availability</span>
+          </span>
+        </div>
       </div>
     </section>
   </div>
 
-  <!-- BAND -->
-  <section class="band">
+  <!-- THE PROBLEM -->
+  <section class="problem">
     <div class="wrap">
-      <h2>You are better at this job than you are at applying for it.</h2>
-      <p>Healthcare roles are won and lost on a CV that can't hold the important bits — that you're the one colleagues come to, that you stayed late, that you're calm when it matters. iCare gives you somewhere to put all of that, and puts it in front of the people hiring. <strong>Nursing, medicine, allied health, care and support, healthcare science, practice and admin teams.</strong></p>
-    </div>
-  </section>
+      <div>
+        <p class="eyebrow">The problem</p>
+        <h2 class="h2">Right now, every move means <em>starting over.</em></h2>
+        <p class="lede">DBS and right-to-work checking in the UK is spread across dozens of
+          separate, competing services, and every employer runs its own. Clear one set of
+          checks and there's no way to carry any of it to the next job — the whole process
+          simply begins again.</p>
+      </div>
 
-  <!-- THREE COLUMNS -->
-  <section class="why">
-    <div class="wrap">
-      <h2>A CV is a list of places you left. It says almost <em>nothing</em> about how you work.</h2>
-      <div class="cols">
-        <div class="col">
-          <div class="lbl">What we hold</div>
-          <h3>The whole record</h3>
-          <p>Registrations, specialties, settings, training and the hours that fit around your life. Written once, kept current, yours to edit.</p>
+      <div class="stats">
+        <div class="stat">
+          <b>1,146</b>
+          <span>UK health-care staff recruitment agencies — a fragmented market, with no
+            single platform covering the whole sector.</span>
+          <cite>IBISWorld, 2025</cite>
         </div>
-        <div class="col">
-          <div class="lbl">What changes</div>
-          <h3>They come to you</h3>
-          <p>Employers search for what they need. If that's you, they send an invite — you choose whether to open the door.</p>
+        <div class="stat">
+          <b>100,000+</b>
+          <span>NHS vacancies, with flexible staffing now described as a structural
+            necessity rather than a short-term fix.</span>
+          <cite>Staffing Industry Analysts, 2025</cite>
         </div>
-        <div class="col">
-          <div class="lbl">Who it's for</div>
-          <h3>The whole workforce</h3>
-          <p>Nursing, medicine, allied health, care and support, healthcare science, practice management and admin. One network, not a dozen job boards.</p>
+        <div class="stat">
+          <b>£10.9bn</b>
+          <span>Spent each year on temporary healthcare staffing — £5.1bn through agencies,
+            plus £5.8bn on NHS bank staff.</span>
+          <cite>LaingBuisson · NHS England</cite>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- BADGES -->
-  <section class="badges">
+  <!-- HOW IT WORKS -->
+  <section class="steps">
     <div class="wrap">
-      <h2>We show employers what's checked — and what isn't.</h2>
-      <p class="sub">Every line on your profile carries a label so nobody has to guess how much weight to give it. Honest beats impressive.</p>
+      <div>
+        <p class="eyebrow">How it works</p>
+        <h2 class="h2">Build it once. Keep it current. <em>Take it anywhere.</em></h2>
+        <p class="lede">A profile that holds the things a CV can't — and says plainly how
+          solid each piece of it is.</p>
+      </div>
+
+      <div class="stepgrid">
+        <div class="step">
+          <div class="num">01 — BUILD</div>
+          <h3>Set it out once</h3>
+          <p>Registrations, qualifications, mandatory training, work history, the shifts
+            that fit around your life. Import from your CV and edit what we picked up, or
+            fill it in yourself.</p>
+        </div>
+        <div class="step">
+          <div class="num">02 — LABEL</div>
+          <h3>Every line says how solid it is</h3>
+          <p>Each item carries a label — checked at source, evidenced by a document, worked
+            out from your profile, or simply declared. Nobody has to guess how much weight
+            to give it.</p>
+        </div>
+        <div class="step">
+          <div class="num">03 — CARRY</div>
+          <h3>Employers come to you</h3>
+          <p>They search for what they need and send an invite. You decide whether to open
+            the door — and your details stay yours until you do.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GRADES -->
+  <section class="grades-sec">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow on-dark">What makes it trustworthy</p>
+        <h2 class="h2">A passport is only worth something if the <em>stamps are honest.</em></h2>
+        <p class="sub">So we grade every line of your profile, and show employers the grade
+          alongside the claim. Honest beats impressive.</p>
+      </div>
       <div class="grades">
         <div class="grade g1"><div class="gname">Verified</div><p>Checked by us directly at source.</p></div>
         <div class="grade g2"><div class="gname">Evidenced</div><p>You've uploaded a document that supports it.</p></div>
         <div class="grade g3"><div class="gname">Derived</div><p>Worked out from other things on your profile.</p></div>
         <div class="grade g4"><div class="gname">Declared</div><p>You've told us, and we've said so plainly.</p></div>
       </div>
-      <p class="note">We don't claim to verify DBS certificates. Your employer runs their own pre-employment checks, as they must — we just make sure nothing on your profile pretends to be more solid than it is.</p>
+      <p class="note"><b>We don't claim to verify DBS certificates.</b> Your employer
+        runs their own pre-employment checks, as they must, and an Update Service check
+        stays theirs to run. What iCare does is put your status, your evidence and your
+        consent in one place — and make sure nothing on your profile pretends to be more
+        solid than it is.</p>
     </div>
   </section>
 
-  <!-- NEVER DO -->
+  <!-- PRECEDENT -->
+  <section class="precedent">
+    <div class="wrap">
+      <div class="split">
+        <div class="split-media">
+          <img src="/assets/workforce-corridor.jpg" width="900" height="675"
+               alt="A clinical team walking together through a hospital corridor"
+               loading="lazy" decoding="async">
+        </div>
+        <div>
+          <p class="eyebrow">Proven, just never this wide</p>
+          <h2 class="h2">The model already works.</h2>
+          <p>NHS staff banks have run on exactly this idea for years: join once, get your
+            registration, right to work and DBS checked once, then pick up work across
+            <strong>more than 100 NHS Trusts and other NHS organisations</strong> without
+            redoing any of it.</p>
+          <p>But that only covers NHS temporary and bank shifts. It stops at permanent
+            roles, at private and independent care providers, at dental, at pharmacy.
+            Step outside it and you're back to filling in the same forms again.</p>
+          <p>iCare takes the part that works — verify once, carry it with you — and opens
+            it out across the whole sector: <strong>NHS and private, temporary and
+            permanent, nursing through to dental, pharmacy and allied health.</strong></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AUDIENCE -->
+  <section class="audience">
+    <div class="wrap">
+      <div class="aud-grid">
+        <div>
+          <p class="eyebrow on-dark">Who it's for</p>
+          <h2 class="h2">The whole workforce, not one corner of it.</h2>
+          <p>Around 1.5 million people work in NHS hospital and community health services
+            in England, and over 1.5 million more fill posts in adult social care. Most
+            platforms serve a slice. iCare is built for the range of people who actually
+            keep health and care running.</p>
+          <ul class="roles">
+            <li>Nursing</li><li>Medicine</li><li>Allied health</li><li>Social care</li>
+            <li>Dental</li><li>Pharmacy</li><li>Healthcare science</li>
+            <li>Practice &amp; admin</li>
+          </ul>
+        </div>
+        <div>
+          <img src="/assets/care-hands.jpg" width="900" height="675"
+               alt="A carer holding an older person's hand"
+               loading="lazy" decoding="async">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROMISE -->
   <section class="promise">
     <div class="wrap">
-      <h2>What we will never do</h2>
+      <div>
+        <h2 class="h2">What we will <em>never</em> do</h2>
+      </div>
       <ul class="plist">
-        <li><span class="pk" aria-hidden="true">✕</span><span><b>Score or rank you.</b> No hidden rating decides who sees you. Employers get plain, explainable reasons for every match.</span></li>
-        <li><span class="pk" aria-hidden="true">✕</span><span><b>Show your details before you say yes.</b> Your name, photo and contact details stay hidden until you accept an invite.</span></li>
-        <li><span class="pk" aria-hidden="true">✕</span><span><b>Keep the door open after.</b> When a role closes or you withdraw, that employer's access to your profile ends.</span></li>
-        <li><span class="pk" aria-hidden="true">✕</span><span><b>Share what you've kept private.</b> You set what's public, what's for employers, and what nobody sees — and you can change it whenever.</span></li>
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Score or rank you.</b>
+          No hidden rating decides who sees you. Employers get plain, explainable reasons
+          for every match.</span></li>
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Show your details before
+          you say yes.</b> Your name, photo and contact details stay hidden until you
+          accept an invite.</span></li>
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Keep the door open
+          after.</b> When a role closes or you withdraw, that employer's access to your
+          profile ends.</span></li>
+        <li><span class="pk" aria-hidden="true">✕</span><span><b>Share what you've kept
+          private.</b> You set what's public, what's for employers, and what nobody sees —
+          and you can change it whenever.</span></li>
       </ul>
     </div>
   </section>
 
-  <!-- FINAL / WAITLIST -->
-  <section class="final" id="join">
+  <!-- EMPLOYERS -->
+  <section class="employers">
     <div class="wrap">
-      <h2>The right people should already know your name.</h2>
-      <p>We're opening to healthcare professionals across the UK shortly. Add your email and we'll bring you in early.</p>
-
-      <form class="join-form" id="waitlist-form" novalidate>
-        <label for="wl-name" class="sr-only">Full name</label>
-        <input id="wl-name" name="full_name" type="text" placeholder="Your name" autocomplete="name" required>
-        <label for="wl-email" class="sr-only">Email address</label>
-        <input id="wl-email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required>
-        <button type="submit" class="btn">Join the waiting list</button>
-      </form>
-      <p class="join-status" data-status></p>
-      <p class="join-note">Free to join. We'll only use this to let you know when iCare is live.</p>
-
-      <div class="join-success" id="waitlist-success" aria-live="polite">
-        <h3 data-success-title>You're on the list.</h3>
-        <p data-success-text>We'll email you the moment iCare is live.</p>
+      <div class="inner">
+        <div>
+          <h2>Hiring for a health or care team?</h2>
+          <p>Search for the skills and registrations you actually need, see how solid each
+            claim is before you invite anyone, and pick up candidates whose details are
+            already gathered in one place.</p>
+        </div>
+        <a class="btn ghost" href="/employers">See iCare for employers</a>
       </div>
+    </div>
+  </section>
 
-      <div class="counter-row">
-        <span class="counter-num" data-waitlist-count>—</span> people on the waiting list
+  <!-- FINAL -->
+  <section class="final">
+    <div class="wrap">
+      <h2>Verify once. Carry it everywhere.</h2>
+      <p>Set up your profile today and let the right employers come to you.</p>
+      <div class="ctarow">
+        <a class="btn teal" href="/sign-up">Create your profile</a>
+        <a class="btn ghost" href="/sign-in">I already have an account</a>
       </div>
+      <p class="fine">Free for candidates. You choose what's visible, and to whom, at
+        every step.</p>
     </div>
   </section>
 </main>
 
 <footer>
-  <div class="wrap"><p>iCare · The professional network for UK health and care</p></div>
+  <div class="wrap">
+    <p>iCare · The professional network for UK health and social care</p>
+    <div class="flinks">
+      <a href="/employers">For employers</a>
+      <a href="/sign-in">Log in</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+    </div>
+  </div>
 </footer>
 
-<script>
-(function () {
-  // ---- Live waitlist counter (real — GET /waitlist/count) ----
-  var counterEl = document.querySelector("[data-waitlist-count]");
-  if (counterEl) {
-    fetch("/waitlist/count")
-      .then(function (res) { return res.json(); })
-      .then(function (body) { counterEl.textContent = typeof body.count === "number" ? body.count : "0"; })
-      .catch(function () { counterEl.textContent = "0"; });
-  }
-
-  // ---- Waitlist form submit (real — POST /waitlist) ----
-  var form = document.getElementById("waitlist-form");
-  if (!form) return;
-  var statusEl = form.parentElement.querySelector("[data-status]");
-  var successPanel = document.getElementById("waitlist-success");
-
-  function setStatus(kind, message) {
-    statusEl.textContent = message;
-    statusEl.className = "join-status " + kind;
-  }
-
-  form.addEventListener("submit", function (e) {
-    e.preventDefault();
-    var submitBtn = form.querySelector('button[type="submit"]');
-    var fullName = document.getElementById("wl-name").value.trim();
-    var email = document.getElementById("wl-email").value.trim();
-    if (!fullName) {
-      setStatus("err", "Please enter your name.");
-      return;
-    }
-    if (!email) {
-      setStatus("err", "Please enter your email address.");
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setStatus("err", "Please enter a valid email address.");
-      return;
-    }
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Joining…";
-
-    fetch("/waitlist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ full_name: fullName, email: email }),
-    })
-      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
-      .then(function (result) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Join the waiting list";
-        if (!result.ok) {
-          setStatus("err", result.body.error || "Something went wrong. Please try again.");
-          return;
-        }
-        if (result.body.already_joined) {
-          setStatus("ok", "You're already on the list — we'll be in touch.");
-        } else {
-          form.style.display = "none";
-          if (result.body.is_early_supporter) {
-            successPanel.querySelector("[data-success-title]").textContent = "You're in — and one of our first 100.";
-            successPanel.querySelector("[data-success-text]").textContent = "That means you'll be near the very front of the queue when we launch. We'll email you the moment iCare is live.";
-          }
-          successPanel.classList.add("is-visible");
-          if (counterEl) {
-            var current = parseInt(counterEl.textContent, 10);
-            if (!isNaN(current)) counterEl.textContent = String(current + 1);
-          }
-        }
-        form.reset();
-      })
-      .catch(function () {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "Join the waiting list";
-        setStatus("err", "Network error — please try again.");
-      });
-  });
-})();
-</script>
 </body>
 </html>

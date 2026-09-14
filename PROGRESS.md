@@ -3764,3 +3764,101 @@ Founder asked to rebuild the Profile page copying LinkedIn's format, with badges
 - Activity (posts), Employer interest, Visibility, and Account sections kept functionally identical, restyled to match the new card system.
 
 **Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean, a full headless-Chromium render + screenshot (fed realistic mock data across every section) confirming the header, collapsed→expanded badge toggle, Experience/Certifications/Skills all render correctly with zero page errors — screenshot reviewed visually, not just DOM-asserted, given how visual this request was.
+
+---
+
+## 2026-09-14 — `/` rebuilt as the real landing page, from the market-research handover
+
+The user supplied `icare-market-research-findings.md` and asked for
+`icareltd.com`'s landing page to be rebuilt from it, with free stock
+photography, then checked for mobile and desktop browser
+compatibility, debugged, fixed and shipped.
+
+**The positioning came from the doc, not from me.** Its central line —
+*"iCare is your passport for your next job"* — became the hero, and
+every claim on the page traces back to a figure in it: ~1.5m people in
+NHS hospital and community health services in England plus 1.5m+ adult
+social care posts; ~1,146 UK health-care staffing agencies (a
+fragmented market, which is the reason nothing is portable today);
+£5.1bn agency plus £5.8bn NHS bank spend; 100,000+ NHS vacancies. The
+"proven, just never this wide" section is the doc's strongest
+strategic point rendered as copy: NHS staff banks already prove
+"verify once, work across 100+ Trusts" at national scale — the gap
+iCare fills is that the model stops at NHS temporary and bank shifts,
+so it doesn't reach permanent roles, private providers, dental or
+pharmacy.
+
+**One deliberate divergence from the brief, flagged rather than
+silently followed.** The research doc's employer-side line is
+"candidates arrive already screened," and lists DBS among what's
+screened. Taken literally that collides head-on with non-negotiable #3
+— iCare must never present a DBS as verified when it has only been
+declared. The page therefore says credentials are *gathered, evidenced
+and labelled by grade*, and the "what we will never do" section states
+outright that a document we haven't verified is never shown as
+verified. The commercial promise survives (an employer sees structure
+and provenance instead of a PDF); the claim that would have been false
+does not. **Keep this distinction in any future marketing copy** —
+"already screened" is exactly the phrasing that erodes the badge-grade
+system the product is built on.
+
+**Design/implementation notes.** Single self-contained file, inline
+CSS, three bundled JPEGs, and no client-side JavaScript except the
+magic-link recovery script (which stays first in `<head>` — see the
+2026-09-02 entry for why). Photos are Unsplash-License and **bundled
+into the Worker as `Data` modules**, not hotlinked: a page whose whole
+argument is about privacy and provenance shouldn't be firing requests
+at a third-party CDN, and bundling means no silent breakage if URLs
+change. `src/assets/CREDITS.md` records the license, source URL and
+fetch params for each. Bundle went 272.80 KiB → 1543.93 KiB
+(471.68 KiB gzip), well inside limits.
+
+**Browser compatibility: the testing loop that finally worked.**
+Earlier sessions recorded Playwright as blocked in this environment,
+and it is — Chromium can't reach external hosts through the agent
+proxy. But `no_proxy` covers `127.0.0.1`, so serving the page locally
+and pointing Chromium at localhost sidesteps the proxy entirely. That
+gave a real browser across eight viewports (320 → 1920px), checking
+horizontal overflow, image decode, tap-target size, contrast, console
+errors and full-page screenshots. **Worth remembering: "Playwright
+doesn't work here" was true for external URLs and false for local
+ones.**
+
+**Three real bugs, all found by that loop, none visible from reading
+the source:**
+
+1. **Entire sections rendered blank** in the mobile full-page
+   screenshot. An IntersectionObserver scroll-reveal started elements
+   at `opacity:0` and only ever restored the ones that crossed the
+   viewport during a real scroll — so a full-page capture (and, more
+   importantly, any browser where the observer doesn't fire as
+   expected) got a page with holes in it. Fixed by **deleting the
+   reveal system entirely** rather than patching it: the entrance
+   animation is now CSS-only and load-triggered, so content is visible
+   by default and animation is pure enhancement. This is the failure
+   mode worth internalising — a scroll-reveal makes content
+   *conditionally* visible, and anything conditional about visibility
+   is a bug waiting for a browser that disagrees with you.
+2. **Hero chip text ran together** ("One profile, carried with
+   youRegistrations · Training · …") — two `<span>`s that needed to be
+   block-level and weren't.
+3. **Footer links were 19px tall**, well under the 44px tap-target
+   guidance, on every mobile viewport.
+
+All three fixed and the suite re-run clean: no horizontal overflow at
+any width, all three images decode on scroll, no stranded content, all
+tap targets ≥44px.
+
+**One contrast finding left deliberately unfixed:** the "Care" half of
+the iCare logotype measures 2.77:1 against 3.0. WCAG exempts
+logotypes, and it's the shared brand mark used across every page —
+changing it on this one page alone would make the brand inconsistent
+to fix something the standard doesn't require. Flagged rather than
+silently diverged. If the founder wants it changed, it's a brand-wide
+change, not a landing-page one.
+
+**`/welcome` was deleted, not kept.** It had existed for four days as
+the launched-state page while `/` stayed the waitlist. With `/` now
+being that page, keeping both would have meant two near-identical
+pages drifting apart; `/welcome` 302s to `/` so the live URL still
+works.
