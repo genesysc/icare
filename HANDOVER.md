@@ -636,16 +636,21 @@ deploy confirmation yet.
    own existing error message, exactly as a real expired/reused token
    would, with no JS error either way.
 
-   **Still open, and now the only remaining piece:** the template gap
-   (point 2 in the diagnosis above — no `{{ .Token }}`) is unfixed and
-   needs the Dashboard. `docs/email-templates/supabase-confirm-signup.html`
-   is ready to paste in. Worth checking whether "Magic Link" has the same
-   gap, since the `mjm.refugio@` success on 09-14 only ever proved the
-   *link* path (hash → `/verify` → session), never the *code* path (a
-   human typing digits from the email) — nobody has actually seen a code
-   from either template yet. Once both templates carry `{{ .Token }}`,
-   new signups have two independent working paths (click the link, or
-   type the code) instead of the current one fragile one.
+   **Update, same day — founder pasted `docs/email-templates/supabase-
+   confirm-signup.html` into Dashboard → Authentication → Emails →
+   Confirm signup.** Not yet verified end-to-end against a real inbox —
+   the account this would normally be tested against
+   (`mariamoniquemurillo@gmail.com`) is a poor test case now: it
+   confirmed at 11:01 and signed in at 11:11 the same morning, via the
+   *link* path (the `/sign-in` dead-end fix above), so it can't tell us
+   anything about whether the email now shows a code — that account
+   already doesn't need one. Confirming this needs a **fresh** signup
+   (a never-before-seen address, e.g. a `+`-tagged Gmail alias) checked
+   for a visible `{{ .Token }}`-rendered code in the inbox. Also still
+   worth checking whether "Magic Link" has the same gap — the
+   `mjm.refugio@` success on 09-14 only ever proved the *link* path
+   (hash → `/verify` → session), never the *code* path, so nobody has
+   actually seen a rendered code from either template yet.
 
    **Process gap worth closing:** nothing currently surfaces failing
    signups. An unconfirmed-signup check, or simply running one real
