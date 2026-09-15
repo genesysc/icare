@@ -100,6 +100,45 @@
   .field-signup { display: none; }
   body.mode-signup .field-signup { display: block; }
 
+  .field-password { display: none; }
+  body.mode-signin-password .field-password { display: block; }
+  .password-wrap { position: relative; }
+  .password-wrap input { padding-right: 44px; }
+  .password-toggle {
+    position: absolute; top: 50%; right: 6px; transform: translateY(-50%);
+    width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+    background: none; border: none; cursor: pointer; color: var(--ink-faint); border-radius: 8px;
+  }
+  .password-toggle:hover { color: var(--purple-dark); background: var(--paper); }
+  .password-toggle svg { width: 19px; height: 19px; }
+  .field-row-end { margin-top: 8px; text-align: right; font-size: 13px; }
+  body:not(.mode-signin-password) .field-row-end { display: none; }
+
+  .field-otp-only { display: none; }
+  body.mode-signin-otp .field-otp-only { display: block; }
+  body.mode-signin-password .field-otp-only,
+  body.mode-signup .field-otp-only { display: none; }
+
+  .method-switch { margin-top: 14px; text-align: center; font-size: 13.5px; }
+  body:not(.mode-signup) .method-switch { display: block; }
+  body.mode-signup .method-switch { display: none; }
+  .method-switch button { background: none; border: none; color: var(--teal-dark); font-weight: 600; cursor: pointer; padding: 0; font-size: inherit; }
+  .method-switch button:hover { text-decoration: underline; }
+
+  .oauth-block { margin-top: 22px; }
+  body.mode-signup .oauth-block { display: none; }
+  .divider { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .oauth-buttons { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .oauth-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 11px 16px; border-radius: 10px; border: 1.5px solid var(--line);
+    background: var(--white); color: var(--ink); font-weight: 600; font-size: 14.5px;
+    cursor: pointer; transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .oauth-btn:hover { border-color: var(--teal); background: var(--teal-100); }
+  .oauth-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
   .terms-row { margin-top: 18px; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--ink-faint); }
   body:not(.mode-signup) .terms-row { display: none; }
   .terms-row input { margin-top: 3px; }
@@ -149,6 +188,20 @@
         <label for="email">Work email</label>
         <input id="email" name="email" type="email" autocomplete="email" required />
       </div>
+      <div class="field field-password">
+        <label for="password">Password</label>
+        <div class="password-wrap">
+          <input id="password" name="password" type="password" autocomplete="current-password" />
+          <button type="button" class="password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
+            <svg data-icon-show viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg data-icon-hide viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.3 20.3 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 7 11 7a20.4 20.4 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+        <div class="field-row-end"><a href="/reset-password" data-forgot-link>Forgot password?</a></div>
+      </div>
+      <div class="field field-otp-only">
+        <p style="font-size:13px;color:var(--ink-faint);margin-top:-6px;">We'll email you a one-time code — no password needed.</p>
+      </div>
       <div class="terms-row">
         <input id="terms" name="terms" type="checkbox" />
         <label for="terms">I agree to iCare's <a href="/terms" target="_blank" rel="noopener">Terms</a> and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</label>
@@ -156,6 +209,25 @@
       <button type="submit" class="btn" data-submit>Send me a code</button>
     </form>
     <p class="status" data-status></p>
+
+    <div class="method-switch">
+      <span data-method-password-active>Prefer a code instead? <button type="button" data-method="otp">Sign in with a code</button></span>
+      <span data-method-otp-active style="display:none;">Have a password? <button type="button" data-method="password">Sign in with password</button></span>
+    </div>
+
+    <div class="oauth-block">
+      <div class="divider">or continue with</div>
+      <div class="oauth-buttons">
+        <button type="button" class="oauth-btn" data-oauth="google">
+          <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.46H12v4.66h6.48a5.55 5.55 0 0 1-2.4 3.64v3.02h3.88c2.27-2.09 3.56-5.17 3.56-8.86Z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.96-2.9l-3.88-3.01c-1.08.72-2.46 1.15-4.08 1.15-3.14 0-5.8-2.12-6.75-4.96H1.24v3.11A12 12 0 0 0 12 24Z"/><path fill="#FBBC05" d="M5.25 14.28A7.2 7.2 0 0 1 4.86 12c0-.79.14-1.56.39-2.28V6.61H1.24A12 12 0 0 0 0 12c0 1.94.46 3.77 1.24 5.39l4.01-3.11Z"/><path fill="#EA4335" d="M12 4.75c1.76 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.24 6.61l4.01 3.11C6.2 6.87 8.86 4.75 12 4.75Z"/></svg>
+          Continue with Google
+        </button>
+        <button type="button" class="oauth-btn" data-oauth="linkedin_oidc">
+          <svg viewBox="0 0 24 24" fill="#0A66C2"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.38-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12ZM7.12 20.45H3.56V9h3.56v11.45Z"/></svg>
+          Continue with LinkedIn
+        </button>
+      </div>
+    </div>
 
     <div class="toggle">
       <span data-toggle-signin>New to iCare? <button type="button" data-switch="signup">Create an employer account</button></span>
@@ -166,35 +238,57 @@
 </div>
 
 <script>
+// ---- Shared auth helper (src/auth-client.js, copied per this repo's no-build-step convention) ----
+var ICARE_SESSION_KEY = "icare_session";
+function icareSetSession(session) {
+  try { localStorage.setItem(ICARE_SESSION_KEY, JSON.stringify(session)); } catch (e) {}
+}
+function icareAuthFetch(url, options) {
+  var raw = null;
+  try { raw = localStorage.getItem(ICARE_SESSION_KEY); } catch (e) {}
+  var session = raw ? JSON.parse(raw) : null;
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+// ---- End shared auth helper ----
+
 (function () {
   var TERMS_VERSION = "2026-08-26-draft";
 
+  // Three modes: "signup" (OTP-only, unchanged), "signin-password" (the new
+  // default for returning users), "signin-otp" (the old flow, kept as a
+  // fallback for accounts that haven't set a password yet — see auth.ts).
   function setMode(mode) {
     document.body.classList.toggle("mode-signup", mode === "signup");
+    document.body.classList.toggle("mode-signin-password", mode === "signin-password");
+    document.body.classList.toggle("mode-signin-otp", mode === "signin-otp");
+
     document.querySelector("[data-title]").textContent = mode === "signup" ? "Join iCare" : "Welcome back";
     document.querySelector("[data-sub]").textContent =
-      mode === "signup"
-        ? "Create your employer account — we'll send you a one-time code, no password needed."
-        : "Sign in with your work email — we'll send you a one-time code, no password needed.";
+      mode === "signup" ? "Create your employer account — we'll send you a one-time code, no password needed." :
+      mode === "signin-otp" ? "We'll email you a one-time code, no password needed." :
+      "Sign in with your work email and password.";
+
     document.querySelector("[data-toggle-signin]").style.display = mode === "signup" ? "none" : "inline";
     document.querySelector("[data-toggle-signup]").style.display = mode === "signup" ? "inline" : "none";
+    document.querySelector("[data-method-password-active]").style.display = mode === "signin-password" ? "inline" : "none";
+    document.querySelector("[data-method-otp-active]").style.display = mode === "signin-otp" ? "inline" : "none";
+
     document.getElementById("full-name").required = mode === "signup";
     document.getElementById("org-name").required = mode === "signup";
     document.getElementById("terms").required = mode === "signup";
-    try {
-      history.replaceState(null, "", mode === "signup" ? "/employer/sign-up" : "/employer/sign-in");
-    } catch (e) {
+    document.getElementById("password").required = mode === "signin-password";
+
+    submitBtn.textContent = mode === "signin-password" ? "Sign in" : "Send me a code";
+
+    var path = mode === "signup" ? "/employer/sign-up" : "/employer/sign-in";
+    try { history.replaceState(null, "", path); } catch (e) {
       // Some contexts (e.g. file:// during local testing) disallow replaceState —
       // the mode toggle still works via body class, just without updating the URL bar.
     }
   }
-
-  var initialMode = window.location.pathname === "/employer/sign-up" ? "signup" : "signin";
-  setMode(initialMode);
-
-  document.querySelectorAll("[data-switch]").forEach(function (btn) {
-    btn.addEventListener("click", function () { setMode(btn.getAttribute("data-switch")); });
-  });
 
   var form = document.getElementById("auth-form");
   var statusEl = document.querySelector("[data-status]");
@@ -203,25 +297,98 @@
     statusEl.textContent = message;
     statusEl.className = "status is-visible " + kind;
   }
+  function clearStatus() {
+    statusEl.className = "status";
+  }
+
+  var initialMode = window.location.pathname === "/employer/sign-up" ? "signup" : "signin-password";
+  setMode(initialMode);
+
+  document.querySelectorAll("[data-switch]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      clearStatus();
+      setMode(btn.getAttribute("data-switch") === "signup" ? "signup" : "signin-password");
+    });
+  });
+  document.querySelectorAll("[data-method]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      clearStatus();
+      setMode(btn.getAttribute("data-method") === "otp" ? "signin-otp" : "signin-password");
+    });
+  });
+
+  // Show/hide password icon toggle.
+  var passwordInput = document.getElementById("password");
+  var passwordToggle = document.querySelector("[data-password-toggle]");
+  passwordToggle.addEventListener("click", function () {
+    var showing = passwordInput.type === "text";
+    passwordInput.type = showing ? "password" : "text";
+    passwordToggle.setAttribute("aria-pressed", String(!showing));
+    passwordToggle.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+    passwordToggle.querySelector("[data-icon-show]").style.display = showing ? "" : "none";
+    passwordToggle.querySelector("[data-icon-hide]").style.display = showing ? "none" : "";
+  });
+
+  // Carry the typed email into the forgot-password page.
+  document.querySelector("[data-forgot-link]").addEventListener("click", function () {
+    var email = document.getElementById("email").value.trim();
+    this.href = "/reset-password?role=employer" + (email ? "&email=" + encodeURIComponent(email) : "");
+  });
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();
-    var isSignup = document.body.classList.contains("mode-signup");
+    var mode = document.body.classList.contains("mode-signup") ? "signup" :
+      document.body.classList.contains("mode-signin-otp") ? "signin-otp" : "signin-password";
     var email = document.getElementById("email").value.trim();
     var fullName = document.getElementById("full-name").value.trim();
     var orgName = document.getElementById("org-name").value.trim();
+    var password = passwordInput.value;
     var termsAccepted = document.getElementById("terms").checked;
-    if (!email) return;
-    if (isSignup && (!fullName || !orgName || !termsAccepted)) {
+
+    if (!email) { setStatus("err", "Please enter your work email address."); return; }
+    if (mode === "signup" && (!fullName || !orgName || !termsAccepted)) {
       setStatus("err", "Please enter your name, organisation, and accept the Terms to continue.");
       return;
     }
+    if (mode === "signin-password" && !password) {
+      setStatus("err", "Please enter your password.");
+      return;
+    }
 
+    clearStatus();
     submitBtn.disabled = true;
-    submitBtn.textContent = "Sending…";
 
-    var payload = { email: email, create: isSignup };
-    if (isSignup) {
+    if (mode === "signin-password") {
+      submitBtn.textContent = "Signing in…";
+      fetch("/auth/sign-in-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, password: password }),
+      })
+        .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+        .then(function (result) {
+          if (!result.ok) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Sign in";
+            setStatus("err", (result.body.error || "Something went wrong. Please try again.") +
+              " If you haven't set a password yet, use “Sign in with a code” below, or reset your password.");
+            return;
+          }
+          setStatus("ok", "You're in — taking you to your account…");
+          icareSetSession(result.body.session);
+          window.location.href = "/employer/home";
+        })
+        .catch(function () {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Sign in";
+          setStatus("err", "Network error — please try again.");
+        });
+      return;
+    }
+
+    submitBtn.textContent = "Sending…";
+    var payload = { email: email, create: mode === "signup" };
+    if (mode === "signup") {
       payload.role = "employer";
       payload.full_name = fullName;
       payload.org_name = orgName;
@@ -248,6 +415,28 @@
         submitBtn.textContent = "Send me a code";
         setStatus("err", "Network error — please try again.");
       });
+  });
+
+  document.querySelectorAll("[data-oauth]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      clearStatus();
+      var provider = btn.getAttribute("data-oauth");
+      btn.disabled = true;
+      fetch("/auth/oauth/" + provider, { method: "POST" })
+        .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+        .then(function (result) {
+          if (!result.ok || !result.body.url) {
+            btn.disabled = false;
+            setStatus("err", result.body.error || "That sign-in option isn't available right now.");
+            return;
+          }
+          window.location.href = result.body.url;
+        })
+        .catch(function () {
+          btn.disabled = false;
+          setStatus("err", "Network error — please try again.");
+        });
+    });
   });
 })();
 </script>
