@@ -4049,3 +4049,138 @@ whether the *returning-user* Magic Link template has the same missing-
 token gap is still unconfirmed — every success on it so far has been via
 the link, never by typing a code. Worth a similar fresh-alias check next
 time auth is touched, not urgent today.
+
+---
+
+## 2026-09-15 — Real notification center: connection requests, messages, invites
+
+Founder asked whether a notification system existed for connection
+requests, new messages/replies, and shortlist/interview invites — and to
+build one if not.
+
+**The audit came first, and it mattered.** Grepping the whole app for
+"notification" found nothing real. What actually existed: a teal dot on
+the Invites tab, computed live on every page load from `/candidates/me/
+shortlists` (business state — "still needs a decision" — not a
+notification); a real per-conversation unread count inside `/messages`
+itself, but the tab-bar's own Messages dot (`data-messages-dot`,
+declared in markup on all eight signed-in pages) was never once wired
+up anywhere — dead code since Sprint 23; and a live incoming-request
+count on the Network page, visible only while actually on that page. No
+notifications table, no emails for any of the three named events (every
+`sendTransactionalEmail` call site in the app checked — three total,
+none matching), no push infrastructure. Two more gaps surfaced during
+the audit that the founder hadn't asked about but were the same shape:
+connection *acceptance* had no signal at all, and this was all
+candidate-side only — employers get nothing when a candidate responds.
+
+Scope was resolved with the founder via three questions rather than
+guessed: a real notification center (not just patching the dead dots),
+email for invites specifically (the highest-stakes of the four —
+a real job opportunity, and candidates return every few months per §6
+so an in-app-only signal risks being missed), candidate-side only for
+now (employer-side mirror is a same-shape follow-up).
+
+**Schema (migrations 0043/0044).** One `notifications` table covering
+all four events — connection_request, connection_accepted, message,
+invite — with a check constraint enforcing exactly the right actor/
+reference columns per type rather than trusting callers, matching this
+schema's general preference for DB-level invariants (the six-stage/
+job-gating checks on shortlists are the same instinct). Rows are
+created *only* by four `SECURITY DEFINER` triggers on connections/
+messages/shortlists — no client insert path exists at all, same
+philosophy as `get_or_create_conversation`. `my_notifications` joins in
+live actor name/photo/org/job title (and, since 0044, a message body
+preview) so the API route needs no N+1 queries or per-type branching —
+same motivation as `conversation_inbox`/`my_connections`.
+
+0044 exists because the first pass shipped without a message preview,
+then it became obvious that leaving "X sent you a message" with no
+indication of what it says was a real usability gap — `conversation_inbox`
+already shows a preview in the Messages list itself, so the bell not
+doing the same would be inconsistent within the same product. Added a
+`message_id` column (the specific message that triggered the
+notification, not "the conversation's latest" — the latter would drift
+to show a *later* message next to an *earlier* notification once more
+arrive) rather than editing the already-applied 0043, matching this
+project's established practice of a follow-up migration over rewriting
+one that's live.
+
+**Verified at the database level before any frontend was written.**
+Every trigger was proven against real data, not just read for
+correctness: a `DO $$ ... RAISE EXCEPTION` block that performs the real
+insert/update, checks the resulting notification row, then deliberately
+throws so Postgres rolls back everything — connections, conversations,
+messages, and a synthetic throwaway employer account (inserted into
+`auth.users` so `handle_new_user()` provisions it exactly like a real
+signup) — with zero residue confirmed afterward by direct count queries.
+All four triggers passed: connection_request notifies the addressee with
+the requester as actor; connection_accepted notifies the original
+requester with the addressee as actor; message notifies whichever party
+in the conversation *isn't* the sender; invite notifies the candidate
+with the employer and job title attached.
+
+**Backend**: four routes under `/candidates/me/notifications` — list
+(reads `my_notifications`), unread-count (a lightweight `head: true`
+count query, same "avoid pulling the full feed just to know if the dot
+should show" reasoning as the pre-existing, never-actually-used
+`/messages/unread-count`, which this supersedes), mark-one-read,
+mark-all-read. The invite email is sent from `employer-chat.ts`'s
+`send_invite` tool handler, once per row the upsert's `ignoreDuplicates`
+actually inserted (so a re-invite for a job someone already has never
+double-sends — Postgres doesn't fire `AFTER INSERT` triggers for rows
+skipped by `ON CONFLICT DO NOTHING` either, so the in-app notification
+gets the same protection for free). Caught one real bug while writing
+this, before it shipped: first draft pulled the employer's display name
+from `accounts.full_name` for the email's "invited you" line — that's
+the *person's* name, not the *organisation's*; fixed to read
+`employers.org_name`, the column that actually exists for this.
+
+**Frontend**: a header bell (`src/notifications-bell.html`, same
+not-imported/copy-verbatim convention as `nav-shell.html`), added to all
+eight signed-in candidate pages inside `<header class="nav">` next to
+Sign out. While touching every one of those eight pages anyway, two
+unrelated pre-existing bugs got fixed in the same pass rather than left
+for someone to trip over later: the dead Messages tab-bar dot (removed
+entirely, superseded by the bell), and `credentials.html`/`visibility.html`
+having silently drifted to a stale five-item tab bar missing Messages
+altogether — nobody had reason to notice, since neither page links
+anywhere near Messages, which is exactly how this kind of drift survives
+undetected. `nav-shell.html`'s own header comment was corrected to match
+(it still said "five destinations" and listed the long-renamed
+`home.html`).
+
+**A real bug found only by checking a narrow-viewport render, not by
+whether the panel opened.** The dropdown was built anchored `right: 0`
+against its own immediate wrapper div. At wide viewports there's enough
+slack either side that this looks fine. At 320px, checking the panel's
+actual bounding box (not just "is it visible") showed its left edge at
+-72px — a third of the panel rendering off-screen, invisible with no
+scrollbar to reveal it, because the bell isn't the rightmost element in
+the header (Sign out is, ~104px further right once its own width and the
+header's padding are counted). Fixed by moving the positioning anchor to
+`.nav-right` (the flex container spanning to the header's true right
+edge) instead of the bell's own small wrapper. Re-verified at 320px
+(fits with 8px margin both sides) and 1440px (no regression). Worth
+keeping as a general lesson: "does the panel open" and "does the panel
+render inside the viewport" are different assertions, and only a real
+Chromium checking actual geometry catches the second one.
+
+**Testing, given no Cloudflare API token was available in this session**
+(neither `wrangler dev` — the `AI` binding needs remote mode, which
+needs auth — nor a staging deploy). Split into what each layer could
+prove independently: the DB layer via the rollback-transaction technique
+above (proves the triggers/schema are correct against real data); the
+frontend via a local static server serving the eight real page files
+with Playwright intercepting the `/candidates/me/notifications*` fetches
+with realistic mock payloads covering all four types plus an empty
+state — proved the bell renders each type's copy correctly, the message
+preview shows, unread/read visual state is right, click-through marks
+read then navigates to the correct destination per type (`/network` for
+both connection events, `/messages?with=<id>` for a message, `/invites`
+for an invite), mark-all-read clears everything, and click-outside/
+Escape both close the panel — with zero real console errors (the only
+noise was the sandbox's proxy intercepting the external Google Fonts
+request, unrelated to this code). `tsc --noEmit` and `wrangler deploy
+--dry-run` both clean, 1706.35 KiB / 509.96 KiB gzip (up from 1614.76 KiB
+before this).

@@ -78,6 +78,57 @@
   .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
   .sign-out:hover { color: var(--teal-700); }
 
+  .nav-right { position: relative; display: flex; align-items: center; gap: 2px; }
+
+    .notif-bell {
+      position: relative; background: none; border: none; cursor: pointer;
+      padding: 6px; margin: 0 2px; display: flex; align-items: center; justify-content: center;
+      color: var(--ink-faint); border-radius: 999px;
+    }
+    .notif-bell:hover { color: var(--teal-700); background: var(--paper-dim); }
+    .notif-bell svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .notif-bell .tab-bar-dot { top: 3px; right: 3px; }
+  
+    .notif-panel {
+      position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
+      width: min(380px, calc(100vw - 32px)); max-height: min(480px, calc(100vh - 100px));
+      display: flex; flex-direction: column;
+      background: var(--white); border: 1px solid var(--line); border-radius: 16px;
+      box-shadow: var(--shadow-soft); overflow: hidden;
+    }
+    .notif-panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 10px; border-bottom: 1px solid var(--line); flex: none;
+    }
+    .notif-panel-head h2 { font-family: "Fraunces", Georgia, serif; font-size: 16px; color: var(--plum-950); margin: 0; font-weight: 600; }
+    .notif-mark-all { background: none; border: none; color: var(--teal-700); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 4px; }
+    .notif-mark-all:hover { text-decoration: underline; }
+    .notif-mark-all[hidden] { display: none; }
+  
+    .notif-list { overflow-y: auto; flex: 1 1 auto; }
+    .notif-empty, .notif-loading { padding: 32px 16px; text-align: center; color: var(--ink-faint); font-size: 13.5px; }
+    .notif-empty[hidden], .notif-loading[hidden] { display: none; }
+  
+    .notif-row {
+      display: flex; gap: 11px; padding: 12px 16px; text-align: left; width: 100%;
+      background: none; border: none; border-bottom: 1px solid var(--line); cursor: pointer; color: inherit;
+    }
+    .notif-row:last-child { border-bottom: none; }
+    .notif-row:hover { background: var(--paper-dim); }
+    .notif-row.is-unread { background: var(--teal-100); }
+    .notif-row.is-unread:hover { background: #d8f3ee; }
+    .notif-avatar {
+      width: 36px; height: 36px; border-radius: 999px; background: var(--paper-dim); border: 1.5px solid var(--line); flex: none;
+      display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); overflow: hidden;
+    }
+    .notif-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .notif-body { min-width: 0; flex: 1; }
+    .notif-text { font-size: 13px; line-height: 1.4; color: var(--plum-950); margin: 0; }
+    .notif-text b { font-weight: 600; }
+    .notif-preview { font-size: 12.5px; color: var(--ink-faint); margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .notif-time { font-size: 11px; color: var(--ink-faint); margin: 4px 0 0; }
+    .notif-unread-mark { width: 8px; height: 8px; border-radius: 999px; background: var(--teal-500); flex: none; margin-top: 5px; }
+
   /* Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment */
   .tab-bar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
@@ -149,7 +200,24 @@
 
 <header class="nav">
   <a href="/" class="logo">i<em>Care</em></a>
-  <button class="sign-out" data-sign-out>Sign out</button>
+  <div class="nav-right">
+    <div>
+      <button class="notif-bell" data-notif-bell aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="tab-bar-dot" data-notif-dot></span>
+      </button>
+      <div class="notif-panel" data-notif-panel hidden>
+        <div class="notif-panel-head">
+          <h2>Notifications</h2>
+          <button class="notif-mark-all" data-notif-mark-all hidden>Mark all read</button>
+        </div>
+        <p class="notif-loading" data-notif-loading>Loading…</p>
+        <p class="notif-empty" data-notif-empty hidden>Nothing yet — connection requests, messages and invites will show up here.</p>
+        <div class="notif-list" data-notif-list></div>
+      </div>
+    </div>
+    <button class="sign-out" data-sign-out>Sign out</button>
+  </div>
 </header>
 
 <div class="wrap">
@@ -215,10 +283,7 @@
     <span>Network</span>
   </a>
   <a href="/messages" class="tab-bar-item" data-tab="messages">
-    <span class="tab-bar-icon-wrap">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <span class="tab-bar-dot" data-messages-dot></span>
-    </span>
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
     <span>Messages</span>
   </a>
   <a href="/dashboard" class="tab-bar-item" data-tab="profile">
@@ -539,6 +604,198 @@ function icareRequireAuth(signInPath) {
       window.location.href = "/";
     });
   });
+})();
+</script>
+<script>
+(function () {
+  var session = icareGetSession();
+  if (!session) return; // page's own icareRequireAuth() already handles the redirect
+
+  function notifJget(url) {
+    return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+  function notifJpost(url) {
+    return icareAuthFetch(url, { method: "POST" }).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+
+  function notifTimeAgo(iso) {
+    var ms = Date.now() - new Date(iso).getTime();
+    var mins = Math.floor(ms / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + (mins === 1 ? " min ago" : " mins ago");
+    var hours = Math.floor(mins / 60);
+    if (hours < 24) return hours + (hours === 1 ? " hour ago" : " hours ago");
+    var days = Math.floor(hours / 24);
+    return days + (days === 1 ? " day ago" : " days ago");
+  }
+  function notifInitials(text) {
+    if (!text) return "?";
+    var words = text.trim().split(/\s+/).slice(0, 2);
+    return words.map(function (w) { return w[0].toUpperCase(); }).join("");
+  }
+  function notifEscape(text) {
+    var d = document.createElement("div");
+    d.textContent = text || "";
+    return d.innerHTML;
+  }
+
+  function notifLineFor(n) {
+    var actor = notifEscape(n.actor_name || "Someone");
+    if (n.type === "connection_request") return "<b>" + actor + "</b> sent you a connection request";
+    if (n.type === "connection_accepted") return "<b>" + actor + "</b> accepted your connection request";
+    if (n.type === "message") return "<b>" + actor + "</b> sent you a message";
+    if (n.type === "invite") {
+      var org = notifEscape(n.actor_org_name || "An employer");
+      var job = notifEscape(n.job_title || "a role");
+      return "<b>" + org + "</b> invited you to apply for " + job;
+    }
+    return "New notification";
+  }
+  function notifLinkFor(n) {
+    if (n.type === "connection_request" || n.type === "connection_accepted") return "/network";
+    if (n.type === "message") return "/messages?with=" + encodeURIComponent(n.actor_candidate_id);
+    if (n.type === "invite") return "/invites";
+    return "/dashboard";
+  }
+  function notifAvatarCandidateId(n) {
+    return n.type === "invite" ? null : n.actor_candidate_id;
+  }
+  function notifAvatarName(n) {
+    return n.type === "invite" ? n.actor_org_name : n.actor_name;
+  }
+
+  function loadAvatarPhoto(imgEl, candidateId) {
+    icareAuthFetch("/candidates/" + candidateId + "/photo").then(function (res) {
+      if (!res.ok) return;
+      return res.blob().then(function (blob) { imgEl.src = URL.createObjectURL(blob); });
+    }).catch(function () {});
+  }
+  function fillAvatar(avatarEl, name, candidateId, hasPhoto) {
+    avatarEl.textContent = notifInitials(name);
+    if (hasPhoto && candidateId) {
+      var img = document.createElement("img");
+      img.alt = name || "";
+      avatarEl.textContent = "";
+      avatarEl.appendChild(img);
+      loadAvatarPhoto(img, candidateId);
+    }
+  }
+
+  var bellEl = document.querySelector("[data-notif-bell]");
+  var panelEl = document.querySelector("[data-notif-panel]");
+  var dotEl = document.querySelector("[data-notif-dot]");
+  var listEl = document.querySelector("[data-notif-list]");
+  var emptyEl = document.querySelector("[data-notif-empty]");
+  var loadingEl = document.querySelector("[data-notif-loading]");
+  var markAllEl = document.querySelector("[data-notif-mark-all]");
+
+  var loaded = false;
+
+  function setDot(unreadCount) {
+    dotEl.classList.toggle("is-visible", unreadCount > 0);
+    markAllEl.hidden = unreadCount === 0;
+  }
+
+  function refreshUnreadCount() {
+    notifJget("/candidates/me/notifications/unread-count").then(function (r) {
+      if (r.ok) setDot(r.body.unread || 0);
+    });
+  }
+
+  function renderList(rows) {
+    listEl.innerHTML = "";
+    loadingEl.hidden = true;
+    if (!rows || rows.length === 0) { emptyEl.hidden = false; return; }
+    emptyEl.hidden = true;
+    rows.forEach(function (n) {
+      var row = document.createElement("button");
+      row.className = "notif-row" + (n.read_at ? "" : " is-unread");
+      row.type = "button";
+
+      var avatar = document.createElement("div");
+      avatar.className = "notif-avatar";
+      fillAvatar(avatar, notifAvatarName(n), notifAvatarCandidateId(n), n.actor_has_photo);
+      row.appendChild(avatar);
+
+      var body = document.createElement("div");
+      body.className = "notif-body";
+      var text = document.createElement("p");
+      text.className = "notif-text";
+      text.innerHTML = notifLineFor(n);
+      body.appendChild(text);
+      if (n.type === "message" && n.message_preview) {
+        var preview = document.createElement("p");
+        preview.className = "notif-preview";
+        preview.textContent = n.message_preview;
+        body.appendChild(preview);
+      }
+      var time = document.createElement("p");
+      time.className = "notif-time";
+      time.textContent = notifTimeAgo(n.created_at);
+      body.appendChild(time);
+      row.appendChild(body);
+
+      if (!n.read_at) {
+        var markEl = document.createElement("span");
+        markEl.className = "notif-unread-mark";
+        row.appendChild(markEl);
+      }
+
+      row.addEventListener("click", function () {
+        if (!n.read_at) {
+          notifJpost("/candidates/me/notifications/" + n.id + "/read").then(function () { refreshUnreadCount(); });
+        }
+        window.location.href = notifLinkFor(n);
+      });
+
+      listEl.appendChild(row);
+    });
+  }
+
+  function loadFeed() {
+    loadingEl.hidden = false;
+    emptyEl.hidden = true;
+    notifJget("/candidates/me/notifications").then(function (r) {
+      if (r.ok) { renderList(r.body.notifications); loaded = true; }
+      else { loadingEl.hidden = true; emptyEl.hidden = false; emptyEl.textContent = "Couldn't load notifications — try again shortly."; }
+    });
+  }
+
+  function openPanel() {
+    panelEl.hidden = false;
+    bellEl.setAttribute("aria-expanded", "true");
+    if (!loaded) loadFeed();
+  }
+  function closePanel() {
+    panelEl.hidden = true;
+    bellEl.setAttribute("aria-expanded", "false");
+  }
+
+  bellEl.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (panelEl.hidden) openPanel(); else closePanel();
+  });
+  document.addEventListener("click", function (e) {
+    if (!panelEl.hidden && !panelEl.contains(e.target) && !bellEl.contains(e.target)) closePanel();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !panelEl.hidden) closePanel();
+  });
+  markAllEl.addEventListener("click", function (e) {
+    e.stopPropagation();
+    notifJpost("/candidates/me/notifications/read-all").then(function (r) {
+      if (r.ok) {
+        setDot(0);
+        listEl.querySelectorAll(".notif-row.is-unread").forEach(function (row) {
+          row.classList.remove("is-unread");
+          var mark = row.querySelector(".notif-unread-mark");
+          if (mark) mark.remove();
+        });
+      }
+    });
+  });
+
+  refreshUnreadCount();
 })();
 </script>
 </body>

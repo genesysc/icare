@@ -1537,6 +1537,61 @@ candidates.get("/me/badges", async (c) => {
   return c.json({ badges: data });
 });
 
+// --- Notifications (migration 0043) ---
+// Rows are created ONLY by the four DB triggers on connections/messages/
+// shortlists (connection_request, connection_accepted, message, invite) —
+// there is no insert route here, deliberately, same as conversations has
+// no client insert path. my_notifications (0043) joins in live actor name/
+// photo/org/job title so this route can return render-ready rows without
+// per-type branching or a second round trip.
+
+candidates.get("/me/notifications", async (c) => {
+  const limit = Math.min(Number(c.req.query("limit")) || 30, 50);
+  const { data, error } = await c.get("supabase").from("my_notifications").select("*").limit(limit);
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ notifications: data });
+});
+
+// Lightweight check for the header bell's unread dot — same "avoid every
+// page pulling the full feed just to know if the dot should show" reasoning
+// as /messages/unread-count (which this supersedes: messages are now one of
+// the four notification types, so the bell's dot covers what that route's
+// dot never actually got wired up to show — see HANDOVER.md).
+candidates.get("/me/notifications/unread-count", async (c) => {
+  const { count, error } = await c
+    .get("supabase")
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("candidate_id", c.get("userId"))
+    .is("read_at", null);
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ unread: count || 0 });
+});
+
+candidates.post("/me/notifications/:id/read", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", c.req.param("id"))
+    .is("read_at", null)
+    .select()
+    .maybeSingle();
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ notification: data });
+});
+
+candidates.post("/me/notifications/read-all", async (c) => {
+  const { error } = await c
+    .get("supabase")
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("candidate_id", c.get("userId"))
+    .is("read_at", null);
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ status: "ok" });
+});
+
 // --- Account settings (SPRINTS.md Sprint 5) ---
 
 candidates.post("/me/close-account", async (c) => {
