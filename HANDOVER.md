@@ -183,6 +183,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/waitlist.ts` | `POST /waitlist`, `GET /waitlist/count` |
 | `src/email.ts` | `sendTransactionalEmail` — real Sender.net API call, live since 2026-09-02, see §8 item 3 |
 | `src/emails/waitlist-welcome.ts`, `employer-waitlist.ts`, `candidate-profile-published.ts`, `employer-verification-submitted.ts`, `employer-verified.ts` | Stage-completion email subject/HTML, wired at their call sites and actually sending as of 2026-09-02 (see §8 item 3). The first two are for the waitlist; the latter three are candidate/employer product-stage emails, added 2026-08-26 |
+| `src/emails/candidate-invite-received.ts` | **NEW 2026-09-15.** Sent from `employer-chat.ts`'s `send_invite` tool, once per newly-inserted shortlist row — the one notification event type (of the four in migration 0043) that also emails, not just an in-app dot, since an invite is a real job opportunity and candidates return every few months per §6 |
 | `src/landing.html` | **Rebuilt 2026-09-14.** The public launched-state landing page at `/` — single self-contained file, inline CSS, three bundled photos from `src/assets/`, and (deliberately) **no JavaScript at all except the magic-link recovery below**. Positioning comes from the founder's market-research handover: *"iCare is your passport for your next job in health and care"* — verify once, carry that trust to every employer. Sections: hero → the problem (three cited stats) → how it works (three steps) → badge grades (dark band) → precedent (NHS staff banks prove the model, scoped to NHS temp/bank only) → who it's for → what we will never do → employers strip → final CTA → footer. CTAs are real product entry points (`/sign-up`, `/sign-in`, `/employers`); the waitlist capture form that used to live here is **gone** (the `POST /waitlist` API and the employer page's own form are untouched). Still recovers a magic-link sign-in that lands here by mistake (2026-09-02 fix, see §14/PROGRESS.md) — checks for `#access_token=` in the URL hash on load, before anything else runs, and forwards to `/verify`. **Keep that script first in `<head>` through any future rewrite.** |
 | `src/assets/` | **NEW 2026-09-14.** Landing-page photography: `hero-clinician.jpg`, `care-hands.jpg`, `workforce-corridor.jpg`, plus `CREDITS.md` recording the Unsplash License, the source URL and fetch params for each. Bundled into the Worker as `Data` modules (see the `rules` entry in both `wrangler*.jsonc`) rather than hotlinked from a stock-photo CDN — no third-party request from a page that talks about privacy, and no silent breakage if the CDN changes URLs. `src/assets.d.ts` declares `*.jpg` as `ArrayBuffer` for TypeScript. Served by `GET /assets/:name` from a fixed map in `index.ts` (never a path read off the request — no traversal surface), `immutable` + one year of cache |
 | ~~`src/welcome.html`~~ | **Deleted 2026-09-14.** Existed 2026-09-10 → 2026-09-14 only because `/` was still the pre-launch waitlist page and nothing anywhere had a real Log in / Sign up CTA. The 2026-09-14 rebuild made `/` exactly that page, so keeping both would have meant two near-identical pages drifting apart. `GET /welcome` now **302s to `/`** rather than 404ing — the URL was live, so anything already pointing at it still lands somewhere sensible |
@@ -203,7 +204,8 @@ stop and ask the user — do not resolve it yourself.**
 | `src/credentials.html` | Credentials & documents (Sprint 20), `/credentials` — implements wireframe screen 07, reached from `dashboard.html`'s badges card rather than a sixth tab-bar destination (matches the wireframe's own information architecture — Credentials sits one level under Profile, not beside it). Badges section is copied verbatim from `dashboard.html`'s own rendering; DBS and sponsorship-status (`right_to_work`) blocks are new but read/write only existing fields via existing routes. Deliberately does NOT implement the wireframe's three-state DBS model ("Not Yet Verified" / "Current — no new information" / "New information reported") — see the file's header comment and the note below for why |
 | `src/visibility.html` | Visibility (Sprint 21), `/visibility` — implements wireframe screen 08, reached from a new "Visibility" card on `dashboard.html`. The master "Findable by employers" switch is real and reversible: `candidates.is_published` existed already but had no way back to `false` short of closing the whole account, so this sprint added `POST /candidates/me/unpublish` (`candidates.ts`) as the missing other half of the existing `/me/publish`. The wireframe's field-by-field visibility matrix (About/Experience Public, Registrations/Availability Employers-only, etc., each independently toggleable) is NOT built — no such preference exists anywhere in the schema, `candidate_search` is a single fixed view. This page shows a read-only, accurate breakdown of what's actually exposed instead of fake per-field toggles — see the file's header comment |
 | `src/messages.html` | Candidate-to-candidate 1:1 messaging, `/messages` — **2026-09-12.** Inbox + thread view against `conversation_inbox`/`messages`, gated to accepted connections only (`get_or_create_conversation()` RPC). Reached from `network.html`'s Connections tab ("Message" button, `/messages?with=<id>`) or the tab bar directly. See PROGRESS.md's 2026-09-12 entry for the fuller story (this shipped out of a parallel build that also produced a Home/Network/Profile duplicate — NOT shipped, reactions/comments/mentions/check-in also NOT shipped, both parked pending the founder's review) |
-| `src/nav-shell.html` | Reference file for the signed-in tab-bar shell (Sprint 19, **now six destinations — Messages added 2026-09-12, Home renamed to Rounds same day**) — same "not imported, copy verbatim" convention as `auth-client.js`. Rounds/Invites/Pipelines/Network/Messages/Profile as a bottom-fixed bar at every viewport size (this codebase has no other desktop-specific layout), hand-authored inline SVG icons, unread dots on Invites and Messages. Copied into `dashboard.html`, `invites.html`, `pipelines.html`, `rounds.html`, `network.html`, `messages.html`, `credentials.html`, `visibility.html` — update all eight if this file changes. **Known gap**: the Messages dot's underlying data (`GET /candidates/messages/unread-count`) is only actually wired up on `messages.html` itself right now — the other pages have the markup but never call it, so the dot won't show elsewhere yet |
+| `src/nav-shell.html` | Reference file for the signed-in tab-bar shell (Sprint 19, six destinations — Messages added 2026-09-12, Home renamed to Rounds same day) — same "not imported, copy verbatim" convention as `auth-client.js`. Rounds/Invites/Pipelines/Network/Messages/Profile as a bottom-fixed bar at every viewport size (this codebase has no other desktop-specific layout), hand-authored inline SVG icons, one unread dot remaining (Invites — business state, see `notifications-bell.html`). Copied into `dashboard.html`, `invites.html`, `pipelines.html`, `rounds.html`, `network.html`, `messages.html`, `credentials.html`, `visibility.html` — update all eight if this file changes. **2026-09-15**: two real gaps found and fixed while wiring in the notification bell (below) — the Messages tab's own dot was dead markup, never wired up anywhere, now removed entirely in favour of the bell's unread indicator; and `credentials.html`/`visibility.html` had silently drifted to a stale five-item copy missing the Messages tab altogether, now brought current. Neither had been noticed because nothing exercised them until this pass touched every page in the list |
+| `src/notifications-bell.html` | **NEW 2026-09-15.** Reference file for the header notification bell — same "not imported, copy verbatim" convention as `nav-shell.html`/`auth-client.js`. Covers all four notification types (`notifications` table, migrations 0043/0044): connection request, connection accepted, message (with a body preview, matching `conversation_inbox`'s own convention), invite. Dropdown panel, unread dot, mark-one-read on click-through, mark-all-read. Copied into the same eight pages as `nav-shell.html`, placed in `<header class="nav">` next to Sign out (that header's two-child row became a `.nav-right` wrapper to fit it — **`.nav-right` must carry `position: relative`**, since the dropdown anchors against it, not against the bell's own small wrapper; anchoring to the wrapper instead left ~104px of the panel rendering off-screen left at 320px width, found only by checking a real narrow-viewport render, not by whether the panel opened) |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -507,6 +509,22 @@ row plus `candidates`+`candidate_contact` or `employers`+
   DRAFT, not lawyer-reviewed.
 - Welcome email: fully written (`src/emails/waitlist-welcome.ts`), not
   yet sending — see §8.
+- Notifications (2026-09-15): a real notification center, candidate-side
+  only — connection requests, connection acceptances, new messages, and
+  shortlist/interview invites. `notifications` table + `my_notifications`
+  view (migrations 0043/0044), populated by four SECURITY DEFINER
+  triggers (never a direct client insert — same "the only way in" pattern
+  as `get_or_create_conversation`), four routes under `/candidates/me/
+  notifications`, and a header bell (`src/notifications-bell.html`,
+  copy-pasted per page same as `nav-shell.html`) on all eight signed-in
+  candidate pages. Invites also send email (`candidate-invite-received.ts`
+  via `employer-chat.ts`'s `send_invite`) — the one event type of the four
+  that does, since candidates return every few months and an in-app-only
+  signal risks being missed between visits; connections/messages stay
+  in-app only. Employer-side mirror (candidate responded, pipeline moved)
+  is a same-shape follow-up, not built. Full design rationale and the
+  narrow-viewport positioning bug found and fixed before shipping are in
+  PROGRESS.md's 2026-09-15 entry.
 
 All of the above is deployed and CI-confirmed working, **except** the
 most recent commits on the open PR (see §10) which haven't had a fresh
@@ -707,16 +725,23 @@ deploy confirmation yet.
    own existing error message, exactly as a real expired/reused token
    would, with no JS error either way.
 
-   **Still open, and now the only remaining piece:** the template gap
-   (point 2 in the diagnosis above — no `{{ .Token }}`) is unfixed and
-   needs the Dashboard. `docs/email-templates/supabase-confirm-signup.html`
-   is ready to paste in. Worth checking whether "Magic Link" has the same
-   gap, since the `mjm.refugio@` success on 09-14 only ever proved the
-   *link* path (hash → `/verify` → session), never the *code* path (a
-   human typing digits from the email) — nobody has actually seen a code
-   from either template yet. Once both templates carry `{{ .Token }}`,
-   new signups have two independent working paths (click the link, or
-   type the code) instead of the current one fragile one.
+   **RESOLVED, same day — founder pasted `docs/email-templates/supabase-
+   confirm-signup.html` into Dashboard → Authentication → Emails →
+   Confirm signup, then verified with a genuinely fresh signup (a
+   `+`-tagged Gmail alias, never seen by Supabase before): the email
+   arrived with a visible code, and typing it in completed sign-in
+   successfully.** New-user signup is now confirmed working end-to-end
+   on both paths — click the link (fixed earlier the same day, the
+   `/sign-in` dead-end) or type the code (this template). The whole
+   09-14 signup saga — delivery, the missing token, the dead-end
+   redirect — is closed.
+
+   **Still open, lower priority:** whether "Magic Link" (the returning-
+   user template) has the same missing-`{{ .Token }}` gap is unconfirmed
+   — every success on that template so far (`mjm.refugio@`, 09-14) has
+   been via the link, never by a human typing a code from it. Worth a
+   similar fresh-alias check next time someone touches auth, but it's
+   not blocking anything today.
 
    **Process gap worth closing:** nothing currently surfaces failing
    signups. An unconfirmed-signup check, or simply running one real

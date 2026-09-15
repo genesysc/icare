@@ -2,11 +2,16 @@ import { Hono } from "hono";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
 import { checkProtectedCharacteristics, containsEvaluativeLanguage, GUARDRAIL_REDIRECT_MESSAGE } from "./employer-chat-guardrail";
+import { sendTransactionalEmail } from "./email";
+import { candidateInviteReceivedEmail } from "./emails/candidate-invite-received";
 
 type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
   AI: Ai;
+  SENDER_API_KEY?: string;
+  SENDER_FROM_EMAIL?: string;
+  SENDER_FROM_NAME?: string;
 };
 
 type Variables = {
@@ -508,6 +513,36 @@ employerChat.post("/", async (c) => {
         : `Sent an invite for ${job.title} to ${insertedCount} candidate${insertedCount === 1 ? "" : "s"}` +
           (alreadyCount > 0 ? ` (${alreadyCount} already had one)` : "") +
           ". They're now Shortlisted in that job's pipeline — ask to see your pipeline status, or move someone to a different stage.";
+
+    // Email the newly-invited candidates (migration 0043's shortlists
+    // trigger already created their in-app notification — this is the
+    // one event type of the four that also gets email, see HANDOVER.md's
+    // 2026-09-15 entry). `inserted` is only the rows the upsert's
+    // ignoreDuplicates actually created, so a re-invite for a job someone
+    // already has never re-sends this. Best-effort: a failed send here
+    // must never fail the invite itself, same principle as every other
+    // sendTransactionalEmail call site in this codebase not gating its
+    // primary action on email success.
+    if (insertedCount > 0) {
+      const insertedCandidateIds = (inserted || []).map((r) => r.candidate_id as string);
+      const [{ data: employer }, { data: candidateAccounts }] = await Promise.all([
+        supabase.from("employers").select("org_name").eq("id", userId).single(),
+        supabase.from("accounts").select("id, email, full_name").in("id", insertedCandidateIds),
+      ]);
+      const orgName = employer?.org_name || "An employer";
+      const invitesUrl = new URL(c.req.url).origin + "/invites";
+      await Promise.all(
+        (candidateAccounts || []).map((account) => {
+          const { subject, html } = candidateInviteReceivedEmail({
+            fullName: account.full_name,
+            orgName,
+            jobTitle: job.title,
+            invitesUrl,
+          });
+          return sendTransactionalEmail(c.env, account.email, subject, html);
+        }),
+      );
+    }
 
     const assistantRow = await saveAssistantMessage(supabase, userId, reply, {
       tool_call: { job_id: jobId, count: requestedCount, all: wantAll },

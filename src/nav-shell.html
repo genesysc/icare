@@ -6,13 +6,27 @@
   copies the CSS block and the <nav class="tab-bar"> markup below
   verbatim, changing only which item carries `is-active` for that page.
   If you change this file, update every page that copied it:
-  dashboard.html, invites.html, pipelines.html, home.html, network.html.
+  dashboard.html, invites.html, pipelines.html, rounds.html, network.html,
+  messages.html, credentials.html, visibility.html. (Not onboarding.html —
+  it has no tab bar; a candidate isn't in the signed-in "app" proper until
+  onboarding is done.)
 
-  Five destinations, matching docs/mockups/jobseeker-wireframes.html's
-  sitemap screen exactly: Home, Invites, Pipelines, Network, Profile.
-  `dashboard.html` is Profile (it was the only candidate page before this
-  sprint, and its content — own headline/badges/sections/edit links — is
-  what the wireframe calls Profile, not Home).
+  Six destinations, matching docs/mockups/jobseeker-wireframes.html's
+  sitemap screen plus Messages (added Sprint 24, see PROGRESS.md's
+  2026-09-12 entry): Rounds, Invites, Pipelines, Network, Messages,
+  Profile. `dashboard.html` is Profile (it was the only candidate page
+  before Sprint 19, and its content — own headline/badges/sections/edit
+  links — is what the wireframe calls Profile). "Rounds" was "Home" at
+  first (Sprint 22) and was renamed later the same sprint; `/home` still
+  redirects there for anyone with the old URL.
+
+  2026-09-15 correction: credentials.html and visibility.html had drifted
+  to a stale FIVE-item copy missing Messages entirely — nobody had reason
+  to notice, since neither page links anywhere near Messages. Caught and
+  fixed while wiring in the notification bell below, since that change
+  touched every page in this list anyway. Worth remembering: "copy
+  verbatim, update every page" only self-enforces on the pages someone
+  actually opens again later — it's silent about the ones nobody does.
 
   Fixed to the bottom of the viewport at every size, not just mobile —
   this codebase has no other desktop-specific layout (every existing
@@ -24,6 +38,16 @@
   Icons are hand-authored inline SVG (no icon font/library — this repo
   has no dependency for one), simple single-stroke line icons in the
   brand teal/plum, sized 22px.
+
+  The Messages item's own unread indicator (`data-messages-dot` on this
+  tab) was declared here from the start but never actually wired up
+  anywhere — dead markup since Sprint 23. Removed 2026-09-15 in favour of
+  the header notification bell (src/notifications-bell.html), which
+  covers unread messages as one of its four event types and is the real
+  fix for "how do I know I have something new" across the whole app, not
+  just this one tab. The Invites tab's `data-invites-dot` is UNCHANGED —
+  see notifications-bell.html's header comment for why that one stays
+  separate (business state, not read state).
 -->
 <style>
   .tab-bar {
@@ -67,10 +91,7 @@
     <span>Network</span>
   </a>
   <a href="/messages" class="tab-bar-item" data-tab="messages">
-    <span class="tab-bar-icon-wrap">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <span class="tab-bar-dot" data-messages-dot></span>
-    </span>
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
     <span>Messages</span>
   </a>
   <a href="/dashboard" class="tab-bar-item" data-tab="profile">
