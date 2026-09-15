@@ -173,7 +173,7 @@ stop and ask the user — do not resolve it yourself.**
 | `wrangler.jsonc` | Production Worker config (`icare`, bound to `icareltd.com`) — account id, vars (Supabase URL/key, `SENDER_FROM_EMAIL`/`SENDER_FROM_NAME`), R2 binding, the `Text` import rule for `.html`. `SENDER_API_KEY` is a secret (`wrangler secret put`), not in this file |
 | `wrangler.staging.jsonc` | Added 2026-09-02, not committed-and-forgotten — a real, reusable staging deploy target (`icare-staging`, `workers.dev` only, no custom-domain routes) so unmerged branches can be tested end-to-end against the same real Supabase/R2/Sender.net backend without touching production. Deploy: `CLOUDFLARE_API_TOKEN=<token> npx wrangler deploy --config wrangler.staging.jsonc`. Live at `https://icare-staging.icare-181.workers.dev`. `deploy.yml`'s `workflow_dispatch` also gained a `target: production\|staging` input for the same purpose via CI, though the CLI path above is what actually got used this session (CI runner was slow/queued once, see PROGRESS.md) |
 | `src/index.ts` | Route mounting, `GET /`, `/health`, `/db-check`, `/professions`, `/skills`, `/badges`, `/qualification-types`, `/prompts`, `/media-check` |
-| `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me` |
+| `src/auth.ts` | `POST /auth/request-code`, `POST /auth/verify-code`, `POST /auth/logout`, `GET /auth/me`, **2026-09-15** `POST /auth/sign-in-password`, `POST /auth/forgot-password`, `POST /auth/update-password`, `POST /auth/oauth/:provider` — see §6 |
 | `src/middleware.ts` | `requireAuth` — verifies bearer token, attaches an RLS-scoped Supabase client + user id/object to context |
 | `src/candidates.ts` | Candidate profile CRUD, photo + video upload/download, publish + new `/me/unpublish` (Sprint 21 — the reversible other half of publish, see §14), professions/skills, employment history, qualifications (+ evidence upload), registrations, DBS (singleton upsert), references, self-expression prompts, posts (`/me/posts` CRUD — open-by-default, now with a `visibility` public/connections field, Sprint 24 — see §5/§14; **2026-09-12** — also `post_type`/media/check-in fields + `mentioned_candidate_ids`, `POST /me/posts/media`, `GET /posts/:id/media`, `GET /mention-search`, `GET /checkin/venues`, `GET /posts/:id/mentions`, reactions/comments — `POST /posts/:id/reaction`, `GET`+`POST /posts/:id/comments`, `DELETE /comments/:id`), `GET /feed` (Sprint 22 — reads `candidate_peer_feed`, see §14), `GET /discover`, `GET /network` (now also returns each request's optional `note`, **2026-09-12**), `POST /network/request` (accepts an optional `note`, **2026-09-12**), `POST /network/:id/accept`, `DELETE /network/:id` (Sprint 23 — connections, see §14), new `GET /:id/photo` (Sprint 24 — peer-to-peer photo, no consent gate, only `current_role_is('candidate')` + `candidate_is_published()` — see §14), `GET /messages`/`GET /messages/unread-count`/`POST /messages/start`/`GET /messages/:id`/`POST /messages/:id` (**2026-09-12** — 1:1 messaging, gated to accepted connections via `get_or_create_conversation()`, see PROGRESS.md), incoming shortlists + consent (`/me/shortlists*`, Sprint 9, re-scoped to per-pipeline `/me/shortlists/:id/consent` + new `/withdraw` in Sprint 14/15 — see §14; `/withdraw` now also takes an optional `reason` from a fixed list, stored as `decline_reason` — Sprint 18), badges (read-only), close-account, onboarding advance/complete, CV import (upload → Workers AI parse → review/apply) |
 | `src/employers.ts` | Employer verification flow (Sprint 7): read own employer row + verification-request history, submit/re-submit for review; `POST /posts/:id/report` — report a candidate post; `GET /pipeline` — read-only iRecruit pipeline view (Sprint 9, now with `job_title`); `GET /candidates/:id/{photo,video,cv}` — consent-gated media (Sprint 9); `GET /bookmarks`, `DELETE /bookmarks/:candidateId` (Sprint 14) |
@@ -190,9 +190,10 @@ stop and ask the user — do not resolve it yourself.**
 | `src/employers.html` | Employer waitlist landing page — separate design system, same self-contained pattern |
 | `src/privacy.html` / `src/terms.html` | Draft legal pages (Sprint 0) — explicitly marked DRAFT, not lawyer-reviewed |
 | `src/auth-client.js` | Shared client-side auth helper — reference file, not imported; copy into each signed-in page's own `<script>` tag |
-| `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in` |
-| `src/employer-sign-in.html` | Employer sign-up/sign-in (Sprint 6), mounted at both `/employer/sign-up` and `/employer/sign-in`, own purple/teal design system |
-| `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me`. Also now handles being opened via the emailed magic link directly (2026-09-02 fix) — reads `#access_token=&refresh_token=` off the URL hash (the implicit-flow shape `auth.ts`'s new `emailRedirectTo` produces) and completes sign-in without the manual code form. Code input widened to `maxlength="10"` — this Supabase project issues 8-digit codes, not 6 |
+| `src/sign-in.html` | Candidate sign-up/sign-in, mounted at both `/sign-up` and `/sign-in`. **2026-09-15**: sign-in mode now defaults to password (show/hide toggle, "Forgot password?" → `/reset-password`), with a "Sign in with a code instead" link falling back to the original OTP flow, plus "Continue with Google"/"Continue with LinkedIn" OAuth buttons. Sign-up mode is unchanged (OTP-only) — see §6 for why |
+| `src/employer-sign-in.html` | Employer sign-up/sign-in (Sprint 6), mounted at both `/employer/sign-up` and `/employer/sign-in`, own purple/teal design system. **2026-09-15**: same password/forgot/OTP-fallback/OAuth treatment as `sign-in.html`, sign-up mode likewise unchanged |
+| `src/reset-password.html` | **NEW 2026-09-15.** `/reset-password`, shared by both audiences (mirrors `verify.html`'s sharing pattern). Dual-purpose: no recovery token in the URL → request-a-reset-link form (`POST /auth/forgot-password`); `#access_token=&refresh_token=` in the URL (a real recovery link) → set-new-password form (`POST /auth/update-password`) that completes sign-in on success. Also how a pre-existing OTP-only account sets its first password — no separate flow exists for that |
+| `src/verify.html` | OTP code entry, `/verify?email=...&role=...` — shared by both audiences, branches the post-verify redirect on the account's real role from `GET /auth/me`. Also now handles being opened via the emailed magic link directly (2026-09-02 fix) — reads `#access_token=&refresh_token=` off the URL hash (the implicit-flow shape `auth.ts`'s new `emailRedirectTo` produces) and completes sign-in without the manual code form. Code input widened to `maxlength="10"` — this Supabase project issues 8-digit codes, not 6. **2026-09-15**: this is also now the OAuth callback target (`redirectTo` for `signInWithOAuth`) — same hash-parsing code path handles it, no changes needed here |
 | `src/employer-home.html` | Employer home, `/employer/home` — verification card (Sprint 7, now including a read-only org profile summary once verified — Sprint 11) + chat-based candidate search (Sprint 8) + iRecruit pipeline card (Sprint 9, now showing consent-gated photo/video/CV buttons) |
 | `src/onboarding.html` | The full onboarding wizard (Sprint 2: basics/skills/availability; Sprint 3: employment history/qualifications/registrations; Sprint 4: DBS/references/prompts; Sprint 5: photo/review/publish) — 11 steps, spans Sprints 2–5, complete as of Sprint 5. Also accepts `?step=N` to jump to an already-completed step (used by the dashboard's "Edit" links) |
 | `src/dashboard.html` | The real candidate Profile page (Sprint 5, **rebuilt LinkedIn-style 2026-09-14** — see PROGRESS.md for the full section-by-section list and the honesty note that this replicates LinkedIn's well-known general layout, not a live scrape). Header: gradient banner + overlapping photo, real name (`GET /auth/me`) → position (from `employment_history`) → location (town only) → an "Open to new roles" pill → a two-tier identity check, icon+colour (migration 0042 — see PROGRESS.md): purple "Fully Verified" or teal "Identity Verified" → right-to-work + an honest "ID on file: Not yet collected" line (no passport/ID upload exists anywhere in this app, by deliberate choice). Then: About (`candidates.about`, newly surfaced), Badges (folded into one collapsible section, hand-authored SVG icon per family — 2026-09-14), Experience (real inline entries), Licenses & Certifications (qualifications + registrations + DBS combined), Skills (professions + clinical skills, `GET /me/skills`), a slim "More about you" list for References/prompts, Activity (posts, compose/list/delete), incoming shortlists + consent toggle (Sprint 9), Visibility, account closure. Tab-bar shell sits at the bottom (Sprint 19) |
@@ -288,12 +289,73 @@ bolted onto five tables).
 
 ## 6. Auth
 
-**Email OTP, no passwords.** This was a deliberate switch mid-session —
-this build originally used password auth, then was changed to match the
-original spec once its rationale surfaced (candidates return every few
+**Hybrid: password sign-in (new default) + OTP fallback, sign-up still
+OTP-only.** The original build used password auth, was switched to
+OTP-only mid-session for a real reason (candidates return every few
 months; a forgotten password is a lost candidate; magic links were
 rejected because opening one in a mobile mail app loses the session in a
-different browser).
+different browser) — see the git history around 2026-08-25 for that
+rationale if it resurfaces. **2026-09-15, founder-requested reversal**:
+password sign-in is back, deliberately as a *hybrid*, not a full
+replacement — the founder was told the original rationale before this was
+built (flagged, not silently overridden) and chose to proceed anyway,
+explicitly keeping OTP available as a fallback. Design:
+
+- **Sign-in** (`sign-in.html`/`employer-sign-in.html`) now defaults to a
+  password field (with a show/hide eye-icon toggle) as the primary method.
+  A "Sign in with a code instead" link switches to the old OTP flow
+  in-page. A "Forgot password?" link goes to `/reset-password`.
+- **Sign-up stays OTP-only, unchanged, on purpose** — scoped out
+  deliberately rather than silently expanded. Adding password collection
+  at signup would mean calling Supabase's `auth.signUp()` instead of
+  `signInWithOtp()`, a materially different call with its own email-
+  confirmation semantics, touching the same `handle_new_user()` trigger
+  every non-negotiable-adjacent piece of this system depends on. Given the
+  request was specifically about *logging in*, this was left alone rather
+  than risking that trigger. Practical effect: every account created from
+  now on is still password-less until the holder visits
+  `/reset-password` once — same as every pre-existing account.
+- **`GET/POST /reset-password`** (new page, `src/reset-password.html`,
+  shared by both audiences like `verify.html`) is dual-purpose: no
+  recovery token in the URL → email-entry form (`POST /auth/forgot-
+  password`, always replies `{status:"ok"}` regardless of whether the
+  email matches an account — no enumeration); a `#access_token=&
+  refresh_token=` recovery token in the URL (same implicit-flow shape
+  `verify.html` already parses for magic links) → set-new-password form
+  (`POST /auth/update-password`, bearer-authenticated with that token),
+  which also completes sign-in on success. This is also how a pre-existing
+  OTP-only account sets its *first* password — there's no separate flow.
+- **OAuth** (`POST /auth/oauth/:provider`, allow-listed to `google` and
+  `linkedin_oidc`) — "Continue with Google"/"Continue with LinkedIn"
+  buttons, **shown only in sign-in mode, not sign-up**. Real structural
+  reason, not a styling choice: `signInWithOAuth()` gives no way to pass
+  `signup_role`/`full_name`/`org_name` the way `signInWithOtp`'s `data`
+  option does, so `handle_new_user()` (which reads exactly that from
+  `raw_user_meta_data`) can't create the `accounts`+`candidates`/
+  `employers` row for a genuinely new OAuth signup — it would create an
+  `auth.users` row with no matching `accounts` row, silently breaking
+  every downstream page. An OAuth sign-*in* for an email that already has
+  an account works fine (Supabase links the identity to the existing
+  user, no `handle_new_user()` re-fire). **If OAuth sign-up is wanted
+  later, this needs a real fix** (e.g. a `?role=` redirect param read by
+  a new backend route that creates the missing rows post-callback) before
+  the buttons can safely appear on the sign-up screen — don't just move
+  them there. Buttons return "that sign-in option isn't available right
+  now" until each provider is actually configured — see below.
+  **Facebook was deliberately not wired** (heavier setup — Meta business
+  verification/app review for public use); the backend route is generic
+  enough that adding it later is just adding `"facebook"` to the
+  `OAUTH_PROVIDERS` allow-list in `auth.ts` plus a third button.
+  **Manual step, not done yet, blocks all OAuth buttons from working**:
+  each provider needs a real app registered in its own developer console
+  (Google Cloud Console → OAuth client; LinkedIn Developer Portal → app
+  with the "Sign In with LinkedIn using OpenID Connect" product) and its
+  Client ID/Secret pasted into Supabase Dashboard → Authentication →
+  Providers. No tool in this session's toolset can do that — it's the
+  same category of manual Dashboard step as the OTP email template fix
+  below.
+
+Routes (`src/auth.ts`):
 
 - `POST /auth/request-code` — `{ email, create?, role?, full_name?, org_name?, terms_version? }`.
   One entry point for both sign-up and sign-in; `create` (default `true`,
@@ -303,6 +365,15 @@ different browser).
   when `create` is true.
 - `POST /auth/verify-code` — `{ email, token }` (the 6-digit code) →
   `{ user, session }`.
+- `POST /auth/sign-in-password` — `{ email, password }` → `{ user,
+  session }`, or a generic 401 (Supabase deliberately returns the same
+  "Invalid login credentials" for a wrong password and for no password set
+  at all — the frontend copy accounts for that ambiguity).
+- `POST /auth/forgot-password` — `{ email }` → always `{status:"ok"}`.
+- `POST /auth/update-password` — `{ password }`, `requireAuth` (bearer
+  token from the recovery link) → `{status:"ok"}`.
+- `POST /auth/oauth/:provider` → `{ url }` to redirect the browser to, or
+  a 400 if the provider isn't allow-listed or isn't configured in Supabase.
 - `POST /auth/logout`, `GET /auth/me` — both need
   `Authorization: Bearer <access_token>`.
 

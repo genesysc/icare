@@ -4025,6 +4025,107 @@ lasts is the one keyed to the invariant, not the observation.
 
 ---
 
+## 2026-09-15 — Hybrid password sign-in + forgot/reset password + OAuth wiring (Google/LinkedIn)
+
+Founder asked to change how login works: password sign-in for existing
+accounts instead of a code every time, a forgot-password link, a reveal/
+hide password icon, working error messages, plus "explore options" for
+Google/Facebook/LinkedIn sign-in.
+
+**Flagged before building, not silently overridden**: this reverses a
+documented, deliberate decision (`HANDOVER.md` §6 — OTP-only was chosen
+specifically because candidates return every few months and a forgotten
+password loses one). Surfaced that rationale to the founder directly; they
+confirmed they wanted to proceed anyway. Two design questions asked via
+`AskUserQuestion` before writing code (both answered "Recommended"):
+keep OTP as a fallback alongside the new password option (not a full
+replacement — a real technical constraint too, since every existing
+account was created OTP-only and has no password set yet), and apply the
+change to both candidate and employer sign-in, not just one.
+
+**Backend** (`src/auth.ts`): `POST /auth/sign-in-password`
+(`signInWithPassword`, generic "Incorrect email or password." on any
+failure — Supabase itself doesn't distinguish wrong-password from
+no-password-set, by design, so the error can't either without leaking
+account existence), `POST /auth/forgot-password` (`resetPasswordForEmail`,
+always replies `{status:"ok"}` — no email enumeration), `POST
+/auth/update-password` (`requireAuth`, bearer token is the recovery
+link's own session — same implicit-flow shape already used for magic
+links), `POST /auth/oauth/:provider` (allow-listed to `google`/
+`linkedin_oidc`, returns the provider's authorize URL via
+`signInWithOAuth({skipBrowserRedirect: true})` for the frontend to
+redirect to).
+
+**Frontend**: `sign-in.html` and `employer-sign-in.html` both gained a
+third client-side mode alongside the existing signup/signin split —
+signin now defaults to password (with a show/hide eye-icon toggle,
+hand-authored SVG, no icon library) plus a "Forgot password?" link and a
+"Sign in with a code instead" fallback link that switches to the old OTP
+form in-page. **Sign-up mode deliberately left untouched** — see below.
+New `src/reset-password.html` (mounted at `/reset-password`, shared by
+both audiences like `verify.html`) is dual-purpose: no recovery token in
+the URL → email-entry form; a `#access_token=&refresh_token=` token in
+the URL (the same hash shape `verify.html` already parses for magic
+links) → set-new-password form that completes sign-in on success. This
+doubles as how a pre-existing OTP-only account sets its *first*
+password — there's no separate flow for that.
+
+**Two real scope boundaries drawn deliberately, not accidentally**:
+1. **Sign-up stays OTP-only.** The request was specifically about
+   logging in, not creating accounts. Adding password collection at
+   signup means calling Supabase's `auth.signUp()` instead of
+   `signInWithOtp()` — a different call with its own confirmation
+   semantics, touching the same `handle_new_user()` DB trigger every
+   non-negotiable-adjacent part of this system depends on. Left alone
+   rather than risking it un-asked. Practical effect: brand-new accounts
+   are still password-less until their first `/reset-password` visit,
+   same as every existing account.
+2. **OAuth buttons shown in sign-in mode only, not sign-up.** Real
+   structural finding, not a styling call: `signInWithOAuth()` has no way
+   to pass `signup_role`/`full_name`/`org_name` the way `signInWithOtp`'s
+   `data` option does, so `handle_new_user()` can't create the
+   `accounts`+`candidates`/`employers` row for a genuinely new OAuth
+   signup — it would silently create an orphaned `auth.users` row.
+   Sign-*in* for an email that already has an account works fine
+   (Supabase links the identity, no trigger re-fire). Documented in
+   `HANDOVER.md` §6 as a real follow-up if OAuth sign-up is wanted later,
+   rather than building it half-working.
+
+**"Explore options" (Facebook/LinkedIn/Google/other) — findings, not just
+built silently**: implemented Google and LinkedIn (`linkedin_oidc`) since
+Supabase supports both natively with no extra review process. Facebook
+deliberately not wired — it requires a Meta Business app + app review for
+public use, real added friction — but the backend route is generic
+enough that turning it on later is just adding `"facebook"` to the
+allow-list plus a third button, no other code change. **None of the
+three buttons will actually work yet** — each needs a real app registered
+in its own developer console (Google Cloud Console; LinkedIn Developer
+Portal, "Sign In with LinkedIn using OpenID Connect" product) with its
+Client ID/Secret pasted into Supabase Dashboard → Authentication →
+Providers. No tool in this session's toolset reaches Supabase Auth
+provider config — same category of manual step as the still-outstanding
+OTP email template fix. Flagged plainly rather than claiming this
+"works."
+
+**Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean,
+headless-Chromium smoke tests across both sign-in pages and
+`reset-password.html` — default mode is password, show/hide toggle
+flips the input type and icon correctly, mode switches (password ↔ OTP
+↔ signup) show/hide the right fields and correct the submit-button
+label and OAuth-block visibility each time, wrong-password and
+empty-field errors render the right copy, the reset-password page's
+request/token/mismatch/success paths all render correctly, and an OAuth
+button's "not configured" error surfaces cleanly and re-enables the
+button. Screenshot taken of the redesigned sign-in card for visual
+review. Zero page errors across every test.
+
+**Not done, explicitly out of scope this round**: Facebook OAuth wiring
+(see above), OAuth sign-up support (needs the `handle_new_user()`
+follow-up above), and the actual provider app registration/Supabase
+Dashboard configuration for Google/LinkedIn (manual, founder-only step).
+
+---
+
 ## 2026-09-14 (final) — New-user signup confirmed fully working end-to-end
 
 Founder pasted `docs/email-templates/supabase-confirm-signup.html` into
