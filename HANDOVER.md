@@ -377,12 +377,39 @@ Routes (`src/auth.ts`):
 - `POST /auth/logout`, `GET /auth/me` — both need
   `Authorization: Bearer <access_token>`.
 
-**⚠️ Not yet verified end-to-end.** Supabase's default "Magic Link" email
-template needs to be changed to reference `{{ .Token }}` (Dashboard →
-Authentication → Emails → Templates), or `verifyOtp` rejects every valid
-code. This is a manual Dashboard step, not covered by any MCP/API tool
-available in this session, and **has not been done**. Until it is, the
-OTP flow is deployed but unconfirmed against a real inbox.
+**✅ Two bugs found live-testing password sign-in, both fixed
+2026-09-16 (migration 0045 + a frontend fix, see PROGRESS.md for the
+full story):**
+1. `POST /auth/sign-in-password` 500'd for any `auth.users` row with
+   `NULL` in `confirmation_token` and seven similar text columns —
+   GoTrue's driver can't scan `NULL` into them. Only ever hit the
+   `@icare-test.invalid` seed candidates (raw-SQL-inserted, bypassing
+   GoTrue's own defaults that set these to `''`); no real account was
+   affected. Migration 0045 sweeps every existing row and adds a
+   `BEFORE INSERT OR UPDATE` trigger (`normalize_auth_user_tokens`) so a
+   future raw-SQL-seeded account can't reintroduce it.
+2. A password-reset link could fall back to `/sign-in` (same class of
+   Redirect-URL-allow-list drift as the 2026-09-14 signup bug) and get
+   forwarded straight to `/verify` by the existing hash-recovery script
+   — completing a sign-in and silently skipping the "set new password"
+   form. The recovery script (`landing.html`/`sign-in.html`/
+   `employer-sign-in.html`/`employers.html`) now checks the hash's
+   `type=` and routes `type=recovery` to `/reset-password` instead,
+   every other type unchanged.
+
+**Stale note, left as a historical marker of how early this was
+written**: this originally said the Magic Link template's `{{ .Token }}`
+was unconfirmed and blocked on a manual Dashboard step. Long since
+overtaken by events — see §8 item 3 and PROGRESS.md's 2026-09-10 and
+2026-09-14 entries for the real, much longer story (a DMARC conflict,
+then a sender-address mismatch, then a completely separate
+Confirm-signup-vs-Magic-Link template split). Both the link path and the
+code path for new-user signup are confirmed working end-to-end as of
+2026-09-14. The one genuinely still-open piece: whether Magic Link's own
+`{{ .Token }}` (the *code* path for a *returning* user, as opposed to
+clicking the link) has ever actually been typed by a human — every
+success on that template so far has been via the link. Low priority,
+not blocking anything.
 
 The `handle_new_user()` trigger (already in the DB, not something to
 rebuild) reads `raw_user_meta_data.signup_role`/`full_name`/`org_name`/

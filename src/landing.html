@@ -14,7 +14,16 @@
 // Do not remove without checking HANDOVER.md §6.
 (function () {
   if (window.location.hash.indexOf("access_token=") !== -1) {
-    window.location.replace("/verify" + window.location.hash);
+    // 2026-09-16: a password-reset link ends up with this exact same
+    // #access_token= shape (GoTrue's implicit flow appends the hash the
+    // same way for every action), but it also carries type=recovery,
+    // and reset-password.html is the page that knows how to show a
+    // "set new password" form from it -- /verify would just complete a
+    // silent sign-in and skip the reset entirely. Every other type
+    // (signup confirmation, magic-link sign-in) keeps going to /verify
+    // as before.
+    var target = window.location.hash.indexOf("type=recovery") !== -1 ? "/reset-password" : "/verify";
+    window.location.replace(target + window.location.hash);
   }
 })();
 </script>

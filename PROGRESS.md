@@ -4285,3 +4285,85 @@ noise was the sandbox's proxy intercepting the external Google Fonts
 request, unrelated to this code). `tsc --noEmit` and `wrangler deploy
 --dry-run` both clean, 1706.35 KiB / 509.96 KiB gzip (up from 1614.76 KiB
 before this).
+
+---
+
+## 2026-09-16 — Both password-login flags from yesterday's live testing, fixed
+
+Founder asked for a status check, then asked to fix the two open flags
+from testing the notification center against the just-landed password
+sign-in feature: a live 500 on `NULL` token columns, and a speculative
+interaction between the magic-link hash-recovery script and the new
+password-reset flow. Neither had made it past a git commit message and
+my own chat reply into HANDOVER.md/PROGRESS.md's actual body — a real
+gap in yesterday's documentation, closed here along with the fixes.
+
+**Fix 1 — `NULL` auth.users token columns 500ing password sign-in.**
+Yesterday's live testing found `POST /auth/sign-in-password` 500ing for
+the seeded `@icare-test.invalid` candidates, traced to GoTrue's Go
+driver refusing to scan SQL `NULL` into its (non-nullable) string
+fields for `confirmation_token` and similar columns — fixed live at the
+time by hand-coalescing those seven rows. That was a patch, not a fix:
+nothing stopped the next raw-SQL-seeded test account from reintroducing
+the exact same gap.
+
+Migration 0045 makes it durable: a one-time sweep coalescing all eight
+of the affected columns (`confirmation_token`, `recovery_token`,
+`email_change_token_new`, `email_change`, `phone_change`,
+`phone_change_token`, `email_change_token_current`,
+`reauthentication_token`) across every row in `auth.users` — a no-op
+for real accounts, which were already confirmed clean — plus a `BEFORE
+INSERT OR UPDATE` trigger (`normalize_auth_user_tokens`, mirroring
+`handle_new_user`'s existing precedent for touching `auth.users`
+directly) that coalesces the same columns going forward. GoTrue's own
+writes already set these to `''`, so the trigger only ever changes
+behaviour for a row that would otherwise have written a `NULL` — in
+this project's history, that has meant exactly one thing: seeded by raw
+SQL instead of a real signup.
+
+Verified three ways, not just read: (1) a rollback-transaction insert
+with `confirmation_token`/`recovery_token` explicitly `NULL` came back
+as `''` before the row was ever readable — proves the trigger fires and
+coalesces correctly; (2) a real, *committed* throwaway account
+(`live-trigger-verify@icare-test.invalid`) seeded the same way, then a
+real password sign-in against it through the live production API —
+`200`, a real session, not a 500 — proves the fix holds against actual
+GoTrue, not just my own reading of its error message; the account was
+deleted afterward, cascade confirmed clean. (3) Sarah Osei's existing
+account re-tested through the same live endpoint to confirm no
+regression on the accounts already fixed by hand yesterday.
+
+**Fix 2 — password-reset links could be silently swallowed by the
+magic-link recovery script.** The hash-recovery script added 2026-09-14
+(`landing.html`, `sign-in.html`, `employer-sign-in.html`,
+`employers.html` — forwards any unhandled `#access_token=` hash to
+`/verify`) predates yesterday's password-reset feature and had no way
+to know a `#access_token=` hash could now also mean "here's a password-
+reset token," not just "complete a sign-in." If Supabase's Redirect
+URLs allow-list is ever missing `/reset-password` the same way it once
+missed `/verify`, a reset link would fall back to one of these four
+pages and get forwarded straight into a normal sign-in via `/verify` —
+skipping the "set new password" form entirely. Not a hard failure
+(GoTrue recovery tokens are valid session grants either way, so the
+person ends up signed in) but exactly the wrong outcome for someone who
+clicked "forgot password" because they couldn't sign in.
+
+Fixed by making the existing recovery script type-aware rather than
+adding a new one: GoTrue's implicit-flow hash already carries `type=`
+alongside the tokens (`type=recovery` for a reset link, `magiclink`/
+`signup` otherwise), so the script now checks for `type=recovery`
+specifically and routes there to `/reset-password` — which already
+knows how to read `#access_token=` from a landing hash, since that's
+its own normal entry path — while every other type keeps going to
+`/verify` exactly as before. Applied identically to all four pages that
+carry the script.
+
+Verified in a real Chromium against all four pages with three synthetic
+hash shapes each (`type=recovery`, `type=magiclink`, `type=signup`):
+recovery correctly lands on `/reset-password` with the hash intact,
+both other types still land on `/verify` exactly as they did before
+this change — seven checks, seven passes, no regression on the
+2026-09-14 fix this builds on top of.
+
+`tsc --noEmit` and `wrangler deploy --dry-run` both clean, 1749.23 KiB /
+515.99 KiB gzip.
