@@ -27,11 +27,13 @@ import roundsPage from "./rounds.html";
 import networkPage from "./network.html";
 import messagesPage from "./messages.html";
 import employerHomePage from "./employer-home.html";
+import blog, { BLOG_POSTS, CATEGORY_LIST } from "./blog";
 
 type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
   MEDIA: R2Bucket;
+  UNSPLASH_ACCESS_KEY?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -39,6 +41,7 @@ const app = new Hono<{ Bindings: Bindings }>();
 app.route("/auth", auth);
 app.route("/candidates", candidates);
 app.route("/waitlist", waitlist);
+app.route("/blog", blog);
 
 app.get("/", (c) => c.html(landingPage));
 
@@ -169,6 +172,42 @@ app.get("/prompts", async (c) => {
 app.get("/media-check", async (c) => {
   const list = await c.env.MEDIA.list({ limit: 1 });
   return c.json({ bucket: "icare", objects: list.objects.length });
+});
+
+// Covers the public marketing surface plus every blog route — not the
+// signed-in app pages (those need auth to reach anyway, and are excluded
+// from crawling by not appearing here or being linked from any indexable
+// page). See HANDOVER.md's blog section for why the blog itself needed a
+// sitemap/robots pair that didn't exist before.
+app.get("/sitemap.xml", (c) => {
+  const origin = new URL(c.req.url).origin;
+  const staticUrls = ["/", "/employers", "/privacy", "/terms", "/blog"];
+  const categoryUrls = CATEGORY_LIST.map((cat) => `/blog/category/${cat.slug}`);
+  const postEntries = BLOG_POSTS.map((p) => ({ loc: `/blog/${p.slug}`, lastmod: p.dateModified }));
+  const entries = [
+    ...staticUrls.map((loc) => ({ loc, lastmod: undefined as string | undefined })),
+    ...categoryUrls.map((loc) => ({ loc, lastmod: undefined as string | undefined })),
+    ...postEntries,
+  ];
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${entries
+  .map(
+    (e) =>
+      `  <url><loc>${origin}${e.loc}</loc>${e.lastmod ? `<lastmod>${e.lastmod}</lastmod>` : ""}</url>`
+  )
+  .join("\n")}
+</urlset>`;
+  return c.text(xml, 200, { "Content-Type": "application/xml; charset=utf-8" });
+});
+
+app.get("/robots.txt", (c) => {
+  const origin = new URL(c.req.url).origin;
+  // Allow all, including AI crawlers — visibility in AI answers is a goal
+  // for the blog specifically (see HANDOVER.md's blog section).
+  return c.text(`User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`, 200, {
+    "Content-Type": "text/plain; charset=utf-8",
+  });
 });
 
 export default app;

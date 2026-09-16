@@ -4481,3 +4481,145 @@ correctly, `/verify`'s signup-password code path confirming `type:
 route. Re-ran the full previous day's regression suite (updated for the
 two-axis class/selector rename) — all still green, zero page errors
 anywhere. Screenshot taken of the new signup-with-password card.
+
+---
+
+## 2026-09-16 (continued) — Blog ("Insights") built from an uploaded Next.js-targeted handover package
+
+Founder uploaded `icare-blog-handover.zip` — a full blog build spec
+(its own `HANDOVER.md`, 8 finished Markdown posts, a self-contained HTML
+design prototype, `build_prototype.py`) and said "Let's build the
+blogs." The package was written for a Next.js App Router codebase.
+
+**Checked, not assumed, before writing anything**: called `list_repos` —
+only `genesysc/icare` exists, and it's this Cloudflare Workers + Hono
+repo, the one already serving `icareltd.com` live. There is no deployed
+Next.js site for this to slot into. This exactly matches a decision
+already on record in this repo (`HANDOVER.md` §3/§14): a separate
+Next.js candidate-side codebase exists only as an uploaded design/logic
+*reference*, explicitly never migrated to. So the blog was built by
+porting the prototype's exact CSS and HTML structure (close to verbatim
+— nothing about the approved design drifted) into this repo's own
+conventions, replacing every Next.js-specific mechanism with a real
+equivalent:
+
+- **MDX/Zod → a committed generated file.** `content/posts/*.md` (all 8
+  posts, git-tracked) are parsed by a new `scripts/build-blog-content.js`
+  (Node, `marked`+`js-yaml` as devDependencies only — never bundled into
+  the Worker) into `src/blog-content.ts`, a typed, committed data file —
+  same "content in git" philosophy the handover itself asked for, just
+  compiled once at authoring time (`npm run build:blog`) instead of on
+  every Next.js build. Validates unique slugs matching filename, valid
+  category, `seoTitle`/`metaDescription` length, ≥3 sources, ≥1 FAQ,
+  every `relatedPosts` slug actually resolving — throws and refuses to
+  write on any of those; warns (doesn't error) on a stale `reviewBy` or
+  a >1min reading-time drift from the frontmatter's stated value, per
+  the handover's own spec for that check.
+- **React Server Components → real Hono routes.** `src/blog.ts` mounted
+  at `/blog`: index, `/category/:slug` (6 hubs), `/feed.xml` (RSS 2.0),
+  `/:slug/opengraph-image`, `/:slug` (8 articles). All server-rendered
+  per request from the static data, nothing client-only.
+- **`ImageResponse` → a real but simplified OG image.** No Satori/
+  `ImageResponse` equivalent exists for Workers without a genuinely new
+  dependency. `/blog/:slug/opengraph-image` 302s to the Unsplash hero
+  cropped to 1200×630 instead of a composited branded card — a real,
+  correct, working image either way, just not the text-overlay version.
+  Flagged as scoped down, not silently dropped.
+- **`next/image` → hotlinked `<img>` with explicit dimensions.**
+  Unsplash's CDN (`images.unsplash.com/photo-{id}`) takes Imgix-style
+  crop params directly, confirmed live via `curl` (200) before relying
+  on it — no API key needed just to hotlink. `width`/`height` set on
+  every image (CLS), `loading="lazy"` below the fold, `fetchpriority=
+  "high"` on the hero (the `next/image priority` equivalent).
+- **Unsplash API attribution → generic fallback, real pipeline wired but
+  dormant.** No `UNSPLASH_ACCESS_KEY` was provided. `src/blog-images.ts`'s
+  `resolveUnsplashCredit()` calls the real API and fires the required
+  download-endpoint trigger when the key exists; until then, credit
+  reads "Photo via Unsplash" linking only to `unsplash.com` itself —
+  deliberately never a guessed per-photo permalink
+  (`unsplash.com/photos/{id}` without the real title slug 404s, checked
+  by hand with `WebFetch` before deciding this, not assumed).
+- **Waitlist-capture band → real sign-up CTAs — a deliberate content
+  correction, not just a stack adaptation.** The handover's own band
+  assumed candidates were still pre-launch. They aren't: the 2026-09-14
+  landing rebuild already replaced `landing.html`'s waitlist form with
+  real `/sign-up`/`/sign-in` CTAs once the candidate product went live.
+  Shipping a stale email-capture form next to an already-working signup
+  flow would have been a regression dressed up as fidelity to the spec,
+  so the blog's band and article-end CTA use the same real links
+  `landing.html` already does. Employers still have a genuine waitlist
+  (`employers.html`) — untouched, out of scope here.
+- **`app/sitemap.ts`/`app/robots.ts` → new routes.** Neither existed
+  anywhere in this repo before. Added `GET /sitemap.xml` (covers `/`,
+  `/employers`, `/privacy`, `/terms`, `/blog`, all 6 category hubs, all
+  8 posts with real `lastmod`) and `GET /robots.txt` (allow all,
+  including AI crawlers — visibility in AI answers is a stated goal) in
+  `src/index.ts`.
+- **"Insights" added to nav + footer** on `landing.html` and
+  `employers.html` — the two public marketing pages. Signed-in app pages
+  (dashboard, rounds, etc.) deliberately left alone — different
+  navigation purpose, out of scope.
+
+**Real bugs found by testing, not by reading the code:**
+- The prototype's own CSS declared `.mobile-share{display:none;...}`
+  *after* the `@media(max-width:760px){.mobile-share{display:flex}}`
+  block meant to override it. Equal specificity, later source position
+  wins regardless of which rule sits inside a media query — so the fixed
+  bottom mobile share bar never actually appeared at any viewport width,
+  in the prototype or in the first port of it here. Copied faithfully
+  (the CSS was ported close to verbatim) until a real Playwright check
+  at 390px caught `isVisible()` returning `false` when the spec says it
+  should be `true`. Fixed by moving the base `display:none` rule before
+  the media query that overrides it.
+- The handover's own frontmatter schema (§4) explicitly warned this
+  exact thing could happen, and it did: post 5
+  (`health-care-worker-visa-settlement-2026.md`) has both a `disclaimer`
+  frontmatter field and its own inline Markdown blockquote making the
+  same point. The first build rendered both as two separate visible
+  notice callouts with the same warning text. Fixed in the build script:
+  when `disclaimer` is set, the source's leading blockquote is stripped
+  from the Markdown before conversion, so only the frontmatter version
+  ever renders.
+- Generic Unsplash fallback credit read as "Photo: Unsplash on
+  Unsplash" — the per-photographer caption template applied unchanged
+  even when falling back to the generic name. Fixed with distinct,
+  honest phrasing ("Photo via Unsplash") for the fallback case.
+
+**Testing note on images**: this sandbox's Chromium doesn't trust the
+outbound proxy's CA certificate for arbitrary external domains
+(`net::ERR_CERT_AUTHORITY_INVALID` on every `images.unsplash.com`
+request), so hero/thumbnail images rendered as broken in the Playwright
+screenshots even though the exact same URLs return a clean `curl` 200.
+Verified the URLs and `<img>` markup are correct by other means (direct
+`curl`, DOM attribute inspection) rather than trusting a screenshot that
+can't actually succeed in this specific sandbox — this is a
+test-environment artifact, not a shipped bug; production Workers and
+real browsers have no such proxy in the path.
+
+**Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean
+(1904 KiB / 559 KiB gzip, ~140KB growth from the 8 posts' embedded
+pre-rendered HTML). Real local Cloudflare Worker (`wrangler dev`,
+temporarily run against a copy of the config without the `ai` binding —
+Workers AI needs a remote connection this sandbox has no
+`CLOUDFLARE_API_TOKEN` for, and nothing blog-related touches it; the
+real `wrangler.jsonc` was never modified) + Playwright: all 8 articles
+and all 6 category hubs return 200, an unknown slug returns a real 404,
+RSS and sitemap both validated as well-formed XML, every JSON-LD block
+on a real article page parsed with 0 syntax errors
+(`Organization`/`BreadcrumbList`/`BlogPosting`/`FAQPage`), TOC
+click-to-scroll + IntersectionObserver active-highlight, copy-link
+(clipboard + toast), correct per-platform share UTM params, mobile
+viewport (390px — no horizontal overflow, share rail hidden, mobile bar
+now correctly visible after the CSS fix, index excerpts hidden), dark
+mode (`prefers-color-scheme` background genuinely switches), zero page
+errors anywhere across every test.
+
+**Open questions carried over from the handover's own §14, genuinely
+unresolved, not decided unilaterally**: named author vs. "iCare
+Editorial Team"; `UNSPLASH_ACCESS_KEY` (needed for real photographer
+attribution — add via `wrangler secret put` to switch it on with zero
+code changes); `Organization.sameAs` social profiles (none exist yet);
+an analytics/consent tool (event hooks exist in the article script,
+no-op without `gtag`/`plausible` present, no tool wired up); posting
+cadence after the 8-post launch set; legal review of the immigration
+post before it goes live.

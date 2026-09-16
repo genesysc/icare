@@ -1738,3 +1738,95 @@ first slice:
   content still doesn't match the wireframe's 7-step outline (11 steps,
   different structure — not just renumbered). Sequencing these is an
   open question for the founder, not decided here.
+
+---
+
+## 15. Blog ("Insights") — built 2026-09-16 from an uploaded handover package
+
+The founder uploaded a `icare-blog-handover.zip` (its own `HANDOVER.md`,
+8 finished Markdown posts, a self-contained HTML design prototype,
+`build_prototype.py`) written for **a Next.js App Router codebase**, with
+the instruction to build it into `icareltd.com`.
+
+**Real mismatch, checked before writing any code, not assumed:** this
+repo — Cloudflare Workers + Hono, self-contained HTML, no framework, no
+build step (see §2) — is the only repo that exists (confirmed via
+`list_repos`, one result: `genesysc/icare`) and it **is** what serves
+`icareltd.com` live. There is no deployed Next.js site anywhere for this
+blog package to slot into. This is the same conclusion §3/§14 already
+reached independently for the candidate-side Next.js reference code
+(design/logic reference only, never migrated to) — consistent with a
+standing decision, not a new one. So the blog was adapted to the real
+stack rather than the assumed one, using the prototype as the exact
+visual/structural source of truth (its CSS and HTML were ported close to
+verbatim) while replacing every Next.js-specific mechanism with this
+repo's own conventions:
+
+| Handover spec | What actually shipped |
+|---|---|
+| MDX + `next-mdx-remote/rsc`, Zod build-time validation | Markdown stays the authoring format. `scripts/build-blog-content.js` (a devDependency-only Node script — `marked` + `js-yaml`, never bundled into the Worker) parses `content/posts/*.md` once, validates (unique slugs matching filename, valid category, `seoTitle`/`metaDescription` length, ≥3 sources, ≥1 FAQ, `relatedPosts` slugs resolve, warns — doesn't error — on stale `reviewBy` or a >1min reading-time drift) and writes a committed `src/blog-content.ts`. Re-run `npm run build:blog` and commit the regenerated file after any post is added or edited — same discipline as every other committed, pre-rendered content in this repo. |
+| React Server Components, `generateStaticParams` | Hono routes in `src/blog.ts` render HTML server-side per request from the same static data — no client-side rendering, no hydration, nothing search engines can't see. |
+| `ImageResponse` (Vercel/Satori) for OG images | No equivalent exists for Workers without a real added dependency. `/blog/:slug/opengraph-image` 302s to the Unsplash hero cropped to 1200×630 (`src/blog-images.ts`'s `ogImageUrl`) — a real, correctly-sized, working image, just not a branded text-overlay card. Flagged as a scoped-down piece, not silently dropped; a proper composited version is a real follow-up if wanted (e.g. `workers-og`, a Satori port for Workers — not evaluated in depth). |
+| `next/image` + Imgix loader | Unsplash's CDN (`images.unsplash.com/photo-{id}`) accepts Imgix-style crop/quality params directly — hotlinked with plain `<img>`, explicit `width`/`height` (CLS), `loading="lazy"` (below the fold) / `fetchpriority="high"` (hero only, the Next `priority` equivalent). No API key needed for this part — confirmed live via `curl` before relying on it. |
+| Unsplash API metadata + attribution + download-endpoint trigger | **Not wired — no `UNSPLASH_ACCESS_KEY` was provided.** `src/blog-images.ts`'s `resolveUnsplashCredit()` calls the real API (and fires the download-endpoint trigger, per API terms) when the key exists; until then every photo credits generically ("Photo via Unsplash", linking only to `unsplash.com` itself — **never** a guessed per-photo URL: `unsplash.com/photos/{id}` without the real title slug 404s, checked by hand, not assumed). Add the key as a Worker secret (`wrangler secret put UNSPLASH_ACCESS_KEY`) to switch on real per-photographer credit with zero code changes. |
+| Waitlist-capture band | **Deliberately not a waitlist form.** The handover's own band assumed candidates were still pre-launch; they aren't — the 2026-09-14 landing rebuild already replaced `landing.html`'s waitlist form with real `/sign-up`/`/sign-in` CTAs once the candidate product went live (see PROGRESS.md). Building a stale email-capture form next to an already-working signup flow would have been a regression, not a feature — so the blog's band and article-end CTA use the same real `/sign-up` / `/sign-in` links `landing.html` does. Employers still have a genuine waitlist (`employers.html`, untouched, out of scope here). |
+| `app/sitemap.ts` / `app/robots.ts` | Neither existed anywhere in this repo before — added at `GET /sitemap.xml` / `GET /robots.txt` in `src/index.ts`, covering `/`, `/employers`, `/privacy`, `/terms`, `/blog`, all 6 category hubs, and all 8 (growing) posts with `lastmod` from `dateModified`. |
+| Author page, `Organization.sameAs`, analytics/consent tool, posting cadence | Open questions from the handover's own §14, genuinely unanswered here too — not decided unilaterally. See "Open questions" below. |
+
+**Real bugs found by testing, not by reading the code:**
+- The prototype's own CSS had `.mobile-share{display:none;...}` declared *after* the `@media(max-width:760px){.mobile-share{display:flex}}` block that was meant to override it — same specificity, later source position wins regardless of the media query, so the bottom mobile share bar never actually showed at any viewport width. Inherited faithfully during the port (CSS was copied close to verbatim), caught by a real Playwright check at a 390px viewport (`isVisible()` returned `false` when it should have been `true`), fixed by reordering the base rule before the media query.
+- The handover's own frontmatter schema (§4) explicitly warned about this one and it still happened: post 5 (`health-care-worker-visa-settlement-2026.md`) carries both a `disclaimer` frontmatter field *and* an inline Markdown blockquote making the same point — my first build rendered both as separate notice callouts, a visible duplicate. Fixed in `build-blog-content.js`: when `disclaimer` is set, the source's own leading blockquote is stripped before Markdown conversion, so only the frontmatter version renders.
+- Generic Unsplash credit read as "Photo: Unsplash on Unsplash" (the per-photographer template applied even when falling back to the generic name). Fixed with a distinct, honest "Photo via Unsplash" phrasing for the fallback case.
+
+**File map additions:**
+
+| File | What |
+|---|---|
+| `content/posts/*.md` | The 8 launch posts, git-tracked (frontmatter + Markdown body) — the actual source of truth for blog content. |
+| `scripts/build-blog-content.js` | Content build step (`npm run build:blog`) — parses + validates + converts Markdown to `src/blog-content.ts`. devDependencies only (`marked`, `js-yaml`); never runs inside the deployed Worker. |
+| `src/blog-content.ts` | **Generated, committed** — typed `BLOG_POSTS` array (frontmatter + pre-rendered `bodyHtml` + extracted `toc`). Re-run the build script and recommit after any content change. |
+| `src/blog-images.ts` | Unsplash CDN URL helpers (hero/featured/list/related/OG crops) + `resolveUnsplashCredit()` (generic fallback today, real API once `UNSPLASH_ACCESS_KEY` exists). |
+| `src/blog-templates.ts` | All page HTML (index/article/category hub), the full ported CSS, JSON-LD builders (`Organization`, `WebSite`, `BlogPosting`, `BreadcrumbList`, `FAQPage`, `Blog`+`ItemList`), share-button logic with per-platform UTM params. |
+| `src/blog.ts` | Hono sub-app mounted at `/blog` — index, `/category/:slug`, `/feed.xml` (RSS 2.0), `/:slug/opengraph-image`, `/:slug` (article; registered last — Hono route order matters for the more specific paths above it). |
+| `src/index.ts` | `app.route("/blog", blog)`, new `GET /sitemap.xml` / `GET /robots.txt`. |
+| `src/landing.html`, `src/employers.html` | "Insights" added to header nav + footer on both public marketing pages (the handover's own acceptance checklist asked for this). Signed-in app pages (dashboard, rounds, etc.) intentionally left untouched — different navigation purpose, not part of top-level site nav. |
+
+**Verified:** `tsc --noEmit` clean, `wrangler deploy --dry-run` clean
+(1904 KiB / 559 KiB gzip — the ~140KB growth is `blog-content.ts`'s
+embedded pre-rendered HTML for 8 posts, will grow roughly linearly with
+future posts, worth revisiting only if it becomes a real bundle-size
+problem). Real local server (`wrangler dev`, temporarily without the
+`ai` binding — Workers AI needs a remote connection this sandbox has no
+`CLOUDFLARE_API_TOKEN` for; nothing blog-related touches it) + Playwright
+against all 8 articles and all 6 category hubs (200 everywhere, a real
+404 for an unknown slug), RSS/sitemap validated as well-formed XML via
+`xml.dom.minidom`, every JSON-LD block on an article page parsed
+(`Organization`/`BreadcrumbList`/`BlogPosting`/`FAQPage`, 0 syntax
+errors), TOC click-to-scroll + active-highlight, copy-link (clipboard +
+toast), per-platform share UTM params, mobile viewport (390px, no
+horizontal overflow, share rail hidden, mobile bar visible, index row
+excerpts hidden), dark mode (`prefers-color-scheme` background actually
+switches), zero page errors anywhere. Image URLs themselves verified via
+direct `curl` (200) rather than in-browser rendering — this sandbox's
+Chromium doesn't trust the outbound proxy's CA for arbitrary external
+domains (`ERR_CERT_AUTHORITY_INVALID`), a sandbox-only artifact, not a
+real bug; production Workers and real user browsers have no such proxy
+in the path.
+
+**Open questions carried over from the handover's own §14, genuinely
+unresolved, not decided here:**
+1. Named author vs. "iCare Editorial Team" (currently the latter, matches
+   the handover's own default).
+2. `UNSPLASH_ACCESS_KEY` — needed for real photographer attribution (§9
+   above) and to stop relying on the generic fallback.
+3. Social profils for `Organization.sameAs` — none added, none existed
+   to add.
+4. Analytics/consent tool — `share_click`/`outbound_click`/etc. event
+   hooks exist in the article page's inline script (`window.gtag`/
+   `window.plausible` calls, both no-ops if neither is present), but no
+   analytics tool or consent banner is wired up anywhere in this repo.
+5. Posting cadence after the 8-post launch set — a content/marketing
+   decision, not a code one.
+6. Legal review of the immigration post (`health-care-worker-visa-
+   settlement-2026.md`) — flagged by the handover itself, still needed,
+   not something this session can do.
