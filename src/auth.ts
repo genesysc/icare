@@ -220,7 +220,18 @@ auth.post("/oauth/:provider", async (c) => {
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: provider as "google" | "linkedin_oidc",
-    options: { redirectTo: redirectTo.toString(), skipBrowserRedirect: true },
+    options: {
+      redirectTo: redirectTo.toString(),
+      skipBrowserRedirect: true,
+      // Found 2026-09-16: with no `prompt`, Google/LinkedIn silently
+      // reuse whichever account is already signed into the browser
+      // instead of showing the account chooser -- indistinguishable
+      // from "it logged me into the wrong account and won't let me
+      // pick" if you're trying to sign up with a second email.
+      // `select_account` is a standard OIDC prompt value (not a Google-
+      // only flag), so it applies the same way to linkedin_oidc.
+      queryParams: { prompt: "select_account" },
+    },
   });
 
   if (error) return c.json({ error: error.message }, 400);
