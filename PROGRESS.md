@@ -4623,3 +4623,63 @@ an analytics/consent tool (event hooks exist in the article script,
 no-op without `gtag`/`plausible` present, no tool wired up); posting
 cadence after the 8-post launch set; legal review of the immigration
 post before it goes live.
+
+---
+
+## 2026-09-16 (continued) — Real Unsplash attribution wired for future posts
+
+Founder provided a real Unsplash Access Key (via the Cloudflare dashboard,
+as a Worker secret — not `wrangler.jsonc`, same pattern as `SENDER_API_KEY`).
+Before declaring this "done," tested it directly against the live API
+rather than assuming a valid key meant working attribution.
+
+**Real problem found by testing**: `GET https://api.unsplash.com/photos/
+1584515933487-779824d29309` (using one of the 8 launch posts' frontmatter
+`unsplashId`) returned `404 "Couldn't find Asset"` — with the key
+authenticating fine (no 401), ruling out a bad key. Investigated further:
+fetched a real photo object from the API (`/photos/random?query=nurse`)
+and found the actual shape — the API's own `id` field is a short string
+like `d3fe9qJDqaI`, while the CDN hotlink URL it returns
+(`urls.raw`) uses a completely different, longer identifier
+(`https://images.unsplash.com/photo-1576765974257-b414b9ea0051?...`).
+These are two genuinely separate identifiers for the same photo. The
+content package's `heroImage.unsplashId` values are the CDN kind (that's
+what was needed to build the offline prototype's base64-embedded
+hotlinks) — never queryable via the API's `/photos/{id}` endpoint.
+
+**Scope, matching what was actually asked**: "fix it for future posts,"
+not re-pick images for the 8 already-published ones. Re-attributing
+those by guesswork (reverse image search, fuzzy matching) risked
+crediting the *wrong* photographer to a photo — worse than the honest
+generic fallback already showing. Left alone.
+
+**The fix**: new optional frontmatter field, `heroImage.unsplashPhotoId`
+— the real API id, i.e. the last segment of a photo's
+`unsplash.com/photos/...` permalink (naturally what someone gets if they
+copy the URL from browsing Unsplash normally, rather than inspecting a
+CDN image tag). `scripts/build-blog-content.js` now resolves it **once,
+at build time**: calls `GET /photos/{unsplashPhotoId}`, extracts the
+correct CDN id from the API's own `urls.raw` (never hand-reconstructed),
+extracts the real photographer name + profile link, and fires the
+required `download_location` trigger exactly once — all baked directly
+into the committed `src/blog-content.ts`. `src/blog.ts`'s article route
+now checks `post.heroImage.credit` first, only falling back to the old
+per-request `resolveUnsplashCredit()` for posts that don't have it.
+
+This is a better design than "call the API on every pageview," which is
+what the original wiring did: zero runtime API dependency for posts
+built this way (faster, keeps working even if the key is later rotated
+or rate-limited), and the download-location trigger fires once at
+publish time — the semantically correct moment per Unsplash's API terms
+— rather than repeatedly on every reader's page load.
+
+**Verified end-to-end before trusting it**, not just by reading the
+code: resolved a real photo id (`d3fe9qJDqaI`) through the actual build
+script (a temporary scratch post added to `content/posts/`, built, the
+output inspected, then removed and the file rebuilt clean — never
+committed) and confirmed all three pieces landed correctly in the
+compiled output — the right CDN id (`1576765974257-b414b9ea0051`), the
+real credit (`CDC` / `unsplash.com/@cdc`), and that the resulting hotlink
+URL actually serves the image (`curl` 200). `tsc --noEmit` and
+`wrangler deploy --dry-run` both clean afterward, bundle size unchanged
+(the 8 real posts weren't touched).

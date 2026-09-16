@@ -20,8 +20,10 @@ export interface BlogTocItem {
 
 export interface BlogHeroImage {
   unsplashId: string;
+  unsplashPhotoId?: string;
   alt: string;
   focal?: string;
+  credit?: { name: string; profileUrl: string };
 }
 
 export interface BlogPost {

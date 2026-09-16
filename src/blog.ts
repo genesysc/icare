@@ -90,7 +90,12 @@ blog.get("/:slug/opengraph-image", async (c) => {
 blog.get("/:slug", async (c) => {
   const post = findPost(c.req.param("slug"));
   if (!post) return c.notFound();
-  const credit = await resolveUnsplashCredit(post.heroImage.unsplashId, c.env.UNSPLASH_ACCESS_KEY);
+  // Posts built with heroImage.unsplashPhotoId have real credit resolved
+  // and baked in at build time (see build-blog-content.js) — no runtime
+  // API call needed. Older posts (unsplashId only) still resolve a
+  // generic fallback (or real credit, if the id happens to already be an
+  // API-queryable one) per request.
+  const credit = post.heroImage.credit ?? (await resolveUnsplashCredit(post.heroImage.unsplashId, c.env.UNSPLASH_ACCESS_KEY));
   return c.html(renderArticlePage(post, relatedFor(post), credit));
 });
 

@@ -91,7 +91,69 @@ function wordCount(markdownBody) {
   return stripped.split(/\s+/).filter(Boolean).length;
 }
 
-function parsePost(filename) {
+// Real photographer attribution, resolved once here at build/publish time
+// rather than per-request (see HANDOVER.md's blog section, 2026-09-16
+// update). Two Unsplash identifiers are NOT interchangeable — confirmed by
+// hand against the live API before writing this, not assumed:
+//   - the CDN path id ("photo-{this}") used to hotlink the image, e.g.
+//     "1576765974257-b414b9ea0051"
+//   - the API's own short `id` (e.g. "d3fe9qJDqaI"), the only thing
+//     `GET /photos/{id}` accepts
+// A frontmatter `heroImage.unsplashId` copied from an image URL is the
+// first kind and can never resolve real attribution — GET /photos/{that}
+// 404s "Couldn't find Asset", checked directly, not guessed. So going
+// forward posts should set `heroImage.unsplashPhotoId` to the real API id
+// (the last segment of the photo's unsplash.com/photos/... permalink) —
+// this function resolves it once here, at build time, into both the
+// correct CDN id (from the API's own `urls.raw`, never reconstructed by
+// hand) and the real credit, baking both into the committed
+// src/blog-content.ts. Old posts that only have `unsplashId` are left
+// exactly as they were (generic runtime credit, see src/blog-images.ts).
+async function resolveHeroImage(heroImage, filename) {
+  if (!heroImage.unsplashPhotoId) return heroImage;
+
+  const accessKey = process.env.UNSPLASH_ACCESS_KEY;
+  if (!accessKey) {
+    throw new Error(
+      `${filename}: heroImage.unsplashPhotoId is set but UNSPLASH_ACCESS_KEY isn't — run as ` +
+        `UNSPLASH_ACCESS_KEY=... npm run build:blog to resolve real attribution for this post.`
+    );
+  }
+
+  const res = await fetch(`https://api.unsplash.com/photos/${heroImage.unsplashPhotoId}`, {
+    headers: { Authorization: `Client-ID ${accessKey}` },
+  });
+  if (!res.ok) {
+    throw new Error(
+      `${filename}: heroImage.unsplashPhotoId "${heroImage.unsplashPhotoId}" didn't resolve ` +
+        `(${res.status} ${res.statusText}) — check the id is the API's short id from the photo's ` +
+        `unsplash.com/photos/... permalink, not a CDN image URL fragment.`
+    );
+  }
+  const data = await res.json();
+
+  const cdnMatch = /photo-([A-Za-z0-9_-]+)/.exec(data.urls?.raw || "");
+  if (!cdnMatch) throw new Error(`${filename}: couldn't parse a CDN id out of the API's urls.raw for this photo`);
+
+  if (data.links?.download_location) {
+    // Required by Unsplash's API Developer Terms when a photo is put into
+    // use — fired once here at publish time (the semantically correct
+    // moment), not on every future pageview.
+    const dl = await fetch(data.links.download_location, { headers: { Authorization: `Client-ID ${accessKey}` } });
+    if (!dl.ok) console.warn(`WARN ${filename}: download-location trigger failed (${dl.status}) — not fatal`);
+  }
+
+  return {
+    ...heroImage,
+    unsplashId: cdnMatch[1],
+    credit:
+      data.user?.name && data.user?.links?.html
+        ? { name: data.user.name, profileUrl: `${data.user.links.html}?utm_source=icare&utm_medium=referral` }
+        : undefined,
+  };
+}
+
+async function parsePost(filename) {
   const raw = fs.readFileSync(path.join(POSTS_DIR, filename), "utf8");
   const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) throw new Error(`${filename}: missing frontmatter block`);
@@ -106,7 +168,9 @@ function parsePost(filename) {
   if (!fm.metaDescription || fm.metaDescription.length < 100 || fm.metaDescription.length > 160) {
     errors.push(`metaDescription should be ~120-155 chars (was ${fm.metaDescription?.length ?? 0})`);
   }
-  if (!fm.heroImage?.unsplashId) errors.push("heroImage.unsplashId is required");
+  if (!fm.heroImage?.unsplashId && !fm.heroImage?.unsplashPhotoId) {
+    errors.push("heroImage needs either unsplashId (legacy, CDN id) or unsplashPhotoId (preferred, the API's real id — gets real photographer attribution, see build-blog-content.js)");
+  }
   if (!fm.heroImage?.alt) errors.push("heroImage.alt is required");
   if (!Array.isArray(fm.sources) || fm.sources.length < 3) errors.push("sources needs at least 3 entries");
   if (!Array.isArray(fm.faq) || fm.faq.length < 1) errors.push("faq needs at least 1 entry");
@@ -139,6 +203,7 @@ function parsePost(filename) {
   return {
     ...fm,
     categorySlug: CATEGORY_SLUGS[fm.category],
+    heroImage: await resolveHeroImage(fm.heroImage, filename),
     bodyHtml: html,
     toc,
     wordCount: computedWordCount,
@@ -146,9 +211,13 @@ function parsePost(filename) {
   };
 }
 
-function main() {
+async function main() {
   const files = fs.readdirSync(POSTS_DIR).filter((f) => f.endsWith(".md"));
-  const posts = files.map(parsePost);
+  // Sequential, not Promise.all — deliberately gentle on Unsplash's rate
+  // limit (50 req/hr on the free demo tier) rather than firing every
+  // post's lookup at once.
+  const posts = [];
+  for (const f of files) posts.push(await parsePost(f));
 
   const slugs = new Set(posts.map((p) => p.slug));
   for (const p of posts) {
@@ -181,8 +250,10 @@ export interface BlogTocItem {
 
 export interface BlogHeroImage {
   unsplashId: string;
+  unsplashPhotoId?: string;
   alt: string;
   focal?: string;
+  credit?: { name: string; profileUrl: string };
 }
 
 export interface BlogPost {
@@ -218,4 +289,7 @@ export const BLOG_POSTS: BlogPost[] = `;
   console.log(`Wrote ${posts.length} posts to ${path.relative(ROOT, OUT_FILE)}`);
 }
 
-main();
+main().catch((err) => {
+  console.error(err.message);
+  process.exit(1);
+});
