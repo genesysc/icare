@@ -4367,3 +4367,117 @@ this change — seven checks, seven passes, no regression on the
 
 `tsc --noEmit` and `wrangler deploy --dry-run` both clean, 1749.23 KiB /
 515.99 KiB gzip.
+
+---
+
+## 2026-09-16 — Sign-up now asks for a password too, OAuth buttons on sign-up too
+
+Direct founder pushback on yesterday's two deliberate scope boundaries:
+*"Sign ups should be asked for passwords! OAuth buttons should also
+appear in Sign ups!"* Both were built out properly rather than just
+removing a CSS rule, since both had a real reason behind them that
+needed solving, not just deleting.
+
+**Password at sign-up**: new `POST /auth/sign-up-password` uses
+Supabase's `auth.signUp()` (not `signInWithOtp()`) — the one call that
+both sets a password AND accepts the same `data` payload
+`handle_new_user()` reads, so account creation still works exactly like
+OTP signup, just with a password from the start. This meant
+`/auth/verify-code` needed a real fix, not a copy-paste: a signup
+confirmation code must be verified with Supabase's `type: "signup"`, not
+`type: "email"` (the OTP flow's type) — verified this distinction is
+real against Supabase's own type signature before writing it, added an
+optional `type` field defaulting to `"email"` so every existing caller
+is unaffected. Resending needed its own route too,
+`POST /auth/resend-signup-code` (`resend({type:"signup"})`), since the
+existing resend (`signInWithOtp`) would 400 against a signUp()'d account
+correctly rather than silently working. `sign-in.html`/
+`employer-sign-in.html` were restructured from a three-mode scheme
+(signup / signin-password / signin-otp) to a cleaner two-independent-axis
+one (`mode-signup` × `mode-otp` — four real combinations), since password
+was no longer signin-only. Confirm-password field + its own show/hide
+toggle added to signup mode.
+
+**OAuth at sign-up — the real problem investigated before building
+anything**: read `handle_new_user()`'s actual source first rather than
+trust yesterday's own write-up. Correction to what was documented
+yesterday: the trigger does **not** fail or skip account creation for a
+roleless OAuth signup — its `CASE` clamp defaults an unrecognised/missing
+`signup_role` straight to `'candidate'`. That means **candidate OAuth
+signup already just worked**, no fix needed there at all — yesterday's
+"would silently break every downstream page" note overstated the risk.
+The real, narrower problem is only the **employer** side: an employer
+clicking "Continue with Google" on `/employer/sign-up` would get
+silently mis-rowed as a candidate, since `signInWithOAuth()` has no way
+to say "this one's an employer" or supply an org name.
+
+Fixed with a deliberately narrow, audited path, checked against
+`pg_policies` and the trigger source before writing any of it (same
+discipline as every other account-writing function here — non-negotiable
+#2's badge-writing trap is the same class of mistake):
+- `role`/`flow` now ride as JSON body fields into `POST /auth/oauth/
+  :provider`, forwarded as plain query params on `redirectTo` (Supabase
+  doesn't touch them, just redirects the browser to that literal URL with
+  the session tokens appended to the hash) — so they arrive on `/verify`
+  alongside the tokens, telling it which signup this actually was.
+- New migration `0043_complete_oauth_employer_signup` — a
+  `security definer` RPC that converts a just-auto-created candidate
+  account to an employer one (deletes the auto-created
+  `candidates`/`candidate_contact` rows, inserts `employers`/
+  `employer_verification_requests`, flips `accounts.role` +
+  `raw_app_meta_data.role`). **Guarded to only ever apply to an account
+  created in the last 10 minutes** — deliberately not a general
+  "change my role" function, so it can complete a signup in progress but
+  can never re-role an established candidate with real profile data.
+  Idempotent (a second call on an already-converted account no-ops
+  rather than erroring).
+- `/verify` now reads `flow=oauth-signup&role=employer`: if the resulting
+  account role came back `candidate` (the safe default above), it shows
+  a small inline "What's your organisation?" card instead of redirecting
+  into candidate onboarding, which POSTs to the new
+  `POST /auth/complete-oauth-employer-signup` and then continues to
+  `/employer/home`.
+- **Real bug found by testing, not by reading the code**: the org-name
+  form's `submit` event listener was wired up *after* the magic-link
+  hash-handling block's `return` — meaning on exactly the one code path
+  that needed it (the OAuth/hash callback), the listener never attached
+  at all. A Playwright test clicking the org-name submit button timed
+  out waiting for a status element that should have updated instantly,
+  which is what surfaced it. Fixed by moving the listener registration
+  above the early return.
+- Full-name backfill: OAuth providers populate `raw_user_meta_data`
+  inconsistently (Google reliably sets `full_name`; some OIDC providers
+  only set `name`), so a new small `PATCH /auth/me` (`{full_name}`) lets
+  `/verify` backfill it from the session's `user_metadata` — but only
+  ever when the account's own `full_name` is still empty, enforced
+  server-side not just client-side.
+- **Real gap found and fixed, not part of the original ask**: OAuth
+  buttons on the signup page previously bypassed the Terms checkbox
+  entirely — they're separate buttons, not part of form submission, so
+  nothing ever validated it. Added an explicit guard on both sign-in
+  pages: an OAuth click in signup mode is blocked with a clear error
+  until Terms is checked.
+- **Known minor gap, flagged not silently accepted**: a candidate OAuth
+  signup still has no completion step, so `accounts.terms_version`/
+  `terms_accepted_at` stay null for OAuth-created candidates — the
+  click-time Terms checkbox gate is the real compliance action taken,
+  there's just nowhere server-side yet to record which version they
+  agreed to on this one path.
+- Facebook still deliberately not wired (Meta business verification/app
+  review, real added friction) — the route is generic enough that adding
+  it is one allow-list entry plus a button, whenever wanted.
+
+**Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean.
+Headless-Chromium tests: candidate + employer password signup (mismatch
+and too-short password errors render correctly, valid submit posts the
+right payload to `/auth/sign-up-password`), OAuth terms-gate on both
+sign-in pages (blocked without Terms checked, proceeds with the right
+`role`/`flow` body once checked), `/verify`'s employer OAuth org-name
+step (card visibility, empty-org-name validation, correct payload to
+`/auth/complete-oauth-employer-signup`), `/verify`'s candidate OAuth path
+confirming the org card does NOT show and full_name backfill PATCHes
+correctly, `/verify`'s signup-password code path confirming `type:
+"signup"` is sent and resend hits the new `/auth/resend-signup-code`
+route. Re-ran the full previous day's regression suite (updated for the
+two-axis class/selector rename) — all still green, zero page errors
+anywhere. Screenshot taken of the new signup-with-password card.

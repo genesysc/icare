@@ -101,8 +101,13 @@
   .field-name { display: none; }
   body.mode-signup .field-name { display: block; }
 
-  .field-password { display: none; }
-  body.mode-signin-password .field-password { display: block; }
+  /* Two independent axes: mode-signup (vs. default signin) and mode-otp
+     (vs. default password) — every combination (signin+password,
+     signin+otp, signup+password, signup+otp) is one of the four states
+     these combine into. */
+  .field-password, .field-password-confirm { display: none; }
+  body:not(.mode-otp) .field-password { display: block; }
+  body.mode-signup:not(.mode-otp) .field-password-confirm { display: block; }
   .password-wrap { position: relative; }
   .password-wrap input { padding-right: 44px; }
   .password-toggle {
@@ -112,22 +117,18 @@
   }
   .password-toggle:hover { color: var(--plum-950); background: var(--paper-dim); }
   .password-toggle svg { width: 19px; height: 19px; }
+  .field-hint { margin-top: 6px; font-size: 12.5px; color: var(--ink-faint); }
   .field-row-end { margin-top: 8px; text-align: right; font-size: 13px; }
-  body:not(.mode-signin-password) .field-row-end { display: none; }
+  body.mode-signup .field-row-end, body.mode-otp .field-row-end { display: none; }
 
   .field-otp-only { display: none; }
-  body.mode-signin-otp .field-otp-only { display: block; }
-  body.mode-signin-password .field-otp-only,
-  body.mode-signup .field-otp-only { display: none; }
+  body.mode-otp .field-otp-only { display: block; }
 
   .method-switch { margin-top: 14px; text-align: center; font-size: 13.5px; }
-  body:not(.mode-signup) .method-switch { display: block; }
-  body.mode-signup .method-switch { display: none; }
   .method-switch button { background: none; border: none; color: var(--teal-700); font-weight: 600; cursor: pointer; padding: 0; font-size: inherit; }
   .method-switch button:hover { text-decoration: underline; }
 
   .oauth-block { margin-top: 22px; }
-  body.mode-signup .oauth-block { display: none; }
   .divider { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em; }
   .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   .oauth-buttons { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -189,12 +190,23 @@
         <label for="password">Password</label>
         <div class="password-wrap">
           <input id="password" name="password" type="password" autocomplete="current-password" />
-          <button type="button" class="password-toggle" data-password-toggle aria-label="Show password" aria-pressed="false">
+          <button type="button" class="password-toggle" data-password-toggle="password" aria-label="Show password" aria-pressed="false">
             <svg data-icon-show viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
             <svg data-icon-hide viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.3 20.3 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 7 11 7a20.4 20.4 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
           </button>
         </div>
         <div class="field-row-end"><a href="/reset-password" data-forgot-link>Forgot password?</a></div>
+      </div>
+      <div class="field field-password-confirm">
+        <label for="password-confirm">Confirm password</label>
+        <div class="password-wrap">
+          <input id="password-confirm" name="password_confirm" type="password" autocomplete="new-password" />
+          <button type="button" class="password-toggle" data-password-toggle="password-confirm" aria-label="Show password" aria-pressed="false">
+            <svg data-icon-show viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg data-icon-hide viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.3 20.3 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 7 11 7a20.4 20.4 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+        <p class="field-hint">At least 8 characters.</p>
       </div>
       <div class="field field-otp-only">
         <p style="font-size:13px;color:var(--ink-faint);margin-top:-6px;">We'll email you a one-time code — no password needed.</p>
@@ -208,8 +220,7 @@
     <p class="status" data-status></p>
 
     <div class="method-switch">
-      <span data-method-password-active>Prefer a code instead? <button type="button" data-method="otp">Sign in with a code</button></span>
-      <span data-method-otp-active style="display:none;">Have a password? <button type="button" data-method="password">Sign in with password</button></span>
+      <button type="button" data-method-toggle></button>
     </div>
 
     <div class="oauth-block">
@@ -254,32 +265,40 @@ function icareAuthFetch(url, options) {
 (function () {
   var TERMS_VERSION = "2026-08-26-draft";
 
-  // Three modes: "signup" (OTP-only, unchanged), "signin-password" (the new
-  // default for returning users), "signin-otp" (the old flow, kept as a
-  // fallback for accounts that haven't set a password yet — see auth.ts).
-  function setMode(mode) {
-    document.body.classList.toggle("mode-signup", mode === "signup");
-    document.body.classList.toggle("mode-signin-password", mode === "signin-password");
-    document.body.classList.toggle("mode-signin-otp", mode === "signin-otp");
+  // Two independent axes: signup vs. signin, password vs. otp — every
+  // combination is a real, working mode. Password is the default method
+  // for both audiences now; otp is kept as an explicit fallback (see
+  // auth.ts — useful when email delivery of a link is easier to trust
+  // than a password, or before OAuth providers are configured).
+  var isSignup = false;
+  var isOtp = false;
 
-    document.querySelector("[data-title]").textContent = mode === "signup" ? "Join iCare" : "Welcome back";
+  function applyMode() {
+    document.body.classList.toggle("mode-signup", isSignup);
+    document.body.classList.toggle("mode-otp", isOtp);
+
+    document.querySelector("[data-title]").textContent = isSignup ? "Join iCare" : "Welcome back";
     document.querySelector("[data-sub]").textContent =
-      mode === "signup" ? "Create your candidate account — we'll send you a one-time code, no password needed." :
-      mode === "signin-otp" ? "We'll email you a one-time code, no password needed." :
+      isOtp ? "We'll email you a one-time code, no password needed." :
+      isSignup ? "Create your candidate account with an email and password." :
       "Sign in with your email and password.";
 
-    document.querySelector("[data-toggle-signin]").style.display = mode === "signup" ? "none" : "inline";
-    document.querySelector("[data-toggle-signup]").style.display = mode === "signup" ? "inline" : "none";
-    document.querySelector("[data-method-password-active]").style.display = mode === "signin-password" ? "inline" : "none";
-    document.querySelector("[data-method-otp-active]").style.display = mode === "signin-otp" ? "inline" : "none";
+    document.querySelector("[data-toggle-signin]").style.display = isSignup ? "none" : "inline";
+    document.querySelector("[data-toggle-signup]").style.display = isSignup ? "inline" : "none";
 
-    document.getElementById("full-name").required = mode === "signup";
-    document.getElementById("terms").required = mode === "signup";
-    document.getElementById("password").required = mode === "signin-password";
+    var methodToggle = document.querySelector("[data-method-toggle]");
+    methodToggle.textContent = isOtp
+      ? (isSignup ? "Sign up with a password instead" : "Sign in with a password instead")
+      : (isSignup ? "Sign up with a code instead" : "Sign in with a code instead");
 
-    submitBtn.textContent = mode === "signin-password" ? "Sign in" : "Send me a code";
+    document.getElementById("full-name").required = isSignup;
+    document.getElementById("terms").required = isSignup;
+    document.getElementById("password").required = !isOtp;
+    document.getElementById("password-confirm").required = isSignup && !isOtp;
 
-    var path = mode === "signup" ? "/sign-up" : "/sign-in";
+    submitBtn.textContent = isOtp ? "Send me a code" : (isSignup ? "Create account" : "Sign in");
+
+    var path = isSignup ? "/sign-up" : "/sign-in";
     try { history.replaceState(null, "", path); } catch (e) {
       // Some contexts (e.g. file:// during local testing) disallow replaceState —
       // the mode toggle still works via body class, just without updating the URL bar.
@@ -297,32 +316,34 @@ function icareAuthFetch(url, options) {
     statusEl.className = "status";
   }
 
-  var initialMode = window.location.pathname === "/sign-up" ? "signup" : "signin-password";
-  setMode(initialMode);
+  isSignup = window.location.pathname === "/sign-up";
+  applyMode();
 
   document.querySelectorAll("[data-switch]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       clearStatus();
-      setMode(btn.getAttribute("data-switch") === "signup" ? "signup" : "signin-password");
+      isSignup = btn.getAttribute("data-switch") === "signup";
+      applyMode();
     });
   });
-  document.querySelectorAll("[data-method]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      clearStatus();
-      setMode(btn.getAttribute("data-method") === "otp" ? "signin-otp" : "signin-password");
-    });
+  document.querySelector("[data-method-toggle]").addEventListener("click", function () {
+    clearStatus();
+    isOtp = !isOtp;
+    applyMode();
   });
 
-  // Show/hide password icon toggle.
-  var passwordInput = document.getElementById("password");
-  var passwordToggle = document.querySelector("[data-password-toggle]");
-  passwordToggle.addEventListener("click", function () {
-    var showing = passwordInput.type === "text";
-    passwordInput.type = showing ? "password" : "text";
-    passwordToggle.setAttribute("aria-pressed", String(!showing));
-    passwordToggle.setAttribute("aria-label", showing ? "Show password" : "Hide password");
-    passwordToggle.querySelector("[data-icon-show]").style.display = showing ? "" : "none";
-    passwordToggle.querySelector("[data-icon-hide]").style.display = showing ? "none" : "";
+  // Show/hide password icon toggles — shared by the password and
+  // confirm-password fields.
+  document.querySelectorAll("[data-password-toggle]").forEach(function (btn) {
+    var input = document.getElementById(btn.getAttribute("data-password-toggle"));
+    btn.addEventListener("click", function () {
+      var showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      btn.setAttribute("aria-pressed", String(!showing));
+      btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+      btn.querySelector("[data-icon-show]").style.display = showing ? "" : "none";
+      btn.querySelector("[data-icon-hide]").style.display = showing ? "none" : "";
+    });
   });
 
   // Carry the typed email into the forgot-password page.
@@ -352,27 +373,30 @@ function icareAuthFetch(url, options) {
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();
-    var mode = document.body.classList.contains("mode-signup") ? "signup" :
-      document.body.classList.contains("mode-signin-otp") ? "signin-otp" : "signin-password";
     var email = document.getElementById("email").value.trim();
     var fullName = document.getElementById("full-name").value.trim();
-    var password = passwordInput.value;
+    var password = document.getElementById("password").value;
+    var passwordConfirm = document.getElementById("password-confirm").value;
     var termsAccepted = document.getElementById("terms").checked;
 
     if (!email) { setStatus("err", "Please enter your email address."); return; }
-    if (mode === "signup" && (!fullName || !termsAccepted)) {
+    if (isSignup && (!fullName || !termsAccepted)) {
       setStatus("err", "Please enter your name and accept the Terms to continue.");
       return;
     }
-    if (mode === "signin-password" && !password) {
+    if (!isOtp && !password) {
       setStatus("err", "Please enter your password.");
       return;
+    }
+    if (isSignup && !isOtp) {
+      if (password.length < 8) { setStatus("err", "Password must be at least 8 characters."); return; }
+      if (password !== passwordConfirm) { setStatus("err", "Passwords don't match."); return; }
     }
 
     clearStatus();
     submitBtn.disabled = true;
 
-    if (mode === "signin-password") {
+    if (!isOtp && !isSignup) {
       submitBtn.textContent = "Signing in…";
       fetch("/auth/sign-in-password", {
         method: "POST",
@@ -400,9 +424,41 @@ function icareAuthFetch(url, options) {
       return;
     }
 
+    if (!isOtp && isSignup) {
+      submitBtn.textContent = "Creating account…";
+      fetch("/auth/sign-up-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, password: password, role: "candidate", full_name: fullName, terms_version: TERMS_VERSION }),
+      })
+        .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+        .then(function (result) {
+          if (!result.ok) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Create account";
+            setStatus("err", result.body.error || "Something went wrong. Please try again.");
+            return;
+          }
+          if (result.body.session) {
+            // Email confirmation is off on this project — rare, but handle it.
+            icareSetSession(result.body.session);
+            setStatus("ok", "You're in — taking you to your account…");
+            return redirectByRole();
+          }
+          window.location.href = "/verify?email=" + encodeURIComponent(email) + "&role=candidate&flow=signup-password";
+        })
+        .catch(function () {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Create account";
+          setStatus("err", "Network error — please try again.");
+        });
+      return;
+    }
+
+    // OTP path (both signup and signin) — unchanged from the original flow.
     submitBtn.textContent = "Sending…";
-    var payload = { email: email, create: mode === "signup" };
-    if (mode === "signup") {
+    var payload = { email: email, create: isSignup };
+    if (isSignup) {
       payload.role = "candidate";
       payload.full_name = fullName;
       payload.terms_version = TERMS_VERSION;
@@ -433,9 +489,17 @@ function icareAuthFetch(url, options) {
   document.querySelectorAll("[data-oauth]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       clearStatus();
+      if (isSignup && !document.getElementById("terms").checked) {
+        setStatus("err", "Please accept the Terms to continue.");
+        return;
+      }
       var provider = btn.getAttribute("data-oauth");
       btn.disabled = true;
-      fetch("/auth/oauth/" + provider, { method: "POST" })
+      fetch("/auth/oauth/" + provider, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: "candidate", flow: isSignup ? "oauth-signup" : "oauth-signin" }),
+      })
         .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
         .then(function (result) {
           if (!result.ok || !result.body.url) {
