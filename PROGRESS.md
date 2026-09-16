@@ -4738,5 +4738,63 @@ had no `CLOUDFLARE_API_TOKEN` in its environment, and this repo's
 GitHub Actions workflow only deploys to production on a push to `main`
 (same path the earlier password-login fix took as PR #44). Confirmed
 live afterward by `curl`ing the deployed `/verify` page and checking the
-fix's exact source is present. Founder still needs to confirm a real
-click-through now completes.
+fix's exact source is present. Founder confirmed both Google and
+LinkedIn sign-in work end-to-end after this.
+
+**LinkedIn's own error along the way**: after Google worked, LinkedIn's
+click-through returned "The redirect_uri does not match the registered
+value" — from LinkedIn itself, not Supabase or this codebase (confirmed
+via `auth_logs`: Supabase's `/authorize` successfully 302'd to LinkedIn;
+LinkedIn's own authorization page rejected it). Purely a LinkedIn
+Developer Portal config gap — the app's "Authorized redirect URLs" list
+was missing `https://blflbiwqflidltqflwew.supabase.co/auth/v1/callback`.
+Founder added it; confirmed working on the next real click-through.
+
+---
+
+## 2026-09-16 (continued) — Missing notification dot + landing page nav/footer
+
+Founder tested the notification center and landing page live and
+reported three things:
+
+**1. A real pending connection request had no unread dot.** Checked
+directly (candidate's `connections`/`notifications` rows, not assumed):
+the request was created 2026-09-14, a day before migration 0043 added
+`notify_connection_request` — an `AFTER INSERT` trigger, which by
+definition can't retroactively fire for a row that already existed.
+Swept the whole table: exactly 3 pending connections repo-wide were
+missing a notification, all pre-0043; every accepted connection,
+message, and invite already had full coverage (0 gaps). Migration 0046
+backfills the 3 missing rows, idempotently (`not exists` guard, safe to
+re-run, not a trigger since 0043's own trigger already covers everything
+from 2026-09-15 onward).
+
+**2. "The Insights link is right at the very bottom"** — traced to
+`src/landing.html`'s nav: `@media (max-width:430px){.navlink.plain{
+display:none}}` simply deleted "For employers" and "Insights" from the
+nav below 430px, with nothing to replace them — the footer was the only
+way back to them on a phone. Replaced with a real mobile menu: "Sign up"
+(the one conversion action) stays inline always; a hamburger-to-X toggle
+button reveals a dropdown with the other three links. Desktop (>680px)
+is visually unchanged — the toggle only appears below that breakpoint.
+
+**3. "We don't have a footer, need to create one."** The existing
+footer was one centered line of tiny mono text plus 5 inline links —
+technically present but easy to miss as a footer at all. Rebuilt as a
+real one: brand blurb, then Candidates/Employers/Legal columns, closing
+with a copyright bar. Only linked to pages that actually exist (checked
+`src/index.ts`'s registered routes rather than guessing — no `/about` or
+`/contact` page exists, so none was invented).
+
+**Verified before shipping**, not just by reading the diff: stood up
+the actual `landing.html` on a local static server and drove it with a
+real headless Chromium (Playwright, since this repo has no browser test
+harness of its own) at both 375px and 1280px — screenshots confirmed
+the hamburger opens/closes with the right links, the desktop nav is
+byte-for-byte the same layout as before, and the footer reads correctly
+at both widths before any of it reached production.
+
+Shipped via PR #46, same path as #45 (no local deploy credentials this
+session). GitHub Actions ran the deploy, confirmed `success`, and the
+live page was `curl`ed afterward to confirm the shipped HTML actually
+contains the new markup.
