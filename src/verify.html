@@ -296,12 +296,28 @@ function icareAuthFetch(url, options) {
     var hashParams = new URLSearchParams(hash.replace(/^#/, ""));
     var accessToken = hashParams.get("access_token");
     var refreshToken = hashParams.get("refresh_token");
+    // GoTrue's implicit-flow hash carries expires_in (seconds), not
+    // expires_at — every protected page's icareIsSessionExpired() checks
+    // session.expires_at (a unix timestamp) and treats a missing value as
+    // "already expired", clearing the session and bouncing back to
+    // /sign-in. Found 2026-09-16: this silently broke every OAuth/magic-
+    // link sign-in right after it landed here, since only expires_in was
+    // ever captured off the hash. Compute expires_at the same way
+    // supabase-js does (now + expires_in) so it survives the next page's
+    // guard.
+    var expiresIn = Number(hashParams.get("expires_in"));
+    var expiresAtRaw = hashParams.get("expires_at");
     if (accessToken && refreshToken) {
       history.replaceState(null, "", window.location.pathname + window.location.search);
       document.querySelector("[data-magic-link-card]").hidden = false;
       document.querySelector("[data-code-card]").hidden = true;
       completeSignIn(
-        { access_token: accessToken, refresh_token: refreshToken },
+        {
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          token_type: hashParams.get("token_type") || "bearer",
+          expires_at: expiresAtRaw ? Number(expiresAtRaw) : (expiresIn ? Math.floor(Date.now() / 1000) + expiresIn : undefined),
+        },
         function () {
           document.querySelector("[data-magic-link-status]").textContent =
             "Something went wrong finishing sign-in — try the code from your email instead, or request a new one.";
