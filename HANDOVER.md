@@ -398,14 +398,15 @@ rule. Design:
     verification/app review for public use); the backend route is
     generic enough that adding it later is just adding `"facebook"` to
     the `OAUTH_PROVIDERS` allow-list in `auth.ts` plus a third button.
-  - **Manual step, not done yet, blocks all OAuth buttons from
-    working**: each provider needs a real app registered in its own
-    developer console (Google Cloud Console → OAuth client; LinkedIn
-    Developer Portal → app with the "Sign In with LinkedIn using OpenID
-    Connect" product) and its Client ID/Secret pasted into Supabase
-    Dashboard → Authentication → Providers. No tool in this session's
-    toolset can do that — same category of manual Dashboard step as the
-    OTP email template fix below.
+  - **Manual step, done 2026-09-16**: both providers now have real apps
+    registered (Google Cloud Console OAuth client; LinkedIn Developer
+    Portal app with the "Sign In with LinkedIn using OpenID Connect"
+    product), Client ID/Secret pasted into Supabase Dashboard →
+    Authentication → Providers, and both toggles confirmed actually
+    enabled (the toggle silently not saving, separate from the
+    credentials fields, cost two re-saves before it stuck — see the
+    third bug below for what broke *after* that). Facebook is still the
+    one not registered.
 
 Routes (`src/auth.ts`):
 
@@ -443,9 +444,9 @@ Routes (`src/auth.ts`):
 - `PATCH /auth/me` — `{ full_name }`, `requireAuth` → only writes when
   the account's own `full_name` is currently empty.
 
-**✅ Two bugs found live-testing password sign-in, both fixed
-2026-09-16 (migration 0045 + a frontend fix, see PROGRESS.md for the
-full story):**
+**✅ Three bugs found live-testing sign-in, all fixed 2026-09-16
+(migration 0045 + two frontend fixes, see PROGRESS.md for the full
+story):**
 1. `POST /auth/sign-in-password` 500'd for any `auth.users` row with
    `NULL` in `confirmation_token` and seven similar text columns —
    GoTrue's driver can't scan `NULL` into them. Only ever hit the
@@ -462,6 +463,25 @@ full story):**
    `employer-sign-in.html`/`employers.html`) now checks the hash's
    `type=` and routes `type=recovery` to `/reset-password` instead,
    every other type unchanged.
+3. Once both OAuth providers were actually enabled, a real Google
+   sign-in click-through still bounced back to `/sign-in` right after
+   picking an account — confirmed via GoTrue's own `auth_logs` that the
+   handshake genuinely succeeded server-side (a real `login` action,
+   `/callback` returning 302) both times the founder tried, which ruled
+   out the usual Redirect-URL-allow-list failure mode. The actual bug:
+   `verify.html`'s hash handler (shared by OAuth callbacks and magic
+   links) only ever pulled `access_token`/`refresh_token` off the
+   fragment, never `expires_in`. Every protected candidate page's own
+   guard, `icareIsSessionExpired()` (`src/auth-client.js` and the copy
+   pasted into each protected page), treats a session missing
+   `expires_at` as *already expired* and immediately clears it and
+   redirects to `/sign-in` — so the freshly-completed OAuth session was
+   wiped the instant the browser landed on `/dashboard` or
+   `/onboarding`. The password/OTP-code paths never hit this because
+   `/auth/verify-code` forwards Supabase's own full `Session` object,
+   which already has `expires_at`. Fixed in `verify.html` by computing
+   `expires_at` from `expires_in` the same way `supabase-js` does
+   (`now + expires_in`). Shipped via PR #45.
 
 **Stale note, left as a historical marker of how early this was
 written**: this originally said the Magic Link template's `{{ .Token }}`

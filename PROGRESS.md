@@ -4683,3 +4683,60 @@ real credit (`CDC` / `unsplash.com/@cdc`), and that the resulting hotlink
 URL actually serves the image (`curl` 200). `tsc --noEmit` and
 `wrangler deploy --dry-run` both clean afterward, bundle size unchanged
 (the 8 real posts weren't touched).
+
+---
+
+## 2026-09-16 (continued) — OAuth sign-in bounced back to /sign-in after a real login
+
+Founder registered both Google and LinkedIn OAuth apps (see HANDOVER.md
+§6) and tried a real Google sign-in click-through. Reported: it accepted
+the account picker, then dropped straight back to the sign-in page.
+
+**Diagnosed from Supabase's own `auth_logs` first, not by guessing.**
+Queried the exact time window and found a real `Login` action
+(`login_method: oauth`, `provider: google`) for a pre-existing account
+(`mjm.refugio@gmail.com`), immediately followed by `/callback` returning
+`302`. That ruled out the obvious suspect — a Redirect-URL-allow-list
+drift falling back to the Site URL, the exact bug this repo already hit
+twice before (2026-09-14 signup link, 2026-09-16 password-reset link,
+both in HANDOVER.md §6) — since that failure mode shows a *different*
+log signature (no successful login logged at all). The handshake
+genuinely completed server-side both times the founder tried it (two
+full `authorize → login → callback` cycles six seconds apart in the
+logs — the founder retrying after the first bounce, in hindsight).
+
+**Root cause, found by reading `verify.html`'s hash handler next** since
+the server-side leg was clean: it builds the session object it hands to
+`icareSetSession()` from only `access_token` and `refresh_token` pulled
+off the URL fragment — never `expires_in`. Every protected candidate
+page (`dashboard.html`, `onboarding.html`, `invites.html`, `pipelines.
+html`, `rounds.html`, `network.html`, `messages.html`, `credentials.
+html`, `visibility.html`) carries its own copy of `icareIsSessionExpired
+()` (`src/auth-client.js`), which reads `session.expires_at` and treats
+a *missing* value as **already expired** — clears the session and
+redirects straight to `/sign-in`. So the freshly-completed OAuth session
+survived exactly long enough to pass `/verify`'s own `/auth/me` check
+(bearer-token validation doesn't care about the session object's shape),
+then got wiped the instant the browser landed on the next page. The
+password/OTP-code sign-in paths never hit this, because `POST /auth/
+verify-code` forwards Supabase's own full `Session` object (which
+already has `expires_at`) straight through — only the hash-based path
+(shared by OAuth callbacks and magic links) built its own, incomplete
+one.
+
+**Fix** (`src/verify.html`): compute `expires_at` from the hash's
+`expires_in` the same way `supabase-js` itself does (`Math.floor(Date.
+now() / 1000) + expires_in`), falling back to a literal `expires_at` if
+GoTrue ever sends one directly, and carry `token_type` through too.
+Verified the parsing logic in isolation (Node, `URLSearchParams` against
+a synthetic hash) before shipping — confirmed `expires_at` comes out
+correctly and `icareIsSessionExpired()` now evaluates `false` against
+it.
+
+**Shipped via PR #45**, not a direct `wrangler deploy` — this session
+had no `CLOUDFLARE_API_TOKEN` in its environment, and this repo's
+GitHub Actions workflow only deploys to production on a push to `main`
+(same path the earlier password-login fix took as PR #44). Confirmed
+live afterward by `curl`ing the deployed `/verify` page and checking the
+fix's exact source is present. Founder still needs to confirm a real
+click-through now completes.
