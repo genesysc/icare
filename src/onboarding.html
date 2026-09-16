@@ -1550,9 +1550,15 @@ function icareRequireAuth(signInPath) {
         var cvImport = result.body && result.body.cv_import;
         if (!result.ok || !cvImport || cvImport.status !== "parsed") {
           resetCvIntroState();
+          // The backend's error_detail is already a complete, candidate-
+          // facing sentence with its own instruction (see candidates.ts's
+          // POST /me/cv) -- found 2026-09-16: wrapping it in another
+          // "We couldn't read that CV (...)" template produced a garbled
+          // double message ("We couldn't read that CV (This CV was too
+          // long... Try a shorter file...). Try a different file..."). Show
+          // it as-is; only the generic fallback needs its own sentence.
           errEl.textContent = (cvImport && cvImport.error_detail)
-            ? "We couldn't read that CV (" + cvImport.error_detail + "). Try a different file, or fill it in yourself."
-            : "We couldn't read that CV. Try a different file, or fill it in yourself.";
+            || "We couldn't read that CV. Try a different file, or fill it in yourself.";
           errEl.className = "form-err is-visible";
           return;
         }

@@ -1890,7 +1890,16 @@ candidates.post("/me/cv", async (c) => {
     );
 
     if (conversion.format === "error" || !conversion.data || !conversion.data.trim()) {
-      const detail = conversion.format === "error" ? conversion.error : "No extractable text found — this may be a scanned/image-only PDF";
+      // error_detail is shown to the candidate as-is (onboarding.html no
+      // longer wraps it — see that file's own note on the 2026-09-16 fix
+      // for why), so every value here has to already be a complete,
+      // friendly sentence — never conversion.error's raw provider text
+      // verbatim, same discipline as the AI.run() catch block below.
+      if (conversion.format === "error") console.error("[cv-import] toMarkdown failed:", conversion.error);
+      const detail =
+        conversion.format === "error"
+          ? "We couldn't read that file. Try a different file, or fill it in yourself."
+          : "No text could be found in that file — it may be a scanned or image-only PDF. Try a different file, or fill it in yourself.";
       await supabase.from("cv_imports").update({ status: "unreadable", error_detail: detail }).eq("id", importRow.id);
       return c.json({ cv_import: { ...importRow, status: "unreadable", error_detail: detail } });
     }
@@ -1919,15 +1928,24 @@ candidates.post("/me/cv", async (c) => {
 
     // @cf/meta/llama-3.3-70b-instruct-fp8-fast has a 24000-token total context
     // window. We reserve 3000 for the response, leaving ~21000 for the
-    // system prompt + CV text; the catalogues above are small (well under
-    // 1000 tokens even at full size), so the CV text is what can blow this.
-    // A long, detailed CV (multi-page, extensive training/course lists) can
-    // genuinely exceed it — a real user hit exactly this (21001 input tokens
-    // requested). Truncate defensively rather than let the whole import
-    // fail: ~62000 characters is a conservative ~3 chars/token estimate for
-    // CV-style text (bullets/punctuation skew denser than prose) that
-    // leaves headroom for the system prompt and tokenizer variance.
-    //
+    // system prompt + CV text. Found 2026-09-16 (a second time — see
+    // PROGRESS.md): a hardcoded MAX_CV_TEXT_CHARS silently drifts out of
+    // budget every time the professions/skills/qualification-type
+    // catalogues baked into systemPrompt grow (they've already been
+    // expanded once), because nobody re-derives the number against the
+    // real system-prompt size when that happens. Compute the CV-text
+    // budget from systemPrompt.length instead, so it always leaves real
+    // headroom no matter how large the catalogues get later — this can
+    // only shrink the budget as they grow, never silently exceed it again.
+    // ~3 chars/token is a conservative estimate for CV-style text
+    // (bullets/punctuation skew denser than prose).
+    const CONTEXT_WINDOW_TOKENS = 24000;
+    const RESPONSE_TOKENS = 3000; // matches max_tokens below
+    const CHARS_PER_TOKEN = 3;
+    const CV_WRAPPER_CHARS = 250; // "Extract this CV..." prefix + the truncation-notice suffix, both fixed strings below
+    const MAX_CV_TEXT_CHARS = (CONTEXT_WINDOW_TOKENS - RESPONSE_TOKENS) * CHARS_PER_TOKEN - systemPrompt.length - CV_WRAPPER_CHARS;
+
+    const OMITTED_MARKER = "\n\n[... middle of document omitted — too long to include in full ...]\n\n";
     // Keep both the head AND the tail rather than just the head. A pure
     // head-truncation shipped first and regressed live: a genuinely long CV
     // came back "parsed" with zero employment_history entries, because that
@@ -1938,34 +1956,59 @@ candidates.post("/me/cv", async (c) => {
     // the end (many CVs put full employment history, oldest included,
     // toward the back after a skills/training-heavy opening) rather than
     // gambling on one end.
-    const MAX_CV_TEXT_CHARS = 62000;
-    const cvTextTruncated = conversion.data.length > MAX_CV_TEXT_CHARS;
-    const OMITTED_MARKER = "\n\n[... middle of document omitted — too long to include in full ...]\n\n";
-    const headChars = Math.floor(MAX_CV_TEXT_CHARS * 0.6);
-    const tailChars = MAX_CV_TEXT_CHARS - headChars - OMITTED_MARKER.length;
-    const cvText = cvTextTruncated
-      ? conversion.data.slice(0, headChars) + OMITTED_MARKER + conversion.data.slice(-tailChars)
-      : conversion.data;
+    function truncateCvText(fullText: string, maxChars: number) {
+      if (fullText.length <= maxChars) return { text: fullText, truncated: false };
+      const headChars = Math.floor(maxChars * 0.6);
+      const tailChars = maxChars - headChars - OMITTED_MARKER.length;
+      return { text: fullText.slice(0, headChars) + OMITTED_MARKER + fullText.slice(-tailChars), truncated: true };
+    }
 
-    const result = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-      messages: [
-        { role: "system", content: systemPrompt },
+    function buildMessages(cvText: string, cvTextTruncated: boolean) {
+      return [
+        { role: "system" as const, content: systemPrompt },
         {
-          role: "user",
+          role: "user" as const,
           content:
             "Extract this CV into structured data:\n\n" +
             cvText +
             (cvTextTruncated ? "\n\n[Document truncated here — it continued beyond this point, but nothing after this was provided to you. Do not treat this as the end of the candidate's history.]" : ""),
         },
-      ],
-      response_format: { type: "json_schema", json_schema: CV_EXTRACT_SCHEMA },
-      max_tokens: 3000,
-    });
+      ];
+    }
+
+    let { text: cvText, truncated: cvTextTruncated } = truncateCvText(conversion.data, MAX_CV_TEXT_CHARS);
+
+    // Even a real-time-computed budget is only an estimate of the actual
+    // tokenizer — a particular CV's formatting (dense tables, many short
+    // lines, non-English names) can still come in denser than the 3-
+    // chars/token assumption. Rather than fail outright the first time
+    // that happens, retry once with the budget halved before giving up —
+    // genuine resilience against the estimate being wrong, not just a
+    // better guess at a fixed number.
+    let result;
+    try {
+      result = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+        messages: buildMessages(cvText, cvTextTruncated),
+        response_format: { type: "json_schema", json_schema: CV_EXTRACT_SCHEMA },
+        max_tokens: RESPONSE_TOKENS,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/maximum context length/i.test(msg)) throw err;
+      console.error("[cv-import] first attempt exceeded context window, retrying with a smaller budget:", msg);
+      ({ text: cvText, truncated: cvTextTruncated } = truncateCvText(conversion.data, Math.floor(MAX_CV_TEXT_CHARS / 2)));
+      result = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+        messages: buildMessages(cvText, cvTextTruncated),
+        response_format: { type: "json_schema", json_schema: CV_EXTRACT_SCHEMA },
+        max_tokens: RESPONSE_TOKENS,
+      });
+    }
 
     const rawResponse = typeof result === "object" && result !== null && "response" in result ? (result as { response?: unknown }).response : undefined;
     if (!rawResponse) {
-      await supabase.from("cv_imports").update({ status: "unreadable", error_detail: "Model did not return structured data" }).eq("id", importRow.id);
-      return c.json({ cv_import: { ...importRow, status: "unreadable" } });
+      const detail = "We couldn't read that CV. Try a different file, or fill it in yourself.";
+      await supabase.from("cv_imports").update({ status: "unreadable", error_detail: detail }).eq("id", importRow.id);
+      return c.json({ cv_import: { ...importRow, status: "unreadable", error_detail: detail } });
     }
 
     // With response_format: json_schema, Workers AI returns `response` as
@@ -1980,14 +2023,16 @@ candidates.post("/me/cv", async (c) => {
       try {
         rawParsed = JSON.parse(rawResponse) as Record<string, unknown>;
       } catch {
-        const detail = "Model response wasn't valid JSON: " + rawResponse.slice(0, 500);
+        console.error("[cv-import] model response wasn't valid JSON:", rawResponse.slice(0, 500));
+        const detail = "We couldn't read that CV. Try a different file, or fill it in yourself.";
         await supabase.from("cv_imports").update({ status: "unreadable", error_detail: detail }).eq("id", importRow.id);
         return c.json({ cv_import: { ...importRow, status: "unreadable", error_detail: detail } });
       }
     } else if (typeof rawResponse === "object") {
       rawParsed = rawResponse as Record<string, unknown>;
     } else {
-      const detail = "Model returned an unexpected response type: " + typeof rawResponse;
+      console.error("[cv-import] model returned an unexpected response type:", typeof rawResponse);
+      const detail = "We couldn't read that CV. Try a different file, or fill it in yourself.";
       await supabase.from("cv_imports").update({ status: "unreadable", error_detail: detail }).eq("id", importRow.id);
       return c.json({ cv_import: { ...importRow, status: "unreadable", error_detail: detail } });
     }

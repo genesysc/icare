@@ -337,7 +337,15 @@ rule. Design:
   password.
 - **OAuth** (`POST /auth/oauth/:provider`, allow-listed to `google` and
   `linkedin_oidc`) — "Continue with Google"/"Continue with LinkedIn" now
-  shown on **both** sign-in and sign-up, both audiences. The real
+  shown on **both** sign-in and sign-up, both audiences. Passes
+  `queryParams: { prompt: "select_account" }` to `signInWithOAuth()`
+  (added 2026-09-16, found live: with no `prompt`, Google/LinkedIn
+  silently reuse whichever account is already signed into the browser
+  instead of showing the chooser — indistinguishable from "it won't let
+  me pick a different account" if someone's trying to sign up a second
+  email while already signed into Google elsewhere in that browser.
+  `select_account` is a standard OIDC value, not Google-only, so it
+  covers `linkedin_oidc` too with no branching). The real
   structural problem this ran into, and how it's solved:
   `signInWithOAuth()` has no `data` option, so `handle_new_user()` (which
   reads `signup_role` from `raw_user_meta_data`) never sees a role for a

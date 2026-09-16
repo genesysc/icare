@@ -4798,3 +4798,31 @@ Shipped via PR #46, same path as #45 (no local deploy credentials this
 session). GitHub Actions ran the deploy, confirmed `success`, and the
 live page was `curl`ed afterward to confirm the shipped HTML actually
 contains the new markup.
+
+---
+
+## 2026-09-16 (continued) — OAuth silently reused the wrong Google account
+
+Founder tried to sign up a second candidate account with a different
+Gmail address while already signed into Google elsewhere in the same
+browser. Clicking "Continue with Google" never showed the account
+chooser at all — it silently logged straight into the original account.
+
+**Root cause**: `POST /auth/oauth/:provider` (`src/auth.ts`) called
+`supabase.auth.signInWithOAuth()` with no `prompt` param. Google (and
+any OIDC provider, including `linkedin_oidc`) treats an OAuth request
+with no explicit `prompt` as permission to silently reuse an existing
+signed-in session rather than showing the chooser — by design, not a
+bug in Google's own flow, just the wrong default for a product where
+someone might legitimately want to pick a *different* account than the
+one already active in their browser.
+
+**Fix**: added `queryParams: { prompt: "select_account" }` to the
+`signInWithOAuth` call. `select_account` is a standard OIDC `prompt`
+value (RFC-defined, not a Google-only flag), so it applies identically
+to LinkedIn's OIDC provider too — no per-provider branching needed.
+Confirmed on the deployed worker, not just by reading the diff: `curl`ed
+`POST /auth/oauth/google` directly against production afterward and
+checked the returned `data.url` for `&prompt=select_account` — present.
+
+Shipped via PR #47, same PR-to-main path as #45/#46.
