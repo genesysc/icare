@@ -4826,3 +4826,75 @@ Confirmed on the deployed worker, not just by reading the diff: `curl`ed
 checked the returned `data.url` for `&prompt=select_account` — present.
 
 Shipped via PR #47, same PR-to-main path as #45/#46.
+
+---
+
+## 2026-09-16 (continued) — CV import "too long" error, a second time, with a garbled message on top
+
+Founder reported CV import still failing: "This CV was too long for us
+to process..." — plus the raw message actually showed a doubled,
+garbled version, `"We couldn't read that CV (This CV was too long for
+us to process. Try a shorter file, or fill it in yourself.). Try a
+different file, or fill it in yourself."`
+
+**This exact class of bug already had one fix attempt** (PR #31,
+2026-09-11): a hardcoded `MAX_CV_TEXT_CHARS = 55000` truncation budget
+against `@cf/meta/llama-3.3-70b-instruct-fp8-fast`'s 24000-token
+context window. That PR's own note admitted it was never re-tested
+live ("no PDF file available to upload through the sandbox"). **Root
+cause of the regression**, found by walking `git log -S
+MAX_CV_TEXT_CHARS`: a *later* commit (#33, same day) bumped the
+constant from 55000 to 62000 in the *same* change that expanded the
+professions/skills catalogues baked into the model's system prompt —
+growing both sides of the same budget at once, with nobody re-deriving
+the char limit against the real token ceiling. Computed the actual
+math by hand against this session's own values (39 professions/43
+skills/14 qualification types pulled live from `care-register`): the
+old constant implied ~22,300+ estimated tokens against a 21,000-token
+input budget — already over, using the code's own stated "conservative"
+3-chars/token ratio, before any real-world tokenizer variance.
+
+**Fix, two parts** (`src/candidates.ts`):
+1. `MAX_CV_TEXT_CHARS` is now computed at runtime from
+   `systemPrompt.length` (the real, current catalogue size) rather
+   than a constant someone has to remember to revisit — verified this
+   lands at ~58,500 chars / ~21,000 estimated tokens against the live
+   catalogues, i.e. it now actually respects the budget it claims to.
+   This can only shrink as the catalogues grow further, never silently
+   drift back over budget the way the hardcoded version did twice.
+2. If the model still throws a "maximum context length" error (the
+   chars-per-token ratio is an estimate, and some CVs — dense tables,
+   many short lines, non-English names — tokenize worse than English
+   prose), retry once with the budget halved before giving up, instead
+   of failing outright on the first miss. Genuine resilience against
+   the estimate being wrong, not just a better guess at a fixed number.
+
+**The garbled message itself**: `onboarding.html` was wrapping the
+backend's `error_detail` — already a complete, friendly, candidate-
+facing sentence with its own instruction — inside a second "We
+couldn't read that CV (...)" template. Now shows `error_detail`
+directly. Two other `error_detail` paths (`Model did not return
+structured data`, `Model response wasn't valid JSON: ...`) were also
+leaking raw model/provider text rather than a friendly sentence —
+brought in line with the same discipline PR #31 already applied to the
+main AI-call failure path.
+
+**Verified, with a real limitation flagged rather than assumed clean**:
+- The new budget math checked against the live DB's actual catalogue
+  sizes (not estimated) — lands almost exactly on the 21,000-token
+  target by construction.
+- Built a real, large multi-page synthetic CV (Playwright rendering an
+  HTML CV to PDF, ~34 employment entries with verbose descriptions,
+  well over the truncation threshold) to drive an actual upload test.
+- Deployed the fix to the `icare-staging` Cloudflare Worker first
+  (triggered via `workflow_dispatch`, not the production path) —
+  confirmed it builds and deploys clean.
+- **Could not complete the actual upload round trip**: this session's
+  permission classifier blocked the `POST` needed to sign in a test
+  account and drive the request through Workers AI. Reverted the
+  temporary test-account changes (password, email confirmation) made
+  while attempting this, restoring it to its prior state. This needs a
+  real re-test on the next CV upload attempt — said so explicitly to
+  the founder rather than claiming full verification.
+
+Shipped via PR #48, same PR-to-main path as #45–#47.
