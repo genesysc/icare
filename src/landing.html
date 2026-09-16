@@ -94,8 +94,35 @@ a{color:inherit}
   transition:background .15s,transform .15s}
 .navlink.solid:hover{background:var(--purple-dk);transform:translateY(-1px)}
 .navlink.plain{padding-left:4px;padding-right:4px}
-@media (max-width:430px){
-  .navlink.plain{display:none}
+
+/* Mobile menu: below 680px, "For employers"/"Insights"/"Log in" used to
+   just vanish (display:none on .plain, no equivalent anywhere else) —
+   the only way back to them was scrolling to the footer. Sign up (the
+   one conversion action) stays inline always; everything else moves into
+   a toggled panel reachable from a proper menu button instead of being
+   dropped. */
+.navtoggle{display:none;width:42px;height:42px;flex:none;padding:0;
+  background:none;border:1.5px solid rgba(51,0,114,.25);border-radius:10px;
+  position:relative;cursor:pointer}
+.navtoggle-bar{position:absolute;left:11px;right:11px;height:2px;
+  background:var(--purple);border-radius:2px;
+  transition:transform .2s ease,opacity .15s ease}
+.navtoggle-bar:nth-child(1){top:15px}
+.navtoggle-bar:nth-child(2){top:20px}
+.navtoggle-bar:nth-child(3){top:25px}
+.navtoggle[aria-expanded="true"] .navtoggle-bar:nth-child(1){transform:translateY(5px) rotate(45deg)}
+.navtoggle[aria-expanded="true"] .navtoggle-bar:nth-child(2){opacity:0}
+.navtoggle[aria-expanded="true"] .navtoggle-bar:nth-child(3){transform:translateY(-5px) rotate(-45deg)}
+
+.mobile-nav{display:none;flex-direction:column;gap:2px;padding:4px 0 4px}
+.mobile-nav a{padding:14px 4px;font-size:16px;font-weight:600;color:var(--purple);
+  text-decoration:none;border-top:1px solid var(--hair)}
+.mobile-nav a:first-child{border-top:none}
+
+@media (max-width:680px){
+  .navtoggle{display:block}
+  .navlinks .navlink.plain,.navlinks .navlink.ghost{display:none}
+  .mobile-nav.is-open{display:flex}
 }
 
 /* ---------- shared type ---------- */
@@ -270,16 +297,25 @@ a{color:inherit}
 .final .fine{margin:26px auto 0;font-size:13.5px;color:rgba(255,255,255,.5);
   max-width:46ch}
 
-footer{background:var(--ink);color:rgba(255,255,255,.5);
-  padding:0 0 calc(30px + env(safe-area-inset-bottom));text-align:center}
-footer .wrap{border-top:1px solid rgba(255,255,255,.1);padding-top:26px;
-  display:flex;flex-direction:column;gap:12px;align-items:center}
-footer p{margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11.5px;
-  letter-spacing:.06em;line-height:1.6}
-footer .flinks{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
-footer .flinks a{font-size:13px;color:rgba(255,255,255,.66);text-decoration:none;
-  padding:11px 6px;display:inline-block;min-height:44px;line-height:22px}
-footer .flinks a:hover{color:#fff;text-decoration:underline}
+footer{background:var(--ink);color:rgba(255,255,255,.5);padding:58px 0 0}
+.footer-grid{display:grid;gap:36px;padding-bottom:38px;
+  border-bottom:1px solid rgba(255,255,255,.1)}
+.footer-brand{max-width:34ch}
+.footer-brand .logo{color:#fff}
+.footer-brand .logo span{color:var(--teal)}
+.footer-brand p{margin:14px 0 0;font-size:14px;line-height:1.65;color:rgba(255,255,255,.55)}
+.footer-col h3{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.4);
+  margin:0 0 14px;font-weight:500}
+.footer-col{display:flex;flex-direction:column;gap:1px}
+.footer-col a{font-size:14.5px;color:rgba(255,255,255,.72);text-decoration:none;
+  padding:7px 0;display:inline-block;min-height:36px;line-height:22px}
+.footer-col a:hover{color:#fff;text-decoration:underline}
+@media (min-width:760px){.footer-grid{grid-template-columns:1.3fr repeat(3,1fr)}}
+footer .bottom{padding:22px 0 calc(28px + env(safe-area-inset-bottom));
+  display:flex;flex-wrap:wrap;gap:10px 20px;justify-content:space-between;align-items:center}
+footer .bottom p{margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:11px;letter-spacing:.05em;color:rgba(255,255,255,.4)}
 </style>
 </head>
 <body>
@@ -294,7 +330,17 @@ footer .flinks a:hover{color:#fff;text-decoration:underline}
       <a class="navlink ghost" href="/sign-in">Log in</a>
       <a class="navlink solid" href="/sign-up">Sign up</a>
     </nav>
+    <button class="navtoggle" type="button" data-nav-toggle aria-label="Menu" aria-expanded="false" aria-controls="mobile-nav">
+      <span class="navtoggle-bar"></span>
+      <span class="navtoggle-bar"></span>
+      <span class="navtoggle-bar"></span>
+    </button>
   </header>
+  <nav class="mobile-nav" id="mobile-nav" data-mobile-nav aria-label="Main (mobile)">
+    <a href="/employers">For employers</a>
+    <a href="/blog">Insights</a>
+    <a href="/sign-in">Log in</a>
+  </nav>
 </div>
 
 <main id="main">
@@ -531,17 +577,51 @@ footer .flinks a:hover{color:#fff;text-decoration:underline}
 </main>
 
 <footer>
-  <div class="wrap">
-    <p>iCare · The professional network for UK health and social care</p>
-    <div class="flinks">
-      <a href="/employers">For employers</a>
-      <a href="/blog">Insights</a>
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <a class="logo" href="/">i<span>Care</span></a>
+      <p>The professional network for UK health and social care. Prove your registrations, training and checks once, then carry them to every employer on iCare.</p>
+    </div>
+    <div class="footer-col">
+      <h3>Candidates</h3>
+      <a href="/sign-up">Create an account</a>
       <a href="/sign-in">Log in</a>
+      <a href="/blog">Insights</a>
+    </div>
+    <div class="footer-col">
+      <h3>Employers</h3>
+      <a href="/employers">For employers</a>
+      <a href="/employer/sign-in">Employer log in</a>
+    </div>
+    <div class="footer-col">
+      <h3>Legal</h3>
       <a href="/privacy">Privacy</a>
       <a href="/terms">Terms</a>
     </div>
   </div>
+  <div class="wrap bottom">
+    <p>© 2026 iCare Ltd · UK health and social care</p>
+    <p>Made for nursing, medicine, allied health, social care, dental and pharmacy</p>
+  </div>
 </footer>
+
+<script>
+(function () {
+  var toggle = document.querySelector("[data-nav-toggle]");
+  var panel = document.querySelector("[data-mobile-nav]");
+  if (!toggle || !panel) return;
+  function setOpen(open) {
+    toggle.setAttribute("aria-expanded", String(open));
+    panel.classList.toggle("is-open", open);
+  }
+  toggle.addEventListener("click", function () {
+    setOpen(toggle.getAttribute("aria-expanded") !== "true");
+  });
+  panel.querySelectorAll("a").forEach(function (a) {
+    a.addEventListener("click", function () { setOpen(false); });
+  });
+})();
+</script>
 
 </body>
 </html>
