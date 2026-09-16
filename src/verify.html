@@ -82,10 +82,12 @@
   .field label { display: block; font-size: 13px; font-weight: 600; color: var(--plum-950); margin-bottom: 6px; }
   .field input {
     width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--line);
-    font-size: 22px; font-family: "IBM Plex Mono", monospace; letter-spacing: 0.3em; text-align: center;
-    background: var(--white); color: var(--plum-950);
+    font-size: 15px; font-family: inherit; background: var(--white); color: var(--plum-950);
   }
   .field input:focus { outline: none; border-color: var(--teal-500); box-shadow: 0 0 0 3px var(--teal-100); }
+  .field input#code {
+    font-size: 22px; font-family: "IBM Plex Mono", monospace; letter-spacing: 0.3em; text-align: center;
+  }
 
   .btn {
     margin-top: 22px; width: 100%; padding: 13px 20px; border-radius: 999px;
@@ -104,6 +106,7 @@
   .links button { background: none; border: none; color: var(--teal-700); font-weight: 600; cursor: pointer; padding: 0; font-size: inherit; }
   .links button:hover { text-decoration: underline; }
 </style>
+
 </head>
 <body>
 
@@ -135,6 +138,19 @@
       <a data-different-email href="/sign-in">Use a different email</a>
     </div>
   </div>
+  <div class="card" data-employer-org-card hidden>
+    <h1 class="card-title">What's your organisation?</h1>
+    <p class="card-sub">One more thing — since you signed up with Google/LinkedIn, we still need your organisation's name to finish setting up your employer account.</p>
+
+    <form id="employer-org-form" novalidate>
+      <div class="field">
+        <label for="org-name">Organisation name</label>
+        <input id="org-name" name="org_name" type="text" autocomplete="organization" required />
+      </div>
+      <button type="submit" class="btn" data-org-submit>Continue</button>
+    </form>
+    <p class="status" data-org-status></p>
+  </div>
 </div>
 
 <script>
@@ -155,30 +171,72 @@ function icareAuthFetch(url, options) {
 // ---- End shared auth helper ----
 
 (function () {
+  var TERMS_VERSION = "2026-08-26-draft";
   var params = new URLSearchParams(window.location.search);
   var email = params.get("email") || "";
   var roleHint = params.get("role") === "employer" ? "employer" : "candidate";
+  var flow = params.get("flow") || "";
   var signInPath = roleHint === "employer" ? "/employer/sign-in" : "/sign-in";
+
+  var orgCard = document.querySelector("[data-employer-org-card]");
+
+  // OAuth can't carry the provider's own name into full_name the way
+  // signInWithOtp/signUp's `data` option does for every non-OAuth path —
+  // some providers populate raw_user_meta_data.full_name, others only
+  // `name`. Backfill it client-side from whichever the session actually
+  // has, but only when the account's own full_name is still empty —
+  // /auth/me's PATCH route enforces that too, this is just to avoid a
+  // pointless call most of the time.
+  function backfillFullNameIfEmpty(account, user) {
+    if (account && account.full_name) return Promise.resolve();
+    var name = user && user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name);
+    if (!name) return Promise.resolve();
+    return icareAuthFetch("/auth/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ full_name: name }),
+    }).catch(function () {});
+  }
+
+  function redirectForCandidate() {
+    return icareAuthFetch("/candidates/me")
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (candidateResult) {
+        var onboardingDone = candidateResult.ok && candidateResult.body.candidate && candidateResult.body.candidate.onboarding_done;
+        window.location.href = onboardingDone ? "/dashboard" : "/onboarding";
+      });
+  }
 
   // Which page to land on is decided by the account's real role
   // (GET /auth/me, server-authoritative), never by the ?role= hint — that
-  // param only steers the "use a different email" link / fallback below.
+  // param only steers the "use a different email" link / fallback below,
+  // and (for OAuth) whether to route through the employer org-name step.
   function completeSignIn(session, onError) {
     icareSetSession(session);
     return icareAuthFetch("/auth/me")
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
       .then(function (meResult) {
         var role = meResult.ok && meResult.body.account ? meResult.body.account.role : roleHint;
+
         if (role === "employer") {
           window.location.href = "/employer/home";
           return;
         }
-        return icareAuthFetch("/candidates/me")
-          .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
-          .then(function (candidateResult) {
-            var onboardingDone = candidateResult.ok && candidateResult.body.candidate && candidateResult.body.candidate.onboarding_done;
-            window.location.href = onboardingDone ? "/dashboard" : "/onboarding";
+
+        // A brand-new OAuth account always lands as role=candidate
+        // (handle_new_user() has no role signal from an OAuth provider —
+        // see auth.ts) — if this was actually meant to be an employer
+        // signup, finish it with the org-name step instead of sending
+        // them into candidate onboarding.
+        if (role === "candidate" && flow === "oauth-signup" && roleHint === "employer") {
+          return backfillFullNameIfEmpty(meResult.body.account, meResult.body.user).then(function () {
+            document.querySelector("[data-code-card]").hidden = true;
+            document.querySelector("[data-magic-link-card]").hidden = true;
+            orgCard.hidden = false;
           });
+        }
+
+        return backfillFullNameIfEmpty(meResult.body.account, meResult.body.user).then(redirectForCandidate);
       })
       .catch(function () {
         if (onError) { onError(); return; }
@@ -188,9 +246,51 @@ function icareAuthFetch(url, options) {
       });
   }
 
+  // Wired up unconditionally, before any early return below — the OAuth/
+  // magic-link path (which is the only path that ever reveals this card)
+  // returns early right after this, so this listener must exist before
+  // that point or it never attaches.
+  var orgForm = document.getElementById("employer-org-form");
+  var orgStatusEl = document.querySelector("[data-org-status]");
+  var orgSubmitBtn = document.querySelector("[data-org-submit]");
+  function setOrgStatus(kind, message) {
+    orgStatusEl.textContent = message;
+    orgStatusEl.className = "status is-visible " + kind;
+  }
+  orgForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var orgName = document.getElementById("org-name").value.trim();
+    if (!orgName) { setOrgStatus("err", "Please enter your organisation's name."); return; }
+
+    orgSubmitBtn.disabled = true;
+    orgSubmitBtn.textContent = "Saving…";
+    icareAuthFetch("/auth/complete-oauth-employer-signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ org_name: orgName, terms_version: TERMS_VERSION }),
+    })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+      .then(function (result) {
+        if (!result.ok) {
+          orgSubmitBtn.disabled = false;
+          orgSubmitBtn.textContent = "Continue";
+          setOrgStatus("err", result.body.error || "Something went wrong. Please try again.");
+          return;
+        }
+        setOrgStatus("ok", "All set — taking you to your account…");
+        window.location.href = "/employer/home";
+      })
+      .catch(function () {
+        orgSubmitBtn.disabled = false;
+        orgSubmitBtn.textContent = "Continue";
+        setOrgStatus("err", "Network error — please try again.");
+      });
+  });
+
   // Magic-link path: clicking the link in Supabase's email (instead of
   // typing the code) lands here with #access_token=...&refresh_token=...
   // already a valid session — no /auth/verify-code round trip needed.
+  // Also how an OAuth callback lands here (same implicit-flow shape).
   var hash = window.location.hash;
   if (hash && hash.indexOf("access_token=") !== -1) {
     var hashParams = new URLSearchParams(hash.replace(/^#/, ""));
@@ -236,10 +336,15 @@ function icareAuthFetch(url, options) {
     submitBtn.disabled = true;
     submitBtn.textContent = "Verifying…";
 
+    // A code from /sign-up-password's signUp() call needs Supabase's
+    // "signup" OTP type, not "email" (the type every other flow on this
+    // page uses) — see auth.ts's /verify-code.
+    var otpType = flow === "signup-password" ? "signup" : undefined;
+
     fetch("/auth/verify-code", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email, token: code }),
+      body: JSON.stringify({ email: email, token: code, type: otpType }),
     })
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
       .then(function (result) {
@@ -262,10 +367,12 @@ function icareAuthFetch(url, options) {
   document.querySelector("[data-resend]").addEventListener("click", function () {
     var btn = this;
     btn.disabled = true;
-    fetch("/auth/request-code", {
+    var resendUrl = flow === "signup-password" ? "/auth/resend-signup-code" : "/auth/request-code";
+    var resendBody = flow === "signup-password" ? { email: email } : { email: email, create: false };
+    fetch(resendUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email, create: false }),
+      body: JSON.stringify(resendBody),
     })
       .then(function () {
         setStatus("ok", "Sent — check your inbox.");
