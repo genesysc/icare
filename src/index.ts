@@ -26,6 +26,7 @@ import visibilityPage from "./visibility.html";
 import roundsPage from "./rounds.html";
 import networkPage from "./network.html";
 import messagesPage from "./messages.html";
+import memberPage from "./member.html";
 import employerHomePage from "./employer-home.html";
 import blog, { BLOG_POSTS, CATEGORY_LIST } from "./blog";
 
@@ -106,6 +107,7 @@ app.get("/rounds", (c) => c.html(roundsPage));
 // bookmark or the browser's own history might).
 app.get("/home", (c) => c.redirect("/rounds", 301));
 app.get("/network", (c) => c.html(networkPage));
+app.get("/member", (c) => c.html(memberPage));
 app.get("/messages", (c) => c.html(messagesPage));
 app.get("/employer/home", (c) => c.html(employerHomePage));
 

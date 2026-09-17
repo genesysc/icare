@@ -1224,6 +1224,45 @@ candidates.get("/network", async (c) => {
   return c.json({ incoming, outgoing, connections: connectionsList });
 });
 
+// --- View another member's profile — the "view another member's profile"
+// gap flagged as unresolved in both handover_3.md and the Rounds/Network/
+// Messages/Profile spec. One aggregate call so member.html has a single
+// loading state, same shape as dashboard.html's own Promise.all but
+// server-side. Every table read here goes through either a view that
+// already excludes DBS/reg-number (candidate_peer_profile,
+// candidate_peer_registrations — migration 0047) or a peer-read RLS
+// policy scoped to published profiles (0047) — DBS itself is never
+// queried on this path at all.
+candidates.get("/:id/profile", async (c) => {
+  const supabase = c.get("supabase");
+  const targetId = c.req.param("id");
+
+  const [profileResult, professionsResult, skillsResult, employmentResult, qualificationsResult, registrationsResult, badgesResult, postsResult] =
+    await Promise.all([
+      supabase.from("candidate_peer_profile").select("*").eq("id", targetId).single(),
+      supabase.from("candidate_professions").select("profession_id, is_primary, professions(id, name, family, regulator)").eq("candidate_id", targetId),
+      supabase.from("candidate_skills").select("skill_id, clinical_skills(id, label, family)").eq("candidate_id", targetId),
+      supabase.from("employment_history").select("*").eq("candidate_id", targetId).order("started_on", { ascending: false }),
+      supabase.from("qualifications").select("*").eq("candidate_id", targetId).order("awarded_on", { ascending: false }),
+      supabase.from("candidate_peer_registrations").select("*").eq("candidate_id", targetId),
+      supabase.from("candidate_badges").select("badge_code, awarded_at, expires_at, badges(code, label, grade, family, description)").eq("candidate_id", targetId),
+      supabase.from("candidate_peer_feed").select("*").eq("candidate_id", targetId).order("created_at", { ascending: false }).limit(20),
+    ]);
+
+  if (profileResult.error) return c.json({ error: "Not found" }, 404);
+
+  return c.json({
+    profile: profileResult.data,
+    professions: professionsResult.data || [],
+    skills: skillsResult.data || [],
+    employment_history: employmentResult.data || [],
+    qualifications: qualificationsResult.data || [],
+    registrations: registrationsResult.data || [],
+    badges: badgesResult.data || [],
+    posts: postsResult.data || [],
+  });
+});
+
 candidates.post("/network/request", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const addresseeId = typeof body?.addressee_id === "string" ? body.addressee_id : null;
