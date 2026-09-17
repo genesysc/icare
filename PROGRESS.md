@@ -4683,3 +4683,42 @@ real credit (`CDC` / `unsplash.com/@cdc`), and that the resulting hotlink
 URL actually serves the image (`curl` 200). `tsc --noEmit` and
 `wrangler deploy --dry-run` both clean afterward, bundle size unchanged
 (the 8 real posts weren't touched).
+
+## 2026-09-17 — Google Analytics 4 wired site-wide, behind a cookie-consent banner
+
+Founder asked to explore analytics for the blog's already-dangling
+`share_click`/`outbound_click`/etc. event hooks. Built and fully
+verified a Plausible implementation first (cookieless, usually no
+consent banner needed) — then the founder said cost ruled it out and
+asked for GA4 instead. The Plausible work was reverted cleanly before
+shipping (confirmed via `git status`/`git diff --stat` matching exactly
+the files touched, then `git checkout --`) — nothing from it reached
+`main`.
+
+Founder created a real GA4 property and provided the Measurement ID
+(`G-00D0TMNYLD`). Wired it into every page — the 18 static HTML pages
+and all three blog page types — but not as a bare `gtag.js` tag: GA4
+sets cookies, which needs visitor consent first under UK GDPR/PECR
+(unlike Plausible, unlike the site's own essential session storage).
+Built a bottom-of-page Accept/Reject banner that gates whether `gtag.js`
+is ever requested from Google at all ("basic" consent mode — no request
+leaves the browser until the visitor explicitly accepts, not even a
+cookieless ping). The choice persists in `localStorage`, so returning
+visitors don't see the banner again.
+
+Canonical source is the new `src/ga-consent.js` (not imported by any
+route — same "copy verbatim into every page" convention as
+`auth-client.js`, documented there). `blog-templates.ts` keeps its own
+copy as a string constant for the same reason.
+
+Verified with a real Playwright run against local `wrangler dev`
+(temporary config, deleted before shipping) covering all 6 real
+scenarios: fresh visit shows the banner and fires zero GA requests;
+Accept loads `gtag.js` and persists `"granted"`; Reject persists
+`"denied"` and never requests GA; a return visit with either value
+already stored skips the banner and either loads GA immediately or
+stays silent, matching the stored choice; the blog also shows the
+banner. All 6 passed. `tsc --noEmit` and `wrangler deploy --dry-run`
+both clean. `privacy.html`'s cookie section rewritten to name Google
+Analytics and describe the consent banner, replacing the now-inaccurate
+"we don't currently use third-party analytics" line.

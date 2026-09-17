@@ -1824,12 +1824,62 @@ unresolved, not decided here:**
    API ids from what the content package provided — not a key problem).
 3. Social profils for `Organization.sameAs` — none added, none existed
    to add.
-4. Analytics/consent tool — `share_click`/`outbound_click`/etc. event
-   hooks exist in the article page's inline script (`window.gtag`/
-   `window.plausible` calls, both no-ops if neither is present), but no
-   analytics tool or consent banner is wired up anywhere in this repo.
+4. ~~Analytics/consent tool~~ — **resolved 2026-09-17**, Google Analytics
+   4 wired site-wide behind a cookie-consent banner. See §16.
 5. Posting cadence after the 8-post launch set — a content/marketing
    decision, not a code one.
 6. Legal review of the immigration post (`health-care-worker-visa-
    settlement-2026.md`) — flagged by the handover itself, still needed,
    not something this session can do.
+
+## 16. Analytics (Google Analytics 4 + cookie consent) — 2026-09-17
+
+Founder chose GA4 over Plausible (cost) after an earlier same-session
+Plausible implementation was built, verified working, then fully
+reverted at the founder's request before ever being shipped — no trace
+of it remains in the codebase or `main`.
+
+**What's live:** the founder's real GA4 Measurement ID (`G-00D0TMNYLD`)
+is wired site-wide — every static HTML page (`landing.html` through
+`employer-home.html`, 18 pages) plus all three blog page types (index,
+category hub, article, via `blog-templates.ts`'s shared `headTags()`).
+
+**Why gated, not a bare `gtag.js` tag:** GA4 sets cookies, and under UK
+GDPR/PECR that requires visitor consent *before* the cookie is set —
+unlike the site's own signed-in session storage, which is essential and
+needs none. Implemented as a bottom-of-page consent banner ("Accept" /
+"Reject") that decides whether `gtag.js` is ever requested from Google
+at all — "basic" consent mode, not "advanced" (which still sends
+cookieless pings while denied). Verified via a real Playwright run
+against a local `wrangler dev` instance (temporary config, same sandbox
+workaround as elsewhere in this doc — no `CLOUDFLARE_API_TOKEN` for
+remote bindings; deleted before shipping): fresh visit shows the banner
+and fires zero requests to `googletagmanager.com`; clicking Accept loads
+`gtag.js` and sets `localStorage.icare_analytics_consent = "granted"`;
+clicking Reject sets `"denied"` and never requests it; a return visit
+with either value already stored skips the banner entirely and either
+loads GA immediately (granted) or stays silent (denied) — all 6 scenarios
+passed, script at
+`/tmp/.../scratchpad/pw-fetch/ga-consent-test.js` if it needs re-running.
+
+**File map:** `src/ga-consent.js` is the canonical reference (like
+`auth-client.js`) — **not imported by any route**. Every page copies its
+runtime code verbatim into its own inline `<script>` near the top of
+`<head>`; `blog-templates.ts` keeps its own copy as the `GA_CONSENT_SCRIPT`
+string constant for the same reason (no shared-JS-file mechanism exists
+in this repo — see §10). If the banner copy, styling, or consent logic
+changes, all ~19 copies need updating together; there's no single source
+of truth enforced at runtime, only at review time.
+
+The existing `window.gtag`-calling event hooks in the blog article page
+(`share_click`, `outbound_click`, `waitlist_submit`, `scroll_depth`,
+`toc_click`) needed no changes — they already guard with
+`if (window.gtag)`, so they silently no-op until a visitor accepts and
+`window.gtag` actually exists.
+
+`privacy.html`'s cookie section rewritten to name Google Analytics
+specifically and describe the consent banner, replacing the older "we
+don't currently use third-party analytics" line (accurate when written,
+not anymore).
+
+**Verified:** `tsc --noEmit` clean, `wrangler deploy --dry-run` clean.
