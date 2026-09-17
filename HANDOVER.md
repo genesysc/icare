@@ -568,7 +568,19 @@ row plus `candidates`+`candidate_contact` or `employers`+
   output. Verified in isolation against 10 adversarial inputs
   (hallucinated ids, malformed nested objects, non-array garbage,
   empty input) — see PROGRESS.md. No secret to provision — works as
-  soon as it's deployed.
+  soon as it's deployed. **Context-budget fix, 2026-09-16, the second
+  attempt**: the CV-text truncation budget (needed because a long CV
+  can exceed the 24000-token model's context window) is now computed
+  from `systemPrompt.length` at runtime, not a hardcoded char count —
+  the first fix (PR #31) used a hardcoded constant that got silently
+  broken again the same day by a later commit (#33) that grew the
+  professions/skills catalogues baked into that same system prompt
+  without re-deriving the budget. If it still overflows (the char/
+  token ratio is only an estimate), retries once with the budget
+  halved before failing. **Known gap**: still no live-upload test in
+  CI or this session (blocked by a permission restriction this time)
+  — worth a real re-test whenever someone next uploads a CV, same
+  caveat as the first fix carried and eventually needed.
 - **Candidate dashboard** (`src/dashboard.html`, Sprint 5): profile
   summary, badges (grouped by family, grade visually distinct per
   non-negotiable #2), a per-section "at a glance" list linking back

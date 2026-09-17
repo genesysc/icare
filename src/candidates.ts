@@ -1851,6 +1851,17 @@ const CV_EXTRACT_SCHEMA = {
   },
 };
 
+// glm-4.7-flash's typed binding enforces the actual OpenAI structured-
+// outputs shape (json_schema.{name, schema}) rather than accepting the
+// raw schema object directly the way the old llama-3.3 model's looser
+// type did — this is the correct shape either way per Cloudflare's own
+// JSON Mode docs, just not one that surfaced as a type error until the
+// model switch (2026-09-17).
+const CV_RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  json_schema: { name: "cv_extract", schema: CV_EXTRACT_SCHEMA },
+};
+
 candidates.post("/me/cv", async (c) => {
   const contentType = c.req.header("Content-Type");
   if (contentType !== "application/pdf") {
@@ -1926,21 +1937,30 @@ candidates.post("/me/cv", async (c) => {
       "Allowed clinical skills (id: label):\n" + skillCatalogue + "\n\n" +
       "Allowed qualification types (id: label):\n" + qualTypeCatalogue;
 
-    // @cf/meta/llama-3.3-70b-instruct-fp8-fast has a 24000-token total context
-    // window. We reserve 3000 for the response, leaving ~21000 for the
-    // system prompt + CV text. Found 2026-09-16 (a second time — see
-    // PROGRESS.md): a hardcoded MAX_CV_TEXT_CHARS silently drifts out of
-    // budget every time the professions/skills/qualification-type
-    // catalogues baked into systemPrompt grow (they've already been
-    // expanded once), because nobody re-derives the number against the
-    // real system-prompt size when that happens. Compute the CV-text
-    // budget from systemPrompt.length instead, so it always leaves real
-    // headroom no matter how large the catalogues get later — this can
-    // only shrink the budget as they grow, never silently exceed it again.
-    // ~3 chars/token is a conservative estimate for CV-style text
-    // (bullets/punctuation skew denser than prose).
-    const CONTEXT_WINDOW_TOKENS = 24000;
-    const RESPONSE_TOKENS = 3000; // matches max_tokens below
+    // Switched 2026-09-17 from @cf/meta/llama-3.3-70b-instruct-fp8-fast
+    // (24,000-token context) to @cf/zai-org/glm-4.7-flash (131,072
+    // tokens — 5.5x more) after the smaller model's budget had already
+    // needed two live fixes for genuinely long CVs (see PROGRESS.md's
+    // 2026-09-11 and 2026-09-16 entries). Still free-plan eligible (same
+    // shared daily Neuron allocation as every other Workers AI call in
+    // this codebase — confirmed against Cloudflare's own docs before
+    // switching, not assumed), supports the same response_format
+    // json_schema mode, function calling, and multi-turn instruction
+    // following. sanitizeParsed() below is the real guarantee against a
+    // different model's own JSON-schema adherence quirks either way.
+    //
+    // We reserve RESPONSE_TOKENS for the response, leaving the rest for
+    // the system prompt + CV text. A hardcoded MAX_CV_TEXT_CHARS drifted
+    // out of budget twice on the old, much tighter window every time the
+    // professions/skills/qualification-type catalogues baked into
+    // systemPrompt grew — compute the CV-text budget from
+    // systemPrompt.length instead, so it always leaves real headroom no
+    // matter how large the catalogues get later, on this model or any
+    // future one. ~3 chars/token is a conservative estimate for CV-style
+    // text (bullets/punctuation skew denser than prose).
+    const CV_MODEL = "@cf/zai-org/glm-4.7-flash";
+    const CONTEXT_WINDOW_TOKENS = 131072;
+    const RESPONSE_TOKENS = 4000; // matches max_tokens below — a bit more than the old model's 3000, since a bigger input budget can genuinely surface more employment_history/qualifications entries to enumerate in the response
     const CHARS_PER_TOKEN = 3;
     const CV_WRAPPER_CHARS = 250; // "Extract this CV..." prefix + the truncation-notice suffix, both fixed strings below
     const MAX_CV_TEXT_CHARS = (CONTEXT_WINDOW_TOKENS - RESPONSE_TOKENS) * CHARS_PER_TOKEN - systemPrompt.length - CV_WRAPPER_CHARS;
@@ -1987,19 +2007,19 @@ candidates.post("/me/cv", async (c) => {
     // better guess at a fixed number.
     let result;
     try {
-      result = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+      result = await c.env.AI.run(CV_MODEL, {
         messages: buildMessages(cvText, cvTextTruncated),
-        response_format: { type: "json_schema", json_schema: CV_EXTRACT_SCHEMA },
+        response_format: CV_RESPONSE_FORMAT,
         max_tokens: RESPONSE_TOKENS,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (!/maximum context length/i.test(msg)) throw err;
+      if (!/maximum context length|context length|BadRequestError/i.test(msg)) throw err;
       console.error("[cv-import] first attempt exceeded context window, retrying with a smaller budget:", msg);
       ({ text: cvText, truncated: cvTextTruncated } = truncateCvText(conversion.data, Math.floor(MAX_CV_TEXT_CHARS / 2)));
-      result = await c.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+      result = await c.env.AI.run(CV_MODEL, {
         messages: buildMessages(cvText, cvTextTruncated),
-        response_format: { type: "json_schema", json_schema: CV_EXTRACT_SCHEMA },
+        response_format: CV_RESPONSE_FORMAT,
         max_tokens: RESPONSE_TOKENS,
       });
     }
