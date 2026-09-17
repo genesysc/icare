@@ -1,0 +1,674 @@
+<!--
+  iCare — "view another member's profile". Flagged as an open item in
+  both handover_3.md and the Rounds/Network/Messages/Profile spec
+  ("viewing another member's profile is a different screen, not yet
+  designed") — Network/Discover cards only ever linked nowhere.
+
+  Served at /member?id=<candidate_id> (same query-param convention as
+  messages.html's ?with=), backed by the single aggregate endpoint
+  GET /candidates/:id/profile (candidates.ts) which reads through
+  candidate_peer_profile / candidate_peer_registrations (migration
+  0047) plus the existing peer-safe candidate_peer_feed and public
+  candidate_badges — DBS is never on this path.
+
+  This is the read-only "member view" of a profile — the LinkedIn-style
+  shape from dashboard.html (self-view), minus: no Edit links anywhere,
+  no Right to work / ID line (that's self-view-only and employer-side
+  information, never peer-facing — non-negotiable), no Employer
+  interest / Visibility / Account cards (self-only), no DBS anywhere.
+  Qualifications and registrations are shown as "Qualifications &
+  Registrations" without a DBS row, and registrations never include the
+  raw reg_number (candidate_peer_registrations withholds it) — a
+  register/regulator name is a reasonable credibility signal without
+  being a lookup-able number. This scoping is a reasonable default the
+  founder should confirm, not a documented decision.
+
+  Connect / Message actions reuse the exact same endpoints and states
+  network.html already uses (GET candidate_peer_profile's
+  connection_status/connection_id/connection_requester_id columns match
+  candidate_discover's shape) so behaviour stays identical between the
+  two surfaces.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Profile — iCare</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --plum-950: #241533;
+    --plum-800: #382349;
+    --purple: #330072;
+    --ink-soft: #5b5670;
+    --ink-faint: #8a8599;
+    --teal-700: #0e8c7f;
+    --teal-500: #16b8a6;
+    --teal-100: #e3faf6;
+    --amber-600: #b8791f;
+    --amber-100: #faedd4;
+    --paper: #fefefc;
+    --paper-dim: #f8f6f1;
+    --line: #e7e3da;
+    --white: #ffffff;
+    --err: #b23a24;
+    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
+  p { margin: 0; }
+  button { font-family: inherit; }
+  a { color: var(--teal-700); }
+  svg.icon { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal-500); }
+  .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .sign-out:hover { color: var(--teal-700); }
+  .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; color: var(--ink-faint); text-decoration: none; margin-bottom: 14px; }
+  .back-link:hover { color: var(--teal-700); }
+  .back-link svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; }
+  .loading-note, .error-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 40px 0; }
+
+  .card { background: var(--white); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .card-body { padding: 18px 20px; }
+  .card-head-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .card-title { font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  .card-sub { font-size: 12.5px; color: var(--ink-faint); margin-top: 4px; line-height: 1.5; }
+  .empty-note { font-size: 13px; color: var(--ink-faint); }
+
+  .profile-banner { height: 72px; background: linear-gradient(120deg, var(--purple), var(--teal-700)); }
+  .profile-head { padding: 0 20px 18px; }
+  .profile-head-top { display: flex; align-items: flex-end; justify-content: space-between; margin-top: -38px; }
+  .profile-photo { width: 88px; height: 88px; border-radius: 999px; border: 4px solid var(--white); background: var(--paper-dim); display: flex; align-items: center; justify-content: center; overflow: hidden; flex: none; }
+  .profile-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .profile-photo-empty { font-size: 10.5px; color: var(--ink-faint); text-align: center; }
+  .profile-actions { display: flex; gap: 8px; margin-bottom: 6px; }
+  .profile-name-row { display: flex; align-items: center; gap: 7px; margin-top: 12px; }
+  .profile-name { font-size: 21px; }
+  .verified-check {
+    display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+    border-radius: 999px; background: var(--purple); color: var(--white); font-size: 12px; font-weight: 700; flex: none;
+  }
+  .verified-check.is-identity-only { background: var(--teal-500); }
+  .profile-position { font-size: 14px; color: var(--plum-800); margin-top: 3px; }
+  .profile-meta { font-size: 13px; color: var(--ink-faint); margin-top: 3px; }
+  .open-to-pill {
+    display: none; align-items: center; gap: 5px; margin-top: 10px; padding: 5px 11px; border-radius: 999px;
+    background: var(--teal-100); color: var(--teal-700); font-size: 12px; font-weight: 700;
+  }
+  .open-to-pill.is-visible { display: inline-flex; }
+
+  .btn { padding: 9px 16px; border-radius: 999px; font-size: 13.5px; font-weight: 700; cursor: pointer; border: none; }
+  .btn-primary { background: var(--teal-500); color: var(--white); }
+  .btn-primary:hover { background: var(--teal-700); }
+  .btn-primary:disabled { opacity: 0.6; cursor: default; }
+  .btn-outline { background: transparent; color: var(--ink-soft); border: 1.5px solid var(--line); }
+  .btn-outline:hover { border-color: var(--ink-faint); }
+  .btn-outline.danger { color: var(--err); }
+  .btn-outline.danger:hover { border-color: var(--err); background: #fbe9e5; }
+  .btn-sent { background: var(--paper-dim); color: var(--ink-faint); cursor: default; }
+  .btn-sm { padding: 8px 14px; font-size: 12.5px; }
+  a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+  .connect-note { margin-top: 10px; }
+  .connect-note textarea { width: 100%; border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 11px; font-family: inherit; font-size: 12.5px; resize: vertical; min-height: 54px; color: var(--plum-950); }
+  .connect-note-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .request-note { font-size: 12.5px; color: var(--ink-faint); font-style: italic; margin-top: 8px; }
+
+  .badge-preview-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .badge-icon-circle {
+    width: 34px; height: 34px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+    color: var(--white); flex: none;
+  }
+  .badge-icon-circle svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; }
+  .grade-verified-fill { background: var(--teal-500); }
+  .grade-evidenced-fill { background: #4c8fd1; }
+  .grade-derived-fill { background: #8a6fc9; }
+  .grade-declared-fill { background: var(--ink-faint); }
+
+  .timeline-list { display: flex; flex-direction: column; gap: 14px; }
+  .timeline-item { display: flex; gap: 12px; }
+  .timeline-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--paper-dim); display: flex; align-items: center; justify-content: center; color: var(--ink-faint); flex: none; }
+  .timeline-body { min-width: 0; }
+  .timeline-title { font-size: 14px; font-weight: 700; color: var(--plum-950); display: flex; align-items: center; gap: 8px; }
+  .timeline-current-tag { font-size: 10.5px; font-weight: 700; color: var(--teal-700); background: var(--teal-100); padding: 2px 7px; border-radius: 999px; }
+  .timeline-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+  .timeline-dates { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); margin-top: 2px; }
+  .timeline-desc { font-size: 12.5px; color: var(--ink-soft); margin-top: 5px; line-height: 1.5; }
+
+  .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag-pill { background: var(--paper-dim); border: 1px solid var(--line); color: var(--plum-800); font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 999px; }
+
+  .post-item { border-top: 1px solid var(--line); padding: 14px 0; }
+  .post-item:first-child { border-top: none; padding-top: 0; }
+  .post-item-title { font-size: 14px; font-weight: 700; color: var(--plum-950); margin-bottom: 3px; }
+  .post-item-body { font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; white-space: pre-wrap; }
+  .post-item-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11.5px; color: var(--ink-faint); }
+  .post-item-visibility::after { content: "·"; margin-left: 8px; }
+
+  /* Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page */
+  .tab-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; background: var(--white); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-bar-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint);
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-bar-item.is-active { color: var(--teal-700); }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <button class="sign-out" data-sign-out>Sign out</button>
+</header>
+
+<div class="wrap">
+  <a href="/network" class="back-link">
+    <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    Back to network
+  </a>
+
+  <p class="loading-note" data-loading>Loading profile…</p>
+  <p class="error-note" data-error hidden>Couldn't find that profile — it may not be published, or may not exist.</p>
+
+  <div data-profile-content style="display:none; flex-direction:column; gap:16px;">
+
+    <div class="card">
+      <div class="profile-banner"></div>
+      <div class="profile-head">
+        <div class="profile-head-top">
+          <div class="profile-photo" data-photo><span class="profile-photo-empty">No photo</span></div>
+          <div class="profile-actions" data-profile-actions></div>
+        </div>
+        <div class="profile-name-row">
+          <h1 class="profile-name" data-full-name>—</h1>
+          <span class="verified-check" data-verified-check title="Identity verified" hidden>✓</span>
+        </div>
+        <p class="profile-position" data-position hidden></p>
+        <p class="profile-meta" data-meta>—</p>
+        <span class="open-to-pill" data-open-to-pill>
+          <svg class="icon" style="width:13px;height:13px;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+          Open to new roles
+        </span>
+        <div class="connect-note" data-connect-note hidden>
+          <textarea placeholder="Add a note (optional)" maxlength="500" data-connect-note-text></textarea>
+          <div class="connect-note-actions">
+            <button type="button" class="btn btn-primary btn-sm" data-send-request>Send request</button>
+            <button type="button" class="btn btn-outline btn-sm" data-cancel-request>Cancel</button>
+          </div>
+        </div>
+        <p class="request-note" data-request-note hidden></p>
+      </div>
+    </div>
+
+    <div class="card" data-about-card hidden>
+      <div class="card-body">
+        <h2 class="card-title">About</h2>
+        <p style="margin-top:12px; font-size:13.5px; line-height:1.55; color:var(--ink-soft);" data-about-text></p>
+      </div>
+    </div>
+
+    <div class="card" data-badges-card hidden>
+      <div class="card-body">
+        <h2 class="card-title">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 2l7 3v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V5l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          Badges
+        </h2>
+        <p class="card-sub">Earned automatically or checked by iCare staff — never bought, never hand-adjusted.</p>
+        <div class="badge-preview-row" data-badges-preview></div>
+      </div>
+    </div>
+
+    <div class="card" data-experience-card hidden>
+      <div class="card-body">
+        <h2 class="card-title">
+          <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+          Experience
+        </h2>
+        <div class="timeline-list" data-experience-list style="margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <div class="card" data-certs-card hidden>
+      <div class="card-body">
+        <h2 class="card-title">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg>
+          Qualifications &amp; Registrations
+        </h2>
+        <div class="timeline-list" data-certs-list style="margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <div class="card" data-skills-card hidden>
+      <div class="card-body">
+        <h2 class="card-title">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18.5 21 12 16.5 5.5 21l2-7.5L2 9h7z"/></svg>
+          Skills
+        </h2>
+        <div class="tag-row" data-skills-list style="margin-top:12px;"></div>
+      </div>
+    </div>
+
+    <div class="card" data-activity-card hidden>
+      <div class="card-body">
+        <h2 class="card-title">Activity</h2>
+        <div class="post-list" data-post-list style="margin-top:8px;"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page -->
+<nav class="tab-bar" aria-label="Main">
+  <a href="/rounds" class="tab-bar-item" data-tab="rounds">
+    <svg viewBox="0 0 24 24"><polyline points="2 14 6 14 9 5 14 21 17 14 22 14"/></svg>
+    <span>Rounds</span>
+  </a>
+  <a href="/invites" class="tab-bar-item" data-tab="invites">
+    <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+    <span>Invites</span>
+  </a>
+  <a href="/pipelines" class="tab-bar-item" data-tab="pipelines">
+    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    <span>Pipelines</span>
+  </a>
+  <a href="/network" class="tab-bar-item is-active" data-tab="network">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Network</span>
+  </a>
+  <a href="/messages" class="tab-bar-item" data-tab="messages">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span>Messages</span>
+  </a>
+  <a href="/dashboard" class="tab-bar-item" data-tab="profile">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Profile</span>
+  </a>
+</nav>
+
+<script>
+var ICARE_SESSION_KEY = "icare_session";
+function icareGetSession() {
+  try { var raw = localStorage.getItem(ICARE_SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+function icareClearSession() {
+  try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {}
+}
+function icareIsSessionExpired(session) {
+  if (!session || !session.expires_at) return true;
+  return Date.now() >= session.expires_at * 1000;
+}
+function icareAuthFetch(url, options) {
+  var session = icareGetSession();
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+function icareRequireAuth(signInPath) {
+  var session = icareGetSession();
+  if (!session || icareIsSessionExpired(session)) {
+    icareClearSession();
+    var next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = (signInPath || "/sign-in") + "?next=" + next;
+    return null;
+  }
+  return session;
+}
+
+(function () {
+  var session = icareRequireAuth();
+  if (!session) return;
+
+  var myId = session.user && session.user.id;
+  var params = new URLSearchParams(window.location.search);
+  var targetId = params.get("id");
+  if (!targetId) {
+    document.querySelector("[data-loading]").hidden = true;
+    document.querySelector("[data-error]").hidden = false;
+    return;
+  }
+
+  function jget(url) {
+    return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+  function jpost(url, payload) {
+    return icareAuthFetch(url, { method: "POST", body: JSON.stringify(payload || {}) })
+      .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+  function jdelete(url) {
+    return icareAuthFetch(url, { method: "DELETE" }).then(function (res) { return { ok: res.ok, status: res.status }; });
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return "";
+    return new Date(iso).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+  }
+
+  var GRADE_LABELS = { verified: "Verified", evidenced: "Evidenced", derived: "Derived", declared: "Declared" };
+
+  function familyIcon(family) {
+    var icons = {
+      Safeguarding: '<svg viewBox="0 0 24 24"><path d="M12 2l7 3v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V5l7-3z"/></svg>',
+      Practical: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>',
+      Clinical: '<svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5L18.5 21 12 16.5 5.5 21l2-7.5L2 9h7z"/></svg>',
+    };
+    return icons[family] || '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>';
+  }
+
+  function renderBadges(rows) {
+    var card = document.querySelector("[data-badges-card]");
+    var previewRow = document.querySelector("[data-badges-preview]");
+    previewRow.innerHTML = "";
+    if (!rows || rows.length === 0) { card.hidden = true; return; }
+    card.hidden = false;
+    var gradeOrder = { verified: 0, evidenced: 1, derived: 2, declared: 3 };
+    rows.slice().sort(function (a, b) {
+      var ga = (a.badges && gradeOrder[a.badges.grade]) || 9;
+      var gb = (b.badges && gradeOrder[b.badges.grade]) || 9;
+      return ga - gb;
+    }).forEach(function (r) {
+      var b = r.badges || {};
+      var circle = document.createElement("span");
+      circle.className = "badge-icon-circle grade-" + b.grade + "-fill";
+      circle.title = (b.label || r.badge_code) + " — " + (GRADE_LABELS[b.grade] || b.grade);
+      circle.innerHTML = familyIcon(b.family);
+      previewRow.appendChild(circle);
+    });
+  }
+
+  function renderExperience(rows) {
+    var card = document.querySelector("[data-experience-card]");
+    var list = document.querySelector("[data-experience-list]");
+    list.innerHTML = "";
+    if (!rows || rows.length === 0) { card.hidden = true; return; }
+    card.hidden = false;
+    rows.slice().sort(function (a, b) {
+      if (a.is_current !== b.is_current) return a.is_current ? -1 : 1;
+      return (b.started_on || "").localeCompare(a.started_on || "");
+    }).forEach(function (row) {
+      var item = document.createElement("div");
+      item.className = "timeline-item";
+      item.innerHTML =
+        '<div class="timeline-icon"><svg class="icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>' +
+        '<div class="timeline-body">' +
+          '<div class="timeline-title"></div>' +
+          '<div class="timeline-sub"></div>' +
+          '<div class="timeline-dates"></div>' +
+          (row.description ? '<div class="timeline-desc"></div>' : "") +
+        "</div>";
+      var titleEl = item.querySelector(".timeline-title");
+      titleEl.textContent = row.job_title || "Role";
+      if (row.is_current) {
+        var tag = document.createElement("span");
+        tag.className = "timeline-current-tag";
+        tag.textContent = "Current";
+        titleEl.appendChild(tag);
+      }
+      item.querySelector(".timeline-sub").textContent = [row.employer, row.setting].filter(Boolean).join(" · ");
+      item.querySelector(".timeline-dates").textContent = fmtDate(row.started_on) + " — " + (row.is_current ? "Present" : fmtDate(row.ended_on));
+      if (row.description) item.querySelector(".timeline-desc").textContent = row.description;
+      list.appendChild(item);
+    });
+  }
+
+  // Qualifications + registrations only — DBS never appears on this page
+  // (non-negotiable: DBS is employer-only, peer-hidden), and registrations
+  // never carry a reg_number here (candidate_peer_registrations withholds
+  // it server-side).
+  function renderCertifications(qualificationRows, registrationRows) {
+    var card = document.querySelector("[data-certs-card]");
+    var list = document.querySelector("[data-certs-list]");
+    list.innerHTML = "";
+    var total = (qualificationRows || []).length + (registrationRows || []).length;
+    if (total === 0) { card.hidden = true; return; }
+    card.hidden = false;
+
+    function addCert(title, sub, dateText) {
+      var item = document.createElement("div");
+      item.className = "timeline-item";
+      item.innerHTML =
+        '<div class="timeline-icon"><svg class="icon" style="width:18px;height:18px;" viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg></div>' +
+        '<div class="timeline-body"><div class="timeline-title"></div><div class="timeline-sub"></div>' +
+        (dateText ? '<div class="timeline-dates"></div>' : "") + "</div>";
+      item.querySelector(".timeline-title").textContent = title;
+      item.querySelector(".timeline-sub").textContent = sub;
+      if (dateText) item.querySelector(".timeline-dates").textContent = dateText;
+      list.appendChild(item);
+    }
+
+    (qualificationRows || []).forEach(function (q) {
+      addCert(q.title, q.awarding_body || "Qualification", q.awarded_on ? fmtDate(q.awarded_on) : "");
+    });
+    (registrationRows || []).forEach(function (r) {
+      addCert(r.register_name || (r.regulator || "").toUpperCase(), "Registered", r.expires_on ? "Renews " + fmtDate(r.expires_on) : "");
+    });
+  }
+
+  function renderSkills(professionRows, skillRows) {
+    var card = document.querySelector("[data-skills-card]");
+    var list = document.querySelector("[data-skills-list]");
+    list.innerHTML = "";
+    var names = (professionRows || []).map(function (r) { return r.professions ? r.professions.name : r.profession_id; })
+      .concat((skillRows || []).map(function (r) { return r.clinical_skills ? r.clinical_skills.label : r.skill_id; }));
+    if (names.length === 0) { card.hidden = true; return; }
+    card.hidden = false;
+    names.forEach(function (name) {
+      var pill = document.createElement("span");
+      pill.className = "tag-pill";
+      pill.textContent = name;
+      list.appendChild(pill);
+    });
+  }
+
+  function renderPosts(rows) {
+    var card = document.querySelector("[data-activity-card]");
+    var list = document.querySelector("[data-post-list]");
+    list.innerHTML = "";
+    if (!rows || rows.length === 0) { card.hidden = true; return; }
+    card.hidden = false;
+    rows.forEach(function (post) {
+      var item = document.createElement("div");
+      item.className = "post-item";
+      item.innerHTML =
+        (post.title ? '<div class="post-item-title"></div>' : "") +
+        '<div class="post-item-body"></div>' +
+        '<div class="post-item-foot"><span class="post-item-visibility"></span><span class="post-item-date"></span></div>';
+      if (post.title) item.querySelector(".post-item-title").textContent = post.title;
+      item.querySelector(".post-item-body").textContent = post.body;
+      item.querySelector(".post-item-visibility").textContent = post.visibility === "connections" ? "Connections only" : "Public";
+      item.querySelector(".post-item-date").textContent = new Date(post.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      list.appendChild(item);
+    });
+  }
+
+  function renderActions(profile) {
+    var wrap = document.querySelector("[data-profile-actions]");
+    var noteBox = document.querySelector("[data-connect-note]");
+    var requestNote = document.querySelector("[data-request-note]");
+    wrap.innerHTML = "";
+    noteBox.hidden = true;
+    requestNote.hidden = true;
+
+    var status = profile.connection_status; // null | "pending" | "accepted"
+    if (status === "accepted") {
+      var msgBtn = document.createElement("a");
+      msgBtn.className = "btn btn-primary btn-sm";
+      msgBtn.href = "/messages?with=" + profile.id;
+      msgBtn.textContent = "Message";
+      wrap.appendChild(msgBtn);
+
+      var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "btn btn-outline danger btn-sm";
+      removeBtn.textContent = "Remove connection";
+      removeBtn.addEventListener("click", function () {
+        removeBtn.disabled = true;
+        jdelete("/candidates/network/" + profile.connection_id).then(function (result) {
+          if (!result.ok) { removeBtn.disabled = false; return; }
+          loadProfile();
+        });
+      });
+      wrap.appendChild(removeBtn);
+    } else if (status === "pending" && profile.connection_requester_id === myId) {
+      var cancelBtn = document.createElement("span");
+      cancelBtn.className = "btn btn-sent btn-sm";
+      cancelBtn.textContent = "Request sent";
+      wrap.appendChild(cancelBtn);
+    } else if (status === "pending") {
+      requestNote.hidden = false;
+      requestNote.textContent = "This person has sent you a connection request — check Network to accept or decline.";
+      var checkBtn = document.createElement("a");
+      checkBtn.className = "btn btn-primary btn-sm";
+      checkBtn.href = "/network";
+      checkBtn.textContent = "Review request";
+      wrap.appendChild(checkBtn);
+    } else {
+      var connectBtn = document.createElement("button");
+      connectBtn.type = "button";
+      connectBtn.className = "btn btn-primary btn-sm";
+      connectBtn.textContent = "Connect";
+      connectBtn.addEventListener("click", function () {
+        noteBox.hidden = false;
+        connectBtn.style.display = "none";
+      });
+      wrap.appendChild(connectBtn);
+    }
+
+    document.querySelector("[data-cancel-request]").onclick = function () {
+      noteBox.hidden = true;
+      var btn = wrap.querySelector(".btn-primary");
+      if (btn) btn.style.display = "";
+    };
+    document.querySelector("[data-send-request]").onclick = function (e) {
+      var sendBtn = e.target;
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sending…";
+      var noteText = document.querySelector("[data-connect-note-text]").value.trim();
+      jpost("/candidates/network/request", { addressee_id: profile.id, note: noteText || undefined }).then(function (result) {
+        if (!result.ok) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = "Send request";
+          return;
+        }
+        loadProfile();
+      });
+    };
+  }
+
+  function loadAvatarPhoto(imgEl, candidateId) {
+    icareAuthFetch("/candidates/" + candidateId + "/photo").then(function (res) {
+      if (!res.ok) return;
+      return res.blob().then(function (blob) { imgEl.src = URL.createObjectURL(blob); });
+    }).catch(function () {});
+  }
+
+  function loadProfile() {
+    jget("/candidates/" + targetId + "/profile").then(function (result) {
+      document.querySelector("[data-loading]").hidden = true;
+      if (!result.ok) {
+        document.querySelector("[data-error]").hidden = false;
+        return;
+      }
+      document.querySelector("[data-profile-content]").style.display = "flex";
+
+      var body = result.body;
+      var profile = body.profile;
+
+      document.querySelector("[data-full-name]").textContent = profile.full_name || "A candidate";
+      if (profile.has_photo) {
+        var photoEl = document.querySelector("[data-photo]");
+        photoEl.innerHTML = '<img alt="' + (profile.full_name || "Profile photo") + '" />';
+        loadAvatarPhoto(photoEl.querySelector("img"), profile.id);
+      }
+
+      var positionEl = document.querySelector("[data-position]");
+      if (profile.current_job_title) {
+        positionEl.textContent = profile.current_job_title + (profile.current_employer ? " · " + profile.current_employer : "");
+        positionEl.hidden = false;
+      } else {
+        positionEl.hidden = true;
+      }
+
+      var metaParts = [];
+      if (profile.primary_profession) metaParts.push(profile.primary_profession);
+      if (profile.town) metaParts.push(profile.town);
+      document.querySelector("[data-meta]").textContent = metaParts.length ? metaParts.join(" · ") : "No details yet";
+
+      document.querySelector("[data-open-to-pill]").classList.toggle(
+        "is-visible",
+        profile.availability && profile.availability !== "not_looking"
+      );
+
+      if (profile.about) {
+        document.querySelector("[data-about-text]").textContent = profile.about;
+        document.querySelector("[data-about-card]").hidden = false;
+      }
+
+      // Identity badge — same two-tier logic as dashboard.html's
+      // self-view, computed from candidate_badges rows, not any
+      // right_to_work/DBS field (neither is ever fetched here).
+      var badgeRows = body.badges || [];
+      var activeBadgeCodes = badgeRows
+        .filter(function (b) { return !b.expires_at || new Date(b.expires_at) > new Date(); })
+        .map(function (b) { return b.badge_code; });
+      var hasIdCheck = activeBadgeCodes.indexOf("id_verified") !== -1;
+      var hasDbsCheck = activeBadgeCodes.indexOf("dbs_certificate_verified") !== -1;
+      // right_to_work itself is never fetched peer-side, so "fully
+      // verified" here is id+DBS checks only, not the third self-view
+      // condition — a slightly narrower bar than dashboard.html's own,
+      // flagged rather than silently approximated.
+      var fullyVerified = hasIdCheck && hasDbsCheck;
+      var identityOnlyVerified = hasIdCheck && !fullyVerified;
+      var checkEl = document.querySelector("[data-verified-check]");
+      checkEl.hidden = !(fullyVerified || identityOnlyVerified);
+      checkEl.classList.toggle("is-identity-only", identityOnlyVerified);
+      checkEl.title = fullyVerified ? "Fully Verified" : "Identity Verified";
+
+      renderBadges(badgeRows);
+      renderExperience(body.employment_history);
+      renderCertifications(body.qualifications, body.registrations);
+      renderSkills(body.professions, body.skills);
+      renderPosts(body.posts);
+      renderActions(profile);
+    }).catch(function () {
+      document.querySelector("[data-loading]").hidden = true;
+      document.querySelector("[data-error]").hidden = false;
+    });
+  }
+
+  loadProfile();
+
+  document.querySelector("[data-sign-out]").addEventListener("click", function () {
+    icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
+      icareClearSession();
+      window.location.href = "/";
+    });
+  });
+})();
+</script>
+</body>
+</html>

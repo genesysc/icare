@@ -4898,3 +4898,116 @@ main AI-call failure path.
   the founder rather than claiming full verification.
 
 Shipped via PR #48, same PR-to-main path as #45–#47.
+
+## 2026-09-17 — "View another member's profile" (closes a gap both handover_3.md and the Rounds/Network/Messages/Profile spec flagged as undesigned)
+
+Session started by reviewing five uploaded handover/strategy documents
+against what's actually built. Two (Group Strategy, B2B Recruitment
+Workflow) were already sitting in `docs/`, already reconciled in §14.
+Three were new: `handover_3.md` (an older/parallel Next.js-track
+handover, mostly superseded by the live Cloudflare Workers build —
+its "no employer code yet," "Network is phase-2," "no Supabase wiring"
+claims are all stale now), the Rounds/Network/Messages/Profile build
+spec (almost entirely already shipped — Rounds naming, the progressive-
+disclosure composer with its exact safeguarding line, venue-scoped
+check-in, platform-wide @mentions, Helpful+Comment with no share
+button, DBS hidden from peer surfaces, the two-tier identity badge,
+gated messaging, the LinkedIn-style self-profile), and an iCare
+Partner & Perks Strategy list (pure business-development content, no
+corresponding build item, nothing in the repo to reconcile against).
+
+The one real gap the audit surfaced: **viewing another member's
+profile.** Network and Discover only ever rendered a name/headline/
+town card with no click-through — the spec's own §6 explicitly says
+"viewing another member's profile is a different screen, not yet
+designed," and `handover_3.md` doesn't touch it either. Founder asked
+to address this specifically.
+
+**Design, following precedent already set elsewhere in this schema
+rather than inventing new rules:**
+- Identity (name, photo, headline, current employer) shown
+  unconditionally to any candidate — matches the Sprint 24 "identity is
+  free-for-all between candidates" correction already governing
+  `network.html`/`rounds.html`. No connection gate on any of this.
+- DBS never appears, full stop — non-negotiable #3, unchanged.
+- Two fields this session chose to also withhold, without an explicit
+  doc mandating it (flagged in HANDOVER.md §12 for the founder to
+  confirm or override): right-to-work status, and registration numbers
+  (only the register/regulator name shows, e.g. "NMC Registered," never
+  the number). Both stayed off out of the same conservative instinct as
+  DBS, and both roughly match the spec's own "member view" credentials
+  treatment (locked/summary, no RTW/DBS detail) even though that
+  section was written for the self-profile screen, not this one.
+- Connect/Message actions reuse `network.html`'s exact states
+  (pending/accepted, requester-side vs. addressee-side) rather than
+  inventing a parallel interaction model.
+
+**Backend — migration `0047_candidate_peer_profile.sql`:**
+`candidates` itself has no candidate-peer read policy (only self /
+verified-employer, from `0002`) — same reason `candidate_discover` and
+`candidate_peer_feed` exist as views rather than direct table reads, so
+this follows suit:
+- New view `candidate_peer_profile` — one row per published candidate:
+  identity fields, `about`, current role, and the same
+  connection_status/connection_id/connection_requester_id computation
+  `candidate_discover` already does, reused verbatim rather than
+  re-derived.
+- New view `candidate_peer_registrations` — register_name/regulator/
+  expires_on only, never `reg_number`. Chose a view here (not a table
+  policy) specifically because RLS is row-level, not column-level —
+  a direct policy on `registrations` would have exposed reg_number to
+  any peer through any query path, not just this endpoint, since
+  `middleware.ts` runs every Supabase call under the caller's own JWT
+  (confirmed by reading it) — RLS is the real boundary here, not
+  application code discipline.
+- Four new peer-read RLS policies (`employment_history`,
+  `qualifications`, `candidate_professions`, `candidate_skills`) — all
+  columns on these tables are already safe to show a peer, so a direct
+  policy is enough, mirroring the existing verified-employer read
+  policies from `0005` but for `current_role_is('candidate')` instead.
+- Applied directly to the live `care-register` Supabase project via
+  `apply_migration` (this project's existing convention, see §14).
+  Ran `get_advisors` (security) after: the two new views flag as
+  "security definer" same as the 11 other views already in this schema
+  that use the identical pattern (not a new issue) — no other security
+  regressions. Performance advisor shows the four new peer policies
+  each triggering the same pre-existing "multiple permissive policies"
+  WARN `candidate_professions`/`candidate_skills` already carried
+  before this session (harmless, same trade-off already accepted
+  there).
+
+**API — `GET /candidates/:id/profile` (`candidates.ts`):** one
+aggregate call (`Promise.all` across the peer profile view,
+professions, skills, employment history, qualifications, peer
+registrations, badges, and `candidate_peer_feed` filtered to that
+candidate) — matches the shape `dashboard.html`'s own self-view
+Promise.all already uses, just server-side into one response instead
+of client-side into several.
+
+**Frontend — new `src/member.html`, `/member?id=<candidate_id>`:**
+read-only variant of `dashboard.html`'s LinkedIn-shaped layout — About,
+Badges, Experience, "Qualifications & Registrations" (renamed from
+dashboard's "Licenses & Certifications" specifically because DBS never
+appears here), Skills, Activity — with no Edit links and none of
+dashboard's self-only cards (Employer interest, Visibility, Account).
+Identity badge computed the same way dashboard.html does, from
+`candidate_badges` rows (`id_verified`/`dbs_certificate_verified`), not
+from any RTW field — this page never fetches right_to_work at all, so
+its "fully verified" bar is id+DBS-check only, a narrower definition
+than dashboard.html's own three-condition version; flagged in the
+page's own code comment rather than silently approximated as identical.
+
+Wired in from both directions so the new page is actually reachable,
+not a dead-end route: every person-item name in `network.html`
+(Connections, Requests, Discover) now links to `/member?id=`, and
+`rounds.html`'s feed post author name + avatar do too.
+
+**Verified:** `tsc --noEmit` clean, `wrangler deploy --dry-run` builds
+clean, migration applied successfully against the live project,
+security/performance advisors checked post-migration (no new class of
+issue, see above). **Not yet done**: no live click-through test in a
+browser against real seeded data — flagging rather than claiming full
+verification, same discipline as the CV-import entry above.
+
+Not yet committed/pushed — working tree has these changes staged for
+review before the usual PR-to-main path.

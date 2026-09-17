@@ -496,9 +496,9 @@ function icareRequireAuth(signInPath) {
 
       item.innerHTML =
         '<div class="feed-item-head">' +
-          '<div class="feed-avatar"></div>' +
+          '<a class="feed-avatar" href="/member?id=' + post.candidate_id + '"></a>' +
           '<div class="feed-item-meta">' +
-            '<div class="feed-item-who"></div>' +
+            '<a class="feed-item-who" href="/member?id=' + post.candidate_id + '" style="color:inherit;text-decoration:none;"></a>' +
             '<div class="feed-item-sub"></div>' +
           '</div>' +
           (post.visibility === "connections" ? '<span class="feed-item-visibility">Connections only</span>' : '') +

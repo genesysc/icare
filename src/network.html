@@ -396,10 +396,24 @@ function icareRequireAuth(signInPath) {
           '<button type="button" class="btn-sm btn-sm-outline danger" data-remove="' + row.connection_id + '">Remove</button>' +
         '</div>';
       fillAvatar(item.querySelector(".person-avatar"), label, row.profile);
-      item.querySelector(".person-name").textContent = label.name;
+      linkifyName(item.querySelector(".person-name"), label.name, row.profile);
       item.querySelector(".person-sub").textContent = label.sub;
       list.appendChild(item);
     });
+  }
+
+  function linkifyName(nameEl, name, profile) {
+    nameEl.innerHTML = "";
+    if (profile) {
+      var link = document.createElement("a");
+      link.href = "/member?id=" + profile.id;
+      link.style.color = "inherit";
+      link.style.textDecoration = "none";
+      link.textContent = name;
+      nameEl.appendChild(link);
+    } else {
+      nameEl.textContent = name;
+    }
   }
 
   function renderRequests() {
@@ -426,7 +440,7 @@ function icareRequireAuth(signInPath) {
           '<button type="button" class="btn-sm btn-sm-outline" data-remove="' + row.connection_id + '">Decline</button>' +
         '</div>';
       fillAvatar(item.querySelector(".person-avatar"), label, row.profile);
-      item.querySelector(".person-name").textContent = label.name;
+      linkifyName(item.querySelector(".person-name"), label.name, row.profile);
       item.querySelector(".person-sub").textContent = label.sub;
       incomingList.appendChild(item);
       if (row.note) {
@@ -446,7 +460,7 @@ function icareRequireAuth(signInPath) {
         '<div class="person-meta"><div class="person-name"></div><div class="person-sub"></div></div>' +
         '<div class="person-actions"><button type="button" class="btn-sm btn-sm-outline" data-remove="' + row.connection_id + '">Cancel</button></div>';
       fillAvatar(item.querySelector(".person-avatar"), label, row.profile);
-      item.querySelector(".person-name").textContent = label.name;
+      linkifyName(item.querySelector(".person-name"), label.name, row.profile);
       item.querySelector(".person-sub").textContent = "Request sent — " + label.sub;
       outgoingList.appendChild(item);
     });
@@ -495,7 +509,7 @@ function icareRequireAuth(signInPath) {
         '</div>' +
         '<div class="person-actions">' + actionHtml + '</div>';
       fillAvatar(item.querySelector(".person-avatar"), label, profile);
-      item.querySelector(".person-name").textContent = label.name;
+      linkifyName(item.querySelector(".person-name"), label.name, profile);
       item.querySelector(".person-sub").textContent = label.sub;
       list.appendChild(item);
     });
