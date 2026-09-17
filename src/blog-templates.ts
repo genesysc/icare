@@ -23,6 +23,69 @@ import type { UnsplashCredit } from "./blog-images";
 
 export const SITE = "https://icareltd.com";
 
+// Cookie-consent-gated GA4 loader — canonical source is src/ga-consent.js
+// (that file's doc comment explains the "basic consent mode" choice).
+// Kept as a literal string here rather than imported since it has to be
+// inlined into every rendered page's own <script> tag, same as every
+// static HTML page in this repo copies it verbatim.
+const GA_CONSENT_SCRIPT = `(function () {
+  var GA_ID = "G-00D0TMNYLD";
+  var KEY = "icare_analytics_consent"; // "granted" | "denied"
+
+  function loadGA() {
+    if (window.__icareGaLoaded) return;
+    window.__icareGaLoaded = true;
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () {
+      window.dataLayer.push(arguments);
+    };
+    var s = document.createElement("script");
+    s.async = true;
+    s.src = "https://www.googletagmanager.com/gtag/js?id=" + GA_ID;
+    document.head.appendChild(s);
+    window.gtag("js", new Date());
+    window.gtag("config", GA_ID);
+  }
+
+  var stored;
+  try {
+    stored = localStorage.getItem(KEY);
+  } catch (e) {}
+
+  if (stored === "granted") {
+    loadGA();
+    return;
+  }
+  if (stored === "denied") return;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    var bar = document.createElement("div");
+    bar.setAttribute("role", "region");
+    bar.setAttribute("aria-label", "Cookie consent");
+    bar.style.cssText =
+      "position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#1B1530;color:#fff;" +
+      "padding:16px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;" +
+      "font:14px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;box-shadow:0 -2px 12px rgba(0,0,0,.15);";
+    bar.innerHTML =
+      '<span style="flex:1;min-width:220px;">We use Google Analytics to understand how visitors use this site. ' +
+      'No analytics cookies are set unless you accept. <a href="/privacy" style="color:#9DE8DE;">Privacy policy</a></span>' +
+      '<span style="display:flex;gap:8px;">' +
+      '<button type="button" data-icare-consent="reject" style="background:transparent;border:1px solid #6E58A0;color:#fff;border-radius:999px;padding:8px 16px;font:inherit;cursor:pointer;">Reject</button>' +
+      '<button type="button" data-icare-consent="accept" style="background:#00A499;border:0;color:#fff;border-radius:999px;padding:8px 16px;font:inherit;cursor:pointer;font-weight:600;">Accept</button>' +
+      "</span>";
+    document.body.appendChild(bar);
+    bar.addEventListener("click", function (e) {
+      var choice = e.target && e.target.getAttribute && e.target.getAttribute("data-icare-consent");
+      if (!choice) return;
+      try {
+        localStorage.setItem(KEY, choice === "accept" ? "granted" : "denied");
+      } catch (err) {}
+      if (choice === "accept") loadGA();
+      bar.remove();
+    });
+  });
+})();`;
+
 export const CATEGORY_LIST: { name: string; slug: string }[] = [
   { name: "Social Care", slug: "social-care" },
   { name: "NHS & Clinical Careers", slug: "nhs-clinical-careers" },
@@ -295,7 +358,10 @@ function headTags(opts: {
 <meta property="article:modified_time" content="${esc(opts.modifiedTime)}">
 <meta property="article:section" content="${esc(opts.section)}">`
       : "";
-  return `<title>${esc(opts.title)} | iCare</title>
+  return `<script>
+${GA_CONSENT_SCRIPT}
+</script>
+<title>${esc(opts.title)} | iCare</title>
 <meta name="description" content="${esc(opts.description)}">
 <link rel="canonical" href="${esc(opts.canonical)}">
 <link rel="alternate" type="application/rss+xml" title="iCare Insights" href="${SITE}/blog/feed.xml">
