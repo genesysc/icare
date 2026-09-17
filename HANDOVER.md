@@ -548,8 +548,10 @@ row plus `candidates`+`candidate_contact` or `employers`+
   AI calls: `env.AI.toMarkdown()` extracts text from the PDF (embedded-
   image conversion explicitly disabled, so a CV photo is never
   described/reasoned about — non-negotiable #6 applied to images too),
-  then `env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", …)` with
-  JSON-mode `response_format` extracts structured JSON from that text.
+  then `env.AI.run(CV_MODEL, …)` — `CV_MODEL = "@cf/zai-org/glm-4.7-flash"`
+  as of **2026-09-17** (switched from `@cf/meta/llama-3.3-70b-instruct-
+  fp8-fast`; see below) — with JSON-mode `response_format` extracts
+  structured JSON from that text.
   **Originally built against the Claude API; switched to Workers AI
   after the founder declined the per-call cost** (2026-08-26) — see
   PROGRESS.md for the full before/after. The parse route itself never
@@ -577,10 +579,24 @@ row plus `candidates`+`candidate_contact` or `employers`+
   professions/skills catalogues baked into that same system prompt
   without re-deriving the budget. If it still overflows (the char/
   token ratio is only an estimate), retries once with the budget
-  halved before failing. **Known gap**: still no live-upload test in
-  CI or this session (blocked by a permission restriction this time)
-  — worth a real re-test whenever someone next uploads a CV, same
-  caveat as the first fix carried and eventually needed.
+  halved before failing. **Model switch, 2026-09-17**: the founder
+  asked for more real headroom rather than another budget patch on the
+  old model's tight 24,000-token window, so the model itself changed to
+  `@cf/zai-org/glm-4.7-flash` — 131,072 tokens (5.5x), still Workers-
+  Free-plan eligible (checked against Cloudflare's own docs; a few
+  other newer models like `glm-5.2`/`kimi-k2.6` do require the Paid
+  plan, this one doesn't). The runtime budget formula above didn't need
+  to change, just the constants it's computed from — it now allows
+  ~376,700 CV-text characters, enough that truncation should be rare to
+  never in practice. Surfaced one real type-level requirement:
+  `glm-4.7-flash`'s binding type enforces the actual OpenAI
+  `json_schema.{name, schema}` shape rather than the raw schema object
+  the old model's looser type accepted — see `CV_RESPONSE_FORMAT` in
+  `src/candidates.ts`. **Known gap, still open**: no completed
+  live-upload test in CI or across either of the last two sessions that
+  touched this (both blocked by a permission restriction, for different
+  stated reasons each time) — worth a real re-test whenever someone
+  next uploads a CV.
 - **Candidate dashboard** (`src/dashboard.html`, Sprint 5): profile
   summary, badges (grouped by family, grade visually distinct per
   non-negotiable #2), a per-section "at a glance" list linking back

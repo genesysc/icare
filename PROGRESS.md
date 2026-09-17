@@ -4898,3 +4898,63 @@ main AI-call failure path.
   the founder rather than claiming full verification.
 
 Shipped via PR #48, same PR-to-main path as #45–#47.
+
+---
+
+## 2026-09-17 — CV import: switched model for real headroom, not another budget tweak
+
+Founder's response to the above fix: "I think you need to increase the
+capacity more for CVs that are longer." Right call — the previous fix
+made the existing 24,000-token model's budget *correct*, but correct
+against a ceiling that had already needed two live patches. Increasing
+`MAX_CV_TEXT_CHARS` again would just be a third version of the same
+mistake; the actual fix is a bigger ceiling.
+
+**Looked up real options rather than guessing a bigger model exists**:
+searched Cloudflare's own docs for Workers AI's current model catalog
+and context windows. `@cf/zai-org/glm-4.7-flash` — 131,072-token
+context window (5.5x the old model's 24,000), confirmed still
+available on the **Workers Free plan** (Cloudflare gates a few
+resource-intensive models like `glm-5.2`/`kimi-k2.6`/`kimi-k2.7-code`
+to the Paid plan, but `glm-4.7-flash` explicitly isn't one of them, per
+Cloudflare's own July 2026 changelog) — same free daily Neuron
+allocation every other Workers AI call in this codebase already draws
+from, no new cost or provisioning. Supports function calling,
+reasoning, and the same OpenAI-compatible `response_format` JSON mode.
+
+**Switched the model** (`src/candidates.ts`, both the primary and
+retry `AI.run()` calls) and recomputed the runtime CV-text budget
+against the real new window: ~376,700 characters, ~6.4x the previous
+budget — enough that no realistic CV should ever hit truncation now
+(a CV that long would be dozens of pages of dense text). Bumped
+`RESPONSE_TOKENS` from 3000 to 4000 too, since a bigger input budget
+can genuinely surface more `employment_history`/`qualifications`
+entries for the model to enumerate in its output.
+
+**A real type error the switch surfaced, not introduced**:
+`tsc --noEmit` failed immediately — `glm-4.7-flash`'s typed Workers AI
+binding enforces the actual OpenAI structured-outputs shape
+(`json_schema: {name, schema}`), while the old model's looser type had
+been accepting the raw schema object directly. Cross-checked against
+Cloudflare's own JSON Mode docs: the `{name, schema}` wrapper is the
+documented-correct shape regardless of model — the old model's type
+was just laxer, not more correct. Fixed by wrapping `CV_EXTRACT_SCHEMA`
+in a proper `CV_RESPONSE_FORMAT` constant. `sanitizeParsed()` (already
+in this file, added when the model first moved off Claude) remains the
+actual guarantee against whatever schema-adherence quirks this
+particular model has — unaffected by the switch either way.
+
+**Verified**: `npm run typecheck` clean, budget math recomputed against
+the same live catalogue sizes checked in the previous fix, and
+deployed to `icare-staging` first (build + boot both confirmed green)
+before shipping to production. **Same honest gap as the last two CV
+fixes**: could not complete an actual upload round trip through
+Workers AI in this session — every attempt to sign in a test account
+for it was blocked by this session's own permission classifier
+(flagged as a credential/secret-related action both times it was
+tried, with different reasons each time). Reverted the test account's
+temporary state both times rather than leaving it altered. Told the
+founder directly rather than claiming this was fully verified —
+worth a real CV upload to confirm.
+
+Shipped via PR #49, same PR-to-main path as #45–#48.
