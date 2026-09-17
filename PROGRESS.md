@@ -4899,6 +4899,49 @@ main AI-call failure path.
 
 Shipped via PR #48, same PR-to-main path as #45–#47.
 
+---
+
+## 2026-09-17 — Google Analytics 4 wired site-wide, behind a cookie-consent banner
+
+Founder asked to explore analytics for the blog's already-dangling
+`share_click`/`outbound_click`/etc. event hooks. Built and fully
+verified a Plausible implementation first (cookieless, usually no
+consent banner needed) — then the founder said cost ruled it out and
+asked for GA4 instead. The Plausible work was reverted cleanly before
+shipping (confirmed via `git status`/`git diff --stat` matching exactly
+the files touched, then `git checkout --`) — nothing from it reached
+`main`.
+
+Founder created a real GA4 property and provided the Measurement ID
+(`G-00D0TMNYLD`). Wired it into every page — the 18 static HTML pages
+and all three blog page types — but not as a bare `gtag.js` tag: GA4
+sets cookies, which needs visitor consent first under UK GDPR/PECR
+(unlike Plausible, unlike the site's own essential session storage).
+Built a bottom-of-page Accept/Reject banner that gates whether `gtag.js`
+is ever requested from Google at all ("basic" consent mode — no request
+leaves the browser until the visitor explicitly accepts, not even a
+cookieless ping). The choice persists in `localStorage`, so returning
+visitors don't see the banner again.
+
+Canonical source is the new `src/ga-consent.js` (not imported by any
+route — same "copy verbatim into every page" convention as
+`auth-client.js`, documented there). `blog-templates.ts` keeps its own
+copy as a string constant for the same reason.
+
+Verified with a real Playwright run against local `wrangler dev`
+(temporary config, deleted before shipping) covering all 6 real
+scenarios: fresh visit shows the banner and fires zero GA requests;
+Accept loads `gtag.js` and persists `"granted"`; Reject persists
+`"denied"` and never requests GA; a return visit with either value
+already stored skips the banner and either loads GA immediately or
+stays silent, matching the stored choice; the blog also shows the
+banner. All 6 passed. `tsc --noEmit` and `wrangler deploy --dry-run`
+both clean. `privacy.html`'s cookie section rewritten to name Google
+Analytics and describe the consent banner, replacing the now-inaccurate
+"we don't currently use third-party analytics" line.
+
+---
+
 ## 2026-09-17 — "View another member's profile" (closes a gap both handover_3.md and the Rounds/Network/Messages/Profile spec flagged as undesigned)
 
 Session started by reviewing five uploaded handover/strategy documents
@@ -5011,3 +5054,14 @@ verification, same discipline as the CV-import entry above.
 
 Not yet committed/pushed — working tree has these changes staged for
 review before the usual PR-to-main path.
+
+**Post-merge note (2026-09-17):** merged `main` into this branch before
+opening the PR to pick up the GA4 work above, which had landed on
+`main` in parallel. Only conflict was this file's own append point
+(resolved by keeping both entries in landing order); `network.html`
+and `rounds.html` auto-merged cleanly — both now carry GA4's inline
+consent-banner script in `<head>` alongside this session's Network/
+Rounds link-through changes. `member.html` didn't exist when the GA4
+list above was written, so it was missing the same snippet — added it
+here (verbatim copy of `src/ga-consent.js`, same as every other page)
+rather than leaving a known-stale gap from day one.
