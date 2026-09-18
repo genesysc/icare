@@ -1079,15 +1079,9 @@ the hard constraints this must respect.
   migration `0047` (2026-09-17) — no code change needed, this just
   converts that session's own reasonable-default guess into a
   confirmed, documented decision.
-- **Not yet merged**: `handover_3.md`, the Rounds/Network/Messages/
-  Profile build spec, and the iCare Partner & Perks Strategy list
-  (uploaded 2026-09-17) haven't been folded into this document the way
-  §14 did for the earlier Group Strategy/B2B docs. An audit this
-  session found most of the Rounds/Network/Messages/Profile spec
-  already shipped (see the `member.html` and file-map entries above for
-  the one real gap it closed) and `handover_3.md` largely superseded by
-  the live Cloudflare Workers build — a fuller reconciliation pass is
-  still owed if the founder wants it written up formally.
+- ~~Not yet merged: `handover_3.md`, the Rounds/Network/Messages/Profile
+  build spec, and the iCare Partner & Perks Strategy list — a fuller
+  reconciliation pass is still owed~~ — **done, see §18.**
 
 ---
 
@@ -2109,3 +2103,71 @@ a roundup-post length of ~600-900 words are the right defaults long
 term — flagged as tunable, not fixed, in `scripts/daily-news-draft.js`'s
 own constants. Worth revisiting after the founder sees a week or two of
 real drafts.
+
+## 18. Reconciliation — `handover_3.md`, Rounds/Network/Messages/Profile spec, Partner & Perks list (uploaded 2026-09-17, reconciled 2026-09-18)
+
+Three documents uploaded 2026-09-17, checked against the live build the
+same way §14 reconciled the Group Strategy/B2B docs. Two more
+(`iCare_Group_Strategy_Handover.md`, `iCare_B2B_Recruitment_Workflow_
+Handover.md`) were uploaded in the same batch but are byte-identical to
+the files already stored under `docs/` and reconciled in §14 — nothing
+new to reconcile there.
+
+### `handover_3.md` — superseded, not merged as a source of truth
+
+An earlier/parallel "iCare Handover" describing the candidate side as a
+**Next.js App Router** build (`lib/types.ts`, `components/**/*.tsx`) —
+the same reference track already covered in §14 under
+`docs/iCare_NextJS_Candidate_Track_Handover.md`. Its claims are stale
+against the live Cloudflare Workers app in every place checked:
+
+| Claim in `handover_3.md` | Actual state, 2026-09-18 |
+|---|---|
+| "iRecruit — wireframes only, no code yet" | False — `src/employers.ts`, `src/employer-chat.ts` (AI search chat + guardrails), `src/jobs.ts` all real, shipped, live since Sprint 13/14 |
+| "Supabase schema not yet defined, no wiring" | False — 48 migrations applied to the live `care-register` project, every screen live-wired |
+| "Network flagged as most likely phase-2 cut" | False — Network shipped in full (Sprint 23/24) and is live |
+| DBS "manual staff-portal check, not Update Service API" | Consistent — matches non-negotiable #3, not contradicted |
+| Six-stage pipeline, decline reasons, invite expiry, three-state DBS | Consistent — matches what Sprint 14+ actually shipped |
+
+Not deleted or wired anywhere — kept as historical record of the
+parallel Next.js effort only, same status as the other Next.js
+reference material in §14 (design/logic reference, not a second live
+app).
+
+### Rounds/Network/Messages/Profile build spec — almost entirely already shipped
+
+This spec (bottom tab nav, Rounds feed, Network connections, gated
+Messages, self-profile) reads like a fresh build spec but turned out to
+already be built nearly verbatim, evidently from a prior "Clone"
+reference build merged in around 2026-09-12 (see `PROGRESS.md`'s
+2026-09-12 entries):
+
+| Spec item | Status |
+|---|---|
+| Bottom tab nav (Rounds/Network/Messages/Profile), live unread badges | **Built** — `src/nav-shell.html` pattern, copied per-page |
+| "Rounds" naming (not Wall/Feed) | **Built** — `src/rounds.html`, `/rounds` route |
+| Composer progressive disclosure + exact safeguarding line | **Built** verbatim, including "Don't upload anything that could identify a person you support" |
+| Venue-scoped check-in (never geolocation/free text) | **Built** — `GET /candidates/checkin/venues`, named-venue only |
+| Platform-wide @mentions | **Built** — `GET /candidates/mention-search` |
+| "Helpful" reaction + comments, no share/repost | **Built** — `toggle_post_reaction`/`add_post_comment`, no share button anywhere |
+| DBS hidden from peer surfaces (Rounds/Network) | **Built** — removed from all peer-facing views, reserved to the employer-side dossier only (§1 non-negotiable #3, sharpened 2026-09-13/18) |
+| Identity-verified badge, independent of DBS confirmation | **Built**, with more nuance than the spec asked for — two tiers (id-only "Identity Verified" vs. id+DBS "Fully Checked"), both manual-review-driven (migration `0042`), not automatic the way the spec assumed |
+| Connect flow with optional note | **Built** — `connections.note`, migration `0034` |
+| Messages gated to accepted connections only | **Built** — `get_or_create_conversation()` RPC |
+| Self-profile (LinkedIn-shaped: header/About/Experience/Licenses & Certifications/Skills/Activity, member vs. employer-preview toggle concept) | **Built** — `src/dashboard.html`, rebuilt LinkedIn-style 2026-09-14 |
+| **Viewing another member's profile** | Was the one genuine gap the spec itself flagged as undesigned — **closed 2026-09-17**, `src/member.html`, migration `0047`. Scoping (no RTW/reg numbers peer-side) founder-confirmed 2026-09-18, see §12. |
+| ID/passport upload pipeline for the identity badge | **Not built** — deliberately deferred; profile honestly shows "ID on file: Not yet collected" rather than implying a document flow that doesn't exist. This is now squarely what the 2026-09-18 badges handover (uploaded, not yet actioned as of this writing) asks for — see that document for the fuller document-upload/review-queue design once work on it starts. |
+
+### iCare Partner & Perks Strategy list — business development, not a build item
+
+Pure partnerships/commercial strategy (Blue Light Card competitive
+positioning, financial-resilience partners, BHN Extras as the free
+discount-platform anchor, commission/affiliate tables for uniforms/
+insurance/legal/training/car-servicing categories). Grepped the full
+repo (`src/`, `docs/`, `content/`) for "perks"/"BHN"/"Blue Light"/
+"discount" — zero matches anywhere. There is no premium-tier gating
+mechanism in the schema yet either (no `tier`/`membership_level`
+concept on `candidates`), which this strategy would eventually need
+once a perks feature is actually scoped for build. Nothing to
+reconcile against the live build; filed here only so a future session
+knows this document exists and was reviewed, not missed.
