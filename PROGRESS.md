@@ -5340,3 +5340,45 @@ populates data (safe to deploy without them — the cron handler logs and
 no-ops if `NEWS_INGEST_SECRET` is missing): `NEWS_INGEST_SECRET` (value
 generated this session, already stored in Supabase, given directly to
 the founder to match) and `NEWSDATA_API_KEY` (the founder's own key).
+
+---
+
+## 2026-09-19 — Rounds fully rebuilt to match the mockup: glass visual system + icon-only nav
+
+Founder saw the initial news-feed ship (existing flat visual language,
+existing bottom tab bar, both flagged as deliberate scope cuts against
+the mockup) and asked for both to be built and shipped in full anyway.
+
+Visual system: retargeted `rounds.html`'s existing CSS custom property
+*values* to the mockup's actual palette (`#330072`/`#00A499`/`#F4F1F8`)
+rather than rewriting every individual rule — every surface (composer,
+existing feed, the news module, waiting-on-you) inherited the new look
+from a handful of `:root` changes. `.card`/`.nav` gained real
+`backdrop-filter: blur() saturate()` + translucent fills + the
+mockup's own radial-gradient body background; font swapped Inter →
+Public Sans. Scoped to this one page, not sitewide — the other 7
+signed-in pages are untouched.
+
+Nav: removed the bottom tab bar (`nav-shell.html`'s shared markup) from
+`rounds.html` specifically, replaced with a second header row of the
+same 6 destinations as icon-only links (same SVG paths as
+`nav-shell.html`, for visual consistency even though this page no
+longer shares its markup), reusing the auto-hide-on-scroll behaviour
+already built in the first pass. `nav-shell.html` itself and the other
+7 pages are untouched — deliberate, flagged navigational inconsistency
+between Home and the rest of the app until a real sitewide nav
+migration happens as its own piece of work.
+
+**Verified, not just assumed unchanged**: re-ran the full Playwright
+interaction suite from the first pass (greeting, both Waiting-on-you
+row types including the connection-request privacy check, news
+lede+list render, like, comment thread, share menu, category filter,
+invite accept) against the redesigned page — identical results, zero
+regressions. A new dedicated icon-nav test confirmed all 6 icons/hrefs,
+the active-state highlight, and the Invites unread dot render and
+behave correctly in the new 2-row header markup. Re-ran the 5-state
+scroll test against the restructured header — identical results.
+`tsc --noEmit` and `wrangler deploy --dry-run` both clean. Shipped
+straight to production per the founder's explicit "do not stop until
+deployed" — merged, deploy confirmed via GitHub Actions, confirmed live
+via a direct request to icareltd.com/rounds.

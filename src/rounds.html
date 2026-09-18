@@ -109,37 +109,59 @@
 <meta name="robots" content="noindex" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
 <style>
+  /* Glass visual system — 2026-09-19, built to match the uploaded
+     mockup's design language in full (rather than the two-module-only
+     version this page shipped with first — see HANDOVER.md for why
+     that was the initial scope call, and why the founder then asked for
+     the full mockup, deviations and all, built and shipped). Retargets
+     this page's existing token NAMES to the mockup's actual palette
+     (`#330072`/`#00A499`/`#F4F1F8`) rather than rewriting every
+     individual rule that already references them — every surface on
+     this page inherits the new look from these few values. Scoped to
+     this page only, not a sitewide token change — the other 7 signed-in
+     pages (dashboard/invites/pipelines/network/messages/credentials/
+     visibility) still use the older flat plum/teal system and are
+     untouched here; a real sitewide visual migration is separate work
+     from a content-module build, flagged in HANDOVER.md. */
   :root {
-    --plum-950: #241533;
-    --plum-800: #382349;
-    --ink-soft: #5b5670;
-    --ink-faint: #8a8599;
-    --teal-700: #0e8c7f;
-    --teal-500: #16b8a6;
-    --teal-100: #e3faf6;
+    --plum-950: #330072;
+    --plum-800: #22014f;
+    --ink-soft: #453a5c;
+    --ink-faint: #7d7296;
+    --teal-700: #007a72;
+    --teal-500: #00a499;
+    --teal-100: #dff7f3;
     --amber-600: #b8791f;
     --amber-100: #faedd4;
     --paper: #fefefc;
-    --paper-dim: #f8f6f1;
-    --line: #e7e3da;
+    --paper-dim: #f4f1f8;
+    --line: rgba(51, 0, 114, 0.14);
     --white: #ffffff;
     --err: #b23a24;
-    --shadow-soft: 0 24px 60px -24px rgba(36, 21, 51, 0.22);
+    --shadow-soft: 0 10px 34px rgba(51, 0, 114, 0.1);
+    --glass-fill: rgba(255, 255, 255, 0.6);
+    --glass-fill-strong: rgba(255, 255, 255, 0.78);
+    --glass-border: rgba(255, 255, 255, 0.6);
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; min-height: 100vh;
-    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: var(--paper-dim); color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+    font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(1100px 700px at 8% -10%, rgba(0, 164, 153, 0.22), transparent 60%),
+      radial-gradient(900px 600px at 100% 0%, rgba(51, 0, 114, 0.18), transparent 55%),
+      linear-gradient(160deg, #ede9f7 0%, #f4f1f8 45%, #e7f5f3 100%);
+    background-attachment: fixed;
   }
   h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--plum-950); margin: 0; font-weight: 600; }
   p { margin: 0; }
   button { font-family: inherit; }
   a { color: var(--teal-700); }
 
-  .nav { padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .nav-row1 { padding: 16px 24px 10px; display: flex; align-items: center; justify-content: space-between; }
   .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--plum-950); text-decoration: none; }
   .logo em { font-style: normal; color: var(--teal-500); }
   .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
@@ -196,29 +218,22 @@
     .notif-time { font-size: 11px; color: var(--ink-faint); margin: 4px 0 0; }
     .notif-unread-mark { width: 8px; height: 8px; border-radius: 999px; background: var(--teal-500); flex: none; margin-top: 5px; }
 
-  /* Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment */
-  .tab-bar {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-    display: flex; background: var(--white); border-top: 1px solid var(--line);
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-  .tab-bar-item {
-    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint);
-    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
-  }
-  .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
-  .tab-bar-item.is-active { color: var(--teal-700); }
-  .tab-bar-item .tab-bar-icon-wrap { position: relative; }
+  /* .tab-bar-dot lives on independent of the (now-removed on this page)
+     bottom tab bar — reused by the notif bell and the icon-nav's Invites
+     item, so kept even though .tab-bar/.tab-bar-item themselves are gone. */
   .tab-bar-dot {
     position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px;
     background: var(--teal-500); border: 1.5px solid var(--white); display: none;
   }
   .tab-bar-dot.is-visible { display: block; }
 
-  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 80px; display: flex; flex-direction: column; gap: 16px; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 40px; display: flex; flex-direction: column; gap: 16px; }
 
-  .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 22px 24px; }
+  .card {
+    background: var(--glass-fill); border-radius: 22px; border: 1px solid var(--glass-border);
+    backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: var(--shadow-soft); padding: 22px 24px;
+  }
 
 
   /* Composer */
@@ -296,16 +311,35 @@
   .loading-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 40px 0; }
   [hidden] { display: none !important; }
 
-  /* Top nav — auto-hide on scroll (2026-09-19 news module addition).
-     See HANDOVER.md: the uploaded mockup asked for a new icon-only nav
-     replacing the tab bar app-wide; kept the existing text+icon bottom
-     tab bar (used identically across all 8 signed-in pages, see
-     nav-shell.html) and added the scroll behaviour to this page's own
-     existing top header instead — a second, redundant nav paradigm on
-     one page only felt like a worse trade than skipping the icon-only
-     part of the spec, flagged as a deviation rather than silently done. */
-  .nav { position: sticky; top: 0; z-index: 50; background: var(--white); transition: transform 0.28s ease; }
+  /* Top nav — icon-only, auto-hide on scroll, glass surface (2026-09-19,
+     built in full per explicit founder request — an earlier pass had
+     kept the app's shared bottom tab bar instead; see HANDOVER.md for
+     that original scope call and why it changed). Replaces the bottom
+     tab-bar ON THIS PAGE ONLY — nav-shell.html and the other 7 signed-in
+     pages are untouched, so this is real, deliberate nav inconsistency
+     between Home and the rest of the app until/unless a sitewide nav
+     migration is done as its own piece of work. */
+  .nav {
+    position: sticky; top: 0; z-index: 50; transition: transform 0.28s ease;
+    background: var(--glass-fill-strong);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border-bottom: 1px solid var(--glass-border);
+    box-shadow: 0 8px 30px rgba(51, 0, 114, 0.08);
+  }
   .nav.is-hidden { transform: translateY(-100%); }
+
+  .icon-nav { display: flex; justify-content: center; gap: 4px; padding: 2px 16px 12px; }
+  .icon-nav-item {
+    width: 40px; height: 40px; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-faint); text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .icon-nav-item svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .icon-nav-item:hover { background: rgba(51, 0, 114, 0.08); color: var(--plum-950); }
+  .icon-nav-item.is-active { background: rgba(51, 0, 114, 0.1); color: var(--plum-950); }
+  .icon-nav-icon-wrap { position: relative; display: flex; }
 
   .greeting { padding: 22px 24px 4px; max-width: 720px; margin: 0 auto; }
   .greeting h1 { font-size: 1.7rem; }
@@ -359,25 +393,55 @@
 <body>
 
 <header class="nav">
-  <a href="/" class="logo">i<em>Care</em></a>
-  <div class="nav-right">
-    <div>
-      <button class="notif-bell" data-notif-bell aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
-        <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="tab-bar-dot" data-notif-dot></span>
-      </button>
-      <div class="notif-panel" data-notif-panel hidden>
-        <div class="notif-panel-head">
-          <h2>Notifications</h2>
-          <button class="notif-mark-all" data-notif-mark-all hidden>Mark all read</button>
+  <div class="nav-row1">
+    <a href="/" class="logo">i<em>Care</em></a>
+    <div class="nav-right">
+      <div>
+        <button class="notif-bell" data-notif-bell aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+          <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="tab-bar-dot" data-notif-dot></span>
+        </button>
+        <div class="notif-panel" data-notif-panel hidden>
+          <div class="notif-panel-head">
+            <h2>Notifications</h2>
+            <button class="notif-mark-all" data-notif-mark-all hidden>Mark all read</button>
+          </div>
+          <p class="notif-loading" data-notif-loading>Loading…</p>
+          <p class="notif-empty" data-notif-empty hidden>Nothing yet — connection requests, messages and invites will show up here.</p>
+          <div class="notif-list" data-notif-list></div>
         </div>
-        <p class="notif-loading" data-notif-loading>Loading…</p>
-        <p class="notif-empty" data-notif-empty hidden>Nothing yet — connection requests, messages and invites will show up here.</p>
-        <div class="notif-list" data-notif-list></div>
       </div>
+      <button class="sign-out" data-sign-out>Sign out</button>
     </div>
-    <button class="sign-out" data-sign-out>Sign out</button>
   </div>
+  <!-- Icon-only nav — replaces the app's shared bottom tab bar on this
+       page only (nav-shell.html's own copy is untouched, still live on
+       the other 7 signed-in pages). Same 6 real destinations and same
+       SVG icon paths as nav-shell.html, just icon-only and here instead
+       of fixed to the bottom — see HANDOVER.md for the scope reasoning. -->
+  <nav class="icon-nav" aria-label="Main">
+    <a href="/rounds" class="icon-nav-item is-active" data-tab="rounds" title="Rounds" aria-label="Rounds">
+      <svg viewBox="0 0 24 24"><polyline points="2 14 6 14 9 5 14 21 17 14 22 14"/></svg>
+    </a>
+    <a href="/invites" class="icon-nav-item" data-tab="invites" title="Invites" aria-label="Invites">
+      <span class="icon-nav-icon-wrap">
+        <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+        <span class="tab-bar-dot" data-invites-dot></span>
+      </span>
+    </a>
+    <a href="/pipelines" class="icon-nav-item" data-tab="pipelines" title="Pipelines" aria-label="Pipelines">
+      <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    </a>
+    <a href="/network" class="icon-nav-item" data-tab="network" title="Network" aria-label="Network">
+      <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </a>
+    <a href="/messages" class="icon-nav-item" data-tab="messages" title="Messages" aria-label="Messages">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </a>
+    <a href="/dashboard" class="icon-nav-item" data-tab="profile" title="Profile" aria-label="Profile">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </a>
+  </nav>
 </header>
 
 <div class="greeting" data-greeting hidden>
@@ -472,37 +536,6 @@
       something.</p>
   </div>
 </div>
-
-<!-- Tab-bar shell — src/nav-shell.html, Sprint 19; copied per-page, see that file's header comment -->
-<nav class="tab-bar" aria-label="Main">
-  <a href="/rounds" class="tab-bar-item is-active" data-tab="rounds">
-    <svg viewBox="0 0 24 24"><polyline points="2 14 6 14 9 5 14 21 17 14 22 14"/></svg>
-    <span>Rounds</span>
-  </a>
-  <a href="/invites" class="tab-bar-item" data-tab="invites">
-    <span class="tab-bar-icon-wrap">
-      <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
-      <span class="tab-bar-dot" data-invites-dot></span>
-    </span>
-    <span>Invites</span>
-  </a>
-  <a href="/pipelines" class="tab-bar-item" data-tab="pipelines">
-    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-    <span>Pipelines</span>
-  </a>
-  <a href="/network" class="tab-bar-item" data-tab="network">
-    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-    <span>Network</span>
-  </a>
-  <a href="/messages" class="tab-bar-item" data-tab="messages">
-    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-    <span>Messages</span>
-  </a>
-  <a href="/dashboard" class="tab-bar-item" data-tab="profile">
-    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-    <span>Profile</span>
-  </a>
-</nav>
 
 <script>
 var ICARE_SESSION_KEY = "icare_session";
