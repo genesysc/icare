@@ -5065,3 +5065,46 @@ Rounds link-through changes. `member.html` didn't exist when the GA4
 list above was written, so it was missing the same snippet — added it
 here (verbatim copy of `src/ga-consent.js`, same as every other page)
 rather than leaving a known-stale gap from day one.
+
+## 2026-09-18 — Confirmed peer-profile scoping; found and fixed a real gap in the employer-side dossier
+
+Founder confirmed, in plain terms, exactly the design this session had
+already guessed at for `member.html` (0047): other candidates/platform
+users should only ever see a plain registration badge (e.g. "NMC
+Registered"), never the underlying registration/PIN number, for
+NMC/HCPC/any accreditation body — and never right-to-work status
+either. Both become visible to an **employer** only once the candidate
+has accepted that employer's invite for a specific job. `HANDOVER.md`
+§12's open item is now marked resolved rather than open.
+
+While verifying that the "employer, post-consent" half of that rule
+was actually wired up (not just assumed), found it wasn't: RLS on
+`registrations` (`registrations_shortlisted`, migration `0005`) has
+correctly permitted an employer to read `reg_number` once
+`candidate_consented_at` is set since that policy shipped, but
+`get_candidate_dossier()` (`0019`) — the one function actually gated
+on that exact condition, and the only place candidate detail reaches
+the employer side at all (feeds `who_is_summary` in
+`employer-chat.ts`) — never queried `registrations` or `right_to_work`
+in the first place. So the number was correctly locked down the whole
+time, just never actually shown to anyone post-consent either — a
+real, previously-unnoticed gap, not the thing the founder was asking
+about.
+
+**Fix — migration `0048_dossier_includes_registrations_and_rtw.sql`:**
+extended `get_candidate_dossier()`'s returned JSON with `registrations`
+(regulator, register_name, reg_number, status, expires_on) and
+`right_to_work`, inside the function's existing
+`is_verified_employer() + shortlist.candidate_consented_at` gate —
+no new gate, no RLS change, just filling in what the existing one was
+supposed to already be returning. Applied directly to the live
+`care-register` Supabase project via `apply_migration`.
+
+**Not yet done:** no UI currently renders these two new dossier fields
+anywhere on the employer side (they're only consumed by the AI
+`who_is_summary` prompt/fallback right now, and the deterministic
+`buildFallbackSummary()` in `employer-chat.ts` doesn't reference them
+either) — the data is now correctly available post-consent, but
+nothing employer-facing displays it as its own field yet. Flagged as a
+follow-up, not blocking, since the founder's actual ask (correct
+access control) is satisfied.

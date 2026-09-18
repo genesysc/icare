@@ -284,7 +284,15 @@ photo/video/CV), `get_candidate_dossier(candidate_id)` (security
 definer — the structured-data source for Sprint 10's `who_is_summary`;
 `employment_history`/`qualifications` have no employer-facing RLS at
 all, so this one RPC is the actual gate, checked once rather than
-bolted onto five tables).
+bolted onto five tables). **2026-09-18 (migration `0048`):** also
+returns `registrations` (regulator, register_name, `reg_number`,
+status, expires_on) and `right_to_work` — founder confirmed both must
+be invisible to other candidates (already true, `member.html`/`0047`)
+and visible to an employer only once the candidate has accepted that
+employer's invite; `registrations_shortlisted` RLS (0005) already
+permitted the read, but nothing had ever queried it through this gate
+until now, so the number was correctly locked down but not actually
+shown to anyone post-consent either.
 
 ---
 
@@ -1056,16 +1064,21 @@ the hard constraints this must respect.
   unresolved: retention period on closed accounts (`purge_after`
   currently defaults to 12 months, needs legal confirmation), two-factor
   auth for employers (deferred until there are real shortlists).
-- **New 2026-09-17 — peer-profile scoping on `member.html`**: this
-  session decided, without an explicit doc to point to, that another
-  candidate's right-to-work status and raw registration numbers should
-  stay off the peer-facing profile view entirely (registrations show
-  only the register/regulator name, e.g. "NMC Registered", never the
-  number), even though only DBS is explicitly banned peer-side in the
-  existing docs. This mirrors the Rounds/Network/Messages/Profile
-  spec's own "member view" (locked/summary credentials, no RTW/DBS
-  detail) fairly closely, but wasn't literally specified for this
-  screen — confirm or override.
+- ~~Peer-profile scoping on `member.html` (RTW/registration numbers
+  withheld from peers) — confirm or override~~ — **resolved
+  2026-09-18, founder confirmed:** other candidates/platform users see
+  only a plain registration badge (e.g. "NMC Registered"), never the
+  underlying registration/PIN number, for NMC/HCPC/any other
+  accreditation body. Right-to-work status is also never peer-visible.
+  The registration number (and RTW status) become visible to an
+  **employer** only once the candidate has accepted that employer's
+  invite for a specific job — i.e. gated by the same pipeline-scoped
+  consent mechanism as the rest of the full-profile unlock (§1 non-
+  negotiables, §2 B2B workflow), not a standing grant. This matches
+  exactly what was already built and shipped in `member.html`/
+  migration `0047` (2026-09-17) — no code change needed, this just
+  converts that session's own reasonable-default guess into a
+  confirmed, documented decision.
 - **Not yet merged**: `handover_3.md`, the Rounds/Network/Messages/
   Profile build spec, and the iCare Partner & Perks Strategy list
   (uploaded 2026-09-17) haven't been folded into this document the way
