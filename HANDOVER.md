@@ -2184,35 +2184,49 @@ colours (`#330072`/`#00A499`) and fonts (Fraunces/Public Sans) actually
 match this repo's *newer* brand system already live on `landing.html`
 and the blog, just not yet on the *older* signed-in candidate-app pages
 (`rounds.html` etc., which predate that rebuild and use a different
-token set — `--plum-950`/`--teal-700`, Inter). Two scope calls made
-explicitly, not silently, given that mismatch and the size of what a
-full redesign would touch:
+token set — `--plum-950`/`--teal-700`, Inter). Two scope calls were
+made explicitly at first — ship the new modules in the page's existing
+flat visual language and existing bottom tab bar, flag the mockup's
+glass/icon-nav treatment as deferred rather than build it blind — then
+the founder explicitly asked for both to be built and shipped in full
+after seeing the reasoning. Both are now live, scoped to this one page:
 
-1. **Visual language**: rendered the new modules in the *existing*
-   `rounds.html` token set (plum/teal/Inter/paper), not the mockup's
-   glass/blur treatment. Introducing real glassmorphism for two new
-   modules on an otherwise flat page — the composer, the existing
-   Rounds feed, the header — would have looked bolted-on, not "the rest
-   of the UI direction going forward" the handover asked for. A genuine
-   visual system migration for the whole candidate app is a real,
-   separate piece of work, not a side effect of adding a content module.
-2. **Nav**: the handover's icon-only, sticky-top, auto-hiding nav would
-   *replace* the app's existing nav — but that existing nav is a single
-   shared **bottom** tab bar (text + icon, `nav-shell.html`), copied
-   verbatim across all 8 signed-in pages, and nav-shell.html's own
-   header comment says explicitly this was a deliberate, considered
-   choice ("this codebase has no other desktop-specific layout... a
-   second desktop-only nav pattern isn't introduced here either").
-   Replacing that app-wide, for one page, as a side effect of a content
-   feature, risked a worse regression than skipping part of the spec.
-   **What shipped instead**: the specific, valuable *interaction*
-   (scroll-down hides, scroll-up reveals, stationary ~700ms reveals,
-   always visible near the top) applied to `rounds.html`'s own existing
-   top header — same real behaviour, tested against all 5 scenarios via
-   Playwright (see below), zero duplicate/redundant navigation, bottom
-   tab bar untouched and still the one consistent nav across the app.
-   The icon-only part of the spec is the one genuinely unshipped piece —
-   flagged, not silently dropped.
+1. **Visual language — built in full, 2026-09-19.** `rounds.html`'s
+   existing token *names* (`--plum-950`, `--teal-700`, `--paper-dim`,
+   etc.) are retargeted to the mockup's actual palette
+   (`#330072`/`#00A499`/`#F4F1F8`) rather than every individual rule
+   being rewritten — every surface on the page inherits the new look
+   from a handful of `:root` values. `.card`/`.nav` gained real
+   `backdrop-filter: blur() saturate()` + translucent fills + the
+   mockup's radial-gradient body background; the font swapped from
+   Inter to Public Sans (Fraunces/IBM Plex Mono unchanged). Scoped to
+   this page only — the other 7 signed-in pages still use the older
+   flat system; a real sitewide visual migration is separate work from
+   this pass, not attempted here.
+2. **Icon-only nav — built in full, 2026-09-19.** The bottom tab bar
+   (`nav-shell.html`'s shared markup) is removed from `rounds.html`
+   specifically and replaced with a second row in the sticky glass
+   header: the same 6 real destinations and the same SVG icon paths
+   `nav-shell.html` already uses (for visual consistency with the rest
+   of the app's icon language), icon-only, auto-hiding on scroll (the
+   interaction already built and tested in the first pass, now applied
+   to a 2-row header instead of 1). **`nav-shell.html` itself and the
+   other 7 signed-in pages are untouched** — this is real, deliberate
+   navigational inconsistency between Home and the rest of the app
+   until/unless a sitewide nav migration happens as its own piece of
+   work, not an oversight. The mockup's own icon set only showed 5
+   destinations (no Messages); used 6 here to match this app's actual
+   destination count rather than drop a real, reachable page.
+
+**Re-verified after both were built**: the full Playwright interaction
+suite from the first pass (greeting, both Waiting-on-you row types
+including the privacy check, news lede+list, like, comments, share,
+category filter, invite accept) re-run against the redesigned page —
+identical results, nothing regressed. A dedicated icon-nav test
+confirmed all 6 icons/hrefs, the active-state highlight, and the
+Invites unread dot still work correctly in the new markup. The 5-state
+scroll test re-run against the restructured 2-row header — identical
+results.
 
 **Content pipeline — three free-tier news sources evaluated, only one
 used, tested directly rather than assumed:**
