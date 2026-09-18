@@ -23,6 +23,7 @@ type Env = {
   SUPABASE_PUBLISHABLE_KEY: string;
   UNSPLASH_ACCESS_KEY?: string;
   NEWS_INGEST_SECRET?: string;
+  NEWSDATA_API_KEY?: string;
 };
 
 const FEEDS: { url: string; label: string }[] = [
@@ -35,28 +36,62 @@ const FEEDS: { url: string; label: string }[] = [
   { url: "https://www.england.nhs.uk/feed/", label: "NHS England" },
 ];
 
-// Same 5 Google News search queries this session's daily blog-drafting
-// automation already verified return real, global, relevant results —
-// re-used here rather than re-inventing a different set. Kept to 5, not
-// wider: a first end-to-end test run against these plus the 4 direct
-// feeds above returned 429 ingestible items in one pass (12 sources,
-// `when:2d`) — far more than a small home-feed module needs, and 429
-// og:image resolution attempts in a single cron invocation is a real
-// external-load/execution-time concern, not just a data-volume one. Both
-// `when:1d` (tighter than the 2-day window tried first) and this
-// narrower query set cut that down; MAX_IMAGE_RESOLUTIONS_PER_RUN below
-// is the actual hard backstop regardless of how feed volume moves over
-// time.
-const GOOGLE_NEWS_QUERIES = [
-  '"social care" OR "care worker" OR "aged care"',
-  '"health workforce" OR "nursing shortage" OR "NHS workforce"',
-  '"long-term care" OR "home care" staffing',
-  'pharmacist OR "pharmacy workforce"',
-  '"health worker visa" OR "care worker visa" immigration',
-];
+// newsdata.io (founder-provided key, 2026-09-18) — replaced an earlier
+// Google News RSS-search source entirely: same broad real-world-news
+// need, but structured JSON from real outlets (verified by hand: The
+// Guardian, Metro, Big Issue, etc.) with a genuine per-article image on
+// most results, versus Google News RSS's redirect-wrapped links (whose
+// og:image essentially never resolves in practice — verified 0/100 in
+// an earlier test run, see PROGRESS.md) and its own undocumented/
+// scraped-feed status. Two other free-tier options the founder also
+// offered were evaluated and rejected: NewsAPI.org's free "Developer"
+// plan explicitly forbids production use in its own terms (checked
+// directly); webz.io's "health" category is dominated by press
+// releases and paid placements (one result was literally a sponsored
+// supplement ad) even with query filtering attempted.
+//
+// Kept to 2 queries, one page (10 results) each — newsdata.io's response
+// headers show a real, if unconfirmed-exact, rate limit
+// (X-RateLimit-Limit: 60 seen directly), and this repo has nowhere else
+// making calls against the same key, so conservative usage here is the
+// only guard against ever hitting it.
+const NEWSDATA_QUERIES = ['"social care" OR "care worker" OR "aged care" OR "care home"', '"NHS workforce" OR "health workforce" OR "nursing shortage" OR "care worker visa"'];
 
-function googleNewsUrl(q: string): string {
-  return `https://news.google.com/rss/search?q=${encodeURIComponent(q)}+when:1d&hl=en-US&gl=US&ceid=US:en`;
+type NewsDataArticle = {
+  link?: string;
+  title?: string;
+  description?: string;
+  pubDate?: string;
+  image_url?: string | null;
+  source_name?: string;
+  article_id?: string;
+};
+
+async function fetchNewsDataItems(query: string, apiKey: string): Promise<RawItem[]> {
+  try {
+    const url = `https://newsdata.io/api/1/latest?apikey=${encodeURIComponent(apiKey)}&q=${encodeURIComponent(query)}&language=en`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`[news-ingest] newsdata.io query "${query}" returned ${res.status}`);
+      return [];
+    }
+    const data = (await res.json()) as { status?: string; results?: NewsDataArticle[] };
+    if (data.status !== "success") return [];
+    return (data.results || [])
+      .filter((a): a is NewsDataArticle & { link: string; title: string } => Boolean(a.link && a.title))
+      .map((a) => ({
+        title: a.title,
+        url: a.link,
+        description: (a.description || "").slice(0, 600),
+        pubDateRaw: a.pubDate ? `${a.pubDate.replace(" ", "T")}Z` : null,
+        sourceName: a.source_name || "newsdata.io",
+        guid: a.article_id || null,
+        imageUrl: a.image_url || null,
+      }));
+  } catch (err) {
+    console.warn(`[news-ingest] newsdata.io query "${query}" failed: ${err instanceof Error ? err.message : String(err)}`);
+    return [];
+  }
 }
 
 type RawItem = {
@@ -66,6 +101,7 @@ type RawItem = {
   pubDateRaw: string | null;
   sourceName: string;
   guid: string | null;
+  imageUrl?: string | null;
 };
 
 function decodeEntities(s: string): string {
@@ -267,10 +303,13 @@ export async function scheduledNewsRefresh(_event: ScheduledController, env: Env
 
   const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY);
 
-  const sources = [...FEEDS, ...GOOGLE_NEWS_QUERIES.map((q) => ({ url: googleNewsUrl(q), label: `Google News: ${q}` }))];
-  const rawResults = await Promise.all(sources.map((s) => fetchFeed(s.url, s.label)));
-  const allItems = rawResults.flat();
-  console.log(`[news-ingest] fetched ${allItems.length} raw items from ${sources.length} sources`);
+  const feedResults = await Promise.all(FEEDS.map((s) => fetchFeed(s.url, s.label)));
+  const newsDataResults = env.NEWSDATA_API_KEY
+    ? await Promise.all(NEWSDATA_QUERIES.map((q) => fetchNewsDataItems(q, env.NEWSDATA_API_KEY as string)))
+    : [];
+  if (!env.NEWSDATA_API_KEY) console.warn("[news-ingest] NEWSDATA_API_KEY is not set — skipping that source this run.");
+  const allItems = [...feedResults.flat(), ...newsDataResults.flat()];
+  console.log(`[news-ingest] fetched ${allItems.length} raw items from ${FEEDS.length} feeds + ${NEWSDATA_QUERIES.length} newsdata.io queries`);
 
   // De-dupe by URL and attach a stable external_id (hash of guid||url).
   const seenUrls = new Set<string>();
@@ -318,9 +357,19 @@ export async function scheduledNewsRefresh(_event: ScheduledController, env: Env
   // later (this file only ever resolves an image at an item's first
   // sighting), so there's no silent backfill debt building up either —
   // what a run doesn't image, it simply never will, by design.
-  const MAX_IMAGE_RESOLUTIONS_PER_RUN = 60;
-  const toImage = [...newCandidates].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, MAX_IMAGE_RESOLUTIONS_PER_RUN);
+  // newsdata.io items already carry a real image (checked directly, most
+  // results have one) — no need to spend an og:image fetch or an
+  // Unsplash fallback call on those; only the direct-feed items (WHO/
+  // gov.uk/NHS England, none of which include an image field at all)
+  // still need this.
   const imageByExternalId = new Map<string, string | null>();
+  const needsImageResolution = newCandidates.filter((c) => !c.item.imageUrl);
+  for (const c of newCandidates) {
+    if (c.item.imageUrl) imageByExternalId.set(c.externalId, c.item.imageUrl);
+  }
+
+  const MAX_IMAGE_RESOLUTIONS_PER_RUN = 60;
+  const toImage = [...needsImageResolution].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, MAX_IMAGE_RESOLUTIONS_PER_RUN);
   await mapWithConcurrency(toImage, 6, async (c) => {
     const og = await fetchOgImage(c.item.url);
     const image = og || (await fetchUnsplashFallback(c.category, env.UNSPLASH_ACCESS_KEY));

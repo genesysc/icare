@@ -38,6 +38,7 @@ type Bindings = {
   MEDIA: R2Bucket;
   UNSPLASH_ACCESS_KEY?: string;
   NEWS_INGEST_SECRET?: string;
+  NEWSDATA_API_KEY?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
