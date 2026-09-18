@@ -5066,6 +5066,84 @@ list above was written, so it was missing the same snippet — added it
 here (verbatim copy of `src/ga-consent.js`, same as every other page)
 rather than leaving a known-stale gap from day one.
 
+---
+
+## 2026-09-18 — Blog byline: new pen name for future posts only
+
+Founder decided on the blog's open author question (HANDOVER.md §15):
+switch from "iCare Editorial Team" to a pen name, "Charlie Xavier" — but
+only going forward, not retroactively. The 8 launch posts' frontmatter
+is untouched.
+
+`scripts/build-blog-content.js`'s `parsePost()` now defaults `author` to
+"Charlie Xavier" only when a post's frontmatter omits the field —
+existing posts, which all set `author` explicitly, are unaffected.
+Verified by rebuilding `src/blog-content.ts` and confirming zero diff
+(`git status` showed only the script changed, not the generated file).
+`tsc --noEmit` and `wrangler deploy --dry-run` both clean.
+
+## 2026-09-18 — Daily health & social care news drafting automation
+
+Founder asked for an automation that finds health/care/social-care news
+worldwide daily and posts it. Walked through three decisions first
+rather than assuming: news source (free RSS/Google News, not a paid API
+— cost's been a constraint all session), review step (drafts for
+review + founder approval, not auto-publish — unreviewed AI content
+going live carries real factual/legal/copyright risk), and volume (one
+roundup post/day by default, standalone posts only for stories backed
+by 2+ independent sources).
+
+Built as a **GitHub Actions scheduled workflow**
+(`.github/workflows/daily-news-draft.yml`), not a Cloudflare Worker in
+the literal sense — a Worker can't browse the web for free or open a
+PR, so this runs where it actually can: `scripts/daily-news-draft.js`
+fetches WHO/gov.uk/NHS England feeds plus 5 Google News RSS search
+queries (verified every feed URL by hand first — several candidates
+tried and dropped: CDC's RSS endpoints, ECDC, Community Care, CQC,
+ModernHealthcare, McKnight's, HSJ, Skills for Care all 404'd/403'd/
+redirected to nothing), clusters same-day items into stories by title-
+keyword overlap, drafts via Cloudflare Workers AI's REST endpoint
+(same `glm-4.7-flash` + structured-output pattern `candidates.ts`
+already uses for CV extraction, called over plain HTTPS since GitHub
+Actions can't use the `env.AI` binding), picks a hero image via
+Unsplash's *search* API (slots straight into the existing build-time
+attribution pipeline — zero new resolution code), and writes real
+`content/posts/*.md` files. The workflow then runs the real
+`build:blog` + `typecheck` and opens a PR — never pushes to main.
+Branch name includes the run id specifically so a second day's run
+can't silently overwrite a first day's still-unreviewed draft.
+
+**Two real bugs found and fixed by testing against live feeds, not by
+reading the code**: the initial clustering ratio (50%) false-positived
+on a syndicated "Ask the Pharmacist" column running verbatim across a
+dozen local outlets (only 2 distinctive words in the title, so any two
+instances matched at ratio 1.0) — fixed with an absolute shared-word
+floor alongside the ratio. The same ratio then missed real multi-outlet
+coverage of a WHO story whose headlines used different wording across
+outlets — loosened to 40%. Documented as a known, tested limitation
+(no stemming — "nearing" vs "near" vs "approaching" never match) rather
+than over-engineered away; the actual safety net is the human PR
+review, not a perfect clustering heuristic.
+
+**Verified end-to-end before shipping**: ran the real fetch+cluster
+logic against live feeds (86 items, 5-8 clusters depending on
+threshold), ran a full synthetic draft through `writePost()` and then
+through the real, unmodified `build-blog-content.js` — compiled
+successfully (9 posts with the test post added, clean 8 again after
+removing it), confirming the generated frontmatter is genuinely
+compiler-valid, not just visually plausible. `tsc --noEmit` and
+`wrangler deploy --dry-run` both clean — this touches nothing the
+Worker bundle includes.
+
+**Not yet live** — needs one manual step only the founder can do:
+`UNSPLASH_ACCESS_KEY` added as a GitHub Actions secret (it currently
+only exists as a Cloudflare Worker secret, a different store).
+`CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` already exist as Actions
+secrets (reused from `deploy.yml`) — only needs widening if the token's
+scope doesn't already cover Workers AI.
+
+---
+
 ## 2026-09-18 — Confirmed peer-profile scoping; found and fixed a real gap in the employer-side dossier
 
 Founder confirmed, in plain terms, exactly the design this session had
@@ -5108,3 +5186,9 @@ either) — the data is now correctly available post-consent, but
 nothing employer-facing displays it as its own field yet. Flagged as a
 follow-up, not blocking, since the founder's actual ask (correct
 access control) is satisfied.
+
+**Post-merge note (2026-09-18):** merged `main` into this branch before
+opening the PR to pick up the blog byline/news-automation work above,
+which had landed on `main` in parallel. Only conflict was this file's
+own append point (resolved by keeping both sets of entries in landing
+order) — no other files touched by both branches.

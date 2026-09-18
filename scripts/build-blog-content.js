@@ -202,6 +202,11 @@ async function parsePost(filename) {
 
   return {
     ...fm,
+    // Default byline for new posts, decided 2026-09-18 — a pen name
+    // instead of "iCare Editorial Team", going forward only. The 8
+    // launch posts keep their existing frontmatter `author` untouched
+    // (this only fills in when a post's frontmatter omits the field).
+    author: fm.author || "Charlie Xavier",
     categorySlug: CATEGORY_SLUGS[fm.category],
     heroImage: await resolveHeroImage(fm.heroImage, filename),
     bodyHtml: html,

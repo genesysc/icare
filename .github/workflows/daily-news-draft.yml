@@ -1,0 +1,80 @@
+name: Daily health & social care news draft
+
+# Drafts blog post(s) from free RSS/Google News sources and opens a PR —
+# never pushes to main directly. See scripts/daily-news-draft.js and
+# HANDOVER.md's blog section for the full design and why: cost was an
+# explicit constraint (no paid news API), and unreviewed AI-written
+# content going straight to a live, indexed page carries real
+# factual/legal risk, so a human always reviews the actual Markdown in
+# the PR diff before anything ships. Merging the PR is the "publish"
+# step — that's all it takes, the existing deploy.yml handles the rest.
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC daily
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install
+
+      - name: Draft today's post(s)
+        id: draft
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+          DAILY_NEWS_SUMMARY_DIR: ${{ runner.temp }}
+        run: node scripts/daily-news-draft.js
+
+      - name: Check whether anything was drafted
+        id: check
+        run: |
+          if [ -f "${{ runner.temp }}/pr-title.txt" ]; then
+            echo "drafted=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "drafted=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rebuild compiled blog content (resolves real Unsplash attribution too)
+        if: steps.check.outputs.drafted == 'true'
+        env:
+          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+        run: npm run build:blog
+
+      - name: Typecheck
+        if: steps.check.outputs.drafted == 'true'
+        run: npm run typecheck
+
+      - name: Read PR title
+        if: steps.check.outputs.drafted == 'true'
+        id: pr
+        run: echo "title=$(cat "${{ runner.temp }}/pr-title.txt")" >> "$GITHUB_OUTPUT"
+
+      - name: Open a draft PR for review
+        if: steps.check.outputs.drafted == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "Daily health & social care news draft — ${{ github.run_id }}"
+          # Unique per run (not a fixed name) — a fixed branch name would
+          # force-push over yesterday's still-unreviewed draft the next
+          # time this fires, silently discarding it if review lags a day.
+          branch: auto/daily-news-draft-${{ github.run_id }}
+          delete-branch: true
+          title: ${{ steps.pr.outputs.title }}
+          body-path: ${{ runner.temp }}/pr-body.md
+          add-paths: |
+            content/posts/*.md
+            src/blog-content.ts

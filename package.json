@@ -6,7 +6,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "build:blog": "node scripts/build-blog-content.js"
+    "build:blog": "node scripts/build-blog-content.js",
+    "draft:daily-news": "node scripts/daily-news-draft.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
@@ -17,6 +18,7 @@
     "@types/js-yaml": "^4.0.9",
     "js-yaml": "^5.4.2",
     "marked": "^18.0.13",
+    "rss-parser": "^3.13.0",
     "typescript": "^5.7.2",
     "wrangler": "^4.28.0"
   }
