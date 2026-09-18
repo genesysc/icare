@@ -220,11 +220,6 @@
 
   .card { background: var(--white); border-radius: 20px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 22px 24px; }
 
-  /* Pinned invites strip */
-  .invite-strip { border-color: var(--teal-500); border-width: 1.5px; background: var(--teal-100); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-  .invite-strip-text { font-size: 14px; font-weight: 700; color: var(--plum-950); }
-  .invite-strip-sub { margin-top: 2px; font-size: 12.5px; color: var(--ink-soft); }
-  .invite-strip-link { flex: none; font-size: 13px; font-weight: 700; color: var(--teal-700); text-decoration: none; white-space: nowrap; }
 
   /* Composer */
   .post-form { display: flex; flex-direction: column; gap: 10px; }
@@ -300,6 +295,65 @@
   .empty-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 30px 0; }
   .loading-note { font-size: 13.5px; color: var(--ink-faint); text-align: center; padding: 40px 0; }
   [hidden] { display: none !important; }
+
+  /* Top nav — auto-hide on scroll (2026-09-19 news module addition).
+     See HANDOVER.md: the uploaded mockup asked for a new icon-only nav
+     replacing the tab bar app-wide; kept the existing text+icon bottom
+     tab bar (used identically across all 8 signed-in pages, see
+     nav-shell.html) and added the scroll behaviour to this page's own
+     existing top header instead — a second, redundant nav paradigm on
+     one page only felt like a worse trade than skipping the icon-only
+     part of the spec, flagged as a deviation rather than silently done. */
+  .nav { position: sticky; top: 0; z-index: 50; background: var(--white); transition: transform 0.28s ease; }
+  .nav.is-hidden { transform: translateY(-100%); }
+
+  .greeting { padding: 22px 24px 4px; max-width: 720px; margin: 0 auto; }
+  .greeting h1 { font-size: 1.7rem; }
+  .greeting p { margin-top: 4px; font-size: 14px; color: var(--ink-soft); }
+
+  /* News module */
+  .filter-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 4px; scrollbar-width: none; }
+  .filter-row::-webkit-scrollbar { display: none; }
+  .filter-chip { flex: 0 0 auto; font-size: 12.5px; font-weight: 600; padding: 7px 14px; border-radius: 999px; background: var(--white); border: 1.5px solid var(--line); color: var(--ink-soft); cursor: pointer; }
+  .filter-chip.is-active { background: var(--plum-950); border-color: var(--plum-950); color: var(--white); }
+
+  .news-lede { display: block; text-decoration: none; color: inherit; padding: 0; overflow: hidden; }
+  .news-lede-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: linear-gradient(135deg, var(--teal-100), var(--paper-dim)); display: block; }
+  .news-lede-body { padding: 18px 22px 20px; }
+  .news-tag { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--teal-700); }
+  .news-lede h2 { margin-top: 8px; font-size: 1.3rem; line-height: 1.28; }
+  .news-lede p { margin-top: 8px; font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; }
+  .news-source-row { margin-top: 10px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-faint); }
+  .news-source-row a { color: var(--teal-700); font-weight: 700; text-decoration: none; }
+  .news-source-row a:hover { text-decoration: underline; }
+
+  .news-item { display: flex; gap: 14px; padding: 18px 22px; }
+  .news-item + .news-item { border-top: 1px solid var(--line); }
+  .news-thumb { flex: 0 0 84px; width: 84px; height: 84px; border-radius: 12px; object-fit: cover; background: linear-gradient(135deg, var(--teal-100), var(--paper-dim)); }
+  .news-item-body { flex: 1; min-width: 0; }
+  .news-item-body h3 { font-size: 14.5px; font-weight: 700; color: var(--plum-950); line-height: 1.35; }
+  .news-item-body p { margin-top: 4px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+
+  .news-actions { display: flex; gap: 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .news-actions button { background: none; border: none; font-size: 12px; font-weight: 600; color: var(--ink-faint); padding: 0; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+  .news-actions button.liked { color: var(--teal-700); }
+  .news-share-menu { position: relative; }
+  .news-share-options { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 10; background: var(--white); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-soft); padding: 6px; min-width: 170px; }
+  .news-share-options[hidden] { display: none; }
+  .news-share-options button { width: 100%; text-align: left; padding: 8px 10px; border-radius: 6px; font-size: 12.5px; }
+  .news-share-options button:hover { background: var(--paper-dim); }
+
+  /* Waiting on you */
+  .waiting-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; }
+  .waiting-row + .waiting-row { border-top: 1px solid var(--line); }
+  .waiting-row-body { flex: 1; min-width: 0; }
+  .waiting-row-kind { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--teal-700); }
+  .waiting-row-title { margin-top: 2px; font-size: 13.5px; font-weight: 700; color: var(--plum-950); }
+  .waiting-row-sub { margin-top: 1px; font-size: 12px; color: var(--ink-faint); }
+  .waiting-row-actions { flex: none; display: flex; gap: 8px; }
+  .waiting-btn { border-radius: 999px; padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; border: 1.5px solid var(--line); background: var(--white); color: var(--plum-950); }
+  .waiting-btn.accept { background: var(--teal-500); border-color: var(--teal-500); color: var(--white); }
+  .waiting-btn.accept:hover { background: var(--teal-700); }
 </style>
 </head>
 <body>
@@ -326,17 +380,45 @@
   </div>
 </header>
 
+<div class="greeting" data-greeting hidden>
+  <h1 data-greeting-text></h1>
+  <p>Here's what's worth knowing in care and health right now, plus what's waiting on you.</p>
+</div>
+
 <div class="wrap">
   <p class="loading-note" data-loading>Loading Rounds…</p>
 
   <div data-home-content hidden style="display:flex; flex-direction:column; gap:16px;">
 
-    <div class="card invite-strip" data-invite-strip hidden>
-      <div>
-        <div class="invite-strip-text" data-invite-strip-text></div>
-        <div class="invite-strip-sub">Waiting on your decision</div>
+    <!-- News module — content lives in news_items (migration 0048),
+         populated by the cron ingestion job (src/news-ingest.ts), read
+         via GET /news (src/news.ts). See HANDOVER.md's news-feed
+         section for the full design writeup and the open questions
+         this session had to answer rather than guess (rolling window,
+         image sourcing, comment moderation). -->
+    <div class="card" data-news-section hidden>
+      <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;">
+        <h2 style="font-size:1.05rem;">Today in care &amp; health</h2>
       </div>
-      <a href="/invites" class="invite-strip-link">View invites →</a>
+      <div class="filter-row" data-news-filters>
+        <button type="button" class="filter-chip is-active" data-news-filter="">For you</button>
+        <button type="button" class="filter-chip" data-news-filter="adult-social-care">Adult social care</button>
+        <button type="button" class="filter-chip" data-news-filter="nhs-policy">NHS &amp; policy</button>
+        <button type="button" class="filter-chip" data-news-filter="global-health">Global health</button>
+        <button type="button" class="filter-chip" data-news-filter="innovation">Innovation</button>
+      </div>
+      <p class="loading-note" data-news-loading style="padding:20px 0;">Loading news…</p>
+      <p class="empty-note" data-news-empty hidden>Nothing here yet — check back soon.</p>
+      <div data-news-lede></div>
+      <div data-news-list></div>
+    </div>
+
+    <div class="card" data-waiting-section hidden>
+      <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:4px;">
+        <h2 style="font-size:1.05rem;">Waiting on you</h2>
+        <a href="/invites" style="font-size:12.5px; font-weight:700; color:var(--teal-700); text-decoration:none;">View all →</a>
+      </div>
+      <div data-waiting-list></div>
     </div>
 
     <div class="card">
@@ -826,11 +908,323 @@ function icareRequireAuth(signInPath) {
     });
   });
 
+  // --- Greeting ---
+  function renderGreeting(account) {
+    var fullName = account && account.full_name;
+    var firstName = fullName ? fullName.trim().split(/\s+/)[0] : null;
+    var hour = new Date().getHours();
+    var timeGreeting = hour < 12 ? "Morning" : hour < 18 ? "Afternoon" : "Evening";
+    document.querySelector("[data-greeting-text]").textContent = timeGreeting + (firstName ? ", " + firstName : "") + ".";
+    document.querySelector("[data-greeting]").hidden = false;
+  }
+
+  // --- Waiting on you: pending employer invites + pending connection
+  // requests, in one list, each actionable inline. Pulls from existing
+  // Invites/Network data (GET /candidates/me/shortlists, GET
+  // /candidates/network) — no new backend concept, matching the
+  // handover's own instruction. Deliberately named "Waiting on you," not
+  // "Tasks" — the client explicitly rejected chore-framed language for
+  // what's really a career decision.
+  function renderWaiting(invites, connections) {
+    var section = document.querySelector("[data-waiting-section]");
+    var list = document.querySelector("[data-waiting-list]");
+    list.innerHTML = "";
+    if (invites.length + connections.length === 0) { section.hidden = true; return; }
+    section.hidden = false;
+
+    invites.forEach(function (inv) {
+      var row = document.createElement("div");
+      row.className = "waiting-row";
+      var org = (inv.employers && inv.employers.org_name) || "An employer";
+      var jobTitle = (inv.job_snapshot && inv.job_snapshot.title) || "a role";
+      row.innerHTML =
+        '<div class="waiting-row-body">' +
+          '<div class="waiting-row-kind">Employer invite</div>' +
+          '<div class="waiting-row-title"></div>' +
+          '<div class="waiting-row-sub"></div>' +
+        '</div>' +
+        '<div class="waiting-row-actions">' +
+          '<button type="button" class="waiting-btn accept" data-accept-invite="' + inv.id + '">Accept</button>' +
+          '<a href="/invites" class="waiting-btn" style="text-decoration:none;display:inline-flex;align-items:center;">Review</a>' +
+        '</div>';
+      row.querySelector(".waiting-row-title").textContent = org + " — " + jobTitle;
+      row.querySelector(".waiting-row-sub").textContent = "Sent " + timeAgo(inv.created_at) + " — review before it expires";
+      list.appendChild(row);
+    });
+
+    // Pending connection requests deliberately show no name — the
+    // requester's identity only reveals on accept, same anonymisation
+    // rule candidate_discover already enforces everywhere else pre-
+    // connection (migration 0027's own comment). The reference mockup's
+    // example row showed a name here, but that was written blind to
+    // this app's actual, already-decided privacy rule — followed the
+    // real rule, not the mockup.
+    connections.forEach(function (req) {
+      var row = document.createElement("div");
+      row.className = "waiting-row";
+      var profile = req.profile || {};
+      var sub = [profile.primary_profession, profile.town].filter(Boolean).join(" · ") || "A fellow candidate";
+      row.innerHTML =
+        '<div class="waiting-row-body">' +
+          '<div class="waiting-row-kind">Connection request</div>' +
+          '<div class="waiting-row-title">New request</div>' +
+          '<div class="waiting-row-sub"></div>' +
+        '</div>' +
+        '<div class="waiting-row-actions">' +
+          '<button type="button" class="waiting-btn accept" data-accept-connection="' + req.connection_id + '">Accept</button>' +
+          '<button type="button" class="waiting-btn" data-decline-connection="' + req.connection_id + '">Decline</button>' +
+        '</div>';
+      row.querySelector(".waiting-row-sub").textContent = sub;
+      list.appendChild(row);
+    });
+  }
+
+  document.querySelector("[data-waiting-list]").addEventListener("click", function (e) {
+    var btn = e.target.closest("button");
+    if (!btn) return;
+    var inviteId = btn.getAttribute("data-accept-invite");
+    var acceptConnId = btn.getAttribute("data-accept-connection");
+    var declineConnId = btn.getAttribute("data-decline-connection");
+    if (inviteId) {
+      btn.disabled = true; btn.textContent = "Accepting…";
+      jpost("/candidates/me/shortlists/" + inviteId + "/consent", { consent: true }).then(function (result) {
+        if (result.ok) btn.closest(".waiting-row").remove();
+        else { btn.disabled = false; btn.textContent = "Accept"; }
+      });
+    } else if (acceptConnId) {
+      btn.disabled = true; btn.textContent = "Accepting…";
+      jpost("/candidates/network/" + acceptConnId + "/accept", {}).then(function (result) {
+        if (result.ok) btn.closest(".waiting-row").remove();
+        else { btn.disabled = false; btn.textContent = "Accept"; }
+      });
+    } else if (declineConnId) {
+      btn.disabled = true;
+      icareAuthFetch("/candidates/network/" + declineConnId, { method: "DELETE" }).then(function () {
+        btn.closest(".waiting-row").remove();
+      });
+    }
+  });
+
+  // --- News module ---
+  var currentNewsCategory = "";
+
+  function newsThumbHtml(item) {
+    return item.image_url
+      ? '<img class="news-thumb" src="' + item.image_url + '" alt="" loading="lazy">'
+      : '<div class="news-thumb"></div>';
+  }
+
+  function newsSourceRow(item) {
+    return '<div class="news-source-row">' +
+      '<a href="' + item.url + '" target="_blank" rel="noopener">' + item.source_name + ' ↗</a>' +
+      '<span>·</span><span>' + timeAgo(item.published_at) + '</span></div>';
+  }
+
+  function newsActionsHtml(item) {
+    return '<div class="news-actions" data-news-actions="' + item.id + '">' +
+      '<button type="button" class="' + (item.liked_by_me ? "liked" : "") + '" data-news-like="' + item.id + '">♥ <span data-like-count>' + item.like_count + '</span></button>' +
+      '<button type="button" data-news-comment-toggle="' + item.id + '">💬 <span>' + item.comment_count + '</span></button>' +
+      '<div class="news-share-menu">' +
+        '<button type="button" data-news-share-toggle="' + item.id + '">⤴ Share</button>' +
+        '<div class="news-share-options" data-news-share-options="' + item.id + '" hidden>' +
+          '<button type="button" data-news-share-internal="' + item.id + '">Share to your Rounds feed</button>' +
+          '<button type="button" data-news-share-external="' + item.id + '">Copy link</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="comments-block" data-news-comments="' + item.id + '" hidden>' +
+      '<div data-comments-list></div>' +
+      '<form class="comment-form" data-news-comment-form="' + item.id + '">' +
+        '<input type="text" maxlength="1000" placeholder="Add a comment…" required>' +
+        '<button type="submit">Post</button>' +
+      '</form>' +
+    '</div>';
+  }
+
+  function renderNews(items) {
+    var lede = document.querySelector("[data-news-lede]");
+    var list = document.querySelector("[data-news-list]");
+    lede.innerHTML = "";
+    list.innerHTML = "";
+    document.querySelector("[data-news-empty]").hidden = items.length > 0;
+    if (items.length === 0) return;
+
+    var first = items[0];
+    var ledeEl = document.createElement("div");
+    ledeEl.className = "news-lede";
+    ledeEl.innerHTML =
+      (first.image_url ? '<img class="news-lede-img" src="' + first.image_url + '" alt="" loading="eager">' : '<div class="news-lede-img"></div>') +
+      '<div class="news-lede-body">' +
+        '<span class="news-tag"></span>' +
+        '<h2></h2>' +
+        '<p></p>' +
+        newsSourceRow(first) +
+        newsActionsHtml(first) +
+      '</div>';
+    ledeEl.querySelector(".news-tag").textContent = first.category.replace(/-/g, " ").toUpperCase();
+    ledeEl.querySelector("h2").textContent = first.title;
+    ledeEl.querySelector("p").textContent = first.summary || "";
+    lede.appendChild(ledeEl);
+
+    items.slice(1).forEach(function (item) {
+      var row = document.createElement("div");
+      row.className = "news-item";
+      row.innerHTML =
+        newsThumbHtml(item) +
+        '<div class="news-item-body">' +
+          '<h3></h3><p></p>' +
+          newsSourceRow(item) +
+          newsActionsHtml(item) +
+        '</div>';
+      row.querySelector("h3").textContent = item.title;
+      row.querySelector("p").textContent = item.summary || "";
+      list.appendChild(row);
+    });
+  }
+
+  function loadNews(category) {
+    currentNewsCategory = category;
+    document.querySelector("[data-news-loading]").hidden = false;
+    document.querySelector("[data-news-lede]").innerHTML = "";
+    document.querySelector("[data-news-list]").innerHTML = "";
+    document.querySelector("[data-news-empty]").hidden = true;
+    var url = "/news" + (category ? "?category=" + encodeURIComponent(category) : "");
+    jget(url).then(function (result) {
+      document.querySelector("[data-news-loading]").hidden = true;
+      document.querySelector("[data-news-section]").hidden = false;
+      if (!result.ok) { document.querySelector("[data-news-empty]").hidden = false; return; }
+      renderNews(result.body.items || []);
+    }).catch(function () {
+      document.querySelector("[data-news-loading]").hidden = true;
+      document.querySelector("[data-news-section]").hidden = false;
+      document.querySelector("[data-news-empty]").hidden = false;
+    });
+  }
+
+  document.querySelector("[data-news-filters]").addEventListener("click", function (e) {
+    var chip = e.target.closest("[data-news-filter]");
+    if (!chip) return;
+    document.querySelectorAll("[data-news-filter]").forEach(function (c) { c.classList.remove("is-active"); });
+    chip.classList.add("is-active");
+    loadNews(chip.getAttribute("data-news-filter"));
+  });
+
+  function renderNewsComments(container, comments) {
+    var list = container.querySelector("[data-comments-list]");
+    list.innerHTML = "";
+    (comments || []).forEach(function (cm) {
+      var row = document.createElement("div");
+      row.className = "comment-row";
+      row.innerHTML = '<div class="comment-avatar"></div><div class="comment-bubble"><span class="cname"></span><span data-ctext></span>' +
+        '<button type="button" data-news-report-comment="' + cm.id + '" style="background:none;border:none;color:var(--ink-faint);font-size:10.5px;cursor:pointer;margin-left:6px;">Report</button></div>';
+      fillAvatar(row.querySelector(".comment-avatar"), (cm.candidates && cm.candidates.headline) || "?", cm.candidate_id, false);
+      row.querySelector(".cname").textContent = (cm.candidates && cm.candidates.headline) || "A candidate";
+      row.querySelector("[data-ctext]").textContent = cm.body;
+      list.appendChild(row);
+    });
+  }
+
+  document.querySelector("[data-news-section]").addEventListener("click", function (e) {
+    var likeBtn = e.target.closest("[data-news-like]");
+    var commentToggle = e.target.closest("[data-news-comment-toggle]");
+    var shareToggle = e.target.closest("[data-news-share-toggle]");
+    var shareInternal = e.target.closest("[data-news-share-internal]");
+    var shareExternal = e.target.closest("[data-news-share-external]");
+    var reportBtn = e.target.closest("[data-news-report-comment]");
+
+    if (likeBtn) {
+      var id = likeBtn.getAttribute("data-news-like");
+      var wasLiked = likeBtn.classList.contains("liked");
+      var countEl = likeBtn.querySelector("[data-like-count]");
+      var count = parseInt(countEl.textContent, 10) || 0;
+      likeBtn.classList.toggle("liked", !wasLiked);
+      countEl.textContent = wasLiked ? Math.max(0, count - 1) : count + 1;
+      icareAuthFetch("/news/" + id + "/like", { method: wasLiked ? "DELETE" : "POST" }).catch(function () {});
+      return;
+    }
+    if (commentToggle) {
+      var cid = commentToggle.getAttribute("data-news-comment-toggle");
+      var block = document.querySelector('[data-news-comments="' + cid + '"]');
+      var willShow = block.hidden;
+      block.hidden = !willShow;
+      if (willShow) {
+        jget("/news/" + cid + "/comments").then(function (result) {
+          if (result.ok) renderNewsComments(block, result.body.comments);
+        });
+      }
+      return;
+    }
+    if (shareToggle) {
+      var sid = shareToggle.getAttribute("data-news-share-toggle");
+      var opts = document.querySelector('[data-news-share-options="' + sid + '"]');
+      var isHidden = opts.hidden;
+      document.querySelectorAll(".news-share-options").forEach(function (o) { o.hidden = true; });
+      opts.hidden = !isHidden;
+      return;
+    }
+    if (shareInternal) {
+      var iid = shareInternal.getAttribute("data-news-share-internal");
+      var lede = document.querySelector('[data-news-actions="' + iid + '"]');
+      var titleEl = lede ? lede.closest(".news-lede, .news-item").querySelector("h2, h3") : null;
+      var linkEl = lede ? lede.closest(".news-lede, .news-item").querySelector(".news-source-row a") : null;
+      var body = document.querySelector("[data-post-body]");
+      if (titleEl && linkEl) {
+        body.value = "Worth a read: " + titleEl.textContent + " — " + linkEl.getAttribute("href");
+      }
+      document.querySelectorAll(".news-share-options").forEach(function (o) { o.hidden = true; });
+      body.scrollIntoView({ behavior: "smooth", block: "center" });
+      body.focus();
+      return;
+    }
+    if (shareExternal) {
+      var eid = shareExternal.getAttribute("data-news-share-external");
+      var container = document.querySelector('[data-news-actions="' + eid + '"]').closest(".news-lede, .news-item");
+      var url = container.querySelector(".news-source-row a").getAttribute("href");
+      if (navigator.share) {
+        navigator.share({ url: url }).catch(function () {});
+      } else if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).catch(function () {});
+      }
+      document.querySelectorAll(".news-share-options").forEach(function (o) { o.hidden = true; });
+      return;
+    }
+    if (reportBtn) {
+      var rid = reportBtn.getAttribute("data-news-report-comment");
+      var newsId = reportBtn.closest("[data-news-comments]").getAttribute("data-news-comments");
+      reportBtn.disabled = true;
+      reportBtn.textContent = "Reported";
+      icareAuthFetch("/news/" + newsId + "/comments/" + rid + "/report", { method: "POST" }).catch(function () {});
+      return;
+    }
+  });
+
+  document.querySelector("[data-news-section]").addEventListener("submit", function (e) {
+    var form = e.target.closest("[data-news-comment-form]");
+    if (!form) return;
+    e.preventDefault();
+    var id = form.getAttribute("data-news-comment-form");
+    var input = form.querySelector("input");
+    var text = input.value.trim();
+    if (!text) return;
+    input.disabled = true;
+    jpost("/news/" + id + "/comments", { body: text }).then(function (result) {
+      input.disabled = false;
+      if (result.ok) {
+        input.value = "";
+        jget("/news/" + id + "/comments").then(function (r) {
+          if (r.ok) renderNewsComments(form.closest("[data-news-comments]"), r.body.comments);
+        });
+      }
+    });
+  });
+
   Promise.all([
     jget("/candidates/me"),
     jget("/candidates/me/shortlists"),
+    jget("/auth/me"),
+    jget("/candidates/network"),
   ]).then(function (results) {
-    var candidateResult = results[0], shortlistsResult = results[1];
+    var candidateResult = results[0], shortlistsResult = results[1], accountResult = results[2], networkResult = results[3];
     document.querySelector("[data-loading]").style.display = "none";
     if (!candidateResult.ok) {
       document.querySelector("[data-loading]").style.display = "block";
@@ -839,15 +1233,15 @@ function icareRequireAuth(signInPath) {
     }
     document.querySelector("[data-home-content]").hidden = false;
 
-    var rows = shortlistsResult.ok ? (shortlistsResult.body.shortlists || []) : [];
-    var newRows = rows.filter(function (r) { return !r.candidate_consented_at && !r.closed_at; });
-    document.querySelector("[data-invites-dot]").classList.toggle("is-visible", newRows.length > 0);
-    if (newRows.length > 0) {
-      document.querySelector("[data-invite-strip]").hidden = false;
-      document.querySelector("[data-invite-strip-text]").textContent =
-        newRows.length === 1 ? "1 new invite" : newRows.length + " new invites";
-    }
+    renderGreeting(accountResult.ok ? accountResult.body.account : null);
 
+    var shortlistRows = shortlistsResult.ok ? (shortlistsResult.body.shortlists || []) : [];
+    var pendingInvites = shortlistRows.filter(function (r) { return !r.candidate_consented_at && !r.closed_at; });
+    var pendingConnections = networkResult.ok ? (networkResult.body.incoming || []) : [];
+    document.querySelector("[data-invites-dot]").classList.toggle("is-visible", pendingInvites.length > 0);
+    renderWaiting(pendingInvites, pendingConnections);
+
+    loadNews("");
     loadFeed();
   }).catch(function () {
     document.querySelector("[data-loading]").textContent = "Couldn't load Rounds. Try refreshing the page.";
@@ -1051,6 +1445,40 @@ function icareRequireAuth(signInPath) {
   });
 
   refreshUnreadCount();
+})();
+</script>
+<script>
+(function () {
+  // Top nav auto-hide on scroll — the uploaded mockup's own reference
+  // implementation, reimplemented for this page's real header (a
+  // vanilla-JS scroll listener + rAF + timeout, same as the mockup — no
+  // React on this page, so no hook to port it to). See the CSS deviation
+  // note above .nav's rule for why this applies to the existing header
+  // rather than a new icon-only bar.
+  var topNav = document.querySelector(".nav");
+  if (!topNav) return;
+  var lastY = window.scrollY;
+  var ticking = false;
+  var hideTimer = null;
+
+  function onScroll() {
+    var currentY = window.scrollY;
+    var goingDown = currentY > lastY;
+    if (currentY < 40) topNav.classList.remove("is-hidden");
+    else if (goingDown) topNav.classList.add("is-hidden");
+    else topNav.classList.remove("is-hidden");
+    lastY = currentY;
+    ticking = false;
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () { topNav.classList.remove("is-hidden"); }, 700);
+  }
+
+  window.addEventListener("scroll", function () {
+    if (!ticking) {
+      window.requestAnimationFrame(onScroll);
+      ticking = true;
+    }
+  });
 })();
 </script>
 </body>

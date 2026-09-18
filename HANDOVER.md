@@ -2096,3 +2096,198 @@ a roundup-post length of ~600-900 words are the right defaults long
 term — flagged as tunable, not fixed, in `scripts/daily-news-draft.js`'s
 own constants. Worth revisiting after the founder sees a week or two of
 real drafts.
+
+## 18. Candidate Home ("Rounds") news feed module — 2026-09-18/19
+
+Built from an uploaded handover doc + static HTML mockup
+("iCare Home Screen News Module Build Handover"). Same adaptation this
+session already did for the blog handover: the doc assumed a Next.js
+App Router codebase with 8 existing screens; this repo is Cloudflare
+Workers + Hono + self-contained HTML, no framework, no build step. The
+mockup itself is a genuine, useful visual/interaction reference — its
+colours (`#330072`/`#00A499`) and fonts (Fraunces/Public Sans) actually
+match this repo's *newer* brand system already live on `landing.html`
+and the blog, just not yet on the *older* signed-in candidate-app pages
+(`rounds.html` etc., which predate that rebuild and use a different
+token set — `--plum-950`/`--teal-700`, Inter). Two scope calls made
+explicitly, not silently, given that mismatch and the size of what a
+full redesign would touch:
+
+1. **Visual language**: rendered the new modules in the *existing*
+   `rounds.html` token set (plum/teal/Inter/paper), not the mockup's
+   glass/blur treatment. Introducing real glassmorphism for two new
+   modules on an otherwise flat page — the composer, the existing
+   Rounds feed, the header — would have looked bolted-on, not "the rest
+   of the UI direction going forward" the handover asked for. A genuine
+   visual system migration for the whole candidate app is a real,
+   separate piece of work, not a side effect of adding a content module.
+2. **Nav**: the handover's icon-only, sticky-top, auto-hiding nav would
+   *replace* the app's existing nav — but that existing nav is a single
+   shared **bottom** tab bar (text + icon, `nav-shell.html`), copied
+   verbatim across all 8 signed-in pages, and nav-shell.html's own
+   header comment says explicitly this was a deliberate, considered
+   choice ("this codebase has no other desktop-specific layout... a
+   second desktop-only nav pattern isn't introduced here either").
+   Replacing that app-wide, for one page, as a side effect of a content
+   feature, risked a worse regression than skipping part of the spec.
+   **What shipped instead**: the specific, valuable *interaction*
+   (scroll-down hides, scroll-up reveals, stationary ~700ms reveals,
+   always visible near the top) applied to `rounds.html`'s own existing
+   top header — same real behaviour, tested against all 5 scenarios via
+   Playwright (see below), zero duplicate/redundant navigation, bottom
+   tab bar untouched and still the one consistent nav across the app.
+   The icon-only part of the spec is the one genuinely unshipped piece —
+   flagged, not silently dropped.
+
+**Content pipeline — three free-tier news sources evaluated, only one
+used, tested directly rather than assumed:**
+- **NewsAPI.org** (founder-provided key): real data, real `urlToImage`
+  fields — but its free "Developer" plan's own terms page states
+  explicitly *"may be used for development and testing in a development
+  environment only, and cannot be used in a staging or production
+  environment."* Checked directly before deciding, not assumed from
+  general knowledge of the product. Production tier is $449/mo. Not
+  used anywhere in the shipped pipeline.
+- **webz.io** (founder-provided token): allowed in principle, but its
+  `category:"health"` query surfaced paid placements as top results —
+  one was a supplement-brand press release explicitly marked "This is a
+  paid placement." A second, more targeted query (excluding known
+  press-release domains) still surfaced legal-directory webinar
+  listings. Not used — would need real content-quality filtering work
+  disproportionate to what this pass needed, given a better option
+  existed.
+- **newsdata.io** (founder-provided key): real outlets (The Guardian,
+  Metro, Big Issue), relevant results, genuine per-article images on
+  most results, clean field separation (paid-only fields literally say
+  `"ONLY AVAILABLE IN PAID PLANS"` rather than silently omitting or
+  faking data — an honest API to build against). No production-use
+  restriction found despite testing across 9 countries and 5 non-health
+  categories with the actual key. **This is what's live.**
+
+**Ingestion — `src/news-ingest.ts`, a Cloudflare Cron Trigger (2-hourly,
+`wrangler.jsonc`'s `triggers.crons`), not a Hono route** — same
+"automation that runs unattended" need the daily blog-drafting
+automation has, but this one lives inside the actual Worker rather than
+GitHub Actions, since it needs to write into the app's own live
+database on a tight cycle, not open a PR for review (this is passive
+aggregated-headline content with real outbound attribution, not
+AI-generated prose under the iCare byline — a materially lower risk
+profile, so no review-gate was built for it, unlike the blog
+automation). Sources: WHO/gov.uk(DHSC)/gov.uk(NHS England)/NHS England
+official feeds (hand-parsed RSS/Atom — regex-based, not the Node
+`rss-parser` package the blog automation uses, since Workers has no
+Node built-ins) plus 2 newsdata.io queries. A **security-definer-RPC +
+shared-secret** pattern authenticates the ingestion job to Postgres —
+same reasoning as the blog automation's own version of this problem:
+no `service_role` key anywhere in this codebase (a deliberate boundary,
+`middleware.ts`'s own comment), and a cron job has no candidate session
+to be `auth.uid()`-gated like everything else in this schema. Migration
+0048/0049: `news_items`/`news_item_likes`/`news_item_comments` tables +
+RLS (candidate-only reads, same `current_role_is('candidate')` gate as
+`candidate_discover`/`candidate_peer_feed`), a `news_feed` view
+computing `like_count`/`comment_count`/`liked_by_me` per row (same
+"view does the aggregation" convention as `my_notifications`), and
+`app_secrets` (RLS enabled, zero policies — unreachable via PostgREST
+by design, only a SECURITY DEFINER function can read it) backing
+`ingest_news_item()`/`prune_stale_news_items()`/
+`news_item_known_external_ids()`.
+
+**Two real bugs found and fixed by testing against the live database,
+not by reading the code**: an initial 12-source configuration (4 feeds
++ 8 Google-News-style queries) ingested 429 items in one run — far more
+than a small feed module needs, and 429 og:image-fetch-then-Unsplash-
+fallback attempts in one cron invocation is a real external-load/
+execution-time risk. Cut to 9 sources + a 60-item-per-run image-
+resolution cap (an item beyond the cap ships without an image this run
+and is never retried later — a real, fine resting state given the
+frontend's fallback treatment, not silent backfill debt). Separately,
+confirmed and quantified a genuine limitation rather than assuming the
+spec's "source's own image first" requirement was satisfied just
+because the code path existed: these particular free feeds'
+`og:image` essentially never resolves in practice for Google-News-style
+redirect links (0/100 real source images in one verified run — every
+successful image came from the Unsplash fallback). Replacing the
+Google News source with newsdata.io fixed this properly: items with a
+newsdata.io-provided image skip the og:image/Unsplash path entirely
+now, and a re-test after that change showed 100% image coverage
+(33/33) in one run.
+
+**Frontend — `src/rounds.html`** (the app's real "Home" — `nav-shell.html`'s
+own comment: *"'Rounds' was 'Home' at first... `/home` still redirects
+here"*): greeting header (time-of-day + first name from `GET /auth/me`),
+news module (lead story + list, category filter chips, like/comment/
+share — internal share pre-fills the existing post composer rather than
+inventing a new endpoint, external share uses the Web Share API with a
+clipboard fallback), and a "Waiting on you" card replacing the old
+`invite-strip` — combining pending employer invites
+(`GET /candidates/me/shortlists`) and pending connection requests
+(`GET /candidates/network`'s `incoming`), each with inline Accept
+(instant) or, for invites, a link to `/invites` for Decline (which
+needs a reason — kept on the dedicated screen rather than build a
+second reason-picker inline). **Named "Waiting on you," not "Tasks"** —
+the handover was explicit the client rejected chore-framed language for
+what's really a career decision. One privacy detail followed from this
+app's own already-decided rule rather than the mockup's example: a
+pending connection request shows no name (`candidate_discover`'s
+anonymisation, migration 0027's own comment — identity only reveals on
+accept), even though the mockup's own sample row showed one — the
+mockup was written blind to this app's real data model, so the real
+rule won.
+
+**Verified, not just read**: real end-to-end test of the ingestion
+cron via `wrangler dev --test-scheduled` against the live database
+(caught both bugs above); real RLS verification via `execute_sql`
+simulating an authenticated PostgREST session (`set local role
+authenticated; set local "request.jwt.claims"...`) — confirmed
+`news_feed` returns correct rows/`liked_by_me`, and that a like/comment
+insert under that same simulated session correctly updates
+`like_count`/`comment_count`, not just that the SECURITY DEFINER RPCs
+work in isolation; a full Playwright pass against the real
+`rounds.html` (mocked API responses, same pattern this repo's other
+dashboard tests already use — `page.route()` + `file://`, no server
+needed) covering greeting render, both Waiting-on-you row types
+(including the privacy check above), news lede+list render, like
+toggle, comment thread open + real comment list, share menu (both
+internal pre-fill and the options panel), category-filter re-fetch,
+and invite accept removing the row — plus a dedicated scroll-behaviour
+test confirming all 5 of the mockup's own stated nav states (top,
+scroll-down, scroll-up, scroll-down-again, 700ms-stationary-reappear).
+`tsc --noEmit` and `wrangler deploy --dry-run` both clean.
+
+**Not fully verified**: no live click-through against a real deployed
+session with a real candidate account (mirrors this repo's own existing
+discipline of flagging this rather than claiming more than was actually
+done — see the CV-import entries elsewhere in this file). The RLS
+simulation above is real, but isn't the same as a live browser hitting
+the real deployed API.
+
+**Manual setup needed before this is live** (can't be done from
+here — no repo/Worker-secret-write access):
+- `NEWS_INGEST_SECRET` — a Cloudflare **Worker** secret (dashboard,
+  same as `UNSPLASH_ACCESS_KEY`). Already generated and stored in
+  Supabase's `app_secrets` table this session; the founder needs to set
+  the exact same value as a Worker secret (given directly, not
+  regenerated here, since it has to match exactly).
+- `NEWSDATA_API_KEY` — a Cloudflare Worker secret, the founder's own
+  newsdata.io key.
+- Without `NEWS_INGEST_SECRET` set, `scheduledNewsRefresh()` logs a
+  clear error and returns early rather than failing loudly or half-
+  ingesting — safe to deploy before the secrets are set, it just won't
+  do anything until they are.
+
+**Open questions carried over from the handover's own §8, answered
+here rather than left unresolved:**
+1. Which free news APIs are viable — newsdata.io, see above; NewsAPI.org
+   and webz.io evaluated and rejected, see above.
+2. Comment moderation — the handover flagged this as genuinely
+   undiscussed with the client. Shipped a minimal, conservative default
+   rather than nothing: any candidate can report any comment
+   (`POST /news/:id/comments/:commentId/report`), 3 reports
+   auto-hides it (author can still see their own hidden comment, so it
+   doesn't just silently vanish on them). Not a substitute for a real
+   moderation policy decision — flagged as provisional, same as the
+   handover itself asked.
+3. Rolling window — proposed 6 days (`src/news.ts`'s
+   `ROLLING_WINDOW_DAYS`, the midpoint of the client's own "not 24
+   hours, not stale either, ~5-7 days" direction), not silently guessed
+   without saying so.
