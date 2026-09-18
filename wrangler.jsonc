@@ -23,6 +23,14 @@
   "ai": {
     "binding": "AI"
   },
+  "triggers": {
+    // News feed ingestion (src/news-ingest.ts) — every 2 hours. Frequent
+    // enough that "today's" feed genuinely reads as today, infrequent
+    // enough that a batch of ~80-150 items/run stays a reasonable size
+    // (and most of it is a cheap upsert-refresh of items already seen —
+    // see news_item_known_external_ids in migration 0049).
+    "crons": ["0 */2 * * *"]
+  },
   "rules": [
     { "type": "Text", "globs": ["**/*.html"], "fallthrough": true },
     { "type": "Data", "globs": ["**/*.jpg"], "fallthrough": true }

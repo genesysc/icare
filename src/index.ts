@@ -29,12 +29,15 @@ import messagesPage from "./messages.html";
 import memberPage from "./member.html";
 import employerHomePage from "./employer-home.html";
 import blog, { BLOG_POSTS, CATEGORY_LIST } from "./blog";
+import news from "./news";
+import { scheduledNewsRefresh } from "./news-ingest";
 
 type Bindings = {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
   MEDIA: R2Bucket;
   UNSPLASH_ACCESS_KEY?: string;
+  NEWS_INGEST_SECRET?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -43,6 +46,7 @@ app.route("/auth", auth);
 app.route("/candidates", candidates);
 app.route("/waitlist", waitlist);
 app.route("/blog", blog);
+app.route("/news", news);
 
 app.get("/", (c) => c.html(landingPage));
 
@@ -212,4 +216,14 @@ app.get("/robots.txt", (c) => {
   });
 });
 
-export default app;
+// News feed ingestion — a Cloudflare Cron Trigger (wrangler.jsonc's
+// triggers.crons), not a Hono route. Runs unattended, on its own
+// schedule, with no request/response cycle at all — see
+// src/news-ingest.ts for the fetch/parse/tag/ingest logic itself, kept
+// out of this file to stay readable. This is the standard Module Worker
+// shape for combining an HTTP handler with a scheduled one; Hono's own
+// `app` is only ever the `fetch` half.
+export default {
+  fetch: app.fetch,
+  scheduled: scheduledNewsRefresh,
+};
