@@ -5340,3 +5340,65 @@ populates data (safe to deploy without them — the cron handler logs and
 no-ops if `NEWS_INGEST_SECRET` is missing): `NEWS_INGEST_SECRET` (value
 generated this session, already stored in Supabase, given directly to
 the founder to match) and `NEWSDATA_API_KEY` (the founder's own key).
+
+## 2026-09-18 — Removed employer nav/promotion from the landing page
+
+Founder asked to remove the "Employers" tab and sub-tabs from
+`icareltd.com`'s landing page — "we don't want recruiters/employers
+signing in" — and explicitly invited pushback before touching anything.
+
+**Pushed back rather than just implementing**: employer-pays is the
+*only* revenue mechanism this whole build has (candidate-never-pays is
+a hard non-negotiable), and `/employers`/`/employer/sign-in` are
+currently the only employer acquisition/login path that exists at all
+— removing the promotion without a plan risks pausing the entire
+revenue side, not just tidying a nav bar. Also flagged a real
+distinction the founder's phrasing blurred: removing nav *links* is
+purely cosmetic — `/employer/sign-in` etc. stay fully live and
+reachable by direct URL/bookmark/search index regardless, so "we don't
+want employers signing in" needed clarifying as either an actual
+access change or a promotion-only one.
+
+Also surfaced something useful while investigating: `/employers`
+(`src/employers.html`) already **is** a waitlist-only marketing page
+with its own real waitlist form/counter (`POST /waitlist`,
+`role=employer`) and a working confirmation email
+(`employer-waitlist.ts`) — built once, apparently never linked to from
+anywhere in the main nav/footer flow the founder actually uses. The
+*real*, functional employer product (jobs, AI search chat, pipelines)
+lives entirely separately at `/employer/sign-in` → `/employer/home`.
+
+Asked two clarifying questions rather than guessing: (1) is this
+temporary (pause self-serve, keep a door open via the waitlist) or
+permanent (remove entirely, matches the standing multi-vertical
+strategy of iRecruit eventually living on its own domain) — founder
+chose **temporary, route to waitlist**; (2) should the actual sign-in
+routes still work for someone who navigates there directly — founder
+chose **yes, keep them working** (only the public promotion changes,
+not access for an already-verified employer or a hand-sent link).
+
+**Changes, `src/landing.html` only** (founder scoped this to the
+landing page specifically):
+- Removed the top-nav and mobile-nav "For employers" link entirely.
+- Removed the mid-page "Hiring for a health or care team? → See iCare
+  for employers" strip section, and its now-dead `.employers` CSS
+  block.
+- Footer "Employers" column relabeled "Hiring?", with its old
+  "Employer log in" link (straight to the real, working sign-in)
+  removed and its "For employers" link kept pointing at `/employers` —
+  already the waitlist-only page described above, so this needed no
+  new page or route, just removing the one link that bypassed the
+  waitlist.
+- `/employer/sign-in`, `/employer/sign-up`, `/employer/home` in
+  `src/index.ts` are completely untouched — verified still returning
+  200 via a local `wrangler dev` + `curl` check before and after.
+
+**Deliberately left alone, flagged rather than silently expanded**:
+`privacy.html`/`terms.html` still carry a footer "For employers" link
+— out of scope, since the founder's ask was specifically about the
+landing page.
+
+**Verified**: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean,
+and a real local `wrangler dev` run + `curl`/grep against the rendered
+HTML confirming the nav/section/footer changes actually landed and
+`/employer/sign-in`/`/employers` both still return `200`.
