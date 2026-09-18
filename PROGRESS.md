@@ -5269,3 +5269,74 @@ Activity card is no longer conditionally hidden, and a "No posts yet."
 `<p class="empty-note" data-posts-empty>` shows/hides based on whether
 `body.posts` is empty. `tsc --noEmit` and `wrangler deploy --dry-run`
 both clean.
+
+---
+
+## 2026-09-18/19 — Candidate Home ("Rounds") news feed module
+
+Built the news feed module from an uploaded handover doc + static HTML
+mockup, same adaptation pattern as the blog handover earlier this
+session (the doc assumed a Next.js codebase; rebuilt inside this repo's
+real Cloudflare Workers + Hono + self-contained-HTML stack instead).
+
+Founder offered three free-tier news APIs mid-build. Tested all three
+directly: NewsAPI.org's free plan explicitly bans production use in its
+own terms (checked directly, not assumed); webz.io's health category
+surfaced a paid product placement as a top result even after query
+filtering; newsdata.io returned real outlets, relevant stories, and
+genuine per-article images with no production restriction found across
+9 countries and 5 categories tested. Wired in newsdata.io, dropped an
+earlier Google News RSS source entirely (its redirect links meant
+og:image never resolved in practice — 0/100 in a verified test run;
+newsdata.io items skip that unreliable path now, hitting 100% image
+coverage in a re-test).
+
+Two scope calls made explicitly rather than silently: kept the new
+modules in `rounds.html`'s existing flat plum/teal visual language
+instead of the mockup's glassmorphism (a real system-wide visual
+migration is separate work, not a side effect of one content module),
+and kept the app's existing shared bottom tab bar instead of replacing
+it with the mockup's icon-only top nav (that nav is deliberately shared
+across all 8 signed-in pages per nav-shell.html's own comment) — applied
+just the auto-hide-on-scroll *interaction* to the existing top header
+instead, verified against all 5 of the mockup's own stated scroll
+states via Playwright.
+
+Backend: migration 0048/0049 (news_items/news_item_likes/
+news_item_comments + RLS, an app_secrets table + secret-gated RPCs for
+the cron job — no service_role key, matching this repo's existing
+boundary). src/news-ingest.ts runs as a 2-hourly Cloudflare Cron
+Trigger (not GitHub Actions like the blog automation — this writes into
+the live app database directly, and is aggregated headlines with real
+attribution rather than AI-generated prose under the iCare byline, a
+materially different risk profile that didn't need a PR-review gate).
+Found and fixed a real volume bug (429 items/run on an early config,
+capped to 9 sources + a 60-item image-resolution ceiling per run) by
+testing against the live database via `wrangler dev --test-scheduled`,
+not by reading the code.
+
+Frontend: greeting header, the news module (lead + list, category
+chips, like/comment/share), and a "Waiting on you" card (replacing the
+old invite-strip) combining pending invites and pending connection
+requests with inline actions — named per the handover's explicit
+instruction, not "Tasks." Followed this app's own already-decided
+privacy rule over the mockup's own example: a pending connection
+request shows no name (identity only reveals on accept, migration
+0027), even though the mockup's sample row showed one.
+
+Verified: real RLS check via `execute_sql` simulating an authenticated
+PostgREST session (not just the SECURITY DEFINER bypass) — confirmed
+`news_feed` and a real like/comment insert both work correctly under
+actual row-level security. Full Playwright pass against the real
+`rounds.html` (mocked API responses, same `page.route()` + `file://`
+pattern this repo's other dashboard tests use) covering every
+interaction plus the dedicated nav-scroll test. `tsc --noEmit` and
+`wrangler deploy --dry-run` both clean. No live click-through against a
+real deployed session yet — flagged rather than overclaimed, same
+discipline as the CV-import entries elsewhere in this file.
+
+Two Cloudflare Worker secrets still needed before this actually
+populates data (safe to deploy without them — the cron handler logs and
+no-ops if `NEWS_INGEST_SECRET` is missing): `NEWS_INGEST_SECRET` (value
+generated this session, already stored in Supabase, given directly to
+the founder to match) and `NEWSDATA_API_KEY` (the founder's own key).
