@@ -5192,3 +5192,62 @@ opening the PR to pick up the blog byline/news-automation work above,
 which had landed on `main` in parallel. Only conflict was this file's
 own append point (resolved by keeping both sets of entries in landing
 order) — no other files touched by both branches.
+
+## 2026-09-18 — Real bug: peer profile view showed only About + Badges, nothing else
+
+Founder tested `/member?id=...` live and reported seeing only the
+header, About, and Badges cards on another candidate's profile —
+Experience, Qualifications & Registrations, Skills, and Activity were
+all missing, even for a candidate confirmed (by direct DB query) to
+have 1 employment entry, 1 profession, 15 skills, and 2 badges on file.
+
+**Root-caused with a real RLS simulation, not by re-reading the
+migration and assuming it was right**: ran the actual failing queries
+under `set local role authenticated` with `request.jwt.claims` set to a
+real candidate's `sub`, via `execute_sql`. Confirmed `current_role_is
+('candidate')` correctly returned `true` for the viewer, but the
+*inline* `exists (select 1 from candidates c where c.id = ... and
+c.is_published)` clause each of migration `0047`'s four peer-read
+policies used evaluated to `false` even though the target candidate's
+row genuinely has `is_published = true`. Reason: that `exists()`
+subquery runs under
+the *viewing* candidate's own RLS on `candidates`, and `candidates`
+itself has never had a policy letting one candidate read another's row
+directly (only self, or a verified employer, per migration `0002`) --
+so the subquery always saw zero rows for any peer, silently failing the
+whole `AND` condition. `candidates.ts`'s `Promise.all` then folds a
+per-query RLS-empty result into `[]` rather than surfacing an error
+(`professionsResult.data || []`), so the bug produced no visible error
+anywhere -- just quietly-empty sections. About/Badges were unaffected
+because they go through different paths entirely (a view that reads
+the raw table under its owner's privilege, and a table with a
+genuinely-public `using (true)` policy).
+
+**This is the identical bug class migration `0029` already found and
+fixed once**, in `connections_requester_insert`'s own `exists()` check
+-- same root cause, same fix pattern: a `SECURITY DEFINER` helper
+function (`candidate_is_published(uuid)`, already existing since
+`0029`) that checks the one fact needed without granting broader row
+access. `0047` should have reused that helper and didn't -- repeated
+the exact mistake `0029`'s own migration comment describes.
+
+**Fix — migration `0049`**: dropped and recreated all four peer-read
+policies (`employment_history`, `qualifications`,
+`candidate_professions`, `candidate_skills`) to call
+`candidate_is_published(candidate_id)` instead of the inline subquery.
+Applied directly to the live `care-register` project.
+
+**Verified the fix actually works, not just that it applied cleanly**:
+re-ran the same RLS simulation after the fix — all four counts flipped
+from `0/0/0/2` to the correct `1/1/15/2`, matching the real data
+exactly. Ran `get_advisors` (security) again afterward: no new issue
+class, same pre-existing findings as before this fix.
+
+**Lesson for future RLS work in this schema, written down so it isn't
+repeated a third time**: never write `exists (select 1 from candidates
+c where c.id = ... and c.is_published)` inline in a new policy on
+another table — `candidates` itself is not peer-readable, so that
+subquery is silently neutered by RLS regardless of intent. Always go
+through `candidate_is_published(uuid)` (or a view, which reads under
+its owner's privilege and isn't subject to this) when a policy needs to
+know whether some *other* candidate's row is published.
