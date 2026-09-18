@@ -1884,8 +1884,13 @@ in the path.
 
 **Open questions carried over from the handover's own §14, genuinely
 unresolved, not decided here:**
-1. Named author vs. "iCare Editorial Team" (currently the latter, matches
-   the handover's own default).
+1. ~~Named author vs. "iCare Editorial Team"~~ — **resolved 2026-09-18**,
+   founder chose a pen name, "Charlie Xavier," going forward only. The 8
+   launch posts keep "iCare Editorial Team" untouched — not renamed
+   retroactively. `scripts/build-blog-content.js`'s `parsePost()` now
+   defaults `author` to "Charlie Xavier" when a post's frontmatter omits
+   the field, so new posts don't need to repeat it (though they still
+   can, e.g. for a guest-authored piece).
 2. ~~`UNSPLASH_ACCESS_KEY`~~ — **resolved 2026-09-16**, set as a Worker
    secret; real attribution now resolves for any post using the new
    `heroImage.unsplashPhotoId` field, see the table above. The 8 launch

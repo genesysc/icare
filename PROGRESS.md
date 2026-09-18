@@ -5065,3 +5065,19 @@ Rounds link-through changes. `member.html` didn't exist when the GA4
 list above was written, so it was missing the same snippet — added it
 here (verbatim copy of `src/ga-consent.js`, same as every other page)
 rather than leaving a known-stale gap from day one.
+
+---
+
+## 2026-09-18 — Blog byline: new pen name for future posts only
+
+Founder decided on the blog's open author question (HANDOVER.md §15):
+switch from "iCare Editorial Team" to a pen name, "Charlie Xavier" — but
+only going forward, not retroactively. The 8 launch posts' frontmatter
+is untouched.
+
+`scripts/build-blog-content.js`'s `parsePost()` now defaults `author` to
+"Charlie Xavier" only when a post's frontmatter omits the field —
+existing posts, which all set `author` explicitly, are unaffected.
+Verified by rebuilding `src/blog-content.ts` and confirming zero diff
+(`git status` showed only the script changed, not the generated file).
+`tsc --noEmit` and `wrangler deploy --dry-run` both clean.
