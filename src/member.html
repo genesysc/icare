@@ -329,10 +329,11 @@
       </div>
     </div>
 
-    <div class="card" data-activity-card hidden>
+    <div class="card">
       <div class="card-body">
         <h2 class="card-title">Activity</h2>
         <div class="post-list" data-post-list style="margin-top:8px;"></div>
+        <p class="empty-note" data-posts-empty style="display:none;">No posts yet.</p>
       </div>
     </div>
 
@@ -544,11 +545,11 @@ function icareRequireAuth(signInPath) {
   }
 
   function renderPosts(rows) {
-    var card = document.querySelector("[data-activity-card]");
     var list = document.querySelector("[data-post-list]");
+    var empty = document.querySelector("[data-posts-empty]");
     list.innerHTML = "";
-    if (!rows || rows.length === 0) { card.hidden = true; return; }
-    card.hidden = false;
+    if (!rows || rows.length === 0) { empty.style.display = "block"; return; }
+    empty.style.display = "none";
     rows.forEach(function (post) {
       var item = document.createElement("div");
       item.className = "post-item";

@@ -5251,3 +5251,21 @@ subquery is silently neutered by RLS regardless of intent. Always go
 through `candidate_is_published(uuid)` (or a view, which reads under
 its owner's privilege and isn't subject to this) when a policy needs to
 know whether some *other* candidate's row is published.
+
+## 2026-09-18 — member.html: show "No posts yet." instead of hiding Activity entirely
+
+Founder tested the profile fix above and flagged a smaller, real UX
+gap while looking at it: when a candidate genuinely has no posts, the
+Activity card on `member.html` was hidden entirely (`card.hidden =
+true`), rather than shown with a "no posts" message — a viewer had no
+way to tell "this person hasn't posted" apart from "this section
+didn't load."
+
+`dashboard.html`'s own self-view already solved this correctly (a
+permanent `data-posts-empty` note, toggled instead of hiding the whole
+card) — `member.html`'s `renderPosts()` just hadn't matched that
+pattern when it was first written. Fixed to match exactly: the
+Activity card is no longer conditionally hidden, and a "No posts yet."
+`<p class="empty-note" data-posts-empty>` shows/hides based on whether
+`body.posts` is empty. `tsc --noEmit` and `wrangler deploy --dry-run`
+both clean.
