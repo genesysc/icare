@@ -1957,3 +1957,142 @@ don't currently use third-party analytics" line (accurate when written,
 not anymore).
 
 **Verified:** `tsc --noEmit` clean, `wrangler deploy --dry-run` clean.
+
+## 17. Daily health & social care news drafting automation — 2026-09-18
+
+Founder asked for a daily automation that finds health/care/social-care
+news worldwide (not just UK) and posts it. Before building, walked
+through three real decisions with the founder rather than guessing:
+
+1. **News source** — free RSS/Google News search, not a paid news API
+   (cost has been an explicit constraint all session — same reason
+   Plausible lost to GA4 earlier) and not a scheduled Claude session
+   (would run through Claude usage instead of Cloudflare, and isn't a
+   literal Worker/Action).
+2. **Review** — drafts for review, founder approves. Unreviewed
+   AI-written content going straight to a live, indexed page carries
+   real factual/legal/copyright risk this project hasn't accepted
+   anywhere else (every other post this session has had explicit
+   human review before shipping).
+3. **Volume** — one daily roundup post by default; a story gets its own
+   standalone post only when it's independently reported by 2+ sources
+   (a cheap, real signal for "this is actually major," not a guess).
+
+**Why this isn't a Cloudflare Worker in the literal sense:** a Worker
+has no way to browse/search the web for free — RSS parsing plus an LLM
+drafting call is really a batch/CI job, not a request-handling service.
+It also can't `git commit`/open a PR itself. So this is a **GitHub
+Actions scheduled workflow** instead
+(`.github/workflows/daily-news-draft.yml`, `schedule: cron: "0 6 * * *"`
++ `workflow_dispatch` for manual runs) — same "automation that runs
+daily and posts," just implemented where it can actually do the job,
+consistent with this repo's existing PR-based shipping convention
+(PRs #44-50 throughout this file/PROGRESS.md) rather than a new
+mechanism.
+
+**Pipeline (`scripts/daily-news-draft.js`, devDependency-only —
+`rss-parser`, never bundled into the Worker, same convention as
+`marked`/`js-yaml` for `build-blog-content.js`):**
+1. Fetches WHO's news feed, two `gov.uk` (DHSC, NHS England) Atom
+   feeds, NHS England's own feed, plus 5 Google News RSS search queries
+   (social/aged care, health workforce, long-term/home care, pharmacy,
+   immigration) — Google News RSS needs no API key and is genuinely how
+   this gets global coverage (WHO/gov.uk feeds alone are UK/international-
+   institutional, not global-publisher). Every feed URL was verified
+   working by hand (`curl`) before being hardcoded — one candidate
+   (CDC's various RSS endpoints, `ecdc.europa.eu/en/rss.xml`,
+   `communitycare.co.uk/feed/`, `carehome.co.uk`, `modernhealthcare.com`,
+   `mcknights.com`, `hsj.co.uk`, `skillsforcare.org.uk`) all 404'd,
+   403'd, or redirected to nothing — not included; Google News search
+   covers most of that ground anyway.
+2. Filters to the last 26h (24h + slack for cron drift), de-dupes exact
+   URL repeats (the same Google News item surfaces across overlapping
+   queries).
+3. Clusters items into "stories" by title-keyword overlap (4+ letter
+   words, ≥3 shared AND ≥40% overlap — tuned live against a real day's
+   fetch: pure ratio false-positived on a syndicated "Ask the
+   Pharmacist" column running verbatim across a dozen local outlets,
+   fixed by requiring an absolute-count floor too; 50% ratio missed
+   real same-story coverage that used quite different wording, loosened
+   to 40%). A cluster backed by 2+ distinct publishers is a "major"
+   candidate. **Known limitation, tested and documented rather than
+   hidden**: exact-word matching has no stemming, so headlines using
+   different word forms for the same fact ("nearing" vs "near" vs
+   "approaching" retirement) can still split one real story into 2-3
+   separate major clusters — a proper fix needs fuzzy/semantic matching,
+   disproportionate for a v1 whose actual safety net is the human
+   review step, not the clustering heuristic. Capped at 2 standalone
+   posts/day regardless.
+4. Drafts each post via Cloudflare Workers AI's plain REST endpoint
+   (`POST /accounts/{id}/ai/run/{model}`, same
+   `@cf/zai-org/glm-4.7-flash` model + `response_format: json_schema`
+   pattern `src/candidates.ts` already uses for CV extraction — GitHub
+   Actions can't use the `env.AI` binding directly since that only
+   exists inside a running Worker, so this calls the same underlying
+   API over plain HTTPS with `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`
+   instead). The prompt is explicit: use ONLY facts in the supplied
+   headline/snippet/URL, never invent statistics or quotes, cite the
+   real URLs given (never asked to invent a source — `sources` in the
+   frontmatter is built directly from the real feed items in code, the
+   model never touches it). This is also why it never reproduces source
+   articles — the model only ever sees a headline + short snippet, not
+   full article text, so there's nothing to copy from even if asked to.
+5. Picks a hero image via Unsplash's **search** API (`GET
+   /search/photos?query=...`, category-keyword query, random among the
+   top 5 results) rather than a human hand-picking one — search results
+   carry the API's own real `id` directly, so this slots straight into
+   the existing `heroImage.unsplashPhotoId` build-time-resolution
+   pipeline from 2026-09-16 with zero new attribution code: real
+   per-photographer credit resolves the same way any hand-written post's
+   does.
+6. Writes real `content/posts/<slug>.md` files — same frontmatter shape
+   as every hand-written post, `author: "Charlie Xavier"` (matches the
+   2026-09-18 byline decision above), `featured: false` always.
+   `relatedPosts` is computed from existing same-category posts in the
+   repo, not left empty.
+7. The workflow then runs the **real, unmodified**
+   `npm run build:blog` (resolves real Unsplash attribution + compiles
+   `src/blog-content.ts`) and `npm run typecheck`, then opens a PR via
+   `peter-evans/create-pull-request` — **never pushes to main**. Branch
+   name includes the run id (not a fixed name) specifically so a second
+   day's run can't force-push over a first day's still-unreviewed draft
+   and silently discard it. PR body lists each drafted post and tells
+   the founder to review the actual Markdown in the diff — that's the
+   real approval step. Merging the PR is the entire "publish" action;
+   the existing `deploy.yml` handles everything after that unchanged.
+
+**Verified before shipping, not just by reading the diff:** ran
+`fetchAllItems()`/`clusterStories()` for real against live feeds
+(86 items, 5-8 story clusters depending on threshold tuning, ~60-70
+roundup items on real test days) — this is what caught both real bugs
+above (the syndicated-column false-positive, the ratio-too-strict
+false-negative). Ran a full synthetic draft through `writePost()` and
+then through the real, unmodified `build-blog-content.js` (9 posts
+compiled successfully with the test post added, back to 8 clean after
+removing it) — confirms the generated frontmatter shape is genuinely
+compiler-valid end-to-end, not just visually plausible. `tsc --noEmit`
+and `wrangler deploy --dry-run` both clean (this automation touches
+zero files the Worker bundle includes).
+
+**Manual setup still needed before this runs for real** (can't be done
+from here — no repo-secrets-write access):
+- `UNSPLASH_ACCESS_KEY` as a **GitHub Actions** repo secret (Settings →
+  Secrets and variables → Actions) — it already exists as a Cloudflare
+  *Worker* secret, but that's a completely different store GitHub
+  Actions can't read; same value, needs adding a second place.
+- `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` already exist as GitHub
+  Actions secrets (`deploy.yml` already uses them) — reused as-is for
+  the Workers AI REST calls. If the token's scope doesn't include
+  Workers AI permission, that call will fail with a clear 403/401 in the
+  Action log — the fix is widening that one token's scope in the
+  Cloudflare dashboard, not creating a new secret.
+- The workflow needs `Settings → Actions → General → Workflow
+  permissions` set to allow "Read and write permissions" (or at least
+  PR creation) for `peter-evans/create-pull-request` to open PRs —
+  default repo settings sometimes restrict this.
+
+**Open, genuinely undecided:** whether a "major" story cap of 2/day and
+a roundup-post length of ~600-900 words are the right defaults long
+term — flagged as tunable, not fixed, in `scripts/daily-news-draft.js`'s
+own constants. Worth revisiting after the founder sees a week or two of
+real drafts.
