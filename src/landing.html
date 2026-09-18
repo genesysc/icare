@@ -331,17 +331,6 @@ a{color:inherit}
     align-items:start}
 }
 
-/* ---------- employers strip ---------- */
-.employers{background:var(--card);border-top:1px solid var(--hair);
-  border-bottom:1px solid var(--hair);padding:50px 0}
-.employers .inner{display:grid;gap:20px;align-items:center}
-.employers h2{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:23px;
-  margin:0 0 8px;letter-spacing:-.015em}
-.employers p{margin:0;color:var(--mute);line-height:1.6;max-width:56ch;font-size:15.5px}
-@media (min-width:820px){
-  .employers .inner{grid-template-columns:1fr auto;gap:40px}
-}
-
 /* ---------- final ---------- */
 .final{background:var(--ink);color:#fff;padding:78px 0;text-align:center}
 .final h2{font-family:'Fraunces',Georgia,serif;font-weight:300;font-style:italic;
@@ -384,7 +373,6 @@ footer .bottom p{margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;
   <header class="topbar">
     <a class="logo" href="/">i<span>Care</span></a>
     <nav class="navlinks" aria-label="Main">
-      <a class="navlink plain" href="/employers">For employers</a>
       <a class="navlink plain" href="/blog">Insights</a>
       <a class="navlink ghost" href="/sign-in">Log in</a>
       <a class="navlink solid" href="/sign-up">Sign up</a>
@@ -396,7 +384,6 @@ footer .bottom p{margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;
     </button>
   </header>
   <nav class="mobile-nav" id="mobile-nav" data-mobile-nav aria-label="Main (mobile)">
-    <a href="/employers">For employers</a>
     <a href="/blog">Insights</a>
     <a href="/sign-in">Log in</a>
   </nav>
@@ -605,21 +592,6 @@ footer .bottom p{margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;
     </div>
   </section>
 
-  <!-- EMPLOYERS -->
-  <section class="employers">
-    <div class="wrap">
-      <div class="inner">
-        <div>
-          <h2>Hiring for a health or care team?</h2>
-          <p>Search for the skills and registrations you actually need, see how solid each
-            claim is before you invite anyone, and pick up candidates whose details are
-            already gathered in one place.</p>
-        </div>
-        <a class="btn ghost" href="/employers">See iCare for employers</a>
-      </div>
-    </div>
-  </section>
-
   <!-- FINAL -->
   <section class="final">
     <div class="wrap">
@@ -648,9 +620,8 @@ footer .bottom p{margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;
       <a href="/blog">Insights</a>
     </div>
     <div class="footer-col">
-      <h3>Employers</h3>
-      <a href="/employers">For employers</a>
-      <a href="/employer/sign-in">Employer log in</a>
+      <h3>Hiring?</h3>
+      <a href="/employers">Join the employer waitlist</a>
     </div>
     <div class="footer-col">
       <h3>Legal</h3>
