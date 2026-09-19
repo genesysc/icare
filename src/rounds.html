@@ -361,12 +361,16 @@
   .news-source-row a { color: var(--teal-700); font-weight: 700; text-decoration: none; }
   .news-source-row a:hover { text-decoration: underline; }
 
-  .news-item { display: flex; gap: 14px; padding: 18px 22px; }
+  .news-item { display: block; padding: 16px 0; }
   .news-item + .news-item { border-top: 1px solid var(--line); }
-  .news-thumb { flex: 0 0 84px; width: 84px; height: 84px; border-radius: 12px; object-fit: cover; background: linear-gradient(135deg, var(--teal-100), var(--paper-dim)); }
-  .news-item-body { flex: 1; min-width: 0; }
+  .news-thumb { display: block; width: 100%; aspect-ratio: 16/9; border-radius: 14px; object-fit: cover; background: linear-gradient(135deg, var(--teal-100), var(--paper-dim)); margin-bottom: 10px; }
+  .news-item-body { min-width: 0; }
   .news-item-body h3 { font-size: 14.5px; font-weight: 700; color: var(--plum-950); line-height: 1.35; }
-  .news-item-body p { margin-top: 4px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+  .news-item-body p { margin-top: 4px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .news-more-btn { display: block; width: 100%; margin-top: 6px; padding: 11px 14px; border-radius: 12px; background: var(--white); border: 1.5px solid var(--line); color: var(--ink-soft); font-size: 13px; font-weight: 700; cursor: pointer; }
+  .news-more-btn:hover { border-color: var(--teal-500); color: var(--teal-700); }
+  .news-more-btn:disabled { opacity: 0.6; cursor: default; }
 
   .news-actions { display: flex; gap: 16px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
   .news-actions button { background: none; border: none; font-size: 12px; font-weight: 600; color: var(--ink-faint); padding: 0; cursor: pointer; display: flex; align-items: center; gap: 5px; }
@@ -475,6 +479,7 @@
       <p class="empty-note" data-news-empty hidden>Nothing here yet — check back soon.</p>
       <div data-news-lede></div>
       <div data-news-list></div>
+      <button type="button" class="news-more-btn" data-news-more hidden>Show more</button>
     </div>
 
     <div class="card" data-waiting-section hidden>
@@ -1040,6 +1045,9 @@ function icareRequireAuth(signInPath) {
 
   // --- News module ---
   var currentNewsCategory = "";
+  var newsCursor = null;
+  var newsHasMore = false;
+  var NEWS_PAGE_SIZE = 6; // keeps the initial render short — "Show more" fetches further pages via cursor
 
   function newsThumbHtml(item) {
     return item.image_url
@@ -1074,6 +1082,24 @@ function icareRequireAuth(signInPath) {
     '</div>';
   }
 
+  function appendNewsItems(items) {
+    var list = document.querySelector("[data-news-list]");
+    items.forEach(function (item) {
+      var row = document.createElement("div");
+      row.className = "news-item";
+      row.innerHTML =
+        newsThumbHtml(item) +
+        '<div class="news-item-body">' +
+          '<h3></h3><p></p>' +
+          newsSourceRow(item) +
+          newsActionsHtml(item) +
+        '</div>';
+      row.querySelector("h3").textContent = item.title;
+      row.querySelector("p").textContent = item.summary || "";
+      list.appendChild(row);
+    });
+  }
+
   function renderNews(items) {
     var lede = document.querySelector("[data-news-lede]");
     var list = document.querySelector("[data-news-list]");
@@ -1099,34 +1125,35 @@ function icareRequireAuth(signInPath) {
     ledeEl.querySelector("p").textContent = first.summary || "";
     lede.appendChild(ledeEl);
 
-    items.slice(1).forEach(function (item) {
-      var row = document.createElement("div");
-      row.className = "news-item";
-      row.innerHTML =
-        newsThumbHtml(item) +
-        '<div class="news-item-body">' +
-          '<h3></h3><p></p>' +
-          newsSourceRow(item) +
-          newsActionsHtml(item) +
-        '</div>';
-      row.querySelector("h3").textContent = item.title;
-      row.querySelector("p").textContent = item.summary || "";
-      list.appendChild(row);
-    });
+    appendNewsItems(items.slice(1));
+  }
+
+  function updateNewsMoreButton() {
+    var btn = document.querySelector("[data-news-more]");
+    btn.hidden = !newsHasMore;
+    btn.disabled = false;
+    btn.textContent = "Show more";
   }
 
   function loadNews(category) {
     currentNewsCategory = category;
+    newsCursor = null;
+    newsHasMore = false;
     document.querySelector("[data-news-loading]").hidden = false;
     document.querySelector("[data-news-lede]").innerHTML = "";
     document.querySelector("[data-news-list]").innerHTML = "";
     document.querySelector("[data-news-empty]").hidden = true;
-    var url = "/news" + (category ? "?category=" + encodeURIComponent(category) : "");
+    document.querySelector("[data-news-more]").hidden = true;
+    var url = "/news?limit=" + NEWS_PAGE_SIZE + (category ? "&category=" + encodeURIComponent(category) : "");
     jget(url).then(function (result) {
       document.querySelector("[data-news-loading]").hidden = true;
       document.querySelector("[data-news-section]").hidden = false;
       if (!result.ok) { document.querySelector("[data-news-empty]").hidden = false; return; }
-      renderNews(result.body.items || []);
+      var items = result.body.items || [];
+      renderNews(items);
+      newsHasMore = items.length === NEWS_PAGE_SIZE;
+      if (items.length) newsCursor = items[items.length - 1].published_at;
+      updateNewsMoreButton();
     }).catch(function () {
       document.querySelector("[data-news-loading]").hidden = true;
       document.querySelector("[data-news-section]").hidden = false;
@@ -1140,6 +1167,26 @@ function icareRequireAuth(signInPath) {
     document.querySelectorAll("[data-news-filter]").forEach(function (c) { c.classList.remove("is-active"); });
     chip.classList.add("is-active");
     loadNews(chip.getAttribute("data-news-filter"));
+  });
+
+  document.querySelector("[data-news-more]").addEventListener("click", function () {
+    var btn = document.querySelector("[data-news-more]");
+    if (!newsCursor) return;
+    btn.disabled = true;
+    btn.textContent = "Loading…";
+    var url = "/news?limit=" + NEWS_PAGE_SIZE + "&cursor=" + encodeURIComponent(newsCursor) +
+      (currentNewsCategory ? "&category=" + encodeURIComponent(currentNewsCategory) : "");
+    jget(url).then(function (result) {
+      if (!result.ok) { btn.disabled = false; btn.textContent = "Show more"; return; }
+      var items = result.body.items || [];
+      appendNewsItems(items);
+      newsHasMore = items.length === NEWS_PAGE_SIZE;
+      if (items.length) newsCursor = items[items.length - 1].published_at;
+      updateNewsMoreButton();
+    }).catch(function () {
+      btn.disabled = false;
+      btn.textContent = "Show more";
+    });
   });
 
   function renderNewsComments(container, comments) {

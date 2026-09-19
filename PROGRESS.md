@@ -5446,3 +5446,42 @@ scroll test against the restructured header — identical results.
 straight to production per the founder's explicit "do not stop until
 deployed" — merged, deploy confirmed via GitHub Actions, confirmed live
 via a direct request to icareltd.com/rounds.
+
+---
+
+## 2026-09-19 — News module: trimmed scroll length, list rows stacked (photo-on-top)
+
+Founder feedback on the just-shipped redesign: fine leaving Home
+visually different from the rest of the app, but the news section was
+too much of a scroll on mobile, and the list rows (thumbnail-left,
+text-right) needed to switch to photo-on-top/text-below.
+
+`.news-item` in `src/rounds.html` changed from `display: flex` (84×84
+side thumbnail) to a stacked block: `.news-thumb` is now a full-width
+16:9 image sitting above the title/summary/source-row/actions, using
+the same visual pattern the lede card (`.news-lede`) already had.
+Summary text got a 2-line `-webkit-line-clamp` so a long paragraph
+can't blow out a row's height.
+
+Scroll length itself was cut by reducing how much loads up front, not
+just by re-laying-out the same 20 items: `loadNews()` now requests
+`limit=6` (1 lede + 5 list rows) instead of relying on `GET /news`'s
+own default of up to 20. A "Show more" button under the list uses the
+cursor pagination already built into `GET /news` (`?cursor=<published_at
+of the last loaded item>`) to fetch further pages of 6 on demand,
+appending via a new `appendNewsItems()` helper shared with the initial
+render; the button hides itself once a page comes back short (fewer
+than 6 items = no more to load).
+
+**Verified**: a new Playwright test
+(`test-rounds-news-stacked.js`) at a 390px mobile viewport confirms the
+thumbnail now renders above the body (not beside it) at full row
+width, confirms the line-clamp CSS value, confirms only 1 network call
+and 5 rendered rows on initial load, and confirms clicking "Show more"
+fires a second `/news` request with the right cursor, appends 3 more
+rows, then hides the button once the (intentionally short, in the
+test) second page is exhausted. Re-ran the original
+`test-rounds-news.js` suite (greeting, waiting-on-you, lede, like,
+comment, share, category filter, invite accept) unchanged — identical
+results, no regressions. `tsc --noEmit` and `wrangler deploy --dry-run`
+both clean.

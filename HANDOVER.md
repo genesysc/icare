@@ -2380,3 +2380,44 @@ here rather than left unresolved:**
    `ROLLING_WINDOW_DAYS`, the midpoint of the client's own "not 24
    hours, not stale either, ~5-7 days" direction), not silently guessed
    without saying so.
+
+## 20. News module: scroll length trimmed, list rows stacked photo-on-top — 2026-09-19
+
+Follow-up feedback on §19's redesign: fine to leave Home visually
+different from the rest of the app, but the news section read as too
+long a scroll on mobile, and the list rows (thumbnail-left, text-right)
+needed to become photo-on-top/text-below, matching how the lede card
+already looks.
+
+- **Layout**: `.news-item` (`src/rounds.html`) went from `display: flex`
+  with an 84×84 side thumbnail to a stacked block — `.news-thumb` is now
+  a full-width 16:9 image above the title/summary/source-row/actions,
+  reusing the same visual shape `.news-lede` already had. Added
+  `-webkit-line-clamp: 2` to the summary paragraph so a long article
+  blurb can't blow out a row's height.
+- **Scroll length**: the real fix wasn't the CSS above (a taller,
+  photo-on-top row is *taller* per item, not shorter) — it's cutting how
+  many items render up front. `loadNews()` now passes `limit=6` to
+  `GET /news` (1 lede + 5 list rows) instead of relying on the route's
+  own default of up to 20. A "Show more" button below the list uses the
+  cursor pagination `GET /news` already supported (`?cursor=<published_at
+  of the last item loaded>`, unused by the frontend until now) to fetch
+  further pages of 6 on demand; it hides itself once a page comes back
+  short of 6 (no more left). Rendering the list rows was factored out
+  into `appendNewsItems()`, shared between the initial render and the
+  "Show more" append so there's one code path for building a `.news-item`
+  row, not two.
+- No backend/schema changes — `GET /news`'s `limit`/`cursor` query
+  params already existed (migration 0048/0049 didn't need touching);
+  this was frontend-only.
+
+**Verified**: new Playwright test (`test-rounds-news-stacked.js`) at a
+390px mobile viewport — confirms the thumbnail renders above the body
+(not beside it) at full row width, confirms the line-clamp is applied,
+confirms exactly one `/news` call and 5 rendered rows on initial load,
+and confirms "Show more" fires a second request with the expected
+cursor, appends further rows, then hides itself once that page comes
+back short. Re-ran the original `test-rounds-news.js` suite (greeting,
+waiting-on-you, lede, like, comment, share, category filter, invite
+accept) — identical results, no regressions. `tsc --noEmit` and
+`wrangler deploy --dry-run` both clean.
