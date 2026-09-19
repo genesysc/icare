@@ -5485,3 +5485,42 @@ test) second page is exhausted. Re-ran the original
 comment, share, category filter, invite accept) unchanged — identical
 results, no regressions. `tsc --noEmit` and `wrangler deploy --dry-run`
 both clean.
+
+---
+
+## 2026-09-19 — News module: fixed the same story appearing 2-4 times from different outlets
+
+Founder noticed the same headline populating multiple times. Confirmed
+directly against the live `news_items` table rather than assumed:
+found genuine wire-syndicated duplicates — e.g. "WA nurses threaten
+strike action..." ingested 4 times (The Age / SMH / Brisbane Times /
+WAtoday, all Nine-network reprints of the same AAP copy), "Sweden
+consistently outperforms Canada..." 3 times (Postmedia's regional
+papers), and the WHO workforce-gap story 3 times across WHO's own
+release and two wire aggregators. Root cause: dedup only ever checked
+`external_id`/URL, and every republishing outlet has its own URL for
+byte-identical copy — this was a real content-quality bug, not
+cosmetic.
+
+Migration `0050_news_dedupe_syndicated_titles`: adds a
+`normalized_title` column (lowercased, punctuation-stripped) to
+`news_items`, and `ingest_news_item()` now checks for an existing
+*different* item with the same normalized title within the retention
+window before inserting — if found, returns that item's id instead of
+creating a second row. A same-item refresh (matching `external_id`)
+is unaffected and still goes through the normal upsert. One-time
+cleanup as part of the same migration removed the pre-existing
+duplicates (33 rows → 27), keeping the earliest-published copy of
+each; verified safe first (zero rows in `news_item_likes`/
+`news_item_comments` at the time, so nothing could be orphaned).
+
+**Verified against the live database, not just reasoned about**:
+re-ran the dedupe query post-migration (zero duplicate normalized
+titles remain), then called `ingest_news_item()` directly with a
+duplicate title/different external_id/different URL simulating a new
+outlet's copy of an already-ingested story — confirmed it returned the
+existing item's id and inserted no new row (`news_items` count
+unchanged at 27, zero rows for the test `external_id`). No
+frontend/route changes needed — this was entirely inside the ingest
+RPC. `tsc --noEmit` clean (unaffected by the DB-only change, checked
+anyway).

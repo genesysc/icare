@@ -2421,3 +2421,46 @@ back short. Re-ran the original `test-rounds-news.js` suite (greeting,
 waiting-on-you, lede, like, comment, share, category filter, invite
 accept) — identical results, no regressions. `tsc --noEmit` and
 `wrangler deploy --dry-run` both clean.
+
+## 21. News module: wire-syndicated duplicate titles — 2026-09-19
+
+Founder reported the same story populating 2-3 times. Checked the live
+`news_items` table directly rather than guessing, and confirmed it:
+real wire-syndication duplicates, e.g. the same AAP copy of "WA nurses
+threaten strike action..." ingested separately from The Age, SMH,
+Brisbane Times and WAtoday (all Nine-network mastheads carrying
+identical text), and the WHO workforce-gap story from WHO's own
+release plus two unrelated wire aggregators. Root cause: dedup only
+ever compared `external_id`/URL (§19's design), and every republishing
+outlet has its own URL for text that's otherwise byte-identical — a
+gap in the original ingestion design, not something newsdata.io's API
+itself does wrong.
+
+**Fix — migration `0050_news_dedupe_syndicated_titles`**, entirely
+inside `ingest_news_item()`, no frontend/route changes:
+- Added `normalized_title` (lowercased, punctuation stripped via
+  `normalize_news_title()`) to `news_items`, indexed.
+- `ingest_news_item()` now checks, before inserting, whether a
+  *different* item (different `external_id`) already has the same
+  normalized title within the last 30 days (the retention window
+  `prune_stale_news_items()` already enforces). If so, it returns that
+  existing item's id and inserts nothing — the second outlet's copy of
+  the same story is recognized and dropped rather than shown as a
+  separate card. A story's own refresh (same `external_id` calling
+  again, e.g. the 2-hourly cron re-seeing an item it already has) is
+  unaffected — that's excluded from the duplicate check and still goes
+  through the normal upsert.
+- One-time cleanup ran as part of the same migration: removed
+  pre-existing duplicates, keeping the earliest-published copy of each
+  (33 rows → 27). Checked `news_item_likes`/`news_item_comments` were
+  both empty before deleting anything, since the app had only just
+  gone live with real secrets — nothing could be silently orphaned.
+
+**Verified against the live database post-migration**: re-queried for
+duplicate normalized titles (zero found), then called
+`ingest_news_item()` directly with a duplicate title but a fabricated
+new `external_id`/URL — simulating a fourth outlet's copy of an
+already-ingested story arriving on the next cron run. Confirmed it
+returned the existing item's id, inserted no new row, and the table's
+total count stayed at 27 (was not incremented, and zero rows exist for
+the test `external_id`).
