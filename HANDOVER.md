@@ -2464,3 +2464,56 @@ already-ingested story arriving on the next cron run. Confirmed it
 returned the existing item's id, inserted no new row, and the table's
 total count stayed at 27 (was not incremented, and zero rows exist for
 the test `external_id`).
+
+## 22. News cron was fully stalled since first ship; added GET /news/ingest-status — 2026-09-21
+
+Founder noticed the news content genuinely hadn't changed. Checked
+`news_items.fetched_at` directly and confirmed it: the most recent
+successful ingest was 2026-09-18 23:05 UTC, exactly the moment of that
+session's local `wrangler dev --test-scheduled` testing — not a real
+production cron run. The Cloudflare Cron Trigger (`0 */2 * * *`) has
+been firing correctly the whole time; the actual gap is that
+`wrangler deploy` (run by `.github/workflows/deploy.yml`) only ships
+code and the plain `vars` block in `wrangler.jsonc` — it never sets
+Worker *secrets*. `NEWS_INGEST_SECRET` and `NEWSDATA_API_KEY` were
+flagged in §19 as needing manual one-time setup via the Cloudflare
+dashboard and evidently never were. `scheduledNewsRefresh()` is
+written to fail safe on this (logs an error, returns early, never
+throws) rather than crash the Worker — which is exactly why this went
+unnoticed instead of surfacing as a visible error: every 2-hourly
+production run for 2+ days silently did nothing. Gave the founder the
+exact secret values and the dashboard path (Workers & Pages → icare →
+Settings → Variables and Secrets) to set both — setting Worker secrets
+isn't something achievable from this session (no `CLOUDFLARE_API_TOKEN`
+in this sandbox; confirmed via a failed `wrangler secret list`).
+
+**Added `GET /news/ingest-status`** so a stall like this is visible
+without a direct database query next time. Migration
+`0051_news_ingest_status` adds `news_ingest_status(p_secret)` —
+SECURITY DEFINER, gated by the same `news_ingest_secret` row in
+`app_secrets` the ingest RPCs already check, so no new auth mechanism
+and still zero `service_role` key usage anywhere. Returns
+`total_items`, `most_recent_fetched_at`, `most_recent_published_at`,
+`items_fetched_last_2h`/`24h`, and `is_stale` (true once the most
+recent fetch is more than 3 hours old — a one-cycle buffer past the
+2-hourly schedule). The Hono route in `src/news.ts` is registered
+*before* `news.use("*", requireAuth)` specifically so it's reachable
+with no candidate session — checking on a stalled cron has no reason
+to require being signed in as a candidate — and is instead
+authenticated purely by the `?secret=` query param matching the DB
+value.
+
+**Verified end-to-end without a live Cloudflare deploy or API
+token**: since `wrangler dev`'s remote-proxy mode needs
+`CLOUDFLARE_API_TOKEN` for the `AI` binding (unavailable in this
+sandbox), verification used `esbuild` to bundle `src/news.ts` standalone
+and called Hono's own `.fetch()` on it directly from Node against the
+real production Supabase project — no secret → 401 `missing secret`,
+wrong secret → 401 `unauthorized`, correct secret with *no* Supabase
+auth header → 200 with real live stats (proves the route is exempt
+from `requireAuth`), and a plain `GET /` with no auth header still
+correctly 401s `missing bearer token` (proves the rest of the sub-app
+is unaffected). Also re-verified the underlying RPC directly via SQL
+(`news_ingest_status()` with the correct secret vs. a wrong one) before
+wiring the route to it. `tsc --noEmit` and `wrangler deploy --dry-run`
+both clean.

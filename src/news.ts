@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
 
 // Candidate Home ("Rounds") news feed — migration 0048. See
@@ -27,6 +27,23 @@ type Variables = {
 };
 
 const news = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+// Diagnostic route, not a candidate feature — deliberately registered
+// before the requireAuth blanket below so it's reachable with no
+// candidate session (the founder checking on a stalled cron has no
+// reason to be signed in as a candidate). Authenticated instead via the
+// same shared secret the cron job itself uses against
+// news_ingest_status() — see migration 0051. Query param, not a header,
+// since this is meant to be checked with a plain browser/curl request.
+news.get("/ingest-status", async (c) => {
+  const secret = c.req.query("secret");
+  if (!secret) return c.json({ error: "missing secret" }, 401);
+
+  const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);
+  const { data, error } = await supabase.rpc("news_ingest_status", { p_secret: secret });
+  if (error) return c.json({ error: "unauthorized" }, 401);
+  return c.json(data);
+});
 
 news.use("*", requireAuth);
 

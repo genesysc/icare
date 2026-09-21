@@ -5524,3 +5524,45 @@ unchanged at 27, zero rows for the test `external_id`). No
 frontend/route changes needed — this was entirely inside the ingest
 RPC. `tsc --noEmit` clean (unaffected by the DB-only change, checked
 anyway).
+
+---
+
+## 2026-09-21 — Diagnosed and fixed a fully stalled news cron, added a status endpoint
+
+Founder noticed the news section hadn't changed since it was first
+shipped. Checked `news_items` directly rather than assumed working:
+confirmed the last successful ingest was 2026-09-18 23:05 UTC — the
+exact moment of that session's own local dev testing, not a real
+production run. The 2-hourly Cloudflare Cron Trigger has been firing
+the whole time, but `wrangler deploy` (what CI runs) only ships code
+and plain `vars`, never Worker secrets — `NEWS_INGEST_SECRET` and
+`NEWSDATA_API_KEY` were flagged back at initial ship as needing manual
+setup via the Cloudflare dashboard, and evidently never were. The
+ingest function is written defensively for exactly this (logs and
+returns early rather than crashing on a missing secret), so every real
+cron run since deploy has been silently no-op-ing. Gave the founder the
+exact values and the dashboard path to set both as Worker secrets —
+that part isn't something I can do myself from here.
+
+**Added `GET /news/ingest-status`** so this kind of silent stall is
+visible going forward without needing a direct database query.
+Migration `0051_news_ingest_status` adds `news_ingest_status(p_secret)`,
+gated by the same shared secret the cron already uses (no new auth
+mechanism, no service_role key). The route itself
+(`src/news.ts`) is deliberately registered *before* the sub-app's
+blanket `requireAuth` middleware, since checking on a stalled cron has
+no reason to require a signed-in candidate session — it's
+authenticated by the secret alone, passed as `?secret=`. Returns
+`total_items`, `most_recent_fetched_at`/`published_at`,
+`items_fetched_last_2h`/`24h`, and an `is_stale` flag (true once the
+last fetch is >3 hours old — a one-cycle buffer over the 2-hourly
+schedule).
+
+**Verified without needing a live Cloudflare deploy or API token**:
+esbuild-bundled `src/news.ts` standalone and called `.fetch()` on it
+directly in Node against the real production Supabase project — no
+secret → 401, wrong secret → 401, correct secret with *no* candidate
+auth header → 200 with real live stats (proving the route is correctly
+exempt from `requireAuth`), and a plain `GET /` with no auth header
+still correctly 401s (proving the rest of the sub-app is unaffected).
+`tsc --noEmit` and `wrangler deploy --dry-run` both clean.
