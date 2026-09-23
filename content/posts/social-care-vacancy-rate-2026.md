@@ -132,6 +132,6 @@ Use it. Keep your training records up to date. Build a professional profile that
 
 A 10-year low in vacancies is worth celebrating. It is not a sign that the workforce problem is solved.
 
-The sector is growing more slowly, losing British workers, and hiring fewer people from overseas, all while needing hundreds of thousands more posts by 2040. Skills for Care's chief executive has said the sector needs a long-term, collective approach, and the charity is bringing partners together to build a 10-year plan to attract people into care.
+The sector is growing more slowly, losing British workers, and hiring fewer people from overseas, all while needing hundreds of thousands more posts by 2040. The [Casey Commission will now report a year early](/blog/casey-commission-big-conversation-on-care), and Skills for Care's chief executive has said the sector needs a long-term, collective approach, and the charity is bringing partners together to build a 10-year plan to attract people into care.
 
 The providers who thrive over the next decade won't be the ones who wait for that plan. They will be the ones who start building their own pipeline today.

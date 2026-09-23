@@ -5566,3 +5566,76 @@ auth header → 200 with real live stats (proving the route is correctly
 exempt from `requireAuth`), and a plain `GET /` with no auth header
 still correctly 401s (proving the rest of the sub-app is unaffected).
 `tsc --noEmit` and `wrangler deploy --dry-run` both clean.
+
+## 2026-09-23 — Blog expanded to 13 posts, `llms.txt` added
+
+Founder uploaded an updated `icare-blog-handover.zip` — same shape as
+the one this blog was originally built from (2026-09-16), now with 5
+more posts and an updated SEO spec. Checked it against the live build
+before touching anything, same as every prior handover this session:
+it's again written for a Next.js App Router codebase that isn't what's
+deployed here — confirmed the live site is still this Cloudflare
+Workers repo, so extended the existing blog (`src/blog.ts`/
+`blog-templates.ts`/`blog-content.ts`) in place rather than starting a
+second stack.
+
+**Diffed the zip's 8 already-known posts against what's in the repo
+first**, rather than assuming only the 5 new files mattered — found 4
+had actually changed: `nhs-10-year-workforce-plan-delay.md`,
+`social-care-fair-pay-agreement-care-workforce-pathway.md`,
+`social-care-vacancy-rate-2026.md`, and
+`uk-pharmaceutical-industry-jobs-skills-2026.md` each got a single
+inline link added, cross-linking to one of the 5 new posts — exactly
+the spec's own §7.5 rule ("every new post must also add a link from at
+least one older post"). Copied all 5 new posts in and applied the 4
+edits to the existing ones.
+
+**Real build failure, not just a warning**: `npm run build:blog` hard-
+failed on `health-bill-nhs-england-abolition-2026.md` — its `seoTitle`
+was 61 characters against the documented ≤60 limit. Trimmed "NHS
+England's Abolition" → "NHS England Abolition" (59 chars), same
+keyword, same meaning. This is the build script's own Zod-equivalent
+validation working exactly as designed (§15) — a genuine content error
+caught before it could ship a truncated `<title>` tag.
+
+**New `GET /llms.txt`** (`src/index.ts`) for the spec's §7.6 AI-crawler
+convention: site description, links to `/blog` and the sitemap, and a
+"handful" of posts (the spec's own wording, deliberately not all 13) —
+picks the featured post plus the 4 most recently published, deduped.
+Reused the exact `new URL(c.req.url).origin` pattern `sitemap.xml`/
+`robots.txt` already use rather than inventing a new one.
+
+**Confirmed already-satisfied rather than re-built**: the new spec's
+§7.0 (canonical URLs must never be affected by tracking-param query
+strings — the exact cause of Google's "Duplicate without user-selected
+canonical" error) was already true here, since `blog-templates.ts`
+builds every canonical from a fixed `SITE` constant + the post's own
+slug, never from the request. Verified directly rather than trusting
+the existing code's own comments: curled
+`/blog/unpaid-carers-leaving-work-2026?utm_source=share&utm_medium=social`
+and confirmed the rendered `<link rel="canonical">` still had no query
+string.
+
+**Noted, not fixed**: the build now warns that frontmatter
+`readingTime` differs from the computed value by >1 minute on **all
+13** posts, including the 4 untouched originals. Confirmed this isn't
+something this session's changes caused by stashing them and
+re-running the build against the unmodified state first — same
+result. Left alone: it's a warning by design (§15), not an error, and
+the founder's own frontmatter values aren't wrong, just computed
+differently than the build script's word-count formula.
+
+**Verified thoroughly, not just "it built"**: `tsc --noEmit` and
+`wrangler deploy --dry-run` both clean. Ran a real local `wrangler dev`
+and checked with `curl`: all 5 new article pages (200), all 6 category
+hubs (200), `/sitemap.xml` (200, exactly 24 `<url>` entries — 5 static
++ 6 category + 13 posts), `/robots.txt` (200), `/llms.txt` (200),
+`/blog/feed.xml` (200), and a real 404 for an unknown slug. Parsed
+every JSON-LD block on a new post with `json.loads` (0 errors) and
+both `sitemap.xml`/`feed.xml` with `xml.dom.minidom` (well-formed).
+Verified all 4 new inline cross-links render as real `<a href>` tags.
+Verified all 5 new posts' Unsplash hero image URLs return 200 via
+direct `curl` — a real external dependency, not just internal logic.
+Cross-checked every post's `relatedPosts` slugs resolve across all 13
+files independently with a small Python/PyYAML script, rather than
+only trusting the build script's own validation.
