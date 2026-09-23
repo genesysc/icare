@@ -128,7 +128,7 @@ If you've completed induction and have some experience, ask your manager whether
 Certificates, training dates, specialisms, supervision notes. When a Fair Pay Agreement eventually links pay and progression more closely, documented experience will matter.
 
 **4. Have your say.**
-Trade unions will gather members' views before negotiations start in 2027. That's the moment worker input carries the most weight.
+Trade unions will gather members' views before negotiations start in 2027, and the [Big Conversation on Care](/blog/casey-commission-big-conversation-on-care) is open to everyone until April 2027. That's the moment worker input carries the most weight.
 
 ## What providers should do now
 

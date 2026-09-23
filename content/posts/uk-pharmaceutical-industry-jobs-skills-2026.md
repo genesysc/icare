@@ -130,7 +130,7 @@ Companies that want to grow in the UK can't rely only on graduate intake or inte
 
 ## The bottom line
 
-UK pharma is moving from a year of retreat towards a year of cautious recovery. The investment is starting to come back.
+UK pharma is moving from a year of retreat towards a year of cautious recovery. The investment is starting to come back, and [more medicines are reaching NHS patients](/blog/nice-approvals-2026-cancer-workforce-capacity).
 
 But jobs don't create themselves. The industry's ability to turn £2 billion of commitments into tens of thousands of careers depends on something slower and harder than pricing policy: a steady supply of skilled people.
 

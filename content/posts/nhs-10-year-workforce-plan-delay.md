@@ -71,7 +71,7 @@ Here's how the timeline has slipped:
 - **8 July 2026:** James Murray, health secretary at the time, told the Health and Social Care Committee the plan was "largely done" but [couldn't confirm a publication date](https://www.nursinginpractice.com/latest-news/health-secretary-pressed-on-nhs-workforce-plan-delays/).
 - **August 2026:** [Nursing Times reported](https://www.nursingtimes.net/workforce/latest-workforce-news/australia-publishes-first-nursing-workforce-strategy-12-08-2026/) that publication was expected in autumn 2026.
 
-The summer also brought a change in national political leadership, which DHSC officials had flagged as a possible factor in timing.
+The summer also brought a change in national political leadership, which DHSC officials had flagged as a possible factor in timing. It arrived alongside [the biggest NHS reorganisation in a decade](/blog/health-bill-nhs-england-abolition-2026).
 
 ## Fewer staff, working differently
 

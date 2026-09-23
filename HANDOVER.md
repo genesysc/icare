@@ -1846,7 +1846,7 @@ repo's own conventions:
 | `next/image` + Imgix loader | Unsplash's CDN (`images.unsplash.com/photo-{id}`) accepts Imgix-style crop/quality params directly — hotlinked with plain `<img>`, explicit `width`/`height` (CLS), `loading="lazy"` (below the fold) / `fetchpriority="high"` (hero only, the Next `priority` equivalent). No API key needed for this part — confirmed live via `curl` before relying on it. |
 | Unsplash API metadata + attribution + download-endpoint trigger | **Resolved 2026-09-16, founder provided a real key.** `UNSPLASH_ACCESS_KEY` is now set as a Worker secret (via the Cloudflare dashboard, not `wrangler.jsonc` — same pattern as `SENDER_API_KEY`). Wiring it up surfaced a real problem, found by testing the key against the live API rather than assuming it "just worked" once present: Unsplash has **two non-interchangeable photo identifiers** — the CDN path id (`images.unsplash.com/photo-{this}`, e.g. `1576765974257-b414b9ea0051`) used for hotlinking, and the API's own short `id` (e.g. `d3fe9qJDqaI`) that `GET /photos/{id}` requires. The 8 launch posts' `heroImage.unsplashId` values are the CDN kind (needed to build the offline prototype's hotlinks) — calling the API with one of those 404s "Couldn't find Asset", confirmed directly, not guessed. **Fix, scoped to future posts as the founder asked** (not a re-pick of the 8 launch images, which would risk misattributing a *different* photographer to a *wrong* photo if resolved by guesswork instead of the real id): a new optional frontmatter field, `heroImage.unsplashPhotoId` (the real API id — the last segment of a photo's `unsplash.com/photos/...` permalink). When a post sets it, `build-blog-content.js` calls the Unsplash API **once at build time** (`UNSPLASH_ACCESS_KEY=... npm run build:blog`), resolves the correct CDN id from the API's own `urls.raw` (never hand-constructed), the real photographer name + profile link, and fires the required download-location trigger exactly once — all baked into the committed `src/blog-content.ts`. This is a real improvement over a naive "call the API on every pageview" design: zero runtime API dependency for these posts (faster, resilient to the key being rotated/revoked later, doesn't over-trigger the download endpoint on every view). `src/blog.ts`'s article route uses `post.heroImage.credit` directly when present; the older per-request `resolveUnsplashCredit()` (`src/blog-images.ts`) stays as the fallback for posts that only have the legacy `unsplashId`. Verified against the real API before trusting it: resolved id `d3fe9qJDqaI` → CDN id `1576765974257-b414b9ea0051` → real credit `CDC` / `unsplash.com/@cdc` → hotlink URL built from that CDN id returned a real `200`, all checked directly via `curl`/a scratch build run (a temporary test post in `content/posts/`, removed and the file rebuilt clean afterward — never committed). |
 | Waitlist-capture band | **Deliberately not a waitlist form.** The handover's own band assumed candidates were still pre-launch; they aren't — the 2026-09-14 landing rebuild already replaced `landing.html`'s waitlist form with real `/sign-up`/`/sign-in` CTAs once the candidate product went live (see PROGRESS.md). Building a stale email-capture form next to an already-working signup flow would have been a regression, not a feature — so the blog's band and article-end CTA use the same real `/sign-up` / `/sign-in` links `landing.html` does. Employers still have a genuine waitlist (`employers.html`, untouched, out of scope here). |
-| `app/sitemap.ts` / `app/robots.ts` | Neither existed anywhere in this repo before — added at `GET /sitemap.xml` / `GET /robots.txt` in `src/index.ts`, covering `/`, `/employers`, `/privacy`, `/terms`, `/blog`, all 6 category hubs, and all 8 (growing) posts with `lastmod` from `dateModified`. |
+| `app/sitemap.ts` / `app/robots.ts` | Neither existed anywhere in this repo before — added at `GET /sitemap.xml` / `GET /robots.txt` in `src/index.ts`, covering `/`, `/employers`, `/privacy`, `/terms`, `/blog`, all 6 category hubs, and all 13 (growing) posts with `lastmod` from `dateModified`. |
 | Author page, `Organization.sameAs`, analytics/consent tool, posting cadence | Open questions from the handover's own §14, genuinely unanswered here too — not decided unilaterally. See "Open questions" below. |
 
 **Real bugs found by testing, not by reading the code:**
@@ -1858,7 +1858,7 @@ repo's own conventions:
 
 | File | What |
 |---|---|
-| `content/posts/*.md` | The 8 launch posts, git-tracked (frontmatter + Markdown body) — the actual source of truth for blog content. |
+| `content/posts/*.md` | **13 posts as of 2026-09-23** (8 launch + 5 added that session — see §20), git-tracked (frontmatter + Markdown body) — the actual source of truth for blog content. |
 | `scripts/build-blog-content.js` | Content build step (`npm run build:blog`) — parses + validates + converts Markdown to `src/blog-content.ts`. devDependencies only (`marked`, `js-yaml`); never runs inside the deployed Worker. |
 | `src/blog-content.ts` | **Generated, committed** — typed `BLOG_POSTS` array (frontmatter + pre-rendered `bodyHtml` + extracted `toc`). Re-run the build script and recommit after any content change. |
 | `src/blog-images.ts` | Unsplash CDN URL helpers (hero/featured/list/related/OG crops) + `resolveUnsplashCredit()` (generic fallback today, real API once `UNSPLASH_ACCESS_KEY` exists). |
@@ -2517,3 +2517,78 @@ is unaffected). Also re-verified the underlying RPC directly via SQL
 (`news_ingest_status()` with the correct secret vs. a wrong one) before
 wiring the route to it. `tsc --noEmit` and `wrangler deploy --dry-run`
 both clean.
+
+## 23. Blog expanded from 8 to 13 posts + `llms.txt` — 2026-09-23
+
+Founder uploaded an updated blog handover package (`icare-blog-handover.zip`)
+— same `HANDOVER.md` shape as the 2026-09-16 one described in §15, now
+with 5 new posts (13 total) and an updated §7 SEO spec. **Checked
+against the live build before writing anything**, same discipline as
+§15/§18: the new handover again targets a Next.js App Router codebase
+that doesn't exist — this repo (Cloudflare Workers + Hono) is still the
+one live site. Rather than scaffold a second stack (the exact "built
+twice" mistake flagged elsewhere in this doc, §14), extended the
+existing Workers-based blog from §15 in place.
+
+**What the new handover asked for that was already shipped in §15**,
+verified live rather than assumed: self-referencing canonical URLs
+built from a fixed `SITE` constant + slug — never `c.req.url` or a
+query string, confirmed by curling a post with a real
+`?utm_source=share&utm_medium=social` tail and checking the rendered
+`<link rel="canonical">` still had no query string — `BlogPosting`/
+`BreadcrumbList`/`FAQPage`/`Organization` JSON-LD, `sitemap.xml`,
+`robots.txt` already allowing all crawlers including AI bots, RSS,
+per-platform share UTMs, GA4. None of this needed touching.
+
+**What was genuinely new:**
+- **5 new posts** (`casey-commission-big-conversation-on-care`,
+  `health-bill-nhs-england-abolition-2026`,
+  `resident-doctors-deal-2026-what-changes`,
+  `nice-approvals-2026-cancer-workforce-capacity`,
+  `unpaid-carers-leaving-work-2026`) added to `content/posts/`,
+  bringing the total to 13.
+- **4 of the original 8 posts carried a one-line edit each** (a single
+  inline link added to an existing paragraph, cross-linking to a new
+  post) — diffed the zip's copies against what's in the repo before
+  assuming only the 5 new files mattered, rather than trusting the
+  package's own file list. Applied exactly as provided.
+- **New `GET /llms.txt`** (`src/index.ts`) — the emerging AI-crawler
+  convention the new spec's §7.6 asks for: site description, a link to
+  `/blog` and the sitemap, and a "handful" (deliberately not all 13,
+  per the spec's own wording) of posts — the featured post plus the 4
+  most recently published, deduplicated. Uses the same
+  `new URL(c.req.url).origin` pattern `sitemap.xml`/`robots.txt`
+  already use, not a new convention.
+- **One real, hard build failure caught and fixed**:
+  `build-blog-content.js`'s Zod-equivalent validation (§15) correctly
+  failed the build on `health-bill-nhs-england-abolition-2026.md`'s
+  `seoTitle` being 61 characters against the documented ≤60 limit —
+  trimmed to 59 ("NHS England's" → "NHS England") without changing the
+  keyword or meaning.
+- **Pre-existing, not a regression**: the build now warns (never
+  errors — by design, see §15) that frontmatter `readingTime` differs
+  from the computed value by more than a minute, on **all 13** posts
+  including the 4 untouched originals — confirmed this already
+  happened before this session's changes by stashing them and
+  re-running the build. Not something this session introduced; not
+  fixed here either, since it's cosmetic and the founder's own posts
+  set the frontmatter values, not a computed artifact of this repo.
+
+**Verified live, not just built clean**: `tsc --noEmit` and
+`wrangler deploy --dry-run` both clean. Ran a real local `wrangler dev`
+and checked, via `curl`: all 5 new article pages, all 6 category hubs,
+`/sitemap.xml` (24 `<url>` entries — 5 static + 6 category + 13 posts,
+exactly as expected), `/robots.txt`, `/llms.txt`, `/blog/feed.xml` all
+return `200`; an unknown slug returns a real `404`. Parsed every
+JSON-LD block on a new article with Python's `json.loads` (0 syntax
+errors) and both XML feeds with `xml.dom.minidom` (well-formed).
+Confirmed the canonical-under-UTM-query-string case from the new
+spec's §7.0 directly: `/blog/unpaid-carers-leaving-work-2026?utm_source=
+share&utm_medium=social` still renders a clean, query-string-free
+canonical. Verified all 4 of the new inline cross-links actually
+render as real `<a href>` tags on the edited posts. Verified all 5 new
+Unsplash hero image URLs return `200` via direct `curl` (a real
+external dependency, not just internal logic). Cross-checked every
+post's `relatedPosts` slugs resolve across all 13 files with a small
+Python/PyYAML script (the build script would have hard-failed
+otherwise, but checked independently rather than trusting that alone).

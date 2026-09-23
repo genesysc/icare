@@ -217,6 +217,32 @@ app.get("/robots.txt", (c) => {
   });
 });
 
+// llms.txt — an emerging (not yet universal) convention some AI crawlers
+// check for a short, plain description of the site plus links to the
+// content worth indexing. Directional, not load-bearing (2026-09-23
+// blog handover, §7.6) — a handful of posts, not all of them, since the
+// point is orientation, not a second sitemap. Picks the featured post
+// (if any) plus the 4 most recently published, deduplicated.
+app.get("/llms.txt", (c) => {
+  const origin = new URL(c.req.url).origin;
+  const sorted = [...BLOG_POSTS].sort((a, b) => (a.datePublished < b.datePublished ? 1 : -1));
+  const featured = sorted.find((p) => p.featured);
+  const picks = [featured, ...sorted].filter((p, i, arr) => p && arr.findIndex((q) => q?.slug === p.slug) === i).slice(0, 5);
+  const lines = [
+    "# iCare",
+    "",
+    "> The professional network for UK health and social care. Candidates prove their registrations, training and checks once, then carry that trust to every employer on iCare — candidates never pay, employers do.",
+    "",
+    `- [Insights (blog)](${origin}/blog): workforce news, careers and policy across UK health and social care, explained plainly.`,
+    `- [Sitemap](${origin}/sitemap.xml)`,
+    "",
+    "## Recent Insights posts",
+    "",
+    ...picks.map((p) => `- [${p!.title}](${origin}/blog/${p!.slug}): ${p!.metaDescription}`),
+  ];
+  return c.text(lines.join("\n") + "\n", 200, { "Content-Type": "text/plain; charset=utf-8" });
+});
+
 // News feed ingestion — a Cloudflare Cron Trigger (wrangler.jsonc's
 // triggers.crons), not a Hono route. Runs unattended, on its own
 // schedule, with no request/response cycle at all — see
