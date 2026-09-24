@@ -5639,3 +5639,31 @@ direct `curl` — a real external dependency, not just internal logic.
 Cross-checked every post's `relatedPosts` slugs resolve across all 13
 files independently with a small Python/PyYAML script, rather than
 only trusting the build script's own validation.
+
+## 2026-09-24 — Rounds page: news moved from above the feed to a right-hand sidebar
+
+Founder request: the news module sat on top of the Rounds feed; wanted it
+separated to the right side of the screen with the network feed staying
+in the middle. Pure layout change in `src/rounds.html`, no backend or JS
+logic touched (all wiring is by `data-*` selector, so moving the news
+card in the DOM didn't require a single JS change):
+
+- `.wrap` widened 640 → 1060px and switched from a single centred column
+  to a `flex-wrap` row (`justify-content: center; align-items:
+  flex-start`).
+- New `.main-col` (600px) holds the feed surface — "Waiting on you",
+  composer, `Rounds` heading, feed list — so it stays centred as the
+  primary column.
+- New `.news-col` (330px, sticky `top: 116px` so it clears the auto-hide
+  glass nav) holds the news card on the right.
+- `data-home-content` now uses a `.home-grid` wrapper; the news card was
+  moved into an `<aside class="news-col">` placed *after* the main
+  column in the DOM.
+- Responsive: below 960px viewport the `flex-wrap` drops the sidebar's
+  sticky positioning and stacks feed-first, news-below, so the feed
+  stays the primary surface at every width.
+- `.greeting` max-width 720 → 950px so the page title stays visually
+  aligned with the feed column's left edge on wide screens.
+
+Verified with `npm run typecheck` (clean). Branch:
+`feat/rounds-news-sidebar`.
