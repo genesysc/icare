@@ -770,7 +770,7 @@ function icareRequireAuth(signInPath) {
       var account = result.body.account;
       if (account.role !== "employer") {
         // Signed in, but not an employer account — send them to the right home.
-        window.location.href = "/dashboard";
+        window.location.href = "/rounds";
         return;
       }
       if (account.full_name) {
