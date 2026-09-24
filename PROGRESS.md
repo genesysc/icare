@@ -5639,3 +5639,25 @@ direct `curl` — a real external dependency, not just internal logic.
 Cross-checked every post's `relatedPosts` slugs resolve across all 13
 files independently with a small Python/PyYAML script, rather than
 only trusting the build script's own validation.
+
+## 2026-09-24 — Signed-in candidates land on Rounds, not Profile
+
+Founder request: "upon signing in to my account, the first page it
+automatically lands on is my profile. i want it to be directed to Rounds
+page instead." Completed candidates were routed to `/dashboard` (Profile)
+after every sign-in path. Switched the four post-auth `onboardingDone ?
+"/dashboard" : "/onboarding"`-shaped landings to `/rounds`:
+
+- `src/sign-in.html` — password sign-in
+- `src/verify.html` — OTP verify / OAuth callback / magic link
+- `src/reset-password.html` — completing a password reset
+- `src/employer-home.html` — the "signed in but not an employer account"
+  redirect that sends a candidate to their own home (was `/dashboard`)
+
+Unchanged by design: brand-new candidates (onboarding not done) still go
+to `/onboarding`; employers still go to `/employer/home`; and
+`onboarding.html`'s post-wizard landing stays `/dashboard` (that's the
+"here's your profile" step, a different flow from signing in). All other
+`/dashboard` references in the codebase are nav tabs/back-links, not
+landings, and were left alone. Verified with `npm run typecheck` (clean).
+Branch: `fix/post-signin-landing-rounds`.
