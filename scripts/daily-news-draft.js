@@ -483,7 +483,14 @@ async function main() {
     }
   }
 
-  if (roundupItems.length > 0) {
+  // A genuinely degenerate request below ~3 items — asking for a
+  // 600-900 word "roundup" of what's really just 1-2 headlines (seen
+  // live: all 5 Google News queries 503'd in one run, an official-feed-
+  // only fetch legitimately returning almost nothing) isn't a case
+  // worth spending a Workers AI call on; it's not this feed's fault or
+  // the model's fault, there's just not enough to summarize.
+  const MIN_ROUNDUP_ITEMS = 3;
+  if (roundupItems.length >= MIN_ROUNDUP_ITEMS) {
     try {
       const draft = await draftRoundup(roundupItems);
       draft.title = draft.title || `Today in Health & Social Care — ${new Date().toISOString().slice(0, 10)}`;
@@ -492,6 +499,8 @@ async function main() {
     } catch (err) {
       console.warn(`[daily-news-draft] Skipping roundup: ${err instanceof Error ? err.message : err}`);
     }
+  } else if (roundupItems.length > 0) {
+    console.log(`[daily-news-draft] Only ${roundupItems.length} roundup item(s) — too few for a meaningful roundup, skipping.`);
   }
 
   if (written.length === 0) {
