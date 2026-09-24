@@ -248,6 +248,18 @@ const MODEL = "@cf/zai-org/glm-4.7-flash"; // same model already vetted for stru
 // generous for a single completion but still bounded.
 const WORKERS_AI_TIMEOUT_MS = 90_000;
 
+// Was 4000 — verified live that this was the real root cause of every
+// single draft attempt failing (not a fluke): a full DRAFT_SCHEMA
+// response (metadata fields + a 700-1000 word bodyMarkdown + a 2-4 item
+// faq array, all as schema-constrained JSON) genuinely needs more than
+// 4000 tokens of output budget. Every one of 6 real attempts across 3
+// stories came back either with an empty response field or a timeout —
+// consistent with the model exhausting its budget mid-generation under
+// grammar-constrained decoding rather than a transient flake. glm-4.7-
+// flash's context window is 131,072 tokens (see src/candidates.ts's own
+// comment), so there's ample headroom to raise this substantially.
+const MAX_RESPONSE_TOKENS = 8000;
+
 async function callWorkersAIOnce(messages) {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
@@ -260,7 +272,7 @@ async function callWorkersAIOnce(messages) {
     res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${MODEL}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, response_format: DRAFT_RESPONSE_FORMAT, max_tokens: 4000 }),
+      body: JSON.stringify({ messages, response_format: DRAFT_RESPONSE_FORMAT, max_tokens: MAX_RESPONSE_TOKENS }),
       signal: controller.signal,
     });
   } catch (err) {
