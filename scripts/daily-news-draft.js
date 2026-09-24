@@ -258,21 +258,27 @@ const MODEL = "@cf/zai-org/glm-4.7-flash"; // same model already vetted for stru
 const BODY_MAX_TOKENS = 2500; // ~1000 words of body content, generous headroom
 const METADATA_MAX_TOKENS = 1500; // small: title/description/tags/keywords/faq only, no body
 
-// Un-tuned pending live evidence for this new two-call shape — the
-// previous 90s/180s figures were measured against the old single-call
-// shape and don't transfer directly. Each individual call here is much
-// smaller than that one, so this starts conservative; raise it again if
-// real runs show it's still too tight, same evidence-first approach as
-// before rather than guessing generously up front.
-const WORKERS_AI_TIMEOUT_MS = 60_000;
+// Two different budgets, not one shared value — a mistake in the first
+// version of this split. Removing the JSON schema from the body call
+// made the *request* lighter, but not the *output*: it's still asking
+// for the same 700-1000 words of prose as before, so it deserves the
+// same generous timeout the old single call needed, not a smaller one.
+// Verified live: at a shared 60s, the body call alone was still timing
+// out / coming back empty even with zero JSON-schema constraint at all —
+// that was this 60s figure being wrong for body specifically, not
+// evidence the split itself failed. Metadata's output is genuinely
+// small (title/description/tags/keywords/faq, no body text) so it can
+// stay short.
+const BODY_TIMEOUT_MS = 150_000;
+const METADATA_TIMEOUT_MS = 60_000;
 
-async function callWorkersAIOnce(messages, { maxTokens, responseFormat }) {
+async function callWorkersAIOnce(messages, { maxTokens, responseFormat, timeoutMs }) {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
   if (!accountId || !apiToken) throw new Error("CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required");
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), WORKERS_AI_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let res;
   try {
     res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${MODEL}`, {
@@ -282,7 +288,7 @@ async function callWorkersAIOnce(messages, { maxTokens, responseFormat }) {
       signal: controller.signal,
     });
   } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") throw new Error(`Workers AI request timed out after ${WORKERS_AI_TIMEOUT_MS}ms`);
+    if (err instanceof Error && err.name === "AbortError") throw new Error(`Workers AI request timed out after ${timeoutMs}ms`);
     throw err;
   } finally {
     clearTimeout(timeout);
@@ -327,7 +333,7 @@ async function generateMetadata(bodyMarkdown, contextNote) {
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: user },
     ],
-    { maxTokens: METADATA_MAX_TOKENS, responseFormat: METADATA_RESPONSE_FORMAT }
+    { maxTokens: METADATA_MAX_TOKENS, responseFormat: METADATA_RESPONSE_FORMAT, timeoutMs: METADATA_TIMEOUT_MS }
   );
 }
 
@@ -339,7 +345,7 @@ async function draftRoundup(items) {
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: bodyUser },
     ],
-    { maxTokens: BODY_MAX_TOKENS }
+    { maxTokens: BODY_MAX_TOKENS, timeoutMs: BODY_TIMEOUT_MS }
   );
   const metadata = await generateMetadata(
     bodyMarkdown,
@@ -355,7 +361,7 @@ async function draftMajorStory(cluster) {
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: bodyUser },
     ],
-    { maxTokens: BODY_MAX_TOKENS }
+    { maxTokens: BODY_MAX_TOKENS, timeoutMs: BODY_TIMEOUT_MS }
   );
   const metadata = await generateMetadata(bodyMarkdown, `It's a standalone explainer article about one specific news story.`);
   return { ...metadata, bodyMarkdown };
