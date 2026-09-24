@@ -227,7 +227,16 @@
   }
   .tab-bar-dot.is-visible { display: block; }
 
-  .wrap { max-width: 640px; margin: 0 auto; padding: 12px 24px 40px; display: flex; flex-direction: column; gap: 16px; }
+  /* Layout — two-column on desktop: the network feed (waiting on you +
+     composer + rounds list) stays centred, news moves to a right-hand
+     sidebar. Wraps to a single column (feed first, news below) on narrow
+     screens via flex-wrap, so the feed stays the primary surface at every
+     width. */
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 12px 24px 40px; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 20px; }
+  .home-grid { width: 100%; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 20px; }
+  .main-col { width: 600px; max-width: 100%; display: flex; flex-direction: column; gap: 16px; }
+  .news-col { width: 330px; max-width: 100%; flex: none; display: flex; flex-direction: column; gap: 16px; position: sticky; top: 116px; align-self: flex-start; }
+  @media (max-width: 960px) { .news-col { position: static; } }
 
   .card {
     background: var(--glass-fill); border-radius: 22px; border: 1px solid var(--glass-border);
@@ -341,7 +350,7 @@
   .icon-nav-item.is-active { background: rgba(51, 0, 114, 0.1); color: var(--plum-950); }
   .icon-nav-icon-wrap { position: relative; display: flex; }
 
-  .greeting { padding: 22px 24px 4px; max-width: 720px; margin: 0 auto; }
+  .greeting { padding: 22px 24px 4px; max-width: 950px; margin: 0 auto; }
   .greeting h1 { font-size: 1.7rem; }
   .greeting p { margin-top: 4px; font-size: 14px; color: var(--ink-soft); }
 
@@ -456,89 +465,95 @@
 <div class="wrap">
   <p class="loading-note" data-loading>Loading Rounds…</p>
 
-  <div data-home-content hidden style="display:flex; flex-direction:column; gap:16px;">
+  <div data-home-content hidden class="home-grid">
 
-    <!-- News module — content lives in news_items (migration 0048),
+    <div class="main-col">
+
+      <div class="card" data-waiting-section hidden>
+        <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:4px;">
+          <h2 style="font-size:1.05rem;">Waiting on you</h2>
+          <a href="/invites" style="font-size:12.5px; font-weight:700; color:var(--teal-700); text-decoration:none;">View all →</a>
+        </div>
+        <div data-waiting-list></div>
+      </div>
+
+      <div class="card">
+        <form class="post-form" data-post-form>
+          <input type="text" maxlength="200" placeholder="Title (optional)" data-post-title />
+          <textarea maxlength="8000" placeholder="Share an update…" data-post-body required></textarea>
+          <div class="post-char-count" data-post-char-count>0 / 8000</div>
+
+          <input type="file" hidden data-file-input />
+          <div class="composer-attachment" data-attachment hidden>
+            <span data-attachment-label></span>
+            <button type="button" class="remove-attach" data-attachment-remove>✕</button>
+          </div>
+
+          <div class="inline-search" data-mention-search hidden>
+            <input type="text" placeholder="Search a name to mention…" data-mention-query />
+            <div class="search-results" data-mention-results></div>
+          </div>
+          <div class="inline-search" data-venue-search hidden>
+            <input type="text" placeholder="Search a workplace, training centre, or venue…" data-venue-query />
+            <button type="button" class="geo-btn" data-venue-use-location>📍 Narrow by my location</button>
+            <div class="search-results" data-venue-results></div>
+          </div>
+
+          <div class="add-row">
+            <button type="button" class="add-toggle" data-add-toggle>+ Add to your post</button>
+            <div class="add-options" data-add-options>
+              <button type="button" class="add-option" data-add="photo"><span class="add-icon-circle">🖼️</span>Photo</button>
+              <button type="button" class="add-option" data-add="video"><span class="add-icon-circle">🎥</span>Video</button>
+              <button type="button" class="add-option" data-add="document"><span class="add-icon-circle">📄</span>Document</button>
+              <button type="button" class="add-option" data-add="mention"><span class="add-icon-circle">@</span>Mention</button>
+              <button type="button" class="add-option" data-add="checkin"><span class="add-icon-circle">📍</span>Check in</button>
+            </div>
+            <p class="composer-note">Don't upload anything that could identify a person you support.</p>
+          </div>
+
+          <div class="post-form-foot">
+            <div class="visibility-select" data-visibility-select>
+              <button type="button" class="visibility-option is-active" data-visibility="public">Public</button>
+              <button type="button" class="visibility-option" data-visibility="connections">Connections only</button>
+            </div>
+            <button type="submit" class="btn-primary" data-post-submit>Post</button>
+          </div>
+          <p class="status" data-status="post"></p>
+        </form>
+      </div>
+
+      <p class="feed-heading">Rounds</p>
+      <div data-feed-list></div>
+      <p class="empty-note" data-feed-empty hidden>No posts yet from you or other candidates — be the first to share
+        something.</p>
+
+    </div>
+
+    <!-- News moves to a right-hand sidebar (centre column above holds the
+         feed); stacks below the feed on narrow screens — see .wrap/.home-grid
+         layout rules. Content still lives in news_items (migration 0048),
          populated by the cron ingestion job (src/news-ingest.ts), read
-         via GET /news (src/news.ts). See HANDOVER.md's news-feed
-         section for the full design writeup and the open questions
-         this session had to answer rather than guess (rolling window,
-         image sourcing, comment moderation). -->
-    <div class="card" data-news-section hidden>
-      <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;">
-        <h2 style="font-size:1.05rem;">Today in care &amp; health</h2>
+         via GET /news (src/news.ts). -->
+    <aside class="news-col">
+      <div class="card" data-news-section hidden>
+        <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;">
+          <h2 style="font-size:1.05rem;">Today in care &amp; health</h2>
+        </div>
+        <div class="filter-row" data-news-filters>
+          <button type="button" class="filter-chip is-active" data-news-filter="">For you</button>
+          <button type="button" class="filter-chip" data-news-filter="adult-social-care">Adult social care</button>
+          <button type="button" class="filter-chip" data-news-filter="nhs-policy">NHS &amp; policy</button>
+          <button type="button" class="filter-chip" data-news-filter="global-health">Global health</button>
+          <button type="button" class="filter-chip" data-news-filter="innovation">Innovation</button>
+        </div>
+        <p class="loading-note" data-news-loading style="padding:20px 0;">Loading news…</p>
+        <p class="empty-note" data-news-empty hidden>Nothing here yet — check back soon.</p>
+        <div data-news-lede></div>
+        <div data-news-list></div>
+        <button type="button" class="news-more-btn" data-news-more hidden>Show more</button>
       </div>
-      <div class="filter-row" data-news-filters>
-        <button type="button" class="filter-chip is-active" data-news-filter="">For you</button>
-        <button type="button" class="filter-chip" data-news-filter="adult-social-care">Adult social care</button>
-        <button type="button" class="filter-chip" data-news-filter="nhs-policy">NHS &amp; policy</button>
-        <button type="button" class="filter-chip" data-news-filter="global-health">Global health</button>
-        <button type="button" class="filter-chip" data-news-filter="innovation">Innovation</button>
-      </div>
-      <p class="loading-note" data-news-loading style="padding:20px 0;">Loading news…</p>
-      <p class="empty-note" data-news-empty hidden>Nothing here yet — check back soon.</p>
-      <div data-news-lede></div>
-      <div data-news-list></div>
-      <button type="button" class="news-more-btn" data-news-more hidden>Show more</button>
-    </div>
+    </aside>
 
-    <div class="card" data-waiting-section hidden>
-      <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:4px;">
-        <h2 style="font-size:1.05rem;">Waiting on you</h2>
-        <a href="/invites" style="font-size:12.5px; font-weight:700; color:var(--teal-700); text-decoration:none;">View all →</a>
-      </div>
-      <div data-waiting-list></div>
-    </div>
-
-    <div class="card">
-      <form class="post-form" data-post-form>
-        <input type="text" maxlength="200" placeholder="Title (optional)" data-post-title />
-        <textarea maxlength="8000" placeholder="Share an update…" data-post-body required></textarea>
-        <div class="post-char-count" data-post-char-count>0 / 8000</div>
-
-        <input type="file" hidden data-file-input />
-        <div class="composer-attachment" data-attachment hidden>
-          <span data-attachment-label></span>
-          <button type="button" class="remove-attach" data-attachment-remove>✕</button>
-        </div>
-
-        <div class="inline-search" data-mention-search hidden>
-          <input type="text" placeholder="Search a name to mention…" data-mention-query />
-          <div class="search-results" data-mention-results></div>
-        </div>
-        <div class="inline-search" data-venue-search hidden>
-          <input type="text" placeholder="Search a workplace, training centre, or venue…" data-venue-query />
-          <button type="button" class="geo-btn" data-venue-use-location>📍 Narrow by my location</button>
-          <div class="search-results" data-venue-results></div>
-        </div>
-
-        <div class="add-row">
-          <button type="button" class="add-toggle" data-add-toggle>+ Add to your post</button>
-          <div class="add-options" data-add-options>
-            <button type="button" class="add-option" data-add="photo"><span class="add-icon-circle">🖼️</span>Photo</button>
-            <button type="button" class="add-option" data-add="video"><span class="add-icon-circle">🎥</span>Video</button>
-            <button type="button" class="add-option" data-add="document"><span class="add-icon-circle">📄</span>Document</button>
-            <button type="button" class="add-option" data-add="mention"><span class="add-icon-circle">@</span>Mention</button>
-            <button type="button" class="add-option" data-add="checkin"><span class="add-icon-circle">📍</span>Check in</button>
-          </div>
-          <p class="composer-note">Don't upload anything that could identify a person you support.</p>
-        </div>
-
-        <div class="post-form-foot">
-          <div class="visibility-select" data-visibility-select>
-            <button type="button" class="visibility-option is-active" data-visibility="public">Public</button>
-            <button type="button" class="visibility-option" data-visibility="connections">Connections only</button>
-          </div>
-          <button type="submit" class="btn-primary" data-post-submit>Post</button>
-        </div>
-        <p class="status" data-status="post"></p>
-      </form>
-    </div>
-
-    <p class="feed-heading">Rounds</p>
-    <div data-feed-list></div>
-    <p class="empty-note" data-feed-empty hidden>No posts yet from you or other candidates — be the first to share
-      something.</p>
   </div>
 </div>
 
