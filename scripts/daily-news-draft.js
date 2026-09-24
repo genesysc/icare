@@ -241,12 +241,18 @@ const DRAFT_RESPONSE_FORMAT = { type: "json_schema", json_schema: { name: "blog_
 
 const MODEL = "@cf/zai-org/glm-4.7-flash"; // same model already vetted for structured output in src/candidates.ts
 
-// No timeout here previously — a slow/hung Workers AI structured-output
-// call (real, observed: 700-1000 word bodyMarkdown + faq array, all
-// schema-constrained, pushes a "flash" model hard) could block the whole
-// CI job indefinitely, well past GitHub's default 6h job timeout. 90s is
-// generous for a single completion but still bounded.
-const WORKERS_AI_TIMEOUT_MS = 90_000;
+// Was 90s — verified live that this, not the token budget, was the real
+// binding constraint: after raising MAX_RESPONSE_TOKENS, every one of 6
+// attempts (3 stories x 2 tries) timed out at *exactly* 90000ms, with
+// zero empty-response failures this time (vs. a mix of both at the
+// lower token budget). That pattern means the request was being
+// aborted mid-generation, not failing on Cloudflare's end — schema-
+// constrained decoding of an 8000-token structured response is
+// genuinely slower than a free-form completion of the same size. No
+// timeout here at all previously could hang the whole CI job
+// indefinitely though, so this stays a bounded guard, just a more
+// realistic bound for this response size.
+const WORKERS_AI_TIMEOUT_MS = 180_000;
 
 // Was 4000 — verified live that this was the real root cause of every
 // single draft attempt failing (not a fluke): a full DRAFT_SCHEMA
