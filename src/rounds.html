@@ -529,12 +529,16 @@
 
     </div>
 
-    <!-- News moves to a right-hand sidebar (centre column above holds the
-         feed); stacks below the feed on narrow screens — see .wrap/.home-grid
-         layout rules. Content still lives in news_items (migration 0048),
-         populated by the cron ingestion job (src/news-ingest.ts), read
-         via GET /news (src/news.ts). -->
-    <aside class="news-col">
+    <!-- News module temporarily pulled from the live page (founder request,
+         2026-09-24) — the daily ingestion cron and the Workers AI-backed
+         blog-draft automation both proved unreliable enough in testing
+         that this is being paused rather than shipped in a half-working
+         state. `hidden` here, not deleted: the backend (news_items table,
+         migration 0048, src/news.ts, src/news-ingest.ts) is untouched and
+         `loadNews("")` below is simply not called, so this is a clean,
+         reversible switch to flip back on once the ingestion pipeline is
+         solid — see PROGRESS.md's entry from this date for the full story. -->
+    <aside class="news-col" hidden>
       <div class="card" data-news-section hidden>
         <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;">
           <h2 style="font-size:1.05rem;">Today in care &amp; health</h2>
@@ -1336,7 +1340,9 @@ function icareRequireAuth(signInPath) {
     document.querySelector("[data-invites-dot]").classList.toggle("is-visible", pendingInvites.length > 0);
     renderWaiting(pendingInvites, pendingConnections);
 
-    loadNews("");
+    // News module temporarily pulled from the live page — see the
+    // comment on <aside class="news-col"> above. Not calling loadNews()
+    // means no /news request at all on page load while it's hidden.
     loadFeed();
   }).catch(function () {
     document.querySelector("[data-loading]").textContent = "Couldn't load Rounds. Try refreshing the page.";

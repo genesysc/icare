@@ -2592,3 +2592,109 @@ external dependency, not just internal logic). Cross-checked every
 post's `relatedPosts` slugs resolve across all 13 files with a small
 Python/PyYAML script (the build script would have hard-failed
 otherwise, but checked independently rather than trusting that alone).
+
+## 24. Rounds news module paused (hidden, not deleted); daily-news-draft.js debugged but still unconfirmed — 2026-09-24
+
+Two separate systems, both involving Workers AI/external feeds, proved
+unreliable enough live-tested this session that the founder asked to
+pull the Rounds news module off the live site "for now" and keep
+debugging the blog-draft automation somewhere lower-stakes rather than
+against production. Read this section before touching either system
+again.
+
+**Rounds news module (§19-§22) — hidden, backend untouched.**
+`src/rounds.html`'s `<aside class="news-col">` now carries a plain
+`hidden` attribute — this repo already has a global
+`[hidden] { display: none !important; }` rule (line ~321 of the same
+file's `<style>` block), which matters because `.news-col`'s own class
+rule sets `display: flex`; without that global `!important` override,
+the two rules would tie on specificity and the *later* one in the
+cascade (the author rule) would win, silently defeating `hidden`. It
+doesn't here, verified with a Playwright check (news column present in
+the DOM but not visible, zero `/news` requests fired on page load, feed
+column re-centers with no broken layout). The page's init flow no
+longer calls `loadNews("")`. Nothing else was touched — `news_items`
+(migration 0048), `src/news.ts`, `src/news-ingest.ts`, and the
+Cloudflare Cron Trigger are all still live and still running in the
+background; re-enabling is a two-line revert (drop `hidden`, restore
+`loadNews("")`), not a rebuild, once ingestion reliability is actually
+resolved (§22 left that specific question — is `scheduled()` even being
+invoked reliably — still open, never conclusively answered before this
+pause).
+
+**`scripts/daily-news-draft.js` — real, verified fixes; still not a
+confirmed working pipeline.** This is a completely separate system from
+the Rounds cron above (own script, own GitHub Actions workflow, uses
+free RSS/Google News rather than newsdata.io, calls Workers AI directly
+rather than through the Worker's `env.AI` binding) — it had never once
+succeeded since it shipped (§17), always failing on every scheduled run.
+Real causes found and fixed, each confirmed against live runs before
+moving to the next, not guessed in a batch:
+1. **401 Unauthorized from Workers AI's REST API.** The
+   `CLOUDFLARE_API_TOKEN` GitHub secret — shared with `wrangler deploy`
+   — had `Workers Scripts:Edit` (why deploys worked) but not the
+   separate `Workers AI` permission scope Cloudflare API tokens require
+   for `POST /accounts/{id}/ai/run/...`. Founder regenerated the token
+   with both scopes; confirmed live (the 401 disappeared, the job
+   started actually reaching the model).
+2. **No request timeout at all.** A slow/hung Workers AI call could
+   block the whole CI job indefinitely — observed live, a run sat over
+   6 minutes with zero response before being manually cancelled. Added
+   an `AbortController`-based timeout with one retry (this model has a
+   documented "returns an empty response field" quirk even on an
+   otherwise-healthy call — same one `src/candidates.ts`'s CV
+   extraction already handles defensively).
+3. **The single-call shape itself was the deeper problem.** The
+   original design asked for one schema-constrained JSON response
+   containing everything — metadata fields *and* a 700-1000 word
+   `bodyMarkdown` *and* a `faq` array. Raising `max_tokens` 4000→8000
+   didn't fix it — it just changed the failure signature from "empty
+   response" to "every single attempt times out at *exactly* 90000ms,"
+   which is the signature of the request being aborted mid-generation,
+   not of Cloudflare rejecting it. Grammar-constrained decoding of a
+   large free-text field embedded inside a JSON schema is genuinely
+   much slower than either a plain-text completion of the same size or
+   a small schema-constrained response with no large free-text field.
+4. **Restructured into two calls.** The article body is now generated
+   as a plain, unconstrained completion (no `response_format` at all —
+   this is the expensive part, and it decodes fast without a schema
+   fighting it), then fed into a second, much smaller
+   `METADATA_SCHEMA`-constrained call (no `bodyMarkdown` field at all)
+   that derives title/seoTitle/metaDescription/category/tags/keywords/
+   heroImageAlt/faq from the actual drafted text. The "End with a
+   '## The bottom line' section" instruction that used to live in the
+   old schema's field `description` was moved into the body-generation
+   prompts directly so it wasn't silently lost in the split.
+5. **A real tuning mistake in that split's first version**: gave both
+   the body and metadata calls the same 60s timeout, on the reasoning
+   that removing the JSON schema made the *request* lighter — but the
+   *output* didn't get smaller, the body call still needs to generate
+   the same 700-1000 words. Verified live: even the fully unconstrained
+   body-only call was still timing out/coming back empty at a shared
+   60s. Split into `BODY_TIMEOUT_MS` (150s) and `METADATA_TIMEOUT_MS`
+   (60s) — genuinely different budgets for genuinely different output
+   sizes.
+6. **`MIN_ROUNDUP_ITEMS = 3` floor.** One test run showed all 5 Google
+   News RSS queries returning `503` (near-certainly this session's own
+   repeated test triggers rate-limiting Google's endpoint), leaving
+   only 1 real item after falling back to the official feeds alone.
+   Asking the model for a 600-900 word "roundup" of essentially one
+   headline is a degenerate request no amount of timeout/token tuning
+   fixes — below the floor, the roundup is now skipped with a clear log
+   line instead of attempted and inevitably failing.
+
+**Where this actually stands**: every one of roughly 7 real end-to-end
+test runs against the live workflow today still failed to produce a
+mergeable draft PR — the most recent failure was confounded by the
+Google News rate-limit rather than by the code itself, so fix #6 above
+is not yet validated by a clean successful run. This is a real,
+verified trail of root causes and fixes, not a working pipeline yet.
+Founder's explicit call: stop testing against the live production
+GitHub Actions workflow (which burns real Workers AI calls and was
+tripping Google's own rate limit on every attempt) and continue
+debugging somewhere lower-stakes before re-enabling either this or the
+Rounds module. The workflow's own daily 06:00 UTC schedule was left
+enabled, not disabled — a failed run has always failed safely (no PR
+opens, `content/posts/` and `src/blog-content.ts` are untouched), so
+leaving it running costs nothing beyond the Workers AI calls
+themselves.

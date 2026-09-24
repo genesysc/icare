@@ -5667,3 +5667,75 @@ card in the DOM didn't require a single JS change):
 
 Verified with `npm run typecheck` (clean). Branch:
 `feat/rounds-news-sidebar`.
+
+---
+
+## 2026-09-24 — Rounds news module paused (hidden from live site), daily-news-draft.js debugged but not yet proven reliable
+
+Two separate news-related systems both proved unreliable enough this
+session that the founder asked to pull the Rounds news module from the
+live site "for now" rather than ship in a half-working state, and to
+keep debugging the AI-drafted blog automation somewhere lower-stakes.
+
+**Rounds news module — hidden, not deleted.** `<aside class="news-col">`
+in `src/rounds.html` now carries a plain `hidden` attribute (this repo
+already has a global `[hidden] { display: none !important; }` rule, so
+this genuinely hides it rather than being overridden by `.news-col`'s
+own `display: flex`), and the page's init flow no longer calls
+`loadNews("")` — so a signed-in candidate no longer sees the "Today in
+care & health" card at all, and the page makes zero `/news` requests on
+load. Nothing else touched: `news_items`/migration 0048, `src/news.ts`,
+`src/news-ingest.ts`, and the Cloudflare Cron Trigger itself are all
+still in place and still running in the background — re-enabling is a
+one-line revert (drop `hidden`, restore the `loadNews("")` call) once
+the ingestion pipeline's reliability is actually resolved, not a
+rebuild. Verified with a Playwright check: news column invisible, still
+present in the DOM (1 element, just hidden), zero `/news` requests
+fired, the feed column re-centers cleanly with no broken empty space.
+`tsc --noEmit` and `wrangler deploy --dry-run` both clean.
+
+**`scripts/daily-news-draft.js` — real bugs found and fixed, but still
+not confirmed reliable.** This is the separate GitHub Actions blog-
+draft automation (§17/§24 elsewhere in this doc), unrelated to the
+Rounds cron above — it had never once succeeded since it shipped. Root
+causes found and fixed this session, in order:
+1. `CLOUDFLARE_API_TOKEN` (the GitHub secret this script and
+   `wrangler deploy` share) was missing the Workers AI permission scope
+   — deploy only needs `Workers Scripts:Edit`. Fixed by the founder
+   regenerating the token with both scopes.
+2. `callWorkersAI()` had no request timeout at all — a slow/hung call
+   could block the whole CI job indefinitely.
+3. The single "generate metadata + a 700-1000 word body + a faq array,
+   all as one schema-constrained JSON blob" call reliably failed —
+   raising `max_tokens` 4000→8000 just changed the failure from "empty
+   response" to "every attempt times out at exactly 90s," pointing at
+   slow schema-constrained decoding of a large embedded free-text field
+   as the real bottleneck, not the token ceiling.
+4. Restructured into two calls: the article body is now generated as
+   plain unconstrained text (no `response_format` at all), then fed
+   into a second, much smaller schema-constrained call that derives
+   title/metadata/FAQ from the actual drafted text.
+5. A timeout-tuning mistake on the *first* version of that split — gave
+   both calls the same 60s budget, when the body call still needed the
+   same generous timeout as before since only the schema was removed,
+   not the output size. Split into `BODY_TIMEOUT_MS` (150s) and
+   `METADATA_TIMEOUT_MS` (60s).
+6. Added a `MIN_ROUNDUP_ITEMS = 3` floor after a live run showed all 5
+   Google News RSS queries 503'ing (rate-limited from this session's
+   own repeated test triggers), leaving 1 real item — asking for a
+   600-900 word "roundup" of one headline is a degenerate request no
+   amount of tuning fixes.
+
+Every one of the ~7 real end-to-end test runs today still failed to
+produce a mergeable draft, most recently confounded by that Google News
+rate-limit rather than by the code itself — so **this is not yet a
+confirmed fix**, just a documented trail of real, verified root causes
+with real fixes applied for each. Founder's call: stop iterating against
+the live production workflow (which was also burning real Cloudflare
+API calls and hitting Google's rate limit on every test), and continue
+debugging in a lower-stakes environment before re-enabling either
+system. All commits from this session are already on `main`;
+`scripts/daily-news-draft.js`'s `.github/workflows/daily-news-draft.yml`
+schedule was left running (not disabled) since a failed scheduled run
+has always failed safely — it just opens no PR — but nothing has
+merged from it, so nothing reaches production either way.
