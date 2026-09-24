@@ -206,9 +206,13 @@ function clusterStories(items) {
   return { major, roundupItems };
 }
 
-const DRAFT_SCHEMA = {
+// Split into two calls (body, then metadata) rather than one big
+// schema-constrained response — see below for why. Metadata's schema no
+// longer includes bodyMarkdown at all; it's generated separately as
+// plain text and merged back in by draftRoundup()/draftMajorStory().
+const METADATA_SCHEMA = {
   type: "object",
-  required: ["title", "seoTitle", "metaDescription", "category", "tags", "primaryKeyword", "secondaryKeywords", "heroImageAlt", "bodyMarkdown", "faq"],
+  required: ["title", "seoTitle", "metaDescription", "category", "tags", "primaryKeyword", "secondaryKeywords", "heroImageAlt", "faq"],
   properties: {
     title: { type: "string", description: "The post's display title, similar in style to a real news/explainer headline." },
     seoTitle: { type: "string", description: "<= 60 characters. A concise SEO-friendly version of the title." },
@@ -219,11 +223,6 @@ const DRAFT_SCHEMA = {
     secondaryKeywords: { type: "array", items: { type: "string" }, description: "2-4 related search phrases." },
     heroImageAlt: { type: "string", description: "A short, accurate alt-text description of a generic photo that would suit this post's topic (e.g. 'A nurse reviewing patient notes on a hospital ward')." },
     disclaimer: { type: ["string", "null"], description: "Only set this if the post touches legal, immigration, or regulatory advice that readers should double-check with a professional. Null otherwise." },
-    bodyMarkdown: {
-      type: "string",
-      description:
-        "The full article body as Markdown. Do not include a level-1 heading or repeat the title — start directly with a paragraph. Use '## ' for section headings. End with a '## The bottom line' section. Use ONLY facts present in the supplied headlines/snippets/sources — never invent statistics, quotes, or details. Cite sources inline as Markdown links using the exact URLs supplied, phrased naturally (e.g. 'According to [Publisher](url)...').",
-    },
     faq: {
       type: "array",
       minItems: 2,
@@ -237,36 +236,37 @@ const DRAFT_SCHEMA = {
   },
 };
 
-const DRAFT_RESPONSE_FORMAT = { type: "json_schema", json_schema: { name: "blog_draft", schema: DRAFT_SCHEMA } };
+const METADATA_RESPONSE_FORMAT = { type: "json_schema", json_schema: { name: "post_metadata", schema: METADATA_SCHEMA } };
 
 const MODEL = "@cf/zai-org/glm-4.7-flash"; // same model already vetted for structured output in src/candidates.ts
 
-// Was 90s — verified live that this, not the token budget, was the real
-// binding constraint: after raising MAX_RESPONSE_TOKENS, every one of 6
-// attempts (3 stories x 2 tries) timed out at *exactly* 90000ms, with
-// zero empty-response failures this time (vs. a mix of both at the
-// lower token budget). That pattern means the request was being
-// aborted mid-generation, not failing on Cloudflare's end — schema-
-// constrained decoding of an 8000-token structured response is
-// genuinely slower than a free-form completion of the same size. No
-// timeout here at all previously could hang the whole CI job
-// indefinitely though, so this stays a bounded guard, just a more
-// realistic bound for this response size.
-const WORKERS_AI_TIMEOUT_MS = 180_000;
+// A single call asking for everything at once (metadata fields + a
+// 700-1000 word bodyMarkdown + a faq array, all schema-constrained)
+// verified live to fail 100% of the time across two separate rounds of
+// tuning: at max_tokens 4000 it came back with an empty response field
+// or a timeout; raised to 8000, every attempt then timed out at exactly
+// 90s with the body never finishing. Both are consistent with the same
+// cause — grammar-constrained decoding of a large freeform block
+// embedded inside a JSON schema is genuinely much slower than either a
+// plain-text completion of the same size, or a small schema-constrained
+// response with no large free-text field. So the article body is now
+// generated as a plain, unconstrained completion (no response_format at
+// all — this is the expensive part, and it decodes fast without a
+// schema), then fed back into a second, much smaller schema-constrained
+// call that only derives metadata/FAQ from it. Two calls, but each one
+// individually lighter than the single call that kept failing.
+const BODY_MAX_TOKENS = 2500; // ~1000 words of body content, generous headroom
+const METADATA_MAX_TOKENS = 1500; // small: title/description/tags/keywords/faq only, no body
 
-// Was 4000 — verified live that this was the real root cause of every
-// single draft attempt failing (not a fluke): a full DRAFT_SCHEMA
-// response (metadata fields + a 700-1000 word bodyMarkdown + a 2-4 item
-// faq array, all as schema-constrained JSON) genuinely needs more than
-// 4000 tokens of output budget. Every one of 6 real attempts across 3
-// stories came back either with an empty response field or a timeout —
-// consistent with the model exhausting its budget mid-generation under
-// grammar-constrained decoding rather than a transient flake. glm-4.7-
-// flash's context window is 131,072 tokens (see src/candidates.ts's own
-// comment), so there's ample headroom to raise this substantially.
-const MAX_RESPONSE_TOKENS = 8000;
+// Un-tuned pending live evidence for this new two-call shape — the
+// previous 90s/180s figures were measured against the old single-call
+// shape and don't transfer directly. Each individual call here is much
+// smaller than that one, so this starts conservative; raise it again if
+// real runs show it's still too tight, same evidence-first approach as
+// before rather than guessing generously up front.
+const WORKERS_AI_TIMEOUT_MS = 60_000;
 
-async function callWorkersAIOnce(messages) {
+async function callWorkersAIOnce(messages, { maxTokens, responseFormat }) {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
   if (!accountId || !apiToken) throw new Error("CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required");
@@ -278,7 +278,7 @@ async function callWorkersAIOnce(messages) {
     res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${MODEL}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, response_format: DRAFT_RESPONSE_FORMAT, max_tokens: MAX_RESPONSE_TOKENS }),
+      body: JSON.stringify({ messages, max_tokens: maxTokens, ...(responseFormat ? { response_format: responseFormat } : {}) }),
       signal: controller.signal,
     });
   } catch (err) {
@@ -292,25 +292,25 @@ async function callWorkersAIOnce(messages) {
   if (!data.success) throw new Error(`Workers AI returned an error: ${JSON.stringify(data.errors)}`);
   const raw = data.result?.response;
   if (!raw) throw new Error("Workers AI returned no response field");
+  if (!responseFormat) return raw; // plain text completion — return as-is, no JSON involved
   // Same defensive handling as src/candidates.ts: with response_format
   // json_schema, `response` is normally already a parsed object, but
   // handle the string case too rather than assume.
   return typeof raw === "string" ? JSON.parse(raw) : raw;
 }
 
-// A schema-constrained completion this size (title/metadata + a
-// 700-1000 word bodyMarkdown + a faq array, all within max_tokens: 4000)
-// genuinely comes back empty from this model often enough to have been
-// observed live, not hypothesized — same known quirk src/candidates.ts's
-// CV extraction already handles defensively. One retry before giving up,
-// rather than failing the whole day's draft on a single transient miss.
-async function callWorkersAI(messages) {
+// This model has genuinely come back with an empty response field on a
+// live, otherwise-healthy request before (observed, not hypothesized) —
+// same known quirk src/candidates.ts's CV extraction already handles
+// defensively. One retry before giving up, rather than failing the
+// whole day's draft on a single transient miss.
+async function callWorkersAI(messages, opts) {
   try {
-    return await callWorkersAIOnce(messages);
+    return await callWorkersAIOnce(messages, opts);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(`[daily-news-draft] Workers AI call failed, retrying once: ${msg}`);
-    return await callWorkersAIOnce(messages);
+    return await callWorkersAIOnce(messages, opts);
   }
 }
 
@@ -320,21 +320,45 @@ function sourcesBlock(items) {
 
 const SYSTEM_PROMPT = `You are writing for iCare Insights, a UK health and social care recruitment platform's news blog. Your voice is clear, factual, and useful to care workers, clinicians, and employers — never sensational, never medical advice, never speculation dressed as fact. You are given real headlines/snippets/links from news sources published in the last day. Write only from what is given to you. Every claim must be traceable to a supplied source. Cite sources as inline Markdown links using the exact URLs given — never invent a URL.`;
 
+async function generateMetadata(bodyMarkdown, contextNote) {
+  const user = `Here is a drafted article body for iCare Insights. ${contextNote} Generate SEO metadata and a short FAQ for it, based only on what's actually in the body below — do not introduce facts the body doesn't contain.\n\nArticle body:\n${bodyMarkdown}`;
+  return callWorkersAI(
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: user },
+    ],
+    { maxTokens: METADATA_MAX_TOKENS, responseFormat: METADATA_RESPONSE_FORMAT }
+  );
+}
+
 async function draftRoundup(items) {
   const dateLabel = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-  const user = `Write a "Today in health & social care" roundup post for ${dateLabel}, covering the stories below from around the world. Group related items under short '## ' subheadings by theme (e.g. workforce, policy, pharmacy). For each story, write 2-4 original sentences of context, then cite the source as a Markdown link. Do not quote long passages verbatim from any source. Aim for roughly 600-900 words total. Pick the single VALID_CATEGORIES value that best fits the day's dominant theme.\n\nStories:\n${sourcesBlock(items)}`;
-  return callWorkersAI([
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: user },
-  ]);
+  const bodyUser = `Write a "Today in health & social care" roundup post for ${dateLabel}, covering the stories below from around the world. Group related items under short '## ' subheadings by theme (e.g. workforce, policy, pharmacy). For each story, write 2-4 original sentences of context, then cite the source as a Markdown link. Do not quote long passages verbatim from any source. Aim for roughly 600-900 words total. End with a '## The bottom line' section. Do not include a level-1 heading or a title, and do not wrap the response in JSON — just write the Markdown body directly, starting with the first '## ' subheading.\n\nStories:\n${sourcesBlock(items)}`;
+  const bodyMarkdown = await callWorkersAI(
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: bodyUser },
+    ],
+    { maxTokens: BODY_MAX_TOKENS }
+  );
+  const metadata = await generateMetadata(
+    bodyMarkdown,
+    `It's a "Today in health & social care" roundup covering several stories from around the world. Pick the single VALID_CATEGORIES value that best fits the day's dominant theme.`
+  );
+  return { ...metadata, bodyMarkdown };
 }
 
 async function draftMajorStory(cluster) {
-  const user = `Multiple independent sources are reporting the same story today. Write a standalone deep-dive post (700-1000 words) explaining what happened, why it matters for care workers/clinicians/employers, and what readers should do about it — similar in depth to a real explainer article. Use ONLY the facts in the sources below; do not add outside knowledge or invented statistics. Cite each source as a Markdown link at the point its information is used.\n\nSources (all reporting the same underlying story):\n${sourcesBlock(cluster.items)}`;
-  return callWorkersAI([
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: user },
-  ]);
+  const bodyUser = `Multiple independent sources are reporting the same story today. Write a standalone deep-dive Markdown article body (700-1000 words) explaining what happened, why it matters for care workers/clinicians/employers, and what readers should do about it — similar in depth to a real explainer article. Use ONLY the facts in the sources below; do not add outside knowledge or invented statistics. Cite each source as a Markdown link at the point its information is used. End with a '## The bottom line' section. Do not include a level-1 heading or a title, and do not wrap the response in JSON — just write the Markdown body directly.\n\nSources (all reporting the same underlying story):\n${sourcesBlock(cluster.items)}`;
+  const bodyMarkdown = await callWorkersAI(
+    [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: bodyUser },
+    ],
+    { maxTokens: BODY_MAX_TOKENS }
+  );
+  const metadata = await generateMetadata(bodyMarkdown, `It's a standalone explainer article about one specific news story.`);
+  return { ...metadata, bodyMarkdown };
 }
 
 async function pickHeroImage(category) {
