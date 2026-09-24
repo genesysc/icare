@@ -241,16 +241,34 @@ const DRAFT_RESPONSE_FORMAT = { type: "json_schema", json_schema: { name: "blog_
 
 const MODEL = "@cf/zai-org/glm-4.7-flash"; // same model already vetted for structured output in src/candidates.ts
 
-async function callWorkersAI(messages) {
+// No timeout here previously — a slow/hung Workers AI structured-output
+// call (real, observed: 700-1000 word bodyMarkdown + faq array, all
+// schema-constrained, pushes a "flash" model hard) could block the whole
+// CI job indefinitely, well past GitHub's default 6h job timeout. 90s is
+// generous for a single completion but still bounded.
+const WORKERS_AI_TIMEOUT_MS = 90_000;
+
+async function callWorkersAIOnce(messages) {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
   if (!accountId || !apiToken) throw new Error("CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required");
 
-  const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${MODEL}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, response_format: DRAFT_RESPONSE_FORMAT, max_tokens: 4000 }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), WORKERS_AI_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${MODEL}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, response_format: DRAFT_RESPONSE_FORMAT, max_tokens: 4000 }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") throw new Error(`Workers AI request timed out after ${WORKERS_AI_TIMEOUT_MS}ms`);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) throw new Error(`Workers AI request failed: ${res.status} ${res.statusText} — ${await res.text()}`);
   const data = await res.json();
   if (!data.success) throw new Error(`Workers AI returned an error: ${JSON.stringify(data.errors)}`);
@@ -260,6 +278,22 @@ async function callWorkersAI(messages) {
   // json_schema, `response` is normally already a parsed object, but
   // handle the string case too rather than assume.
   return typeof raw === "string" ? JSON.parse(raw) : raw;
+}
+
+// A schema-constrained completion this size (title/metadata + a
+// 700-1000 word bodyMarkdown + a faq array, all within max_tokens: 4000)
+// genuinely comes back empty from this model often enough to have been
+// observed live, not hypothesized — same known quirk src/candidates.ts's
+// CV extraction already handles defensively. One retry before giving up,
+// rather than failing the whole day's draft on a single transient miss.
+async function callWorkersAI(messages) {
+  try {
+    return await callWorkersAIOnce(messages);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[daily-news-draft] Workers AI call failed, retrying once: ${msg}`);
+    return await callWorkersAIOnce(messages);
+  }
 }
 
 function sourcesBlock(items) {
@@ -386,17 +420,30 @@ async function main() {
 
   // Cap major standalone posts at 2/day — a safety valve against an
   // over-eager clustering match turning into a flood of thin posts.
+  //
+  // Each attempt is independently caught: a single story's Workers AI
+  // call failing (timeout, transient empty response even after
+  // callWorkersAI's own retry) shouldn't sink every other draft in the
+  // same run — skip just that one and keep going.
   for (const cluster of major.slice(0, 2)) {
-    const draft = await draftMajorStory(cluster);
-    draft.heroImageUnsplashId = await pickHeroImage(draft.category);
-    written.push(writePost(draft, { sources: cluster.items, isRoundup: false }));
+    try {
+      const draft = await draftMajorStory(cluster);
+      draft.heroImageUnsplashId = await pickHeroImage(draft.category);
+      written.push(writePost(draft, { sources: cluster.items, isRoundup: false }));
+    } catch (err) {
+      console.warn(`[daily-news-draft] Skipping major story (${cluster.items[0]?.title?.slice(0, 60)}): ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   if (roundupItems.length > 0) {
-    const draft = await draftRoundup(roundupItems);
-    draft.title = draft.title || `Today in Health & Social Care — ${new Date().toISOString().slice(0, 10)}`;
-    draft.heroImageUnsplashId = await pickHeroImage(draft.category);
-    written.push(writePost(draft, { sources: roundupItems, isRoundup: true }));
+    try {
+      const draft = await draftRoundup(roundupItems);
+      draft.title = draft.title || `Today in Health & Social Care — ${new Date().toISOString().slice(0, 10)}`;
+      draft.heroImageUnsplashId = await pickHeroImage(draft.category);
+      written.push(writePost(draft, { sources: roundupItems, isRoundup: true }));
+    } catch (err) {
+      console.warn(`[daily-news-draft] Skipping roundup: ${err instanceof Error ? err.message : err}`);
+    }
   }
 
   if (written.length === 0) {
