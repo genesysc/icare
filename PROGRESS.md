@@ -5739,3 +5739,35 @@ system. All commits from this session are already on `main`;
 schedule was left running (not disabled) since a failed scheduled run
 has always failed safely — it just opens no PR — but nothing has
 merged from it, so nothing reaches production either way.
+
+## 2026-10-14 — Sponsored jobs / news handover reconciled; Phase 1 (Sponsor check) built
+
+Full write-up, decisions and founder actions: HANDOVER.md §25. Summary:
+- Founder overrode "no job postings ever" — sponsored-jobs board is in.
+  No-cost news drafting only. Sponsor check + news usable before
+  onboarding is finished. Sponsors tab added, Pipelines tab hidden.
+- Applied to live DB: migration 0052 (as 0052a–e) — `sponsors`,
+  `register_runs`, `sponsors_staging`, `sponsor_key()`,
+  `search_sponsors()`, `match_sponsor()`, `sponsor_refresh_load`.
+  `sponsors` is still EMPTY.
+- NOT applied: 0053 (refresh begin/check/apply/complete + secret row) —
+  the Supabase MCP tool holds DELETE/DROP statements for human
+  confirmation and timed out unattended. Founder to paste it into the
+  SQL editor, set `SPONSOR_REFRESH_SECRET` in GitHub Actions, run the
+  workflow once.
+- Measured: a 122k-row insert takes ~7.2s; anon's statement_timeout is
+  3s — hence the chunked apply step.
+- New: `src/sponsors.ts`, `src/sponsor-check.html` (/sponsor-check),
+  `scripts/refresh-sponsor-register.js`,
+  `.github/workflows/sponsor-register-refresh.yml`; `?next=` now honoured
+  by sign-in/verify for candidates.
+- Verified: `tsc --noEmit` clean, `wrangler deploy --dry-run` clean,
+  sponsor_key parity with the Python matcher, CSV parser parity with
+  Python on the real 14 Oct file. Not yet browser-tested against a loaded
+  register (empty until 0053 is applied).
+- Later same day: founder applied 0053 in the SQL editor + set the GitHub
+  secret. First run failed on `delete from sponsors_staging` (pg_safeupdate
+  requires a WHERE under PostgREST) — fixed to `where true`, founder
+  re-applied. First load then succeeded: 122,031 sponsors, register
+  2026-10-14; all handover acceptance checks pass (see HANDOVER §25).
+  Branch not yet merged, so /sponsor-check and the daily Action aren't live.

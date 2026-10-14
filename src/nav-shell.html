@@ -6,12 +6,20 @@
   copies the CSS block and the <nav class="tab-bar"> markup below
   verbatim, changing only which item carries `is-active` for that page.
   If you change this file, update every page that copied it:
-  dashboard.html, invites.html, pipelines.html, rounds.html, network.html,
-  messages.html, credentials.html, visibility.html. (Not onboarding.html —
+  dashboard.html, invites.html, pipelines.html, rounds.html (icon-nav
+  variant), network.html, messages.html, credentials.html, visibility.html,
+  member.html, sponsor-check.html. (Not onboarding.html —
   it has no tab bar; a candidate isn't in the signed-in "app" proper until
   onboarding is done.)
 
-  Six destinations, matching docs/mockups/jobseeker-wireframes.html's
+  2026-10-14 (founder decision): "Sponsors" (/sponsor-check, Sponsor
+  check — HANDOVER.md §25) added second, and Pipelines HIDDEN from the
+  bar for now — /pipelines itself still works and is still linked from
+  Invites; it just has no tab. Jobs and News get their own tabs when those
+  pages ship. sponsor-check.html also carries this bar (shown only to
+  candidates who have finished onboarding).
+
+  Originally six destinations, matching docs/mockups/jobseeker-wireframes.html's
   sitemap screen plus Messages (added Sprint 24, see PROGRESS.md's
   2026-09-12 entry): Rounds, Invites, Pipelines, Network, Messages,
   Profile. `dashboard.html` is Profile (it was the only candidate page
@@ -75,16 +83,16 @@
     <svg viewBox="0 0 24 24"><polyline points="2 14 6 14 9 5 14 21 17 14 22 14"/></svg>
     <span>Rounds</span>
   </a>
+  <a href="/sponsor-check" class="tab-bar-item" data-tab="sponsors">
+    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+    <span>Sponsors</span>
+  </a>
   <a href="/invites" class="tab-bar-item" data-tab="invites">
     <span class="tab-bar-icon-wrap">
       <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
       <span class="tab-bar-dot" data-invites-dot></span>
     </span>
     <span>Invites</span>
-  </a>
-  <a href="/pipelines" class="tab-bar-item" data-tab="pipelines">
-    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-    <span>Pipelines</span>
   </a>
   <a href="/network" class="tab-bar-item" data-tab="network">
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>

@@ -229,6 +229,32 @@ function icareAuthFetch(url, options) {
 }
 // ---- End shared auth helper ----
 
+// ---- Post-sign-in destination (?next=), 2026-10-14 ----
+// Lets a link like /sign-up?next=/sponsor-check (the launch email) land a
+// candidate on that page after signing up or in, instead of the default
+// /onboarding or /dashboard. Kept in localStorage, not just the URL, so it
+// survives the trip through /verify, an OAuth provider, or an emailed
+// magic link opened in a new tab. Only same-site paths are accepted (no
+// "//host" or scheme), and it expires after an hour. Candidates only —
+// employer routing is unchanged.
+var ICARE_NEXT_KEY = "icare_next";
+function icareSafeNext(path) {
+  return typeof path === "string" && /^\/[A-Za-z0-9\-_/?=&%.]*$/.test(path) && path.indexOf("//") === -1 ? path : null;
+}
+function icareRememberNext() {
+  var next = icareSafeNext(new URLSearchParams(window.location.search).get("next"));
+  if (!next) return;
+  try { localStorage.setItem(ICARE_NEXT_KEY, JSON.stringify({ path: next, at: Date.now() })); } catch (e) {}
+}
+function icareTakeNext() {
+  var stored = null;
+  try { stored = JSON.parse(localStorage.getItem(ICARE_NEXT_KEY) || "null"); localStorage.removeItem(ICARE_NEXT_KEY); } catch (e) {}
+  if (!stored || Date.now() - stored.at > 60 * 60 * 1000) return null;
+  return icareSafeNext(stored.path);
+}
+icareRememberNext();
+// ---- End post-sign-in destination ----
+
 (function () {
   var TERMS_VERSION = "2026-08-26-draft";
   var params = new URLSearchParams(window.location.search);
@@ -262,7 +288,7 @@ function icareAuthFetch(url, options) {
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
       .then(function (candidateResult) {
         var onboardingDone = candidateResult.ok && candidateResult.body.candidate && candidateResult.body.candidate.onboarding_done;
-        window.location.href = onboardingDone ? "/dashboard" : "/onboarding";
+        window.location.href = icareTakeNext() || (onboardingDone ? "/dashboard" : "/onboarding");
       });
   }
 
