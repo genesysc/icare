@@ -1,7 +1,8 @@
 -- =============================================================================
 -- 0053 — Sponsor register refresh steps (follows 0052).
 --
--- ⚠️ NOT YET APPLIED to the live project as of 2026-10-14. The Supabase
+-- Applied 2026-10-14 by the founder via the SQL editor (the begin() fix
+-- "where true" below was re-run separately the same day). Originally:
 -- MCP tool holds any migration containing DELETE for human confirmation,
 -- and those calls timed out unattended. Apply by approving it when an
 -- agent retries, or by pasting this whole file into the Supabase SQL editor
@@ -57,7 +58,9 @@ begin
 
   update register_runs set status = 'failed', note = coalesce(note, 'interrupted'), run_at = now()
    where status in ('loading', 'applying');
-  delete from sponsors_staging;
+  -- "where true": PostgREST requests run with pg_safeupdate, which rejects
+  -- a DELETE with no WHERE clause (found on the first live run).
+  delete from sponsors_staging where true;
 
   insert into register_runs (register_date, source_url) values (p_register_date, p_source_url)
   returning id into v_run;
