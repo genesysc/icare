@@ -5771,3 +5771,16 @@ Full write-up, decisions and founder actions: HANDOVER.md §25. Summary:
   re-applied. First load then succeeded: 122,031 sponsors, register
   2026-10-14; all handover acceptance checks pass (see HANDOVER §25).
   Branch not yet merged, so /sponsor-check and the daily Action aren't live.
+- Shipped: PR genesysc/icare#59 squash-merged; /sponsor-check live on
+  icareltd.com (checked: page 200, /sponsors/search 401 signed-out, Rounds
+  links it, Pipelines tab gone; Playwright at 390px — no overflow, no JS
+  errors, signed-out visit redirects to /sign-in and remembers
+  next=/sponsor-check). Follow-up: an expired session on the page now
+  redirects to sign-in instead of showing "register is being loaded".
+- ⚠️ Deploy workflow shows FAILED (since 2026-09-24, runs 90 and 91) even
+  though the code does go live: `wrangler deploy` uploads the Worker, then
+  fails updating routes — "No access to the specified resource" on
+  /zones/.../workers/routes. The CLOUDFLARE_API_TOKEN regenerated on
+  2026-09-24 (to add Workers AI) lacks Zone → Workers Routes: Edit for
+  icareltd.com. Founder to add that permission; until then every deploy
+  is "red but live".

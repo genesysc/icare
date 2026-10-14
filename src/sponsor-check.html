@@ -446,7 +446,9 @@ function icareRequireAuth(signInPath) {
   jget("/sponsors/status").then(function (r) {
     var stamp = document.querySelector("[data-stamp]");
     stamp.textContent = "";
-    var reg = r.ok && r.body.register;
+    if (r.status === 401) { icareClearSession(); icareRequireAuth(); return; }
+    if (!r.ok) { stamp.textContent = "Couldn't load the register date. Try refreshing the page."; return; }
+    var reg = r.body.register;
     if (!reg) {
       stamp.textContent = "The register is being loaded. Please try again shortly.";
       return;
