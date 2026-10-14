@@ -1,0 +1,27 @@
+name: Sponsor register refresh
+
+# Daily pull of the Home Office register of licensed sponsors into
+# Supabase — see scripts/refresh-sponsor-register.js and migration 0052.
+# GOV.UK publishes a new file each working day, usually late morning UK
+# time; two runs a day so a late publication is still picked up the same
+# day. A run with nothing new exits early ("register already current").
+on:
+  schedule:
+    - cron: "20 6,14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/refresh-sponsor-register.js
+        env:
+          SPONSOR_REFRESH_SECRET: ${{ secrets.SPONSOR_REFRESH_SECRET }}

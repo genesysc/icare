@@ -207,6 +207,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/member.html` | **New 2026-09-17** — "view another member's profile," `/member?id=<candidate_id>`. Closes the gap the Rounds/Network/Messages/Profile spec and `handover_3.md` both explicitly flagged as undesigned. Read-only, LinkedIn-shaped like `dashboard.html`'s self-view (About/Badges/Experience/Qualifications & Registrations/Skills/Activity) but with no Edit links, no Employer interest/Visibility/Account cards, and — deliberately — no Right to work / ID line and no DBS anywhere (DBS stays employer-only per non-negotiable #3; RTW and raw registration numbers are withheld from peers too, a reasonable default this session made rather than a documented decision — see §12). Connect/Message actions reuse the exact same states as `network.html`. Linked from `network.html` (every person-item name) and `rounds.html` (post author name + avatar) so it's actually reachable, not just a dead-end route. Backed by `GET /candidates/:id/profile` (`candidates.ts`) reading `candidate_peer_profile`/`candidate_peer_registrations` (migration `0047`) plus the existing `candidate_peer_feed`/`candidate_badges`. **Real bug found and fixed 2026-09-18 (migration `0049`)**: `0047`'s Experience/Qualifications/Skills peer-read policies each gated on an inline `exists (select 1 from candidates c where ... c.is_published)` — but that subquery runs under the *viewer's own* RLS on `candidates`, which has never let one candidate read another's row directly (only self/verified-employer, `0002`), so it silently saw zero rows for every peer and those three sections rendered empty for everyone (About/Badges still worked — different code paths, a view and a public-read table respectively). Same bug class migration `0029` already hit once before; fixed the same way, using the existing `candidate_is_published()` SECURITY DEFINER helper instead of a second inline subquery. Verified by simulating RLS as a real candidate role in SQL before and after (0/0/0 rows → 1/1/15, matching the actual data) — not just re-reading the migration. **2026-09-18**: Activity card now always renders with a "No posts yet." empty state instead of hiding the whole card when a candidate has none (founder feedback — a viewer should be told there are no posts, not left wondering if the section failed to load) — matches `dashboard.html`'s own `data-posts-empty` convention exactly. |
 | `src/nav-shell.html` | Reference file for the signed-in tab-bar shell (Sprint 19, six destinations — Messages added 2026-09-12, Home renamed to Rounds same day) — same "not imported, copy verbatim" convention as `auth-client.js`. Rounds/Invites/Pipelines/Network/Messages/Profile as a bottom-fixed bar at every viewport size (this codebase has no other desktop-specific layout), hand-authored inline SVG icons, one unread dot remaining (Invites — business state, see `notifications-bell.html`). Copied into `dashboard.html`, `invites.html`, `pipelines.html`, `rounds.html`, `network.html`, `messages.html`, `credentials.html`, `visibility.html` — update all eight if this file changes. **2026-09-15**: two real gaps found and fixed while wiring in the notification bell (below) — the Messages tab's own dot was dead markup, never wired up anywhere, now removed entirely in favour of the bell's unread indicator; and `credentials.html`/`visibility.html` had silently drifted to a stale five-item copy missing the Messages tab altogether, now brought current. Neither had been noticed because nothing exercised them until this pass touched every page in the list |
 | `src/notifications-bell.html` | **NEW 2026-09-15.** Reference file for the header notification bell — same "not imported, copy verbatim" convention as `nav-shell.html`/`auth-client.js`. Covers all four notification types (`notifications` table, migrations 0043/0044): connection request, connection accepted, message (with a body preview, matching `conversation_inbox`'s own convention), invite. Dropdown panel, unread dot, mark-one-read on click-through, mark-all-read. Copied into the same eight pages as `nav-shell.html`, placed in `<header class="nav">` next to Sign out (that header's two-child row became a `.nav-right` wrapper to fit it — **`.nav-right` must carry `position: relative`**, since the dropdown anchors against it, not against the bell's own small wrapper; anchoring to the wrapper instead left ~104px of the panel rendering off-screen left at 320px width, found only by checking a real narrow-viewport render, not by whether the panel opened) |
+| `src/sponsors.ts` / `src/sponsor-check.html` | **NEW 2026-10-14.** Sponsor licence check — `/sponsors/*` API + `/sponsor-check` page. See §25 |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -1034,7 +1035,7 @@ the hard constraints this must respect.
   candidate-facing verticals iCare/iBuilt/iHost/iFinance/iTech-or-iCode/
   iLaw/iTeach, each on its own proper domain, not a subdomain) — decided
   in a 2026-08-27 strategy session, not yet merged in full detail into
-  this document. Confirms **no job postings will ever exist** (see the
+  this document. Confirms **no job postings will ever exist** (**⚠️ overridden 2026-10-14 by the founder — a public UK sponsored-jobs board with on-site apply is now in scope, see §25**) (see the
   employer chat/`search_candidates` architecture in §2/§4, which already
   matches this). Also confirmed: candidates can never pay for
   ranking/visibility (Employment Agencies Act 1973) — an "Analytics tier"
@@ -1526,7 +1527,7 @@ is authoritative going forward.
     vs. Bullhorn/Vincere/ATSpro.
   - **White label**: setup fee £1,000–£2,000 agreed; ongoing monthly fee
     **still open**, parked for a follow-up session.
-- **Confirmed: no traditional job postings/apply flow, ever** — the
+- **Confirmed: no traditional job postings/apply flow, ever** (**⚠️ overridden 2026-10-14 by the founder — a sponsored-jobs board with on-site apply is now being built, see §25; employer-side natural-language search is unaffected**) — the
   employer's natural-language search *is* the discovery mechanism. This
   does **not** conflict with the "job module" below — see next section.
 
@@ -2698,3 +2699,79 @@ enabled, not disabled — a failed run has always failed safely (no PR
 opens, `content/posts/` and `src/blog-content.ts` are untouched), so
 leaving it running costs nothing beyond the Workers AI calls
 themselves.
+
+## 25. Sponsor check, UK sponsored jobs & daily news — handover reconciled 2026-10-14, Phase 1 built
+
+The founder uploaded "iCare: Sponsor Check, UK Sponsored Jobs & Daily
+News — Build Handover" (14 Oct 2026). Like §15/§19/§23 it was written for
+a Next.js + Supabase-edge-functions stack; this repo stayed the build
+target. Reconciled against the live build before writing code, and the
+conflicts were put to the founder rather than resolved silently.
+
+**Founder decisions (2026-10-14):**
+1. **Job board is in.** Overrides "no job postings / apply flow, ever"
+   (§12, §14 — both now carry an override note). Public UK *sponsored*
+   health & care jobs, on-site apply, applications to the admin for now.
+2. **News drafting must not incur cost** — no Anthropic API. (The news
+   pipeline question — extend `/blog` + PR review vs. the spec's
+   Supabase admin queue — was not explicitly answered; default is to
+   extend what exists, see open items.)
+3. **Sponsor check and news usable straight after sign-up**, without
+   finishing onboarding.
+4. **Navigation:** Sponsor check, Jobs and News each get their own tab;
+   Jobs and News also appear inside Rounds. **Pipelines tab hidden** for
+   now (`/pipelines` still works and is still linked from Invites).
+5. **Paid tiers:** keep code tier-ready, put nothing behind payment
+   (non-negotiable #1 unchanged).
+
+**Spec vs. this repo (so nobody re-derives it):**
+- Spec's Supabase open question 1 was already answered — `care-register`
+  is the live project (§3).
+- Spec's `jobs` table name collides with the employer-private iRecruit
+  `jobs` table (migration 0020, Sprint 13). The sponsored-jobs board must
+  use a separate table (e.g. `sponsored_jobs`). The existing
+  `jobs.sponsorship_offered` 3-state field is the future source of the
+  spec's "Employer-confirmed" badge.
+- No `profiles` table exists — member preferences go on `candidates` or a
+  new table, not "extend profiles".
+- `/news` is already the signed-in Rounds news API (§19), so public news
+  articles cannot live at `/news/[slug]` without moving that.
+- Secrets go in Cloudflare Worker secrets / GitHub Actions secrets, not
+  "Supabase secrets".
+
+**Built in Phase 1 (this session):**
+
+| Piece | What |
+|---|---|
+| Migration `0052_sponsor_register` (applied, as 0052a–e) | `pg_trgm`; `sponsor_key()` (SQL port of the handover's tested Python matcher — 0 mismatches against Python on 36 deliberately hard register names incl. mojibake, `&`, Barclays UK vs non-UK); `register_runs`, `sponsors` (unique `(name_key, town_key)`, `first_seen_date`, `active`/`removed_date` kept for "Register watch"), `sponsors_staging`; `sponsor_refresh_check_secret`, `sponsor_refresh_load`; `search_sponsors()` (every word must match; exact name+town first; same-name-other-town flagged `other_town`), `match_sponsor()` (strict `exact`/`name_only`/`none` for the Phase 3 jobs matcher). RLS: signed-in read only. |
+| Migration `0053_sponsor_refresh_steps` (**NOT applied yet**) | `begin` / `check` / `apply` / `complete` refresh steps + the `sponsor_refresh_secret` row. Blocked because the Supabase MCP tool holds any SQL containing DELETE/DROP for human confirmation and timed out unattended. Split into chunked steps because anon has a **3s statement_timeout** and a first full load of ~122k rows measured **7.2s** in one statement. |
+| `scripts/refresh-sponsor-register.js` + `.github/workflows/sponsor-register-refresh.yml` | Daily (06:20 and 14:20 UTC) — GOV.UK content API → CSV URL (never hard-coded) → filter `Skilled Worker` + `Worker (A…` → staged load → check (row-count match, <90%-of-yesterday guard) → chunked apply → complete. No dependencies; CSV parser verified identical to Python's `csv` on the real 14 Oct file (143,229 rows → 123,107 kept). Needs GitHub secret `SPONSOR_REFRESH_SECRET`. |
+| `src/sponsors.ts` | `GET /sponsors/status`, `GET /sponsors/search?name=&town=&page=` behind `requireAuth` (any role, no onboarding gate). |
+| `src/sponsor-check.html` at `/sponsor-check` | Prototype restyled to the brand system; live search, 50 per page, "Checked against the register published [date]", "Confirm town" pill for same-name-other-town, the handover's caveat + "General information, not immigration advice" wording. No "Verified" anywhere. Tab bar only for candidates who finished onboarding; others get a "Finish your profile" prompt (employers a link home). |
+| Tab bar (9 pages + `nav-shell.html`, Rounds icon-nav) | Sponsors added second; Pipelines removed. |
+| `sign-in.html` / `verify.html` | `?next=` now honoured for candidates (was sent by `icareRequireAuth` everywhere but ignored). Stored in localStorage for an hour so it survives `/verify`, OAuth and magic links; same-site paths only. Launch email link: `/sign-up?next=/sponsor-check`. |
+
+**To finish Phase 1 (founder actions):**
+1. Apply `supabase/migrations/20261014160000_0053_sponsor_refresh_steps.sql`
+   — paste into the Supabase SQL editor (project care-register), or
+   approve it when an agent retries via MCP.
+2. Copy the generated secret (`select value from app_secrets where key =
+   'sponsor_refresh_secret';`) into GitHub → Settings → Secrets and
+   variables → Actions → `SPONSOR_REFRESH_SECRET`.
+3. Run the "Sponsor register refresh" workflow once by hand
+   (workflow_dispatch) for the first load, then check the acceptance
+   queries below.
+
+**Acceptance checks still to run once loaded** (handover §13), e.g. as a
+signed-in role: `match_sponsor('Imperial College Healthcare NHS Trust',
+'London')` → exact; `match_sponsor('Barclays Bank UK PLC', …)` and
+`('Barclays Bank PLC', …)` resolve to different rows; an invented name →
+none; `register_runs` row logged with the register date.
+
+**Still open:** design canvas link (the handover's "iCare Design canvas"
+for the screen designs — not received); Reed/Adzuna keys; sector scope
+(health & care only?); immigration-advice wording sign-off; where admin
+notifications go; news approver; Sender.net digest group; whether the
+news pipeline extends `/blog` (recommended) or builds the spec's admin
+queue.
+
