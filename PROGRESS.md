@@ -5765,3 +5765,9 @@ Full write-up, decisions and founder actions: HANDOVER.md §25. Summary:
   sponsor_key parity with the Python matcher, CSV parser parity with
   Python on the real 14 Oct file. Not yet browser-tested against a loaded
   register (empty until 0053 is applied).
+- Later same day: founder applied 0053 in the SQL editor + set the GitHub
+  secret. First run failed on `delete from sponsors_staging` (pg_safeupdate
+  requires a WHERE under PostgREST) — fixed to `where true`, founder
+  re-applied. First load then succeeded: 122,031 sponsors, register
+  2026-10-14; all handover acceptance checks pass (see HANDOVER §25).
+  Branch not yet merged, so /sponsor-check and the daily Action aren't live.
