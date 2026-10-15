@@ -78,3 +78,37 @@ jobs:
           add-paths: |
             content/posts/*.md
             src/blog-content.ts
+
+      # "Draft ready" notification (HANDOVER_daily-news §3 Q3): email to
+      # info@icareltd.com via Sender.net. Fail-safe by design — skipped
+      # silently when the secrets aren't set, never fails the run.
+      # Automated mail is always FROM hello@ (SENDER_FROM_EMAIL), never
+      # info@ — info@ is the destination inbox here, per HANDOVER.md §2's
+      # firm address-ownership rule. Needs SENDER_API_KEY (+ optional
+      # SENDER_FROM_EMAIL, defaults to hello@icareltd.com) as GitHub
+      # Actions secrets — not yet set, same manual step as UNSPLASH_ACCESS_KEY.
+      - name: Notify founder that a draft is ready
+        if: steps.check.outputs.drafted == 'true'
+        continue-on-error: true
+        env:
+          SENDER_API_KEY: ${{ secrets.SENDER_API_KEY }}
+          SENDER_FROM_EMAIL: ${{ secrets.SENDER_FROM_EMAIL }}
+        run: |
+          if [ -z "$SENDER_API_KEY" ]; then
+            echo "SENDER_API_KEY not set — skipping draft notification email."
+            exit 0
+          fi
+          FROM_EMAIL="${SENDER_FROM_EMAIL:-hello@icareltd.com}"
+          PR_TITLE="$(cat "${{ runner.temp }}/pr-title.txt")"
+          node -e "
+            const title = process.argv[1].replace(/</g, '&lt;');
+            const html = '<p>Today\u2019s iCare news draft is ready for review:</p><p><b>' + title + '</b></p><p>Open the PR, read the Markdown diff, check facts against the cited sources, then merge to publish.</p>';
+            fetch('https://api.sender.net/v2/message/send', {
+              method: 'POST',
+              headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + process.env.SENDER_API_KEY },
+              body: JSON.stringify({ from: { email: process.env.FROM_EMAIL, name: 'iCare' }, to: { email: 'info@icareltd.com' }, subject: 'News draft ready: ' + process.argv[1], html })
+            }).then(async (r) => {
+              if (!r.ok) { console.error('notify email failed: ' + r.status + ' ' + await r.text()); process.exit(1); }
+              console.log('draft notification sent to info@icareltd.com');
+            }).catch((e) => { console.error('notify email failed: ' + e.message); process.exit(1); });
+          " "$PR_TITLE"

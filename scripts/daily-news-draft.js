@@ -64,9 +64,13 @@ const CATEGORY_IMAGE_QUERY = {
 };
 
 // Official/authoritative feeds — verified working by hand (curl) before
-// being hardcoded here, 2026-09-18. Deliberately not UK-only: WHO is
-// global, the rest of the geographic spread comes from the Google News
-// queries below, which aggregate across publishers worldwide.
+// being hardcoded here: the first four on 2026-09-18, UKVI + Home Office
+// on 2026-10-15 (both 200, 20 entries each). Deliberately not UK-only:
+// WHO is global, the rest of the geographic spread comes from the Google
+// News queries below, which aggregate across publishers worldwide.
+// CQC / NMC / Skills for Care checked 2026-10-15: no usable RSS/Atom
+// feed (404s and an HTML page) — not included, never scrape paywalled
+// sites (HANDOVER_daily-news §5).
 const FEEDS = [
   { url: "https://www.who.int/rss-feeds/news-english.xml", label: "WHO" },
   {
@@ -75,6 +79,14 @@ const FEEDS = [
   },
   { url: "https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=nhs-england", label: "GOV.UK (NHS England)" },
   { url: "https://www.england.nhs.uk/feed/", label: "NHS England" },
+  {
+    url: "https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=uk-visas-and-immigration",
+    label: "GOV.UK (UKVI)",
+  },
+  {
+    url: "https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=home-office",
+    label: "GOV.UK (Home Office)",
+  },
 ];
 
 // Google News RSS search — no API key, free, and the only practical way
@@ -83,13 +95,24 @@ const FEEDS = [
 // each query to the last day server-side, in addition to this script's
 // own pubDate filter below (belt and braces — Google's own recency
 // scoping has occasionally proven loose in ad hoc testing).
+//
+// Throttled 2026-10-15 (HANDOVER_daily-news §5 Step 1): 5 queries → 3,
+// staggered, with a kill-switch. Repeated same-day runs tripped Google's
+// rate limit (503s, seen live 2026-09-24) — the official feeds above are
+// now the primary source, these three queries the supplement, not the
+// other way round. GOOGLE_NEWS_ENABLED=0 drops them entirely.
 const GOOGLE_NEWS_QUERIES = [
-  { q: '"social care" OR "care worker" OR "aged care" when:1d', label: "Google News: social/aged care" },
   { q: '"health workforce" OR "nursing shortage" OR "NHS workforce" when:1d', label: "Google News: health workforce" },
-  { q: '"long-term care" OR "home care" staffing when:1d', label: "Google News: long-term/home care" },
-  { q: "pharmacist OR \"pharmacy workforce\" when:1d", label: "Google News: pharmacy" },
+  { q: '"social care" OR "care worker" when:1d', label: "Google News: social care" },
   { q: '"health worker visa" OR "care worker visa" immigration when:1d', label: "Google News: immigration" },
 ];
+
+const GOOGLE_NEWS_ENABLED = process.env.GOOGLE_NEWS_ENABLED !== "0";
+const FETCH_STAGGER_MS = 2000; // gentle on Google's rate limit
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function googleNewsUrl(q) {
   return `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
@@ -150,9 +173,14 @@ async function fetchAllItems() {
   const cutoff = Date.now() - 26 * 60 * 60 * 1000; // 26h — a little slack past 24h for cron drift
   const items = [];
 
-  const sources = [...FEEDS, ...GOOGLE_NEWS_QUERIES.map((g) => ({ url: googleNewsUrl(g.q), label: g.label }))];
+  const googleSources = GOOGLE_NEWS_ENABLED ? GOOGLE_NEWS_QUERIES.map((g) => ({ url: googleNewsUrl(g.q), label: g.label })) : [];
+  if (!GOOGLE_NEWS_ENABLED) console.log("[daily-news-draft] GOOGLE_NEWS_ENABLED=0 — official feeds only this run.");
+  const sources = [...FEEDS, ...googleSources];
 
+  let first = true;
   for (const src of sources) {
+    if (!first) await sleep(FETCH_STAGGER_MS);
+    first = false;
     try {
       const feed = await parser.parseURL(src.url);
       for (const item of feed.items || []) {
@@ -255,7 +283,10 @@ const MODEL = "@cf/zai-org/glm-4.7-flash"; // same model already vetted for stru
 // schema), then fed back into a second, much smaller schema-constrained
 // call that only derives metadata/FAQ from it. Two calls, but each one
 // individually lighter than the single call that kept failing.
-const BODY_MAX_TOKENS = 2500; // ~1000 words of body content, generous headroom
+const BODY_MAX_TOKENS = 1500; // ~500-700 words. Kept short on purpose
+// (2026-10-15, HANDOVER_daily-news §5 Step 1): long schema-free outputs
+// kept timing out, and shorter posts stay inside Workers AI's timeout
+// while suiting a daily cadence better anyway.
 const METADATA_MAX_TOKENS = 1500; // small: title/description/tags/keywords/faq only, no body
 
 // Two different budgets, not one shared value — a mistake in the first
@@ -324,7 +355,15 @@ function sourcesBlock(items) {
   return items.slice(0, 8).map((i) => `- "${i.title}" — ${i.publisher} — ${i.url}${i.snippet ? `\n  Snippet: ${i.snippet}` : ""}`).join("\n");
 }
 
-const SYSTEM_PROMPT = `You are writing for iCare Insights, a UK health and social care recruitment platform's news blog. Your voice is clear, factual, and useful to care workers, clinicians, and employers — never sensational, never medical advice, never speculation dressed as fact. You are given real headlines/snippets/links from news sources published in the last day. Write only from what is given to you. Every claim must be traceable to a supplied source. Cite sources as inline Markdown links using the exact URLs given — never invent a URL.`;
+const SYSTEM_PROMPT = `You are writing for iCare Insights, a UK health and social care recruitment platform's news blog. Your voice is clear, factual, and useful to care workers, clinicians, and employers — never sensational, never medical advice, never speculation dressed as fact. You are given real headlines/snippets/links from news sources published in the last day. Write only from what is given to you. Every claim must be traceable to a supplied source. Cite sources as inline Markdown links using the exact URLs given — never invent a URL.
+
+Standing rules (HANDOVER_daily-news §6 — these are compliance, not style):
+- Structure every article as: What changed / Who it affects / What to do next (use these as '## ' subheadings where they fit).
+- Link every source, primary (official) source first. A rule-change post MUST link a Tier 1 official source (GOV.UK, UKVI, DHSC, MAC, NHS England, NHS Employers, CQC, NMC, HCPC, GMC, Skills for Care, ONS) or it cannot publish — say so in the draft if none was supplied.
+- At most one short quote per source. No copied paragraphs, no reused article structures.
+- Never write "Verified", "DBS-checked", "DBS-certified" or anything implying a DBS was validated.
+- Care worker / senior care worker roles: overseas recruitment closed 22 Jul 2025, in-country switching runs to 22 Jul 2028 — never imply overseas sponsorship is available for those two roles.
+- Date-stamp every fact that can change (e.g. "as announced on 15 October 2026").`;
 
 async function generateMetadata(bodyMarkdown, contextNote) {
   const user = `Here is a drafted article body for iCare Insights. ${contextNote} Generate SEO metadata and a short FAQ for it, based only on what's actually in the body below — do not introduce facts the body doesn't contain.\n\nArticle body:\n${bodyMarkdown}`;
@@ -339,7 +378,7 @@ async function generateMetadata(bodyMarkdown, contextNote) {
 
 async function draftRoundup(items) {
   const dateLabel = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-  const bodyUser = `Write a "Today in health & social care" roundup post for ${dateLabel}, covering the stories below from around the world. Group related items under short '## ' subheadings by theme (e.g. workforce, policy, pharmacy). For each story, write 2-4 original sentences of context, then cite the source as a Markdown link. Do not quote long passages verbatim from any source. Aim for roughly 600-900 words total. End with a '## The bottom line' section. Do not include a level-1 heading or a title, and do not wrap the response in JSON — just write the Markdown body directly, starting with the first '## ' subheading.\n\nStories:\n${sourcesBlock(items)}`;
+  const bodyUser = `Write a "Today in health & social care" roundup post for ${dateLabel}, covering the stories below from around the world. Group related items under short '## ' subheadings by theme (e.g. workforce, policy, pharmacy). For each story, write 2-3 original sentences of context (what changed, who it affects), then cite the source as a Markdown link. Do not quote long passages verbatim from any source. Aim for roughly 400-600 words total. End with a '## The bottom line' section. Do not include a level-1 heading or a title, and do not wrap the response in JSON — just write the Markdown body directly, starting with the first '## ' subheading.\n\nStories:\n${sourcesBlock(items)}`;
   const bodyMarkdown = await callWorkersAI(
     [
       { role: "system", content: SYSTEM_PROMPT },
@@ -355,7 +394,7 @@ async function draftRoundup(items) {
 }
 
 async function draftMajorStory(cluster) {
-  const bodyUser = `Multiple independent sources are reporting the same story today. Write a standalone deep-dive Markdown article body (700-1000 words) explaining what happened, why it matters for care workers/clinicians/employers, and what readers should do about it — similar in depth to a real explainer article. Use ONLY the facts in the sources below; do not add outside knowledge or invented statistics. Cite each source as a Markdown link at the point its information is used. End with a '## The bottom line' section. Do not include a level-1 heading or a title, and do not wrap the response in JSON — just write the Markdown body directly.\n\nSources (all reporting the same underlying story):\n${sourcesBlock(cluster.items)}`;
+  const bodyUser = `Multiple independent sources are reporting the same story today. Write a standalone explainer Markdown article body (500-700 words): what changed, who it affects (care workers / clinicians / employers), and what readers should do about it. Use ONLY the facts in the sources below; do not add outside knowledge or invented statistics. Cite each source as a Markdown link at the point its information is used. End with a '## The bottom line' section. Do not include a level-1 heading or a title, and do not wrap the response in JSON — just write the Markdown body directly.\n\nSources (all reporting the same underlying story):\n${sourcesBlock(cluster.items)}`;
   const bodyMarkdown = await callWorkersAI(
     [
       { role: "system", content: SYSTEM_PROMPT },
@@ -417,6 +456,15 @@ function writePost(draft, { sources, isRoundup }) {
   const slug = uniqueSlug(baseSlug);
   const wordCount = draft.bodyMarkdown.split(/\s+/).filter(Boolean).length;
   const readingTime = Math.max(1, Math.round(wordCount / 225));
+  // reviewBy: facts that can change must be re-checked (handover §6).
+  // build-blog-content.js only WARNS on a past reviewBy, so this is a
+  // nudge in the review pipeline, not a publish blocker.
+  const reviewBy = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // Standing footer (handover §6) — a blockquote so build-blog-content.js
+  // renders it as the same notice callout hand-written posts use.
+  const bodyWithFooter =
+    draft.bodyMarkdown.trim() +
+    `\n\n> General information, not immigration advice. Check gov.uk or a regulated adviser for your situation.\n`;
 
   const frontmatter = [
     "---",
@@ -431,6 +479,11 @@ function writePost(draft, { sources, isRoundup }) {
     `author: "Charlie Xavier"`,
     `datePublished: "${today}"`,
     `dateModified: "${today}"`,
+    `reviewBy: "${reviewBy}"`,
+    // Post type (HANDOVER_daily-news §5 Step 2): the drafter only ever
+    // produces roundups or sector-news. Rule alerts come from the zero-AI
+    // pipeline instead and never touch this script.
+    `newsType: "${isRoundup ? "roundup" : "sector-news"}"`,
     `readingTime: ${readingTime}`,
     "heroImage:",
     `  unsplashPhotoId: "${draft.heroImageUnsplashId}"`,
@@ -448,7 +501,7 @@ function writePost(draft, { sources, isRoundup }) {
   ].join("\n");
 
   const filePath = path.join(POSTS_DIR, `${slug}.md`);
-  fs.writeFileSync(filePath, frontmatter + draft.bodyMarkdown.trim() + "\n");
+  fs.writeFileSync(filePath, frontmatter + bodyWithFooter);
   return { slug, title: draft.title, filePath, isRoundup };
 }
 
@@ -463,6 +516,17 @@ async function main() {
 
   const { major, roundupItems } = clusterStories(items);
   console.log(`${major.length} candidate "major" stories (2+ independent sources), ${roundupItems.length} items for the roundup.`);
+
+  // Debug without burning Workers AI quota or tripping Google's rate
+  // limit (HANDOVER_daily-news §5 Step 1): fetch + cluster only, no AI
+  // calls, no file writes, no PR summary.
+  if (process.argv.includes("--dry-run")) {
+    console.log("[daily-news-draft] --dry-run: stopping before any Workers AI call. No files written.");
+    for (const c of major.slice(0, 5)) {
+      console.log(`  major (${c.publishers.size} sources): ${c.items[0]?.title?.slice(0, 100)}`);
+    }
+    return;
+  }
 
   const written = [];
 

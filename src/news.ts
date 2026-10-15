@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
+import { BLOG_POSTS } from "./blog-content";
+import { heroUrl } from "./blog-images";
 
 // Candidate Home ("Rounds") news feed — migration 0048. See
 // HANDOVER.md's news-feed section for the full design writeup. Reads go
@@ -145,6 +147,51 @@ news.post("/:id/comments/:commentId/report", async (c) => {
   const { error } = await c.get("supabase").rpc("report_news_comment", { p_comment_id: c.req.param("commentId") });
   if (error) return c.json({ error: error.message }, 400);
   return c.body(null, 204);
+});
+
+// Rule-alert cards (HANDOVER_daily-news §5 Step 3, migration 0055) —
+// zero-AI GOV.UK headlines, pinned 7 days from the source's publish date.
+// Pinned first, then recent-but-unpinned, newest first. Behind requireAuth
+// like everything else in this sub-app: any signed-in candidate (including
+// half-onboarded members — the News tab has no onboarding gate) can read;
+// anon cannot.
+news.get("/rule-alerts", async (c) => {
+  const { data, error } = await c
+    .get("supabase")
+    .from("rule_alerts")
+    .select("id, title, url, source, published_at, pinned_until")
+    .order("pinned_until", { ascending: false })
+    .order("published_at", { ascending: false })
+    .limit(30);
+  if (error) return c.json({ error: error.message }, 400);
+  const now = Date.now();
+  const pinned = (data || []).filter((r) => Date.parse(r.pinned_until) > now);
+  const recent = (data || []).filter((r) => Date.parse(r.pinned_until) <= now);
+  return c.json({ pinned, recent });
+});
+
+// iCare's own posts for the News tab + Rounds card (HANDOVER_daily-news
+// §5 Step 4) — metadata only, newest first, served from the already-
+// bundled BLOG_POSTS (same committed data that renders /blog/...).
+// newsType is only set on posts drafted after 2026-10-15; older posts
+// simply omit it and the frontend treats them as regular Insights posts.
+news.get("/icare-posts", async (c) => {
+  const limit = Math.min(Number(c.req.query("limit")) || 20, 50);
+  const posts = [...BLOG_POSTS]
+    .sort((a, b) => (a.datePublished < b.datePublished ? 1 : -1))
+    .slice(0, limit)
+    .map((p) => ({
+      slug: p.slug,
+      title: p.title,
+      category: p.category,
+      categorySlug: p.categorySlug,
+      datePublished: p.datePublished,
+      readingTime: p.readingTime,
+      image: heroUrl(p.heroImage.unsplashId),
+      imageAlt: p.heroImage.alt,
+      newsType: (p as { newsType?: string }).newsType || null,
+    }));
+  return c.json({ posts });
 });
 
 export default news;

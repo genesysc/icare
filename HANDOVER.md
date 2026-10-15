@@ -2777,3 +2777,28 @@ notifications go; news approver; Sender.net digest group; whether the
 news pipeline extends `/blog` (recommended) or builds the spec's admin
 queue.
 
+---
+
+## 26. Daily news — built 2026-10-15 (HANDOVER_daily-news, digest excluded)
+
+Pipeline (a) won by default — the founder didn't answer the pipeline
+question, so the recommended blog+PR flow stands: Markdown in
+`content/posts/`, approval = Monique merges the GitHub PR, published at
+`/blog/...`. No Supabase drafts table, no admin UI. Weekly digest
+explicitly skipped (no Sender.net group needed).
+
+| Piece | What |
+|---|---|
+| Drafter (`scripts/daily-news-draft.js`, `--dry-run` added) | 6 official feeds (UKVI + Home Office Atom added 2026-10-15, both curl-verified 200/20 entries; CQC/NMC/Skills for Care have no usable feed — documented in-code), Google News cut 5→3 queries with 2s stagger + `GOOGLE_NEWS_ENABLED=0` kill-switch, shorter outputs (roundup 400–600w, major 500–700w, 1500-token budget), §6 compliance in the prompt, `newsType`/`reviewBy`(+14d)/§6-footer stamped per post. `build-blog-content.js` validates `newsType` when present and its frontmatter regex is now CRLF-tolerant (Windows checkouts broke every post before this). |
+| Rule alerts (migration `0055`, Worker cron, zero AI) | `rule_alerts` table + candidate-only read + secret-gated `ingest_rule_alert()` RPC (reuses `news_ingest_secret`); the 2-hourly cron upserts UKVI/Home Office/DHSC headlines, pinned 7 days. **Applied 2026-10-15** by the founder via the SQL editor. Alerts populate on the next cron run after that (`select count(*) from rule_alerts;` to check). |
+| News tab (`src/news-feed.html`, `/news-feed`) | Signed-in, no onboarding gate (sponsor-check pattern). Pinned rule alerts ("Official source" pill for Tier 1 only, never "Verified") + iCare explainers via new `GET /news/rule-alerts` and `GET /news/icare-posts` (`src/news.ts`), §6 footer at the bottom. `/news` was already taken by the third-party API, hence the path. |
+| Navigation | News tab third (Rounds, Sponsors, News, Invites, Network, Messages, Profile) in all 10 tab bars + nav-shell reference + Rounds icon-nav. Verified at 320px, zero overflow. |
+| Rounds (`src/rounds.html`) | Right column now shows iCare's own news (pinned alerts + latest posts, recency+pin only, never personalised — §1 #5); the third-party card stays `hidden`, backend untouched. Connections feed stays the middle column. |
+| Draft notification | Workflow emails `info@icareltd.com` (recipient — sender is always `hello@`, §2 rule) when a draft PR opens; fail-safe without secrets. Needs `SENDER_API_KEY` (+ optional `SENDER_FROM_EMAIL`) as GitHub Actions secrets. |
+
+First real AI-drafted PR is still unproven end-to-end (no Workers AI
+call made during the build — quota discipline); `--dry-run` proved
+fetch+cluster live (69 items → 8 major + 48 roundup). Sponsor work
+(§10/§25) untouched except the News tab appearing in sponsor-check's
+copied tab bar, per the tab-bar convention.
+

@@ -42,6 +42,7 @@ export interface BlogPost {
   readingTime: number;
   wordCount: number;
   reviewBy?: string;
+  newsType?: string;
   heroImage: BlogHeroImage;
   featured: boolean;
   disclaimer?: string;

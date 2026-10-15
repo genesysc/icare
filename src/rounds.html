@@ -439,6 +439,9 @@
     <a href="/sponsor-check" class="icon-nav-item" data-tab="sponsors" title="Sponsor check" aria-label="Sponsor check">
       <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
     </a>
+    <a href="/news-feed" class="icon-nav-item" data-tab="news" title="News" aria-label="News">
+      <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>
+    </a>
     <a href="/invites" class="icon-nav-item" data-tab="invites" title="Invites" aria-label="Invites">
       <span class="icon-nav-icon-wrap">
         <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
@@ -529,16 +532,23 @@
 
     </div>
 
-    <!-- News module temporarily pulled from the live page (founder request,
-         2026-09-24) — the daily ingestion cron and the Workers AI-backed
-         blog-draft automation both proved unreliable enough in testing
-         that this is being paused rather than shipped in a half-working
-         state. `hidden` here, not deleted: the backend (news_items table,
-         migration 0048, src/news.ts, src/news-ingest.ts) is untouched and
-         `loadNews("")` below is simply not called, so this is a clean,
-         reversible switch to flip back on once the ingestion pipeline is
-         solid — see PROGRESS.md's entry from this date for the full story. -->
-    <aside class="news-col" hidden>
+    <!-- Third-party news module stays pulled from the live page (founder
+         request, 2026-09-24 — see PROGRESS.md) — `hidden` below, not
+         deleted, backend untouched. What IS live in this sidebar since
+         2026-10-15 (HANDOVER_daily-news §5 Step 4, founder: connections
+         feed in the middle, news in the right-hand column) is iCare's
+         own news: pinned rule alerts + the latest Insights posts, via
+         loadIcareNews() — no /news (third-party) request on page load. -->
+    <aside class="news-col">
+      <div class="card" data-icare-news>
+        <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;">
+          <h2 style="font-size:1.05rem;">Care &amp; health news</h2>
+        </div>
+        <p class="loading-note" data-icare-news-loading style="padding:20px 0;">Loading news…</p>
+        <p class="empty-note" data-icare-news-empty hidden>Nothing here yet — check back soon.</p>
+        <div data-icare-news-list></div>
+        <a href="/news-feed" style="font-size:13px; font-weight:700; color:var(--teal-700); text-decoration:none;">See all news →</a>
+      </div>
       <div class="card" data-news-section hidden>
         <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;">
           <h2 style="font-size:1.05rem;">Today in care &amp; health</h2>
@@ -1154,6 +1164,63 @@ function icareRequireAuth(signInPath) {
     btn.textContent = "Show more";
   }
 
+  // iCare's own news for the right-hand column (HANDOVER_daily-news §5
+  // Step 4): pinned rule alerts first, then the latest Insights posts.
+  // Recency + pinning only — never personalised (HANDOVER.md §1 #5).
+  // All untrusted strings go through textContent, never innerHTML.
+  function renderIcareNewsRows(list, rows) {
+    rows.forEach(function (row) {
+      var item = document.createElement("div");
+      item.className = "news-item";
+      var body = document.createElement("div");
+      body.className = "news-item-body";
+      var title = document.createElement("a");
+      title.href = row.href;
+      if (row.href.charAt(0) !== "/") { title.target = "_blank"; title.rel = "noopener"; }
+      title.style.cssText = "font-size:14.5px;font-weight:700;color:var(--plum-950);line-height:1.35;text-decoration:none;";
+      title.textContent = row.title;
+      body.appendChild(title);
+      var meta = document.createElement("div");
+      meta.className = "news-source-row";
+      var span = document.createElement("span");
+      span.textContent = row.meta;
+      meta.appendChild(span);
+      body.appendChild(meta);
+      item.appendChild(body);
+      list.appendChild(item);
+    });
+  }
+
+  function loadIcareNews() {
+    var loading = document.querySelector("[data-icare-news-loading]");
+    var empty = document.querySelector("[data-icare-news-empty]");
+    var list = document.querySelector("[data-icare-news-list]");
+    Promise.all([
+      jget("/news/rule-alerts").catch(function () { return { ok: false }; }),
+      jget("/news/icare-posts?limit=4").catch(function () { return { ok: false }; })
+    ]).then(function (results) {
+      loading.hidden = true;
+      var rows = [];
+      var alerts = results[0];
+      if (alerts.ok) {
+        (alerts.body.pinned || []).slice(0, 3).forEach(function (a) {
+          rows.push({ title: a.title, href: a.url, meta: a.source + " · official update" });
+        });
+      }
+      var posts = results[1];
+      if (posts.ok) {
+        (posts.body.posts || []).slice(0, 4).forEach(function (p) {
+          rows.push({ title: p.title, href: "/blog/" + p.slug, meta: "iCare explainer · " + p.category });
+        });
+      }
+      if (rows.length === 0) { empty.hidden = false; return; }
+      renderIcareNewsRows(list, rows);
+    }).catch(function () {
+      loading.hidden = true;
+      empty.hidden = false;
+    });
+  }
+
   function loadNews(category) {
     currentNewsCategory = category;
     newsCursor = null;
@@ -1340,9 +1407,11 @@ function icareRequireAuth(signInPath) {
     document.querySelector("[data-invites-dot]").classList.toggle("is-visible", pendingInvites.length > 0);
     renderWaiting(pendingInvites, pendingConnections);
 
-    // News module temporarily pulled from the live page — see the
-    // comment on <aside class="news-col"> above. Not calling loadNews()
-    // means no /news request at all on page load while it's hidden.
+    // Third-party news module stays pulled — see the comment on
+    // <aside class="news-col"> above. Not calling loadNews() means no
+    // /news request at all on page load while it's hidden. iCare's own
+    // news (rule alerts + Insights posts) loads instead.
+    loadIcareNews();
     loadFeed();
   }).catch(function () {
     document.querySelector("[data-loading]").textContent = "Couldn't load Rounds. Try refreshing the page.";

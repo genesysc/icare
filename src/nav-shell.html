@@ -8,16 +8,21 @@
   If you change this file, update every page that copied it:
   dashboard.html, invites.html, pipelines.html, rounds.html (icon-nav
   variant), network.html, messages.html, credentials.html, visibility.html,
-  member.html, sponsor-check.html. (Not onboarding.html —
+  member.html, sponsor-check.html, news-feed.html. (Not onboarding.html —
   it has no tab bar; a candidate isn't in the signed-in "app" proper until
   onboarding is done.)
 
   2026-10-14 (founder decision): "Sponsors" (/sponsor-check, Sponsor
   check — HANDOVER.md §25) added second, and Pipelines HIDDEN from the
   bar for now — /pipelines itself still works and is still linked from
-  Invites; it just has no tab. Jobs and News get their own tabs when those
-  pages ship. sponsor-check.html also carries this bar (shown only to
+  Invites; it just has no tab. Jobs gets its own tab when that page
+  ships. sponsor-check.html also carries this bar (shown only to
   candidates who have finished onboarding).
+
+  2026-10-15 (daily news, HANDOVER_daily-news §5 Step 4): "News"
+  (/news-feed) added third, after Sponsors. news-feed.html carries this
+  bar too (same no-onboarding-gate convention as sponsor-check.html).
+  Order: Rounds, Sponsors, News, Invites, Network, Messages, Profile.
 
   Originally six destinations, matching docs/mockups/jobseeker-wireframes.html's
   sitemap screen plus Messages (added Sprint 24, see PROGRESS.md's
@@ -86,6 +91,10 @@
   <a href="/sponsor-check" class="tab-bar-item" data-tab="sponsors">
     <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
     <span>Sponsors</span>
+  </a>
+  <a href="/news-feed" class="tab-bar-item" data-tab="news">
+    <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>
+    <span>News</span>
   </a>
   <a href="/invites" class="tab-bar-item" data-tab="invites">
     <span class="tab-bar-icon-wrap">

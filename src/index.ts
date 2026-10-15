@@ -24,6 +24,7 @@ import pipelinesPage from "./pipelines.html";
 import credentialsPage from "./credentials.html";
 import visibilityPage from "./visibility.html";
 import roundsPage from "./rounds.html";
+import newsFeedPage from "./news-feed.html";
 import networkPage from "./network.html";
 import messagesPage from "./messages.html";
 import memberPage from "./member.html";
@@ -110,6 +111,7 @@ app.get("/pipelines", (c) => c.html(pipelinesPage));
 app.get("/credentials", (c) => c.html(credentialsPage));
 app.get("/visibility", (c) => c.html(visibilityPage));
 app.get("/rounds", (c) => c.html(roundsPage));
+app.get("/news-feed", (c) => c.html(newsFeedPage));
 app.get("/sponsor-check", (c) => c.html(sponsorCheckPage));
 // Renamed from Home to Rounds, 2026-09-12 — redirect anything still
 // linking the old path (nothing left in this repo does, but an external

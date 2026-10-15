@@ -155,7 +155,11 @@ async function resolveHeroImage(heroImage, filename) {
 
 async function parsePost(filename) {
   const raw = fs.readFileSync(path.join(POSTS_DIR, filename), "utf8");
-  const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  // \r?\n throughout: Windows checkouts (core.autocrlf) give these files
+  // CRLF endings, which the old LF-only pattern rejected outright —
+  // found live 2026-10-15 when `npm run build:blog` failed on every post
+  // on a Windows machine while CI (LF) stayed green.
+  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
   if (!match) throw new Error(`${filename}: missing frontmatter block`);
   const [, fmRaw, body] = match;
   const fm = yaml.load(fmRaw);
@@ -174,6 +178,12 @@ async function parsePost(filename) {
   if (!fm.heroImage?.alt) errors.push("heroImage.alt is required");
   if (!Array.isArray(fm.sources) || fm.sources.length < 3) errors.push("sources needs at least 3 entries");
   if (!Array.isArray(fm.faq) || fm.faq.length < 1) errors.push("faq needs at least 1 entry");
+  // Optional post type (HANDOVER_daily-news §5 Step 2) — only validated
+  // when present, so the 13 existing posts without it keep building.
+  const VALID_NEWS_TYPES = ["rule-alert", "explainer", "sector-news", "roundup"];
+  if (fm.newsType !== undefined && !VALID_NEWS_TYPES.includes(fm.newsType)) {
+    errors.push(`newsType "${fm.newsType}" is not one of ${VALID_NEWS_TYPES.join(", ")}`);
+  }
   if (errors.length) {
     throw new Error(`${filename}:\n  - ${errors.join("\n  - ")}`);
   }
@@ -277,6 +287,7 @@ export interface BlogPost {
   readingTime: number;
   wordCount: number;
   reviewBy?: string;
+  newsType?: string;
   heroImage: BlogHeroImage;
   featured: boolean;
   disclaimer?: string;
