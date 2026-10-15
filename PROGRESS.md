@@ -5799,3 +5799,9 @@ Full write-up, decisions and founder actions: HANDOVER.md §25. Summary:
   attempt; 0054 marks it failed and clears staging. Live data = 14 Oct.
 - Wrote `docs/HANDOVER_sponsored-jobs-news_remaining-build.md` for the
   next agent (Phases 2–5, open questions, gotchas, the refresh fix).
+
+## 2026-10-15 — Sponsor work parked; news-only handover written
+
+Founder: stop the sponsor-register work for now and move on to daily
+news. genesysc/icare#61 left open and unmerged (not watched). Wrote
+`docs/HANDOVER_daily-news.md` — the news-only handover for the next agent.
