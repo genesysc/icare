@@ -5894,3 +5894,9 @@ step; first real AI draft PR still unproven end-to-end (no Workers AI
 call was made this session — deliberately, quota discipline);
 third-party Rounds sidebar stays hidden; deploy workflow still red
 (the Zone permission issue above — unchanged).
+
+**Shipped 2026-10-15:** committed (`a8d3725`, 22 files, +1236/−29) and
+pushed straight to `main` — deploy.yml deploys to production from there
+(same path the §24 commits took). Confirm live on https://icareltd.com
+(`/news-feed`, News tab, Rounds card) rather than the Action's colour,
+per the red-but-live caveat above.
