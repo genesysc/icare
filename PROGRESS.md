@@ -5784,3 +5784,18 @@ Full write-up, decisions and founder actions: HANDOVER.md §25. Summary:
   2026-09-24 (to add Workers AI) lacks Zone → Workers Routes: Edit for
   icareltd.com. Founder to add that permission; until then every deploy
   is "red but live".
+
+## 2026-10-15 — Daily sponsor refresh found broken; fix prepared; remaining build handed over
+
+- 06:20 UTC scheduled run never fired; a manual dispatch failed with
+  `unauthorized` (GitHub secret ≠ `app_secrets.sponsor_refresh_secret`).
+- Running the script from the session got further but
+  `sponsor_refresh_check` timed out (anon 3s): DISTINCT sort over staging
+  1.3s + anti-join 2.4s. Verified a function-level `set statement_timeout`
+  does NOT help. Wrote migration 0054 (de-dup on load, row_hash +
+  partial index for index-only checks, TRUNCATE staging at begin) and the
+  matching script change. 0054 NOT applied (contains TRUNCATE/DROP —
+  founder must paste). One failed `loading` run row exists from the
+  attempt; 0054 marks it failed and clears staging. Live data = 14 Oct.
+- Wrote `docs/HANDOVER_sponsored-jobs-news_remaining-build.md` for the
+  next agent (Phases 2–5, open questions, gotchas, the refresh fix).

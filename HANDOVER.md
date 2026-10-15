@@ -2777,3 +2777,10 @@ notifications go; news approver; Sender.net digest group; whether the
 news pipeline extends `/blog` (recommended) or builds the spec's admin
 queue.
 
+**2026-10-15 update:** the remaining build (Phases 2–5) is handed over in
+`docs/HANDOVER_sponsored-jobs-news_remaining-build.md` — start there. The
+daily refresh is not working yet (GitHub secret mismatch, plus a 3s
+timeout in the check step now that 122k rows are loaded); the fix is
+migration `0054` (pending founder paste) + a script change. Details in
+that doc's §4.
+

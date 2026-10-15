@@ -118,14 +118,20 @@ async function main() {
     .filter((r) => r.name && r.name.trim());
   console.log(`${rows.length} register rows, ${kept.length} A-rated Skilled Worker rows`);
 
+  // Each load returns how many NEW (name, town) rows it staged — duplicates
+  // within the register are dropped server-side (migration 0054). The sum
+  // is what sponsor_refresh_check expects to find, so a lost batch fails
+  // the run.
+  let staged = 0;
   for (let i = 0; i < kept.length; i += BATCH_SIZE) {
-    await rpc("sponsor_refresh_load", { p_secret: SECRET, p_run_id: runId, p_rows: kept.slice(i, i + BATCH_SIZE) });
+    staged += await rpc("sponsor_refresh_load", { p_secret: SECRET, p_run_id: runId, p_rows: kept.slice(i, i + BATCH_SIZE) });
   }
+  console.log(`${staged} unique (name, town) sponsors staged`);
 
   const check = await rpc("sponsor_refresh_check", {
     p_secret: SECRET,
     p_run_id: runId,
-    p_expected_rows: kept.length,
+    p_expected_rows: staged,
   });
   console.log("check:", JSON.stringify(check));
   if (!check.ok) throw new Error(`Refresh not applied: ${check.error}`);
