@@ -346,6 +346,8 @@
     transition: background 0.15s ease, color 0.15s ease;
   }
   .icon-nav-item svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  /* 8 icons since Jobs (2026-10-19): fit a 320px phone */
+  @media (max-width: 400px) { .icon-nav { gap: 0; padding-left: 8px; padding-right: 8px; } .icon-nav-item { width: 36px; height: 36px; } }
   .icon-nav-item:hover { background: rgba(51, 0, 114, 0.08); color: var(--plum-950); }
   .icon-nav-item.is-active { background: rgba(51, 0, 114, 0.1); color: var(--plum-950); }
   .icon-nav-icon-wrap { position: relative; display: flex; }
@@ -438,6 +440,9 @@
     </a>
     <a href="/sponsor-check" class="icon-nav-item" data-tab="sponsors" title="Sponsor check" aria-label="Sponsor check">
       <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+    </a>
+    <a href="/jobs" class="icon-nav-item" data-tab="jobs" title="Jobs" aria-label="Jobs">
+      <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
     </a>
     <a href="/news-feed" class="icon-nav-item" data-tab="news" title="News" aria-label="News">
       <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>

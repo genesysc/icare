@@ -1,0 +1,953 @@
+<!--
+  iCare Jobs — /jobs. HANDOVER.md §27, migration 0056,
+  src/sponsored-jobs.ts. UK sponsored health & care jobs board from the
+  2026-10-14 sponsored jobs / news handover (§4, §7).
+
+  Access: signed-in candidates who have FINISHED their profile only
+  (founder, 2026-10-19: "only accessible once someone has created a
+  profile"). Everyone else sees a locked card pointing at /onboarding —
+  RLS on sponsored_jobs enforces the same rule server-side, so the
+  locked card is a courtesy, not the gate.
+
+  Trust wording from the handover, all deliberate:
+  - Only jobs whose employer exactly matches (name + town) an A-rated
+    Skilled Worker sponsor are ever listed.
+  - "Checked against the register on [date]" — never "Verified", and
+    only an employer-confirmed job may ever say "Confirmed".
+  - Always says a licensed sponsor is not proof the employer will
+    sponsor this specific job; general information, not immigration
+    advice.
+  - Care worker / senior care worker jobs carry "UK-based switchers
+    only" (overseas recruitment closed 22 July 2025).
+
+  Shared blocks copied verbatim per this repo's convention: GA consent
+  (src/ga-consent.js), notification bell (src/notifications-bell.html),
+  tab bar (src/nav-shell.html — 2026-10-19 version: Jobs added).
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<script>
+(function () {
+  var GA_ID = "G-00D0TMNYLD";
+  var KEY = "icare_analytics_consent"; // "granted" | "denied"
+
+  function loadGA() {
+    if (window.__icareGaLoaded) return;
+    window.__icareGaLoaded = true;
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () {
+      window.dataLayer.push(arguments);
+    };
+    var s = document.createElement("script");
+    s.async = true;
+    s.src = "https://www.googletagmanager.com/gtag/js?id=" + GA_ID;
+    document.head.appendChild(s);
+    window.gtag("js", new Date());
+    window.gtag("config", GA_ID);
+  }
+
+  var stored;
+  try {
+    stored = localStorage.getItem(KEY);
+  } catch (e) {}
+
+  if (stored === "granted") {
+    loadGA();
+    return;
+  }
+  if (stored === "denied") return;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    var bar = document.createElement("div");
+    bar.setAttribute("role", "region");
+    bar.setAttribute("aria-label", "Cookie consent");
+    bar.style.cssText =
+      "position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#1B1530;color:#fff;" +
+      "padding:16px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;" +
+      "font:14px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;box-shadow:0 -2px 12px rgba(0,0,0,.15);";
+    bar.innerHTML =
+      '<span style="flex:1;min-width:220px;">We use Google Analytics to understand how visitors use this site. ' +
+      'No analytics cookies are set unless you accept. <a href="/privacy" style="color:#9DE8DE;">Privacy policy</a></span>' +
+      '<span style="display:flex;gap:8px;">' +
+      '<button type="button" data-icare-consent="reject" style="background:transparent;border:1px solid #6E58A0;color:#fff;border-radius:999px;padding:8px 16px;font:inherit;cursor:pointer;">Reject</button>' +
+      '<button type="button" data-icare-consent="accept" style="background:#00A499;border:0;color:#fff;border-radius:999px;padding:8px 16px;font:inherit;cursor:pointer;font-weight:600;">Accept</button>' +
+      "</span>";
+    document.body.appendChild(bar);
+    bar.addEventListener("click", function (e) {
+      var choice = e.target && e.target.getAttribute && e.target.getAttribute("data-icare-consent");
+      if (!choice) return;
+      try {
+        localStorage.setItem(KEY, choice === "accept" ? "granted" : "denied");
+      } catch (err) {}
+      if (choice === "accept") loadGA();
+      bar.remove();
+    });
+  });
+})();
+</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jobs — iCare</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* iCare brand system. The older token names are kept (mapped to the
+       brand palette) because the copied bell/tab-bar blocks use them. */
+    --purple: #330072;
+    --teal: #00A499;
+    --lavender: #F4F1F8;
+    --plum-950: #330072;
+    --ink-soft: #4a4560;
+    --ink-faint: #77718a;
+    --teal-700: #00857c;
+    --teal-500: #00A499;
+    --teal-100: #e0f5f3;
+    --paper-dim: #F4F1F8;
+    --line: #e4dfeb;
+    --white: #ffffff;
+    --note-bg: #fff6e0;
+    --note-ink: #6b4b00;
+    --err: #b23a24;
+    --shadow-soft: 0 24px 60px -24px rgba(51, 0, 114, 0.22);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--lavender); color: var(--ink-soft); -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: "Fraunces", Georgia, serif; color: var(--purple); margin: 0; font-weight: 600; }
+  p { margin: 0; }
+  button, input { font-family: inherit; }
+  a { color: var(--teal-700); }
+  [hidden] { display: none !important; }
+
+  .nav { padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: "Fraunces", serif; font-weight: 600; font-size: 20px; color: var(--purple); text-decoration: none; }
+  .logo em { font-style: normal; color: var(--teal); }
+  .sign-out { background: none; border: none; color: var(--ink-faint); font-size: 14px; font-weight: 600; cursor: pointer; }
+  .sign-out:hover { color: var(--teal-700); }
+  .nav-right { position: relative; display: flex; align-items: center; gap: 2px; }
+
+  .nav-right { position: relative; display: flex; align-items: center; gap: 2px; }
+
+    .notif-bell {
+      position: relative; background: none; border: none; cursor: pointer;
+      padding: 6px; margin: 0 2px; display: flex; align-items: center; justify-content: center;
+      color: var(--ink-faint); border-radius: 999px;
+    }
+    .notif-bell:hover { color: var(--teal-700); background: var(--paper-dim); }
+    .notif-bell svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .notif-bell .tab-bar-dot { top: 3px; right: 3px; }
+  
+    .notif-panel {
+      position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
+      width: min(380px, calc(100vw - 32px)); max-height: min(480px, calc(100vh - 100px));
+      display: flex; flex-direction: column;
+      background: var(--white); border: 1px solid var(--line); border-radius: 16px;
+      box-shadow: var(--shadow-soft); overflow: hidden;
+    }
+    .notif-panel-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 10px; border-bottom: 1px solid var(--line); flex: none;
+    }
+    .notif-panel-head h2 { font-family: "Fraunces", Georgia, serif; font-size: 16px; color: var(--plum-950); margin: 0; font-weight: 600; }
+    .notif-mark-all { background: none; border: none; color: var(--teal-700); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 4px; }
+    .notif-mark-all:hover { text-decoration: underline; }
+    .notif-mark-all[hidden] { display: none; }
+  
+    .notif-list { overflow-y: auto; flex: 1 1 auto; }
+    .notif-empty, .notif-loading { padding: 32px 16px; text-align: center; color: var(--ink-faint); font-size: 13.5px; }
+    .notif-empty[hidden], .notif-loading[hidden] { display: none; }
+  
+    .notif-row {
+      display: flex; gap: 11px; padding: 12px 16px; text-align: left; width: 100%;
+      background: none; border: none; border-bottom: 1px solid var(--line); cursor: pointer; color: inherit;
+    }
+    .notif-row:last-child { border-bottom: none; }
+    .notif-row:hover { background: var(--paper-dim); }
+    .notif-row.is-unread { background: var(--teal-100); }
+    .notif-row.is-unread:hover { background: #d8f3ee; }
+    .notif-avatar {
+      width: 36px; height: 36px; border-radius: 999px; background: var(--paper-dim); border: 1.5px solid var(--line); flex: none;
+      display: flex; align-items: center; justify-content: center; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); overflow: hidden;
+    }
+    .notif-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .notif-body { min-width: 0; flex: 1; }
+    .notif-text { font-size: 13px; line-height: 1.4; color: var(--plum-950); margin: 0; }
+    .notif-text b { font-weight: 600; }
+    .notif-preview { font-size: 12.5px; color: var(--ink-faint); margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .notif-time { font-size: 11px; color: var(--ink-faint); margin: 4px 0 0; }
+    .notif-unread-mark { width: 8px; height: 8px; border-radius: 999px; background: var(--teal-500); flex: none; margin-top: 5px; }
+
+  /* Tab-bar shell — src/nav-shell.html; copied per-page, see that file's header comment */
+  .tab-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; background: var(--white); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .tab-bar-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint);
+    font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-bar-item.is-active { color: var(--teal-700); }
+  /* 8 tabs since Jobs (2026-10-19): tighten below 380px so the bar fits a 320px phone */
+  @media (max-width: 380px) { .tab-bar-item { padding: 9px 1px 8px; font-size: 9px; letter-spacing: 0; min-width: 0; } }
+  .tab-bar-item .tab-bar-icon-wrap { position: relative; }
+  .tab-bar-dot {
+    position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px;
+    background: var(--teal-500); border: 1.5px solid var(--white); display: none;
+  }
+  .tab-bar-dot.is-visible { display: block; }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 8px 16px 96px; display: flex; flex-direction: column; gap: 20px; }
+
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal-700); }
+  h1 { font-size: clamp(1.9rem, 5vw, 2.5rem); line-height: 1.08; letter-spacing: -0.01em; margin-top: 6px; }
+  .lede { margin-top: 10px; font-size: 16px; line-height: 1.55; max-width: 60ch; }
+  .stamp { margin-top: 12px; font-size: 13.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .stamp b { color: var(--purple); font-weight: 600; }
+
+  .card { background: var(--white); border-radius: 18px; border: 1px solid var(--line); box-shadow: var(--shadow-soft); padding: 22px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .locked h2 { font-size: 22px; }
+  .locked p { line-height: 1.55; }
+  .btn {
+    display: inline-block; font-weight: 600; font-size: 15px; color: var(--white); background: var(--purple);
+    border: 0; border-radius: 999px; padding: 11px 20px; cursor: pointer; text-decoration: none; align-self: flex-start;
+  }
+  .btn:hover { background: #4a1a8c; }
+  .btn:disabled { opacity: 0.6; cursor: default; }
+  .btn.teal { background: var(--teal-700); }
+  .btn.teal:hover { background: #006e66; }
+  .link-btn { background: none; border: 0; padding: 0; color: var(--teal-700); font-weight: 600; font-size: 14px; cursor: pointer; align-self: flex-start; }
+
+  .filters { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .filters { grid-template-columns: 1fr; } }
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field label { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  .field input, .field select, .field textarea {
+    font-size: 16px; font-family: inherit; color: var(--purple); background: var(--white);
+    border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 14px; width: 100%; min-width: 0;
+  }
+  .field textarea { resize: vertical; min-height: 90px; }
+  .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible { outline: 3px solid var(--teal); outline-offset: 1px; border-color: var(--teal); }
+
+  .status { font-size: 14px; color: var(--ink-faint); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+  .status b { color: var(--purple); }
+  .status.err { color: var(--err); }
+
+  .jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .job {
+    display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+    background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: 16px;
+  }
+  .job:hover { border-color: var(--teal); }
+  .job:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  .job-title { font-family: "Fraunces", Georgia, serif; font-size: 18px; font-weight: 600; color: var(--purple); overflow-wrap: anywhere; }
+  .job-employer { margin-top: 2px; font-weight: 600; color: var(--ink-soft); overflow-wrap: anywhere; }
+  .job-meta { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 13.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .job-meta .applied { color: var(--teal-700); font-weight: 600; }
+  .badges { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { font-size: 12px; font-weight: 600; background: var(--teal-100); color: var(--teal-700); padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .pill.role { background: var(--lavender); color: var(--purple); border: 1px solid var(--line); }
+  .pill.confirmed { background: var(--purple); color: var(--white); }
+  .pill.note { background: var(--note-bg); color: var(--note-ink); }
+
+  .detail h2 { font-size: clamp(1.5rem, 4.5vw, 2rem); line-height: 1.15; overflow-wrap: anywhere; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; margin: 0; }
+  .facts div { min-width: 0; }
+  .facts dt { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+  .facts dd { margin: 2px 0 0; color: var(--purple); font-weight: 600; overflow-wrap: anywhere; }
+  .desc { white-space: pre-line; line-height: 1.6; overflow-wrap: anywhere; }
+  .badge-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.5; }
+  .badge-notes b { color: var(--purple); }
+  .apply-box { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .apply-box p { font-size: 14px; line-height: 1.55; }
+  .apply-done { background: var(--teal-100); color: var(--teal-700); border-radius: 12px; padding: 12px 14px; font-weight: 600; font-size: 14px; }
+  .attribution { font-size: 12.5px; color: var(--ink-faint); }
+
+  .caveat { background: var(--note-bg); color: var(--note-ink); border-radius: 14px; padding: 16px 18px; font-size: 14px; line-height: 1.55; display: flex; flex-direction: column; gap: 8px; }
+  .caveat h2 { font-size: 17px; color: var(--note-ink); }
+  .caveat a { color: var(--note-ink); }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <div class="nav-right">
+    <div>
+      <button class="notif-bell" data-notif-bell aria-label="Notifications" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="tab-bar-dot" data-notif-dot></span>
+      </button>
+      <div class="notif-panel" data-notif-panel hidden>
+        <div class="notif-panel-head">
+          <h2>Notifications</h2>
+          <button class="notif-mark-all" data-notif-mark-all hidden>Mark all read</button>
+        </div>
+        <p class="notif-loading" data-notif-loading>Loading…</p>
+        <p class="notif-empty" data-notif-empty hidden>Nothing yet — connection requests, messages and invites will show up here.</p>
+        <div class="notif-list" data-notif-list></div>
+      </div>
+    </div>
+    <button class="sign-out" data-sign-out>Sign out</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card locked" data-locked hidden>
+    <p class="eyebrow">Jobs</p>
+    <h2 data-locked-title>Create your profile to open the jobs board</h2>
+    <p data-locked-text>The iCare jobs board lists UK health and care jobs from employers on the Home Office sponsor register. It opens as soon as you've finished your iCare profile.</p>
+    <a class="btn" href="/onboarding" data-locked-link>Finish your profile →</a>
+  </section>
+
+  <div data-board hidden>
+    <div class="wrap" style="padding: 0;">
+      <header data-list-head>
+        <p class="eyebrow">Jobs</p>
+        <h1>UK sponsored health &amp; care jobs</h1>
+        <p class="lede">Every job here is from an employer that holds a Home Office licence to sponsor Skilled Worker visas. Tap a job for the details and how to apply.</p>
+        <p class="stamp" data-stamp></p>
+      </header>
+
+      <section class="card" aria-label="Jobs" data-list>
+        <form class="filters" data-form autocomplete="off">
+          <div class="field">
+            <label for="q">Job title, employer or town</label>
+            <input id="q" type="search" placeholder="e.g. Staff nurse" spellcheck="false" maxlength="100" />
+          </div>
+          <div class="field">
+            <label for="region">Region</label>
+            <select id="region"><option value="">All regions</option></select>
+          </div>
+        </form>
+        <p class="status" data-status role="status" aria-live="polite">Loading jobs…</p>
+        <ul class="jobs" data-jobs></ul>
+        <button class="btn" type="button" data-more hidden>Show more</button>
+      </section>
+
+      <section class="card detail" data-detail hidden aria-live="polite">
+        <button class="link-btn" type="button" data-back>← All jobs</button>
+        <div data-detail-body></div>
+      </section>
+
+      <section class="caveat" aria-labelledby="caveat-title">
+        <h2 id="caveat-title">How we check these jobs</h2>
+        <p><b>Licensed sponsor</b> means the employer's name and town matched an A-rated Skilled Worker sponsor on the Home Office register on the date shown. We re-check every job against each day's register. A licence is not proof the employer will sponsor this particular job, or that it has certificates of sponsorship available. Ask the employer before you apply.</p>
+        <p><b>Role meets visa rules</b> means the advert gives an occupation code and a salary of at least £41,700 a year. Some health and care roles qualify on lower salaries; those jobs are listed without this badge rather than given a guess.</p>
+        <p><b>UK-based switchers only</b>: care worker and senior care worker roles closed to new overseas applicants on 22 July 2025. People already in the UK on a sponsored visa can still switch into them until 22 July 2028.</p>
+        <p><b>General information, not immigration advice.</b> Check <a href="https://www.gov.uk/skilled-worker-visa" target="_blank" rel="noopener">gov.uk</a> or a regulated adviser for your situation.</p>
+      </section>
+    </div>
+  </div>
+</main>
+
+<!-- Tab-bar shell — src/nav-shell.html; copied per-page, see that file's header comment -->
+<nav class="tab-bar" aria-label="Main" data-tab-bar hidden>
+  <a href="/rounds" class="tab-bar-item" data-tab="rounds">
+    <svg viewBox="0 0 24 24"><polyline points="2 14 6 14 9 5 14 21 17 14 22 14"/></svg>
+    <span>Rounds</span>
+  </a>
+  <a href="/sponsor-check" class="tab-bar-item" data-tab="sponsors">
+    <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+    <span>Sponsors</span>
+  </a>
+  <a href="/jobs" class="tab-bar-item is-active" data-tab="jobs">
+    <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+    <span>Jobs</span>
+  </a>
+  <a href="/news-feed" class="tab-bar-item" data-tab="news">
+    <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>
+    <span>News</span>
+  </a>
+  <a href="/invites" class="tab-bar-item" data-tab="invites">
+    <span class="tab-bar-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
+      <span class="tab-bar-dot" data-invites-dot></span>
+    </span>
+    <span>Invites</span>
+  </a>
+  <a href="/network" class="tab-bar-item" data-tab="network">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span>Network</span>
+  </a>
+  <a href="/messages" class="tab-bar-item" data-tab="messages">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    <span>Messages</span>
+  </a>
+  <a href="/dashboard" class="tab-bar-item" data-tab="profile">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    <span>Profile</span>
+  </a>
+</nav>
+
+<script>
+var ICARE_SESSION_KEY = "icare_session";
+function icareGetSession() {
+  try { var raw = localStorage.getItem(ICARE_SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+function icareClearSession() {
+  try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {}
+}
+function icareIsSessionExpired(session) {
+  if (!session || !session.expires_at) return true;
+  return Date.now() >= session.expires_at * 1000;
+}
+function icareAuthFetch(url, options) {
+  var session = icareGetSession();
+  options = options || {};
+  var headers = Object.assign({}, options.headers || {});
+  if (session && session.access_token) headers["Authorization"] = "Bearer " + session.access_token;
+  if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+function icareRequireAuth(signInPath) {
+  var session = icareGetSession();
+  if (!session || icareIsSessionExpired(session)) {
+    icareClearSession();
+    var next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = (signInPath || "/sign-in") + "?next=" + next;
+    return null;
+  }
+  return session;
+}
+
+(function () {
+  var session = icareRequireAuth();
+  if (!session) return;
+
+  function jget(url) {
+    return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+  function jpost(url, data) {
+    return icareAuthFetch(url, { method: "POST", body: JSON.stringify(data || {}) }).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function formatDate(iso) {
+    if (!iso) return "";
+    var p = String(iso).slice(0, 10).split("-");
+    return parseInt(p[2], 10) + " " + MONTHS[parseInt(p[1], 10) - 1] + " " + p[0];
+  }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function money(n) {
+    return "£" + Number(n).toLocaleString("en-GB", { maximumFractionDigits: Number(n) % 1 ? 2 : 0, minimumFractionDigits: Number(n) % 1 ? 2 : 0 });
+  }
+  function salaryText(j) {
+    if (j.salary_min == null && j.salary_max == null) return "Salary not stated";
+    var per = j.salary_period === "hour" ? " an hour" : " a year";
+    if (j.salary_min != null && j.salary_max != null && Number(j.salary_max) > Number(j.salary_min)) return money(j.salary_min) + "–" + money(j.salary_max) + per;
+    return money(j.salary_min != null ? j.salary_min : j.salary_max) + per;
+  }
+  function placeText(j) {
+    var parts = [j.town];
+    if (j.region && String(j.region).toLowerCase() !== String(j.town || "").toLowerCase()) parts.push(j.region);
+    return parts.filter(Boolean).join(", ") || "Location not stated";
+  }
+  function badgesFor(j) {
+    var wrap = el("div", "badges");
+    if (j.badge_employer_confirmed) wrap.appendChild(el("span", "pill confirmed", "Employer-confirmed sponsorship"));
+    if (j.badge_register) wrap.appendChild(el("span", "pill", "Licensed sponsor"));
+    if (j.badge_role) wrap.appendChild(el("span", "pill role", "Role meets visa rules"));
+    if (j.care_switchers_only) wrap.appendChild(el("span", "pill note", "UK-based switchers only"));
+    return wrap;
+  }
+
+  var lockedEl = document.querySelector("[data-locked]");
+  var boardEl = document.querySelector("[data-board]");
+  var listEl = document.querySelector("[data-list]");
+  var listHeadEl = document.querySelector("[data-list-head]");
+  var detailEl = document.querySelector("[data-detail]");
+  var detailBody = document.querySelector("[data-detail-body]");
+  var jobsEl = document.querySelector("[data-jobs]");
+  var statusEl = document.querySelector("[data-status]");
+  var moreBtn = document.querySelector("[data-more]");
+  var qInput = document.getElementById("q");
+  var regionSel = document.getElementById("region");
+  var applied = {}; // job_id -> application
+  var state = { q: "", region: "", page: 0, total: 0, shown: 0, seq: 0 };
+  var timer = null;
+
+  function lock(title, text, linkText, href) {
+    if (title) document.querySelector("[data-locked-title]").textContent = title;
+    if (text) document.querySelector("[data-locked-text]").textContent = text;
+    var link = document.querySelector("[data-locked-link]");
+    if (linkText) link.textContent = linkText;
+    if (href) link.href = href;
+    boardEl.hidden = true;
+    lockedEl.hidden = false;
+  }
+
+  function setStatus(nodes, isErr) {
+    statusEl.textContent = "";
+    statusEl.className = "status" + (isErr ? " err" : "");
+    (Array.isArray(nodes) ? nodes : [nodes]).forEach(function (n) { statusEl.append(n); });
+  }
+
+  function renderJob(j) {
+    var li = el("li");
+    var btn = el("button", "job");
+    btn.type = "button";
+    btn.appendChild(el("div", "job-title", j.title));
+    btn.appendChild(el("div", "job-employer", j.employer_name));
+    var meta = el("div", "job-meta");
+    meta.appendChild(el("span", null, placeText(j)));
+    meta.appendChild(el("span", null, salaryText(j)));
+    meta.appendChild(el("span", null, "Posted " + formatDate(j.posted_at)));
+    if (applied[j.id]) meta.appendChild(el("span", "applied", "Applied"));
+    btn.appendChild(meta);
+    btn.appendChild(badgesFor(j));
+    btn.addEventListener("click", function () { openJob(j.id, true); });
+    li.appendChild(btn);
+    return li;
+  }
+
+  function runSearch(append) {
+    if (!append) {
+      state = { q: qInput.value.trim(), region: regionSel.value, page: 0, total: 0, shown: 0, seq: state.seq + 1 };
+      jobsEl.textContent = "";
+      moreBtn.hidden = true;
+      setStatus("Loading jobs…");
+    }
+    var seq = state.seq;
+    moreBtn.disabled = true;
+    var url = "/sponsored-jobs?q=" + encodeURIComponent(state.q) + "&region=" + encodeURIComponent(state.region) + "&page=" + state.page;
+    jget(url).then(function (r) {
+      if (seq !== state.seq) return;
+      moreBtn.disabled = false;
+      if (r.status === 401) { icareClearSession(); icareRequireAuth(); return; }
+      if (r.status === 403) { lock(); return; }
+      if (!r.ok) { setStatus("Couldn't load jobs. Please try again.", true); return; }
+      state.total = r.body.total;
+      r.body.jobs.forEach(function (j) { jobsEl.appendChild(renderJob(j)); });
+      state.shown += r.body.jobs.length;
+      if (state.total === 0) {
+        setStatus(state.q || state.region
+          ? "No jobs match that search. Try fewer words or a different region."
+          : "No jobs listed yet. New sponsored roles will appear here as soon as they're added.");
+      } else {
+        setStatus([el("b", null, state.total.toLocaleString("en-GB")), (state.total === 1 ? " job" : " jobs") + (state.shown < state.total ? ", showing " + state.shown : "")]);
+      }
+      moreBtn.hidden = state.shown >= state.total;
+    }).catch(function () {
+      if (seq !== state.seq) return;
+      moreBtn.disabled = false;
+      setStatus("Couldn't load jobs. Please check your connection and try again.", true);
+    });
+  }
+
+  function showList(push) {
+    detailEl.hidden = true;
+    listEl.hidden = false;
+    listHeadEl.hidden = false;
+    if (push) history.pushState({}, "", "/jobs");
+  }
+
+  function fact(dl, label, value) {
+    if (!value) return;
+    var d = el("div");
+    d.appendChild(el("dt", null, label));
+    d.appendChild(el("dd", null, value));
+    dl.appendChild(d);
+  }
+
+  function renderApply(j) {
+    var box = el("div", "apply-box");
+    var mine = applied[j.id];
+    if (j.apply_mode === "external" && j.apply_url) {
+      box.appendChild(el("p", null, "This employer takes applications on its own website. Ask them to confirm they can sponsor this role before you apply."));
+      var a = el("a", "btn teal", "Apply on the employer's site ↗");
+      a.href = j.apply_url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      box.appendChild(a);
+      if (j.source === "adzuna") {
+        var attr = el("p", "attribution");
+        var al = el("a", null, "Jobs by Adzuna");
+        al.href = "https://www.adzuna.co.uk";
+        al.target = "_blank";
+        al.rel = "noopener";
+        attr.appendChild(al);
+        box.appendChild(attr);
+      }
+      return box;
+    }
+    if (mine) {
+      box.appendChild(el("div", "apply-done", "You applied on " + formatDate(mine.created_at) + ". The iCare team will be in touch about this job."));
+      return box;
+    }
+    box.appendChild(el("p", null, "Apply through iCare. Your application goes to the iCare team, who will review it and contact you about this job only."));
+    var field = el("div", "field");
+    var lab = el("label", null, "Anything you'd like to add (optional)");
+    lab.htmlFor = "apply-note";
+    var ta = el("textarea");
+    ta.id = "apply-note";
+    ta.maxLength = 1000;
+    ta.placeholder = "e.g. your notice period, or your current visa route";
+    field.appendChild(lab);
+    field.appendChild(ta);
+    box.appendChild(field);
+    var btn = el("button", "btn teal", "Apply for this job");
+    btn.type = "button";
+    var msg = el("p", "status");
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      msg.className = "status";
+      msg.textContent = "Sending…";
+      jpost("/sponsored-jobs/" + j.id + "/apply", { note: ta.value }).then(function (r) {
+        if (r.status === 401) { icareClearSession(); icareRequireAuth(); return; }
+        if (!r.ok) {
+          btn.disabled = false;
+          msg.className = "status err";
+          msg.textContent = (r.body && r.body.error) || "Couldn't send your application. Please try again.";
+          return;
+        }
+        applied[j.id] = r.body.application;
+        box.replaceWith(renderApply(j));
+      }).catch(function () {
+        btn.disabled = false;
+        msg.className = "status err";
+        msg.textContent = "Couldn't send your application. Please check your connection and try again.";
+      });
+    });
+    box.appendChild(btn);
+    box.appendChild(msg);
+    return box;
+  }
+
+  function renderDetail(j) {
+    detailBody.textContent = "";
+    var wrap = el("div", "wrap");
+    wrap.style.padding = "0";
+    wrap.style.gap = "14px";
+    var head = el("div");
+    head.appendChild(el("h2", null, j.title));
+    head.appendChild(el("div", "job-employer", j.employer_name));
+    head.appendChild(badgesFor(j));
+    wrap.appendChild(head);
+
+    var dl = el("dl", "facts");
+    fact(dl, "Location", placeText(j));
+    fact(dl, "Salary", salaryText(j));
+    fact(dl, "Contract", j.contract_type);
+    fact(dl, "Hours", j.hours);
+    fact(dl, "Sector", j.sector);
+    fact(dl, "Occupation code", j.soc_code);
+    fact(dl, "Posted", formatDate(j.posted_at));
+    if (j.expires_at) fact(dl, "Closes", formatDate(j.expires_at));
+    wrap.appendChild(dl);
+
+    if (j.description) wrap.appendChild(el("p", "desc", j.description));
+
+    var notes = el("ul", "badge-notes");
+    var n1 = el("li");
+    n1.appendChild(el("b", null, "Licensed sponsor: "));
+    n1.append("the employer matched the Home Office register" + (j.register_date ? " published " + formatDate(j.register_date) : "") + (j.checked_at ? " (checked " + formatDate(j.checked_at) + ")" : "") + ". This doesn't prove the employer will sponsor this job.");
+    notes.appendChild(n1);
+    if (j.care_switchers_only) {
+      var n2 = el("li");
+      n2.appendChild(el("b", null, "UK-based switchers only: "));
+      n2.append("this role is closed to new applicants from overseas. You may be able to switch into it if you're already in the UK on a sponsored visa.");
+      notes.appendChild(n2);
+    }
+    wrap.appendChild(notes);
+    wrap.appendChild(renderApply(j));
+    wrap.appendChild(el("p", "attribution", "General information, not immigration advice."));
+    detailBody.appendChild(wrap);
+  }
+
+  function openJob(id, push) {
+    listEl.hidden = true;
+    listHeadEl.hidden = true;
+    detailEl.hidden = false;
+    detailBody.textContent = "";
+    detailBody.appendChild(el("p", "status", "Loading…"));
+    if (push) history.pushState({ job: id }, "", "/jobs?job=" + encodeURIComponent(id));
+    window.scrollTo(0, 0);
+    jget("/sponsored-jobs/" + encodeURIComponent(id)).then(function (r) {
+      if (r.status === 401) { icareClearSession(); icareRequireAuth(); return; }
+      if (r.status === 403) { lock(); return; }
+      if (!r.ok) {
+        detailBody.textContent = "";
+        detailBody.appendChild(el("p", "status err", (r.body && r.body.error) || "Couldn't load this job."));
+        return;
+      }
+      renderDetail(r.body.job);
+    }).catch(function () {
+      detailBody.textContent = "";
+      detailBody.appendChild(el("p", "status err", "Couldn't load this job. Please check your connection and try again."));
+    });
+  }
+
+  function route() {
+    var id = new URLSearchParams(window.location.search).get("job");
+    if (id) openJob(id, false); else showList(false);
+  }
+
+  function startBoard(status) {
+    boardEl.hidden = false;
+    (status.regions || []).forEach(function (r) {
+      var o = el("option", null, r);
+      o.value = r;
+      regionSel.appendChild(o);
+    });
+    jget("/sponsors/status").then(function (r) {
+      if (!r.ok || !r.body.register) return;
+      var stamp = document.querySelector("[data-stamp]");
+      stamp.append("Employers checked against the Home Office register published ");
+      stamp.appendChild(el("b", null, formatDate(r.body.register.register_date)));
+    });
+    jget("/sponsored-jobs/me/applications").then(function (r) {
+      if (r.ok) (r.body.applications || []).forEach(function (a) { applied[a.job_id] = a; });
+    }).finally(function () {
+      runSearch(false);
+      route();
+    });
+    qInput.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(function () { runSearch(false); }, 300); });
+    regionSel.addEventListener("change", function () { runSearch(false); });
+    document.querySelector("[data-form]").addEventListener("submit", function (e) { e.preventDefault(); clearTimeout(timer); runSearch(false); });
+    moreBtn.addEventListener("click", function () { state.page += 1; runSearch(true); });
+    document.querySelector("[data-back]").addEventListener("click", function () {
+      showList(true);
+      runSearch(false); // refresh so "Applied" shows on a job just applied for
+    });
+    window.addEventListener("popstate", route);
+  }
+
+  // ---- Who's looking: board for candidates past onboarding only ----
+  jget("/auth/me").then(function (me) {
+    if (me.status === 401) { icareClearSession(); icareRequireAuth(); return; }
+    var role = me.ok && me.body.account ? me.body.account.role : null;
+    if (role === "employer") {
+      lock("The jobs board is for iCare members", "Jobs are listed for candidates with an iCare profile.", "Back to your dashboard →", "/employer/home");
+      return;
+    }
+    return jget("/sponsored-jobs/status").then(function (s) {
+      if (s.status === 401) { icareClearSession(); icareRequireAuth(); return; }
+      if (!s.ok || !s.body.access) { lock(); return; }
+      document.querySelector("[data-tab-bar]").hidden = false;
+      jget("/candidates/me/shortlists").then(function (r) {
+        if (r.ok) {
+          var hasNew = (r.body.shortlists || []).some(function (row) { return !row.candidate_consented_at && !row.closed_at; });
+          document.querySelector("[data-invites-dot]").classList.toggle("is-visible", hasNew);
+        }
+      });
+      startBoard(s.body);
+    });
+  }).catch(function () { lock("Couldn't load the jobs board", "Please check your connection and refresh the page.", "Refresh", "/jobs"); });
+
+  document.querySelector("[data-sign-out]").addEventListener("click", function () {
+    icareAuthFetch("/auth/logout", { method: "POST" }).finally(function () {
+      icareClearSession();
+      window.location.href = "/";
+    });
+  });
+})();
+</script>
+<script>
+(function () {
+  var session = icareGetSession();
+  if (!session) return; // page's own icareRequireAuth() already handles the redirect
+
+  function notifJget(url) {
+    return icareAuthFetch(url).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+  function notifJpost(url) {
+    return icareAuthFetch(url, { method: "POST" }).then(function (res) { return res.json().then(function (body) { return { ok: res.ok, status: res.status, body: body }; }); });
+  }
+
+  function notifTimeAgo(iso) {
+    var ms = Date.now() - new Date(iso).getTime();
+    var mins = Math.floor(ms / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + (mins === 1 ? " min ago" : " mins ago");
+    var hours = Math.floor(mins / 60);
+    if (hours < 24) return hours + (hours === 1 ? " hour ago" : " hours ago");
+    var days = Math.floor(hours / 24);
+    return days + (days === 1 ? " day ago" : " days ago");
+  }
+  function notifInitials(text) {
+    if (!text) return "?";
+    var words = text.trim().split(/\s+/).slice(0, 2);
+    return words.map(function (w) { return w[0].toUpperCase(); }).join("");
+  }
+  function notifEscape(text) {
+    var d = document.createElement("div");
+    d.textContent = text || "";
+    return d.innerHTML;
+  }
+
+  function notifLineFor(n) {
+    var actor = notifEscape(n.actor_name || "Someone");
+    if (n.type === "connection_request") return "<b>" + actor + "</b> sent you a connection request";
+    if (n.type === "connection_accepted") return "<b>" + actor + "</b> accepted your connection request";
+    if (n.type === "message") return "<b>" + actor + "</b> sent you a message";
+    if (n.type === "invite") {
+      var org = notifEscape(n.actor_org_name || "An employer");
+      var job = notifEscape(n.job_title || "a role");
+      return "<b>" + org + "</b> invited you to apply for " + job;
+    }
+    return "New notification";
+  }
+  function notifLinkFor(n) {
+    if (n.type === "connection_request" || n.type === "connection_accepted") return "/network";
+    if (n.type === "message") return "/messages?with=" + encodeURIComponent(n.actor_candidate_id);
+    if (n.type === "invite") return "/invites";
+    return "/dashboard";
+  }
+  function notifAvatarCandidateId(n) {
+    return n.type === "invite" ? null : n.actor_candidate_id;
+  }
+  function notifAvatarName(n) {
+    return n.type === "invite" ? n.actor_org_name : n.actor_name;
+  }
+
+  function loadAvatarPhoto(imgEl, candidateId) {
+    icareAuthFetch("/candidates/" + candidateId + "/photo").then(function (res) {
+      if (!res.ok) return;
+      return res.blob().then(function (blob) { imgEl.src = URL.createObjectURL(blob); });
+    }).catch(function () {});
+  }
+  function fillAvatar(avatarEl, name, candidateId, hasPhoto) {
+    avatarEl.textContent = notifInitials(name);
+    if (hasPhoto && candidateId) {
+      var img = document.createElement("img");
+      img.alt = name || "";
+      avatarEl.textContent = "";
+      avatarEl.appendChild(img);
+      loadAvatarPhoto(img, candidateId);
+    }
+  }
+
+  var bellEl = document.querySelector("[data-notif-bell]");
+  var panelEl = document.querySelector("[data-notif-panel]");
+  var dotEl = document.querySelector("[data-notif-dot]");
+  var listEl = document.querySelector("[data-notif-list]");
+  var emptyEl = document.querySelector("[data-notif-empty]");
+  var loadingEl = document.querySelector("[data-notif-loading]");
+  var markAllEl = document.querySelector("[data-notif-mark-all]");
+
+  var loaded = false;
+
+  function setDot(unreadCount) {
+    dotEl.classList.toggle("is-visible", unreadCount > 0);
+    markAllEl.hidden = unreadCount === 0;
+  }
+
+  function refreshUnreadCount() {
+    notifJget("/candidates/me/notifications/unread-count").then(function (r) {
+      if (r.ok) setDot(r.body.unread || 0);
+    });
+  }
+
+  function renderList(rows) {
+    listEl.innerHTML = "";
+    loadingEl.hidden = true;
+    if (!rows || rows.length === 0) { emptyEl.hidden = false; return; }
+    emptyEl.hidden = true;
+    rows.forEach(function (n) {
+      var row = document.createElement("button");
+      row.className = "notif-row" + (n.read_at ? "" : " is-unread");
+      row.type = "button";
+
+      var avatar = document.createElement("div");
+      avatar.className = "notif-avatar";
+      fillAvatar(avatar, notifAvatarName(n), notifAvatarCandidateId(n), n.actor_has_photo);
+      row.appendChild(avatar);
+
+      var body = document.createElement("div");
+      body.className = "notif-body";
+      var text = document.createElement("p");
+      text.className = "notif-text";
+      text.innerHTML = notifLineFor(n);
+      body.appendChild(text);
+      if (n.type === "message" && n.message_preview) {
+        var preview = document.createElement("p");
+        preview.className = "notif-preview";
+        preview.textContent = n.message_preview;
+        body.appendChild(preview);
+      }
+      var time = document.createElement("p");
+      time.className = "notif-time";
+      time.textContent = notifTimeAgo(n.created_at);
+      body.appendChild(time);
+      row.appendChild(body);
+
+      if (!n.read_at) {
+        var markEl = document.createElement("span");
+        markEl.className = "notif-unread-mark";
+        row.appendChild(markEl);
+      }
+
+      row.addEventListener("click", function () {
+        if (!n.read_at) {
+          notifJpost("/candidates/me/notifications/" + n.id + "/read").then(function () { refreshUnreadCount(); });
+        }
+        window.location.href = notifLinkFor(n);
+      });
+
+      listEl.appendChild(row);
+    });
+  }
+
+  function loadFeed() {
+    loadingEl.hidden = false;
+    emptyEl.hidden = true;
+    notifJget("/candidates/me/notifications").then(function (r) {
+      if (r.ok) { renderList(r.body.notifications); loaded = true; }
+      else { loadingEl.hidden = true; emptyEl.hidden = false; emptyEl.textContent = "Couldn't load notifications — try again shortly."; }
+    });
+  }
+
+  function openPanel() {
+    panelEl.hidden = false;
+    bellEl.setAttribute("aria-expanded", "true");
+    if (!loaded) loadFeed();
+  }
+  function closePanel() {
+    panelEl.hidden = true;
+    bellEl.setAttribute("aria-expanded", "false");
+  }
+
+  bellEl.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (panelEl.hidden) openPanel(); else closePanel();
+  });
+  document.addEventListener("click", function (e) {
+    if (!panelEl.hidden && !panelEl.contains(e.target) && !bellEl.contains(e.target)) closePanel();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !panelEl.hidden) closePanel();
+  });
+  markAllEl.addEventListener("click", function (e) {
+    e.stopPropagation();
+    notifJpost("/candidates/me/notifications/read-all").then(function (r) {
+      if (r.ok) {
+        setDot(0);
+        listEl.querySelectorAll(".notif-row.is-unread").forEach(function (row) {
+          row.classList.remove("is-unread");
+          var mark = row.querySelector(".notif-unread-mark");
+          if (mark) mark.remove();
+        });
+      }
+    });
+  });
+
+  refreshUnreadCount();
+})();
+</script>
+</body>
+</html>

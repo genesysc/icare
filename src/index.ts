@@ -33,6 +33,8 @@ import blog, { BLOG_POSTS, CATEGORY_LIST } from "./blog";
 import news from "./news";
 import sponsors from "./sponsors";
 import sponsorCheckPage from "./sponsor-check.html";
+import sponsoredJobs from "./sponsored-jobs";
+import jobsBoardPage from "./jobs-board.html";
 import { scheduledNewsRefresh } from "./news-ingest";
 
 type Bindings = {
@@ -52,6 +54,7 @@ app.route("/waitlist", waitlist);
 app.route("/blog", blog);
 app.route("/news", news);
 app.route("/sponsors", sponsors);
+app.route("/sponsored-jobs", sponsoredJobs);
 
 app.get("/", (c) => c.html(landingPage));
 
@@ -113,6 +116,7 @@ app.get("/visibility", (c) => c.html(visibilityPage));
 app.get("/rounds", (c) => c.html(roundsPage));
 app.get("/news-feed", (c) => c.html(newsFeedPage));
 app.get("/sponsor-check", (c) => c.html(sponsorCheckPage));
+app.get("/jobs", (c) => c.html(jobsBoardPage));
 // Renamed from Home to Rounds, 2026-09-12 — redirect anything still
 // linking the old path (nothing left in this repo does, but an external
 // bookmark or the browser's own history might).
