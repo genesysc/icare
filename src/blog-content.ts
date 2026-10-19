@@ -160,6 +160,120 @@ export const BLOG_POSTS: BlogPost[] = [
     "wordCount": 1006
   },
   {
+    "title": "The Immigration Salary List is closing. Here is what it means for sponsored healthcare workers.",
+    "seoTitle": "Immigration Salary List Closing 31 Dec 2026: What It Means",
+    "metaDescription": "The Immigration Salary List closes on 31 December 2026. See how your first Certificate of Sponsorship date decides what you can do next, in plain English.",
+    "slug": "immigration-salary-list-closing-what-it-means",
+    "category": "Immigration & Sponsorship",
+    "tags": [
+      "Immigration updates",
+      "Sponsored workers",
+      "News",
+      "Immigration Salary List",
+      "Certificate of Sponsorship"
+    ],
+    "primaryKeyword": "Immigration Salary List closure",
+    "secondaryKeywords": [
+      "ISL closing 31 December 2026",
+      "Certificate of Sponsorship 22 July 2025",
+      "healthcare support worker visa extension",
+      "RQF 3-5 sponsored workers",
+      "Skilled Worker visa healthcare changes"
+    ],
+    "author": "iCare Editorial",
+    "datePublished": "2026-10-19",
+    "dateModified": "2026-10-19",
+    "readingTime": 4,
+    "reviewBy": "2026-12-01",
+    "heroImage": {
+      "unsplashId": "1516841273335-e39b37888115",
+      "alt": "Healthcare staff in blue scrubs and white coats walking away down a bright hospital corridor",
+      "focal": "center"
+    },
+    "featured": false,
+    "relatedPosts": [
+      "health-care-worker-visa-settlement-2026",
+      "social-care-vacancy-rate-2026",
+      "social-care-fair-pay-agreement-care-workforce-pathway"
+    ],
+    "sources": [
+      {
+        "title": "Closure of the Immigration Salary List: what this will mean for sponsored workers",
+        "publisher": "NHS Employers",
+        "url": "https://www.nhsemployers.org/news/closure-immigration-salary-list-what-will-mean-sponsored-workers"
+      },
+      {
+        "title": "Skilled Worker visa: Immigration Salary List",
+        "publisher": "GOV.UK",
+        "url": "https://www.gov.uk/government/publications/skilled-worker-visa-immigration-salary-list"
+      },
+      {
+        "title": "Earned settlement consultation",
+        "publisher": "GOV.UK",
+        "url": "https://www.gov.uk/government/consultations/earned-settlement"
+      }
+    ],
+    "faq": [
+      {
+        "q": "When does the Immigration Salary List close?",
+        "a": "On 31 December 2026. After that date, new Certificates of Sponsorship can no longer be assigned for roles that rely on ISL eligibility."
+      },
+      {
+        "q": "Which date decides what I can do?",
+        "a": "The date your Certificate of Sponsorship was first assigned, not the date you applied or were granted your visa."
+      },
+      {
+        "q": "I was first sponsored before 22 July 2025. Am I affected?",
+        "a": "You are covered by transitional arrangements and can continue to apply for extensions, changes of employment and settlement."
+      },
+      {
+        "q": "I was first sponsored on or after 22 July 2025. What can I do after 31 December 2026?",
+        "a": "You can still apply for settlement under the £25,000 threshold, but extensions and changes of employment in RQF 3-5 roles will no longer be possible. You would need to move into a role at RQF level 6 or above."
+      },
+      {
+        "q": "Can I still apply after 31 December if I have a CoS?",
+        "a": "Applications can still be submitted after the closure date where a valid CoS was assigned before it."
+      },
+      {
+        "q": "Could these rules change again?",
+        "a": "Yes. The position is subject to future changes, including the earned settlement proposals."
+      }
+    ],
+    "categorySlug": "immigration-sponsorship",
+    "bodyHtml": "<p>On 31 December 2026, the Immigration Salary List (ISL) closes.</p>\n<p>For many sponsored workers, nothing changes. For some, a lot does. And the difference comes down to one date.</p>\n<p>This post explains who is affected, why one date matters so much, and what to do with the time left.</p>\n<p class=\"cta-row\"><a class=\"cta-btn\" href=\"/sign-up?next=/sponsor-check\">Check a sponsor licence on iCare →</a></p><h2 id=\"the-short-version\">The short version</h2>\n<p>If you are sponsored in a role below degree level (RQF levels 3 to 5) that relies on the ISL, your options after 31 December 2026 depend on <strong>when your Certificate of Sponsorship (CoS) was first assigned</strong>.</p>\n<p>That is the date that counts. Not when you applied. Not when your visa was granted.</p>\n<p>Roles in this group include healthcare support workers in nursing auxiliary and assistant roles (SOC 6131), pharmaceutical technicians (SOC 3212) and some laboratory technicians (SOC 3111). The full list of roles is on <a href=\"https://www.gov.uk/government/publications/skilled-worker-visa-immigration-salary-list\" target=\"_blank\" rel=\"noopener\">GOV.UK</a>.</p>\n<h2 id=\"two-paths-one-date\">Two paths, one date</h2>\n<div class=\"two-paths\">\n<section class=\"path path-before\" aria-labelledby=\"path-before\">\n<p class=\"path-label\">Path 1</p>\n<h3 id=\"path-before\">If your CoS was first assigned before 22 July 2025</h3>\n<p>You are covered by transitional arrangements. You can keep applying for:</p>\n<ul>\n<li>visa extensions</li>\n<li>changes of employment</li>\n<li>settlement</li>\n</ul>\n<p>These applications continue to use the £25,000 salary threshold, or any updated equivalent if it changes.</p>\n</section>\n<section class=\"path path-after\" aria-labelledby=\"path-after\">\n<p class=\"path-label\">Path 2</p>\n<h3 id=\"path-after\">If your CoS was first assigned on or after 22 July 2025</h3>\n<p>The picture is different.</p>\n<ul>\n<li><strong>Until 31 December 2026,</strong> you can still extend your permission or change employment while the ISL remains in place.</li>\n<li><strong>After 31 December 2026,</strong> you will no longer be able to apply for an extension or a change of employment in an RQF 3-5 role.</li>\n<li>To stay on the route, any future extension or change of employer would need to be in a role at <strong>RQF level 6 or above</strong>.</li>\n<li>Settlement remains available using the £25,000 salary threshold, or any updated equivalent.</li>\n</ul>\n</section>\n</div><h2 id=\"what-does-not-change\">What does not change</h2>\n<p>Some things are worth stating plainly, because they get lost in the noise.</p>\n<ul>\n<li><strong>RQF level 6 roles are not affected in this way.</strong> Workers sponsored at RQF 6 can keep applying for extensions, changes of employment and settlement, whenever they were first sponsored.</li>\n<li><strong>Applications can still be made after 31 December</strong> where a valid CoS was assigned before the list closed.</li>\n<li><strong>Settlement is still available under the current rules.</strong></li>\n</ul>\n<h2 id=\"what-is-still-uncertain\">What is still uncertain</h2>\n<p>Two honest caveats.</p>\n<p>First, the Home Office has said it has no additional published guidance on this at the moment. More detail may follow.</p>\n<p>Second, all of this reflects today&#39;s immigration rules. The government&#39;s <a href=\"https://www.gov.uk/government/consultations/earned-settlement\" target=\"_blank\" rel=\"noopener\">earned settlement proposals</a> could change both the qualifying period and the criteria for settlement. We covered those in our <a href=\"/blog/health-care-worker-visa-settlement-2026\">wider guide to health and care visas and settlement</a>, and we will post updates as soon as there is news.</p>\n<h2 id=\"three-questions-to-ask-yourself-this-week\">Three questions to ask yourself this week</h2>\n<p>You cannot control what the Home Office decides. You can control how prepared you are.</p>\n<ol>\n<li><strong>When was my CoS first assigned?</strong> Find the date. Check your CoS, your contract or ask your employer&#39;s HR team.</li>\n<li><strong>What RQF level is my role?</strong> Ask your employer which level and SOC code your sponsorship uses.</li>\n<li><strong>Do I need to extend or change employer before 31 December?</strong> If you are in the &quot;on or after 22 July 2025&quot; group, the answer decides how much time you have.</li>\n</ol>\n<p>Write the answers down. Then keep your evidence in order: payslips, contracts, English test results and right-to-work records. Every future application gets easier when your paperwork is ready.</p>\n<aside class=\"notice notice-check\" role=\"note\"><p><strong>Check this before you act.</strong> This post is general information, not immigration advice. Visa applications are assessed against the rules in force on the day you apply. For decisions about your own case, speak to an OISC-regulated adviser or solicitor.</p></aside><h2 id=\"for-employers\">For employers</h2>\n<p>If you sponsor healthcare staff, it is worth identifying who in your team falls into the &quot;on or after 22 July 2025&quot; group, and planning for roles where an extension or change of employment may be needed after the closure date. The CoS assignment date is the one to check.</p>\n<h2 id=\"want-news-like-this-every-day\">Want news like this, every day?</h2>\n<p>iCare members can check whether any UK employer holds a sponsor licence today, with a UK sponsored jobs board and a daily news feed on the way. Read more of our updates on the <a href=\"/blog\">iCare blog</a>.</p>\n<p class=\"cta-row\"><a class=\"cta-btn\" href=\"/sign-up?next=/sponsor-check\">Log in or sign up →</a></p><p><em>Sources: <a href=\"https://www.nhsemployers.org/news/closure-immigration-salary-list-what-will-mean-sponsored-workers\" target=\"_blank\" rel=\"noopener\">NHS Employers</a> (1 October 2026), <a href=\"https://www.gov.uk/government/publications/skilled-worker-visa-immigration-salary-list\" target=\"_blank\" rel=\"noopener\">GOV.UK Immigration Salary List</a>, <a href=\"https://www.gov.uk/government/consultations/earned-settlement\" target=\"_blank\" rel=\"noopener\">GOV.UK earned settlement consultation</a>.</em></p>\n",
+    "toc": [
+      {
+        "id": "the-short-version",
+        "text": "The short version"
+      },
+      {
+        "id": "two-paths-one-date",
+        "text": "Two paths, one date"
+      },
+      {
+        "id": "what-does-not-change",
+        "text": "What does not change"
+      },
+      {
+        "id": "what-is-still-uncertain",
+        "text": "What is still uncertain"
+      },
+      {
+        "id": "three-questions-to-ask-yourself-this-week",
+        "text": "Three questions to ask yourself this week"
+      },
+      {
+        "id": "for-employers",
+        "text": "For employers"
+      },
+      {
+        "id": "want-news-like-this-every-day",
+        "text": "Want news like this, every day?"
+      }
+    ],
+    "wordCount": 802
+  },
+  {
     "title": "More Medicines Are Reaching NHS Patients. Who Is Going to Deliver Them?",
     "seoTitle": "NICE Approvals 2026: New Medicines and NHS Capacity",
     "metaDescription": "NICE's higher threshold and a new method have unlocked medicines like Enhertu for NHS patients. The next question is whether cancer services have the staff.",

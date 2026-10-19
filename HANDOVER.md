@@ -2784,3 +2784,8 @@ timeout in the check step now that 122k rows are loaded); the fix is
 migration `0054` (pending founder paste) + a script change. Details in
 that doc's §4.
 
+**2026-10-19:** blog post "Immigration Salary List closing" shipped
+(14 posts now). New reusable blog components — `.two-paths`,
+`.notice-check`, `.cta-btn` — see PROGRESS.md. Unapplied sponsor-refresh
+migration 0054 now lives in `docs/parked/`.
+

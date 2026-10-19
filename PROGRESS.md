@@ -5805,3 +5805,23 @@ Full write-up, decisions and founder actions: HANDOVER.md §25. Summary:
 Founder: stop the sponsor-register work for now and move on to daily
 news. genesysc/icare#61 left open and unmerged (not watched). Wrote
 `docs/HANDOVER_daily-news.md` — the news-only handover for the next agent.
+
+## 2026-10-19 — Blog post: Immigration Salary List closure (shipped)
+
+- New post `content/posts/immigration-salary-list-closing-what-it-means.md`
+  from the founder's handoff file → `/blog/immigration-salary-list-closing-what-it-means`.
+  Blog is now 14 posts. Facts checked against the NHS Employers source
+  (dates, £25,000, RQF 3-5, SOC 6131/3212/3111, "no further guidance").
+- New reusable blog styles in `src/blog-templates.ts`: `.two-paths` /
+  `.path` / `.path-after` (two-card comparison, teal vs purple border),
+  `.notice-check` (purple-bordered callout), `.cta-row` / `.cta-btn`
+  (purple button). Written as raw HTML blocks inside the Markdown.
+- Choices made for the founder's "points to confirm": URL kept as
+  `/blog/[slug]`; the "immigration round-up" sentence links to
+  `health-care-worker-visa-settlement-2026`; byline "iCare Editorial";
+  hero = Unsplash `1516841273335-e39b37888115` (staff in a hospital
+  corridor — not "warm light"; swap if a better photo is chosen). CTA copy
+  softened: jobs board and news feed described as "on the way" (they
+  don't exist yet). CTAs → `/sign-up?next=/sponsor-check`.
+- Parked migration 0054 moved to `docs/parked/` so `supabase/migrations/`
+  only mirrors what's applied.

@@ -95,7 +95,7 @@ Two separate problems:
    Settings → Secrets and variables → Actions → `SPONSOR_REFRESH_SECRET`.
 2. **The check step times out** now that 122k sponsors are loaded
    (~3.7s against anon's 3s limit). Fixed in
-   `supabase/migrations/20261015090000_0054_sponsor_refresh_fast_steps.sql`
+   `docs/parked/0054_sponsor_refresh_fast_steps.sql (move into supabase/migrations/ once applied)`
    + the matching `scripts/refresh-sponsor-register.js` change (load
    de-duplicates; the expected count is the sum of load results). **0054
    is NOT applied yet** — it contains TRUNCATE/DROP, so the founder must
