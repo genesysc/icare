@@ -214,6 +214,18 @@ footer.site a{color:var(--muted)}
 .prose strong{font-weight:700;color:var(--ink)}
 .notice{background:var(--lavender);border-left:3px solid var(--teal);margin:0 0 2rem;padding:1rem 1.25rem;border-radius:0 6px 6px 0;font-size:.95rem}
 .notice p{margin:0}
+.notice-check{border-left-color:var(--purple);margin:2rem 0}
+.cta-row{margin:1.75rem 0}
+.cta-btn{display:inline-block;background:#330072;color:#fff;border:1px solid var(--purple);border-radius:999px;padding:.75rem 1.4rem;font:600 1rem/1.2 var(--sans);text-decoration:none}
+.cta-btn:hover{background:#1F0047;color:#fff}
+.two-paths{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.25rem 0 2rem}
+@media(max-width:760px){.two-paths{grid-template-columns:1fr}}
+.path{background:var(--lavender);border-left:4px solid var(--teal);border-radius:0 8px 8px 0;padding:1rem 1.25rem}
+.path-after{border-left-color:var(--purple)}
+.path h3{margin:.25rem 0 .5rem;font:500 1.2rem/1.25 var(--serif);color:var(--purple)}
+.path p,.path li{font-size:.97rem;max-width:none}
+.path-label{font:500 .75rem/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--teal-ink);margin:0}
+.path-after .path-label{color:var(--purple)}
 .bottom-line{background:var(--lavender);margin:3rem -1.5rem 0;padding:.5rem 1.5rem 1.5rem;border-radius:4px 40px 4px 4px}
 .bottom-line h2{margin-top:1.5rem}
 .faq{margin:3rem 0 0}

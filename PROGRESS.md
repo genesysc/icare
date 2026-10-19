@@ -5949,3 +5949,44 @@ profile… I will give you a list of jobs later to upload."
 - Third source: 10 sponsored HCT roles from NHS Jobs (hct.nhs.uk itself blocks this sandbox). See HANDOVER §27c/§27d.
 - Verified: tsc clean; DB counts (Renaissance 43, HCT 10, Hamill 3, all open).
 - Next: merge to `main` to ship the page/API change (asked for by founder); more sites.
+
+## 2026-10-15 — Daily sponsor refresh found broken; fix prepared; remaining build handed over
+
+- 06:20 UTC scheduled run never fired; a manual dispatch failed with
+  `unauthorized` (GitHub secret ≠ `app_secrets.sponsor_refresh_secret`).
+- Running the script from the session got further but
+  `sponsor_refresh_check` timed out (anon 3s): DISTINCT sort over staging
+  1.3s + anti-join 2.4s. Verified a function-level `set statement_timeout`
+  does NOT help. Wrote migration 0054 (de-dup on load, row_hash +
+  partial index for index-only checks, TRUNCATE staging at begin) and the
+  matching script change. 0054 NOT applied (contains TRUNCATE/DROP —
+  founder must paste). One failed `loading` run row exists from the
+  attempt; 0054 marks it failed and clears staging. Live data = 14 Oct.
+- Wrote `docs/HANDOVER_sponsored-jobs-news_remaining-build.md` for the
+  next agent (Phases 2–5, open questions, gotchas, the refresh fix).
+
+## 2026-10-15 — Sponsor work parked; news-only handover written
+
+Founder: stop the sponsor-register work for now and move on to daily
+news. genesysc/icare#61 left open and unmerged (not watched). Wrote
+`docs/HANDOVER_daily-news.md` — the news-only handover for the next agent.
+
+## 2026-10-19 — Blog post: Immigration Salary List closure (shipped)
+
+- New post `content/posts/immigration-salary-list-closing-what-it-means.md`
+  from the founder's handoff file → `/blog/immigration-salary-list-closing-what-it-means`.
+  Blog is now 14 posts. Facts checked against the NHS Employers source
+  (dates, £25,000, RQF 3-5, SOC 6131/3212/3111, "no further guidance").
+- New reusable blog styles in `src/blog-templates.ts`: `.two-paths` /
+  `.path` / `.path-after` (two-card comparison, teal vs purple border),
+  `.notice-check` (purple-bordered callout), `.cta-row` / `.cta-btn`
+  (purple button). Written as raw HTML blocks inside the Markdown.
+- Choices made for the founder's "points to confirm": URL kept as
+  `/blog/[slug]`; the "immigration round-up" sentence links to
+  `health-care-worker-visa-settlement-2026`; byline "iCare Editorial";
+  hero = Unsplash `1516841273335-e39b37888115` (staff in a hospital
+  corridor — not "warm light"; swap if a better photo is chosen). CTA copy
+  softened: jobs board and news feed described as "on the way" (they
+  don't exist yet). CTAs → `/sign-up?next=/sponsor-check`.
+- Parked migration 0054 moved to `docs/parked/` so `supabase/migrations/`
+  only mirrors what's applied.

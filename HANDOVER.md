@@ -2918,3 +2918,16 @@ but not health/care). The "prioritise workers living in England…" paragraph is
 advert and was NOT treated as "this post is sponsored". No SOC codes set → no "Role meets visa rules" badge
 even though salaries are annual. Register: Hertfordshire Community NHS Trust, Welwyn Garden City, A rating.
 These expire on their closing dates (22–31 Oct); stale postings are closed by the daily recheck only.
+
+**2026-10-15 update:** the remaining build (Phases 2–5) is handed over in
+`docs/HANDOVER_sponsored-jobs-news_remaining-build.md` — start there. The
+daily refresh is not working yet (GitHub secret mismatch, plus a 3s
+timeout in the check step now that 122k rows are loaded); the fix is
+migration `0054` (pending founder paste) + a script change. Details in
+that doc's §4.
+
+**2026-10-19:** blog post "Immigration Salary List closing" shipped
+(14 posts now). New reusable blog components — `.two-paths`,
+`.notice-check`, `.cta-btn` — see PROGRESS.md. Unapplied sponsor-refresh
+migration 0054 now lives in `docs/parked/`.
+
