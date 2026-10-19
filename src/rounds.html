@@ -403,6 +403,36 @@
   .waiting-btn { border-radius: 999px; padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; border: 1.5px solid var(--line); background: var(--white); color: var(--plum-950); }
   .waiting-btn.accept { background: var(--teal-500); border-color: var(--teal-500); color: var(--white); }
   .waiting-btn.accept:hover { background: var(--teal-700); }
+
+  /* Honest community activity — migration 0059, HANDOVER §28. */
+  .stats-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .stats-strip-head { grid-column: 1 / -1; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-faint); }
+  .stat { background: var(--teal-100); border-radius: 12px; padding: 10px 12px; text-decoration: none; color: inherit; display: block; min-width: 0; }
+  .stat b { display: block; font-family: "Fraunces", Georgia, serif; font-size: 1.35rem; color: var(--plum-950); line-height: 1.1; }
+  .stat span { font-size: 12px; color: var(--ink-faint); }
+  @media (max-width: 480px) { .stats-strip { grid-template-columns: 1fr 1fr; } }
+  [data-team-posts] { display: flex; flex-direction: column; gap: 16px; }
+  [data-team-posts]:empty { display: none; }
+  .team-post { border-left: 4px solid var(--plum-950); }
+  .team-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--plum-950); }
+  .team-badge .staff-pill { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; background: var(--plum-950); color: #fff; border-radius: 999px; padding: 2px 8px; }
+  .team-post h3 { font-size: 1.02rem; margin: 8px 0 4px; color: var(--plum-950); }
+  .team-post p { font-size: 14px; line-height: 1.55; margin: 0; white-space: pre-line; }
+  .team-post a.team-link { display: inline-block; margin-top: 10px; font-size: 13.5px; font-weight: 700; color: var(--teal-700); text-decoration: none; }
+  .welcome-ask p { font-size: 14px; line-height: 1.5; margin: 6px 0 12px; }
+  .welcome-ask .preview { font-weight: 700; color: var(--plum-950); }
+  .welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn-quiet { padding: 11px 18px; border-radius: 999px; font-weight: 700; font-size: 14px; cursor: pointer; background: none; border: 1px solid var(--line); color: var(--ink-faint); }
+  .new-members-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .new-member { font-size: 14px; }
+  .new-member a { color: var(--plum-950); font-weight: 700; text-decoration: none; }
+  .new-member span { color: var(--ink-faint); }
+  .invite-card p { font-size: 13.5px; line-height: 1.5; margin: 6px 0 10px; }
+  .invite-link { display: flex; gap: 6px; }
+  .invite-link input { flex: 1; min-width: 0; font-size: 12.5px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--plum-950); }
+  .invite-share { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .invite-share a, .invite-share button { font-size: 12.5px; font-weight: 700; text-decoration: none; color: var(--teal-700); background: var(--teal-100); border: none; border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  .invite-count { font-size: 12.5px; color: var(--ink-faint); margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -477,6 +507,19 @@
 
     <div class="main-col">
 
+      <div class="card stats-strip" data-community-stats hidden></div>
+
+      <div class="card welcome-ask" data-welcome-card hidden>
+        <h2 style="font-size:1.05rem;">Say hello to the community?</h2>
+        <p>We can post a short welcome in Rounds so other members can say hello:
+          <span class="preview" data-welcome-preview></span>
+          Only your first name, main profession and town. You can say no — nothing is posted unless you choose to.</p>
+        <div class="welcome-actions">
+          <button type="button" class="btn-primary" data-welcome-yes>Yes, welcome me</button>
+          <button type="button" class="btn-quiet" data-welcome-no>No thanks</button>
+        </div>
+      </div>
+
       <div class="card" data-waiting-section hidden>
         <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:4px;">
           <h2 style="font-size:1.05rem;">Waiting on you</h2>
@@ -530,6 +573,13 @@
         </form>
       </div>
 
+      <div data-team-posts></div>
+
+      <div class="card" data-new-members hidden>
+        <h2 style="font-size:1.05rem;">New to iCare — say hello</h2>
+        <div class="new-members-list" data-new-members-list></div>
+      </div>
+
       <p class="feed-heading">Rounds</p>
       <div data-feed-list></div>
       <p class="empty-note" data-feed-empty hidden>No posts yet from you or other candidates — be the first to share
@@ -545,6 +595,20 @@
          own news: pinned rule alerts + the latest Insights posts, via
          loadIcareNews() — no /news (third-party) request on page load. -->
     <aside class="news-col">
+      <div class="card invite-card" data-invite-card hidden>
+        <h2 style="font-size:1.05rem;">Invite your colleagues</h2>
+        <p>iCare grows when people who work in care invite each other. Share your personal link with nurses, carers and colleagues.</p>
+        <div class="invite-link">
+          <input type="text" readonly data-invite-url aria-label="Your invite link" />
+          <button type="button" class="btn-primary" style="padding:9px 14px;" data-invite-copy>Copy</button>
+        </div>
+        <div class="invite-share">
+          <a data-invite-whatsapp target="_blank" rel="noopener">WhatsApp</a>
+          <a data-invite-email>Email</a>
+          <button type="button" data-invite-native hidden>Share…</button>
+        </div>
+        <p class="invite-count" data-invite-count></p>
+      </div>
       <div class="card" data-icare-news>
         <div class="section-head" style="display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;">
           <h2 style="font-size:1.05rem;">Care &amp; health news</h2>
@@ -1654,6 +1718,142 @@ function icareRequireAuth(signInPath) {
       ticking = true;
     }
   });
+})();
+</script>
+<script>
+// Honest community activity — migration 0059, HANDOVER §28. Separate
+// from the page's main script on purpose: if anything here fails, the
+// feed, composer and news are unaffected.
+(function () {
+  var session = icareGetSession();
+  if (!session) return; // the page's own icareRequireAuth() redirects
+
+  function jget(url) {
+    return icareAuthFetch(url).then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); });
+  }
+  function jpost(url, data) {
+    return icareAuthFetch(url, { method: "POST", body: JSON.stringify(data || {}) })
+      .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); });
+  }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function fmt(n) { return Number(n || 0).toLocaleString("en-GB"); }
+
+  // 1. Real activity counts — only tiles with a number above zero show.
+  fetch("/community/stats").then(function (r) { return r.ok ? r.json() : null; }).then(function (st) {
+    if (!st) return;
+    var box = document.querySelector("[data-community-stats]");
+    var tiles = [];
+    if (st.jobs_new_this_week > 0) tiles.push([fmt(st.jobs_new_this_week), "new sponsored jobs this week", "/jobs"]);
+    else if (st.jobs_open > 0) tiles.push([fmt(st.jobs_open), "UK sponsored jobs open", "/jobs"]);
+    if (st.licensed_sponsors > 0) tiles.push([fmt(st.licensed_sponsors), "licensed sponsors you can check", "/sponsor-check"]);
+    var updates = (st.official_updates_this_week || 0) + (st.articles_this_week || 0);
+    if (updates > 0) tiles.push([fmt(updates), updates === 1 ? "news update this week" : "news updates this week", "/news-feed"]);
+    if (!tiles.length) return;
+    box.appendChild(el("div", "stats-strip-head", "This week on iCare"));
+    tiles.forEach(function (t) {
+      var a = el("a", "stat");
+      a.href = t[2];
+      a.appendChild(el("b", null, t[0]));
+      a.appendChild(el("span", null, t[1]));
+      box.appendChild(a);
+    });
+    box.hidden = false;
+  }).catch(function () {});
+
+  // 2. iCare Team posts — always labelled as staff.
+  jget("/community/team-posts").then(function (r) {
+    if (!r.ok || !r.body.posts) return;
+    var wrap = document.querySelector("[data-team-posts]");
+    r.body.posts.forEach(function (p) {
+      var card = el("div", "card team-post");
+      var badge = el("div", "team-badge");
+      badge.appendChild(el("span", null, "iCare Team"));
+      badge.appendChild(el("span", "staff-pill", "Staff"));
+      card.appendChild(badge);
+      card.appendChild(el("h3", null, p.title));
+      card.appendChild(el("p", null, p.body));
+      if (p.link_url && /^(\/|https:\/\/)/.test(p.link_url)) {
+        var a = el("a", "team-link", (p.link_label || "Read more") + " →");
+        a.href = p.link_url;
+        if (/^https:/.test(p.link_url)) { a.target = "_blank"; a.rel = "noopener"; }
+        card.appendChild(a);
+      }
+      wrap.appendChild(card);
+    });
+  }).catch(function () {});
+
+  // 3. Opt-in welcome — asked once, after onboarding, default is no post.
+  var welcomeCard = document.querySelector("[data-welcome-card]");
+  function answerWelcome(yes) {
+    welcomeCard.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+    jpost("/community/welcome", { announce: yes }).then(function (r) {
+      welcomeCard.hidden = true;
+      if (r.ok && yes) loadNewMembers();
+    });
+  }
+  Promise.all([jget("/community/welcome"), jget("/auth/me")]).then(function (res) {
+    var r = res[0], me = res[1];
+    if (!r.ok || !r.body.eligible || r.body.choice) return;
+    var full = (me.ok && me.body.account && me.body.account.full_name) || "";
+    var first = full.trim().split(/\s+/)[0];
+    document.querySelector("[data-welcome-preview]").textContent = "“Welcome " + (first || "to iCare") + "!”";
+    welcomeCard.hidden = false;
+  }).catch(function () {});
+  document.querySelector("[data-welcome-yes]").addEventListener("click", function () { answerWelcome(true); });
+  document.querySelector("[data-welcome-no]").addEventListener("click", function () { answerWelcome(false); });
+
+  // 4. New members who chose to be welcomed.
+  function loadNewMembers() {
+    jget("/community/new-members").then(function (r) {
+      if (!r.ok || !r.body.members || !r.body.members.length) return;
+      var list = document.querySelector("[data-new-members-list]");
+      list.textContent = "";
+      r.body.members.forEach(function (m) {
+        var row = el("div", "new-member");
+        row.append("👋 Welcome ");
+        var name;
+        if (m.has_profile) { name = el("a", null, m.first_name); name.href = "/member?id=" + encodeURIComponent(m.candidate_id); }
+        else name = el("strong", null, m.first_name);
+        row.appendChild(name);
+        var detail = [m.profession, m.town ? "in " + m.town : ""].filter(Boolean).join(" ");
+        if (detail) row.appendChild(el("span", null, " — " + detail));
+        list.appendChild(row);
+      });
+      document.querySelector("[data-new-members]").hidden = false;
+    }).catch(function () {});
+  }
+  loadNewMembers();
+
+  // 5. Personal invite link.
+  jget("/community/invite").then(function (r) {
+    if (!r.ok || !r.body.code) return;
+    var url = window.location.origin + "/sign-up?ref=" + encodeURIComponent(r.body.code);
+    var msg = "I'm on iCare — a free UK health and social care community with sponsored jobs, a sponsor licence checker and care news. Join me: " + url;
+    document.querySelector("[data-invite-url]").value = url;
+    document.querySelector("[data-invite-whatsapp]").href = "https://wa.me/?text=" + encodeURIComponent(msg);
+    document.querySelector("[data-invite-email]").href = "mailto:?subject=" + encodeURIComponent("Join me on iCare") + "&body=" + encodeURIComponent(msg);
+    var nativeBtn = document.querySelector("[data-invite-native]");
+    if (navigator.share) {
+      nativeBtn.hidden = false;
+      nativeBtn.addEventListener("click", function () { navigator.share({ title: "Join me on iCare", text: msg }).catch(function () {}); });
+    }
+    var joined = r.body.joined || 0;
+    document.querySelector("[data-invite-count]").textContent = joined === 0
+      ? "No one has joined with your link yet."
+      : (joined === 1 ? "1 person has" : joined + " people have") + " joined with your link. Thank you!";
+    document.querySelector("[data-invite-copy]").addEventListener("click", function () {
+      var input = document.querySelector("[data-invite-url]");
+      var btn = this;
+      (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).catch(function () { input.select(); document.execCommand("copy"); })
+        .finally(function () { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1600); });
+    });
+    document.querySelector("[data-invite-card]").hidden = false;
+  }).catch(function () {});
 })();
 </script>
 </body>

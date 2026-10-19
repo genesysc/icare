@@ -255,6 +255,31 @@ function icareTakeNext() {
 icareRememberNext();
 // ---- End post-sign-in destination ----
 
+// ---- Invite links (?ref=), 2026-10-19 — migration 0059 ----
+// /sign-up?ref=<code> from a member's invite link. Remembered for 2 days
+// (survives /verify, OAuth and magic links) and claimed once the new
+// account is signed in. The database only counts it for an account
+// created in the last 2 days, never for the inviter themselves.
+var ICARE_REF_KEY = "icare_ref";
+(function () {
+  var ref = new URLSearchParams(window.location.search).get("ref");
+  if (ref && /^[a-z0-9]{6,16}$/i.test(ref)) {
+    try { localStorage.setItem(ICARE_REF_KEY, JSON.stringify({ code: ref, at: Date.now() })); } catch (e) {}
+  }
+})();
+function icareClaimRef() {
+  var stored = null;
+  try { stored = JSON.parse(localStorage.getItem(ICARE_REF_KEY) || "null"); } catch (e) {}
+  if (!stored || Date.now() - stored.at > 2 * 24 * 60 * 60 * 1000) return Promise.resolve();
+  return icareAuthFetch("/community/invite/claim", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: stored.code }),
+  }).then(function () { try { localStorage.removeItem(ICARE_REF_KEY); } catch (e) {} })
+    .catch(function () {});
+}
+// ---- End invite links ----
+
 (function () {
   var TERMS_VERSION = "2026-08-26-draft";
   var params = new URLSearchParams(window.location.search);
@@ -288,7 +313,7 @@ icareRememberNext();
       .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
       .then(function (candidateResult) {
         var onboardingDone = candidateResult.ok && candidateResult.body.candidate && candidateResult.body.candidate.onboarding_done;
-        window.location.href = icareTakeNext() || (onboardingDone ? "/dashboard" : "/onboarding");
+        return icareClaimRef().then(function () { window.location.href = icareTakeNext() || (onboardingDone ? "/dashboard" : "/onboarding"); });
       });
   }
 

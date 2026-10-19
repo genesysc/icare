@@ -37,6 +37,7 @@ import sponsoredJobs from "./sponsored-jobs";
 import jobsBoardPage from "./jobs-board.html";
 import { scheduledNewsRefresh } from "./news-ingest";
 import { processSignupAlerts } from "./signup-alerts";
+import community from "./community";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -57,6 +58,7 @@ app.route("/candidates", candidates);
 app.route("/waitlist", waitlist);
 app.route("/blog", blog);
 app.route("/news", news);
+app.route("/community", community);
 app.route("/sponsors", sponsors);
 app.route("/sponsored-jobs", sponsoredJobs);
 

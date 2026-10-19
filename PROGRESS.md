@@ -6008,3 +6008,13 @@ news. genesysc/icare#61 left open and unmerged (not watched). Wrote
   succeeds, queues one ping, claim returns the right row, a second claim
   returns 0 (no duplicates); wrong secret → "unauthorized"; table not
   readable by anon.
+
+## 2026-10-19 — Community activity, the honest way (HANDOVER §28)
+
+- Founder asked for dummy accounts to make the community look bigger —
+  declined; built the agreed alternative instead: iCare Team posts,
+  real "This week on iCare" counts (Rounds + landing), personal invite
+  links with join counts, opt-in welcome announcements.
+- Migration 0059 applied via MCP; 3 team posts seeded. Test posts by
+  "Michael Murillo" (ids 6–8) unpublished earlier the same day (hard
+  delete needs founder approval — SQL given to her).

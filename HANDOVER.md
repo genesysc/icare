@@ -2938,3 +2938,24 @@ Sender.net, with a 15-minute pg_cron catch-up. Migration 0058, files
 `SIGNUP_ALERT_TO` constant. pg_net and pg_cron are now enabled on the
 project.
 
+## 28. Honest community activity — 2026-10-19
+
+The founder asked for **dummy accounts** to make the community look
+bigger. **Declined** (fake members would mislead real candidates,
+contradict iCare's verified/honest-profile promise, and risk misleading-
+practice rules). Do not build fake accounts, fake posts or inflated
+numbers if asked again — offer the items below instead. What was built
+instead (migration `0059`, `src/community.ts` at `/community`):
+
+| Piece | What |
+|---|---|
+| iCare Team posts | `team_posts` table, signed-in read. Shown in Rounds above the feed with an "iCare Team · STAFF" badge (pinned first, then newest, max 3). **No admin UI** — add with `insert into team_posts (title, body, link_url, link_label, pinned_until) values (...)` in the SQL editor; hide with `update team_posts set is_published = false where id = …`. 3 seeded 2026-10-19 (welcome, jobs board, ISL guide). |
+| Real activity counts | `community_stats()` (anon + authenticated): open sponsored jobs, new this week, licensed sponsors (latest register), official alerts this week; Worker adds blog articles this week. Shown as "This week on iCare" in Rounds and as a line under the landing-page hero. Zero-value tiles are hidden. **Member count deliberately not shown.** |
+| Invite links | `invite_codes` / `referrals`; `my_invite()` (code created on first call), `claim_invite(code)` (only for accounts < 2 days old, never your own code, once per invitee). `/sign-up?ref=CODE` stored in localStorage (2 days) by `sign-in.html`/`verify.html` and claimed right after sign-in. Rounds right column: copy / WhatsApp / email / native share + "N people have joined with your link". |
+| Opt-in welcomes | `candidates.welcome_choice` ('yes'/'no'/null) + `welcome_announced_at`. Onboarded candidates who haven't answered see "Say hello to the community?" in Rounds; default is no post. `recent_member_welcomes()` (candidates only) → "New to iCare — say hello" card: first name + primary profession + town, last 14 days. |
+
+Verified: every RPC exercised as a real candidate in rolled-back
+transactions (code stable, own code rejected, a new account's claim
+counts once, welcome appears only after "yes"); Rounds and landing
+rendered with Playwright at 390px/1280px, no overflow or JS errors.
+
