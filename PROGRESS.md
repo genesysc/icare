@@ -5936,3 +5936,8 @@ profile… I will give you a list of jobs later to upload."
 - Next: founder decision on multi-site employer matching; then more sites; re-run the
   scraper to refresh/close stale postings (closed postings aren't auto-closed yet).
 - Not done: nothing pushed to main; no PR (not requested).
+
+## 2026-10-19 — Second job source: Hamill Homecare
+
+- 3 listings loaded hidden (`review`/`name_only`), same register-town mismatch as Renaissance
+  (register: Glasgow; jobs: Stirling). See HANDOVER §27b. No dates on the site, so no expiry.

@@ -2878,3 +2878,12 @@ done. Founder chose "load hidden, decide later". Options on the table: (a) per-e
 override list in a migration, (b) name-only matching (loosens the rule for everyone).
 Note also: 23 of 43 are `care_switchers_only` (care assistant titles); nurses are hourly so
 never get `badge_role` (needs annual salary ≥ £41,700 + SOC code). No SOC codes were set.
+
+### 27b. Second source — Hamill Homecare (2026-10-19)
+
+https://www.hamillhomecare.co.uk/working-with-us/ (WordPress, 3 `/job-listing/<slug>/` pages, robots.txt allows;
+no JSON feed, scraped by hand). All 3 kept (Complex Care Support Worker, Care Assistant, Rural Care Assistant),
+`source_job_id='hamill-homecare:<slug>'`, apply = link out. Same outcome as §27a: "Hamill Homecare Limited" is
+on the register under **Glasgow**; jobs are in Stirling/Killearn → `name_only` → `review` (hidden), all
+`care_switchers_only`. No posted/closing dates on the site, so `posted_at` = load time and no `expires_at`
+(these won't auto-expire; re-check the site to close them). Awaiting the multi-site matching decision.
