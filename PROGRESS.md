@@ -5941,3 +5941,11 @@ profile… I will give you a list of jobs later to upload."
 
 - 3 listings loaded hidden (`review`/`name_only`), same register-town mismatch as Renaissance
   (register: Glasgow; jobs: Stirling). See HANDOVER §27b. No dates on the site, so no expiry.
+
+## 2026-10-19 — Multi-site matching (0057), location names, HCT via NHS Jobs
+
+- Founder: list same-company vacancies at different locations and show location names → migration
+  0057 (applied live), `location_name`/`register_town`, API + page changes. All 46 jobs went `open`.
+- Third source: 10 sponsored HCT roles from NHS Jobs (hct.nhs.uk itself blocks this sandbox). See HANDOVER §27c/§27d.
+- Verified: tsc clean; DB counts (Renaissance 43, HCT 10, Hamill 3, all open).
+- Next: merge to `main` to ship the page/API change (asked for by founder); more sites.

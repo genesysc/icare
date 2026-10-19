@@ -10,8 +10,9 @@
   locked card is a courtesy, not the gate.
 
   Trust wording from the handover, all deliberate:
-  - Only jobs whose employer exactly matches (name + town) an A-rated
-    Skilled Worker sponsor are ever listed.
+  - Only jobs whose employer's name matches an A-rated Skilled Worker
+    sponsor are ever listed (0057: any site/town - a licence is held by the
+    employer, usually at a head office; the job's own site is shown).
   - "Checked against the register on [date]" — never "Verified", and
     only an employer-confirmed job may ever say "Confirmed".
   - Always says a licensed sponsor is not proof the employer will
@@ -321,7 +322,7 @@
       <section class="card" aria-label="Jobs" data-list>
         <form class="filters" data-form autocomplete="off">
           <div class="field">
-            <label for="q">Job title, employer or town</label>
+            <label for="q">Job title, employer, site or town</label>
             <input id="q" type="search" placeholder="e.g. Staff nurse" spellcheck="false" maxlength="100" />
           </div>
           <div class="field">
@@ -341,7 +342,7 @@
 
       <section class="caveat" aria-labelledby="caveat-title">
         <h2 id="caveat-title">How we check these jobs</h2>
-        <p><b>Licensed sponsor</b> means the employer's name and town matched an A-rated Skilled Worker sponsor on the Home Office register on the date shown. We re-check every job against each day's register. A licence is not proof the employer will sponsor this particular job, or that it has certificates of sponsorship available. Ask the employer before you apply.</p>
+        <p><b>Licensed sponsor</b> means the employer's name matched an A-rated Skilled Worker sponsor on the Home Office register on the date shown. A licence belongs to the employer, not to one site, so each vacancy shows its own location and, where it differs, where the licence is registered. We re-check every job against each day's register. A licence is not proof the employer will sponsor this particular job, or that it has certificates of sponsorship available. Ask the employer before you apply.</p>
         <p><b>Role meets visa rules</b> means the advert gives an occupation code and a salary of at least £41,700 a year. Some health and care roles qualify on lower salaries; those jobs are listed without this badge rather than given a guess.</p>
         <p><b>UK-based switchers only</b>: care worker and senior care worker roles closed to new overseas applicants on 22 July 2025. People already in the UK on a sponsored visa can still switch into them until 22 July 2028.</p>
         <p><b>General information, not immigration advice.</b> Check <a href="https://www.gov.uk/skilled-worker-visa" target="_blank" rel="noopener">gov.uk</a> or a regulated adviser for your situation.</p>
@@ -453,7 +454,7 @@ function icareRequireAuth(signInPath) {
     return money(j.salary_min != null ? j.salary_min : j.salary_max) + per;
   }
   function placeText(j) {
-    var parts = [j.town];
+    var parts = [j.location_name, j.town];
     if (j.region && String(j.region).toLowerCase() !== String(j.town || "").toLowerCase()) parts.push(j.region);
     return parts.filter(Boolean).join(", ") || "Location not stated";
   }
@@ -655,7 +656,7 @@ function icareRequireAuth(signInPath) {
     var notes = el("ul", "badge-notes");
     var n1 = el("li");
     n1.appendChild(el("b", null, "Licensed sponsor: "));
-    n1.append("the employer matched the Home Office register" + (j.register_date ? " published " + formatDate(j.register_date) : "") + (j.checked_at ? " (checked " + formatDate(j.checked_at) + ")" : "") + ". This doesn't prove the employer will sponsor this job.");
+    n1.append("the employer matched the Home Office register" + (j.match_status === "name_only" && j.register_town ? " (licence registered at " + j.register_town + "; this vacancy is at a different site)" : "") + (j.register_date ? " published " + formatDate(j.register_date) : "") + (j.checked_at ? " (checked " + formatDate(j.checked_at) + ")" : "") + ". This doesn't prove the employer will sponsor this job.");
     notes.appendChild(n1);
     if (j.care_switchers_only) {
       var n2 = el("li");
