@@ -208,6 +208,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/nav-shell.html` | Reference file for the signed-in tab-bar shell (Sprint 19, six destinations — Messages added 2026-09-12, Home renamed to Rounds same day) — same "not imported, copy verbatim" convention as `auth-client.js`. Rounds/Invites/Pipelines/Network/Messages/Profile as a bottom-fixed bar at every viewport size (this codebase has no other desktop-specific layout), hand-authored inline SVG icons, one unread dot remaining (Invites — business state, see `notifications-bell.html`). Copied into `dashboard.html`, `invites.html`, `pipelines.html`, `rounds.html`, `network.html`, `messages.html`, `credentials.html`, `visibility.html` — update all eight if this file changes. **2026-09-15**: two real gaps found and fixed while wiring in the notification bell (below) — the Messages tab's own dot was dead markup, never wired up anywhere, now removed entirely in favour of the bell's unread indicator; and `credentials.html`/`visibility.html` had silently drifted to a stale five-item copy missing the Messages tab altogether, now brought current. Neither had been noticed because nothing exercised them until this pass touched every page in the list |
 | `src/notifications-bell.html` | **NEW 2026-09-15.** Reference file for the header notification bell — same "not imported, copy verbatim" convention as `nav-shell.html`/`auth-client.js`. Covers all four notification types (`notifications` table, migrations 0043/0044): connection request, connection accepted, message (with a body preview, matching `conversation_inbox`'s own convention), invite. Dropdown panel, unread dot, mark-one-read on click-through, mark-all-read. Copied into the same eight pages as `nav-shell.html`, placed in `<header class="nav">` next to Sign out (that header's two-child row became a `.nav-right` wrapper to fit it — **`.nav-right` must carry `position: relative`**, since the dropdown anchors against it, not against the bell's own small wrapper; anchoring to the wrapper instead left ~104px of the panel rendering off-screen left at 320px width, found only by checking a real narrow-viewport render, not by whether the panel opened) |
 | `src/sponsors.ts` / `src/sponsor-check.html` | **NEW 2026-10-14.** Sponsor licence check — `/sponsors/*` API + `/sponsor-check` page. See §25 |
+| `src/sponsored-jobs.ts` / `src/jobs-board.html` | **NEW 2026-10-19.** UK sponsored jobs board — `/sponsored-jobs/*` API + `/jobs` page, finished-profile candidates only. See §27 |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -2801,4 +2802,59 @@ call made during the build — quota discipline); `--dry-run` proved
 fetch+cluster live (69 items → 8 major + 48 roundup). Sponsor work
 (§10/§25) untouched except the News tab appearing in sponsor-check's
 copied tab bar, per the tab-bar convention.
+
+---
+
+## 27. UK sponsored jobs board — built 2026-10-19 (Phase 3 of §25, manual job source)
+
+Founder asked to start the job board now (news/sponsor parts of the
+handover untouched), with two rules: **only accessible once someone has
+created a profile**, and **the Jobs tab must be visible in their
+profile**. Jobs will come as a list from the founder, loaded by an agent —
+no Reed/Adzuna yet.
+
+**Access rule, as built:** signed-in **candidate** with
+`candidates.onboarding_done = true`. Unlike Sponsor check/News (open
+straight after sign-up), Jobs is locked until onboarding is finished —
+the page shows a "Finish your profile →" card instead. Enforced in the DB
+(RLS), not just the page. Employers see an "for iCare members" card.
+
+| Piece | What |
+|---|---|
+| Migration `0056_sponsored_jobs` (**applied** via MCP 2026-10-19) | `sponsored_jobs` (separate from iRecruit's `jobs` — §25 name clash), `sponsored_job_applications` (unique per job+candidate, `destination` default `admin`, status new/reviewed/forwarded/rejected, no scores). `candidate_onboarding_done()` helper. RLS: jobs readable only when `status='open' and badge_register` and not expired and caller is an onboarded candidate; applications self-read only, no client write policy. `upsert_sponsored_job(jsonb)` loader (service role / SQL editor only — revoked from anon+authenticated), `sponsored_job_rebadge()` badge logic, `sponsored_jobs_recheck(secret)` (reuses `sponsor_refresh_secret`), `apply_to_sponsored_job(job_id, note)` (the only way to apply). |
+| Badge rules (in `sponsored_job_rebadge`) | `badge_register` only on an **exact** name+town `match_sponsor()` hit → `open`; `name_only`/`none` → `review`, never shown. `care_switchers_only` for SOC 6135/6136 or a "(senior) care worker/assistant" title. `badge_role` is deliberately conservative: SOC code present + annual `salary_min` ≥ £41,700 + not care-switchers — lower health/care thresholds aren't modelled, so those jobs just don't get the badge. `badge_employer_confirmed` is never set (reserved for iRecruit, Phase 5). |
+| Daily re-check | `scripts/refresh-sponsor-register.js` now calls `sponsored_jobs_recheck` after every run (also when the register was already current): jobs whose employer left the register drop to `review`; expired jobs close. |
+| `src/sponsored-jobs.ts` (`/sponsored-jobs`) | `GET /status` (`{access, total, regions}`), `GET /?q=&region=&page=` (20/page, newest first), `GET /:id`, `GET /me/applications`, `POST /:id/apply {note}`. All `requireAuth`; 403 `profile_required` when not onboarded. |
+| `src/jobs-board.html` (`/jobs`) | List + filters (text, region) + in-page detail (`/jobs?job=<id>`, back button/history work). Badges: "Licensed sponsor", "Role meets visa rules", "UK-based switchers only" (note colour), "Employer-confirmed sponsorship" only if that flag is ever set. Apply: `external` → link out (noopener, "Jobs by Adzuna" attribution if source=adzuna); `direct` → optional note + "Apply for this job" → recorded for the iCare team. Caveat block + "General information, not immigration advice". Never says "Verified". |
+| Navigation | **Jobs tab** added after Sponsors in all 12 tab bars + `nav-shell.html` + Rounds icon-nav (8 tabs). New `@media (max-width: 380px)` rule on the tab bar (and a 400px rule on Rounds' icon-nav) — without it 8 tabs overflowed a 320px phone by 51px; now 0 on every page (Playwright-measured). **Profile page** (`dashboard.html`) also has a "Jobs board → Browse jobs" card. |
+
+**Loading the founder's job list:** for each job,
+`select * from upsert_sponsored_job('{"source_job_id":"<stable id>","title":…,"employer_name":<legal name as on the register>,"town":…,"region":…,"salary_min":…,"salary_max":…,"salary_period":"year|hour","soc_code":…,"sector":…,"contract_type":…,"hours":…,"apply_url":<optional — omit for on-site apply>,"description":…,"expires_at":<optional>}'::jsonb);`
+The result row says whether it went `open` (shown) or `review` (employer
+not an exact name+town register match — fix the name/town to the
+register's legal entity and re-run, or leave it hidden). To take a job
+down: same call with `"status":"closed"`. Re-running with the same
+`source_job_id` updates in place.
+
+**Applications** go to the `sponsored_job_applications` table — read them
+in the Supabase dashboard in `created_at` order (no scoring/ranking, §1
+#5). **No admin notification yet** — where to send them (email/Slack) is
+still the handover's open question 5.
+
+**Verified:** `tsc` + `wrangler deploy --dry-run` clean; loader cases
+in SQL (rolled back): exact→open, care title→switchers-only, other
+town→review/name_only, invented employer→review/none, re-upsert
+closed→closed; RLS as real roles: onboarded candidate sees jobs + can
+apply (idempotent), unfinished candidate/employer/anon see 0 and can't
+apply, anon can't call the loader. Playwright (mocked API, 390px/320px):
+locked state, list, search, region, detail, apply → "You applied",
+"Applied" marker in list, external link, back/forward, zero JS errors.
+**Not yet tested against the live Worker with a real signed-in session**
+(no test account token in this environment) — check `/jobs` once
+deployed.
+
+**Still open:** the founder's job list (none loaded — the board shows its
+empty state); admin notification destination for applications; saved
+jobs/searches; Reed/Adzuna keys; lower salary thresholds for the role
+badge.
 

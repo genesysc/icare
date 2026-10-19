@@ -5900,3 +5900,28 @@ pushed straight to `main` — deploy.yml deploys to production from there
 (same path the §24 commits took). Confirm live on https://icareltd.com
 (`/news-feed`, News tab, Rounds card) rather than the Action's colour,
 per the red-but-live caveat above.
+
+---
+
+## 2026-10-19 — UK sponsored jobs board built (HANDOVER.md §27)
+
+Founder: "start building the job board now… only accessible once someone
+has created a profile… the job board tab needs to be visible in their
+profile… I will give you a list of jobs later to upload."
+
+- Migration `0056_sponsored_jobs` written and **applied** via MCP
+  (create-only). Tables `sponsored_jobs`, `sponsored_job_applications`;
+  RLS = onboarded candidates only; loader `upsert_sponsored_job(jsonb)`
+  (exact register match → open, else review/hidden); daily
+  `sponsored_jobs_recheck` wired into the register refresh script;
+  `apply_to_sponsored_job`.
+- `src/sponsored-jobs.ts` (`/sponsored-jobs/*`), `src/jobs-board.html`
+  (`/jobs`), Jobs tab on every tab bar + Rounds icon-nav, Jobs board card
+  on the Profile page. Narrow-screen tab-bar rule added (8 tabs overflowed
+  320px by 51px before it).
+- Verified: tsc, wrangler dry-run, SQL loader + RLS role simulation
+  (rolled back), Playwright with a mocked API. Not yet exercised on the
+  live Worker with a real session.
+- Pending: founder's job list to load (see §27 for the exact call);
+  where application notifications go; Reed/Adzuna.
+
