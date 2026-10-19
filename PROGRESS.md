@@ -5990,3 +5990,21 @@ news. genesysc/icare#61 left open and unmerged (not watched). Wrote
   don't exist yet). CTAs → `/sign-up?next=/sponsor-check`.
 - Parked migration 0054 moved to `docs/parked/` so `supabase/migrations/`
   only mirrors what's applied.
+
+## 2026-10-19 — New-sign-up email alerts to info@icareltd.com
+
+- Founder request: an email to info@ every time someone signs up.
+- Migration 0058 (applied as 0058a/0058b): pg_net + pg_cron enabled;
+  `signup_alerts` table (existing accounts back-filled as sent);
+  `signup_alerts_claim()` / `signup_alert_done()` (shared secret
+  `app_secrets.signup_alert_secret`, granted to anon like the news
+  ingest); AFTER INSERT trigger on `accounts` → `signup_alert_ping()`
+  (pg_net POST, errors swallowed so sign-up can never fail); pg_cron job
+  `signup-alert-catchup` every 15 min, only pings when something's pending.
+- Worker: `POST /internal/signup-alert` (src/index.ts) →
+  `src/signup-alerts.ts` → `src/emails/new-signup-alert.ts`. Sent FROM
+  hello@ (Sender.net) TO info@ — never from info@ (HANDOVER §2).
+- Verified in a rolled-back transaction: a fake auth.users insert still
+  succeeds, queues one ping, claim returns the right row, a second claim
+  returns 0 (no duplicates); wrong secret → "unauthorized"; table not
+  readable by anon.

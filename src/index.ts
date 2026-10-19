@@ -36,6 +36,7 @@ import sponsorCheckPage from "./sponsor-check.html";
 import sponsoredJobs from "./sponsored-jobs";
 import jobsBoardPage from "./jobs-board.html";
 import { scheduledNewsRefresh } from "./news-ingest";
+import { processSignupAlerts } from "./signup-alerts";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -44,6 +45,9 @@ type Bindings = {
   UNSPLASH_ACCESS_KEY?: string;
   NEWS_INGEST_SECRET?: string;
   NEWSDATA_API_KEY?: string;
+  SENDER_API_KEY?: string;
+  SENDER_FROM_EMAIL?: string;
+  SENDER_FROM_NAME?: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -127,6 +131,23 @@ app.get("/messages", (c) => c.html(messagesPage));
 app.get("/employer/home", (c) => c.html(employerHomePage));
 
 app.get("/health", (c) => c.json({ status: "ok" }));
+
+// New-sign-up alerts to info@ (migration 0058, src/signup-alerts.ts).
+// Called by the database (pg_net trigger + 15-minute pg_cron), not by
+// browsers. The body's secret is checked by signup_alerts_claim() inside
+// the database; a wrong one makes the claim fail -> 401. The sending runs
+// in waitUntil so pg_net's 10s timeout never cuts it off.
+app.post("/internal/signup-alert", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const secret = body && typeof body.secret === "string" ? body.secret : "";
+  if (!secret) return c.json({ error: "missing secret" }, 401);
+  const job = processSignupAlerts(c.env, secret).then(
+    (r) => console.log(`[signup-alert] claimed ${r.claimed}, sent ${r.sent}`),
+    (err) => console.error(`[signup-alert] ${err instanceof Error ? err.message : err}`)
+  );
+  c.executionCtx.waitUntil(job);
+  return c.json({ ok: true }, 202);
+});
 
 app.get("/db-check", async (c) => {
   const supabase = createClient(c.env.SUPABASE_URL, c.env.SUPABASE_PUBLISHABLE_KEY);

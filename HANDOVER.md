@@ -2931,3 +2931,10 @@ that doc's §4.
 `.notice-check`, `.cta-btn` — see PROGRESS.md. Unapplied sponsor-refresh
 migration 0054 now lives in `docs/parked/`.
 
+**2026-10-19 — sign-up alerts:** every new account emails info@icareltd.com
+(from hello@). DB trigger + pg_net → `POST /internal/signup-alert` →
+Sender.net, with a 15-minute pg_cron catch-up. Migration 0058, files
+`src/signup-alerts.ts`, `src/emails/new-signup-alert.ts`. Recipient is the
+`SIGNUP_ALERT_TO` constant. pg_net and pg_cron are now enabled on the
+project.
+
