@@ -2858,3 +2858,63 @@ empty state); admin notification destination for applications; saved
 jobs/searches; Reed/Adzuna keys; lower salary thresholds for the role
 badge.
 
+
+### 27a. First scraped source — Renaissance Care (2026-10-19)
+
+First test of the manual loader with a real employer: https://www.renaissance-care.co.uk/careers/
+(JSON endpoint `/Umbraco/Surface/Career/VacancySearch`; robots.txt allows it). Founder
+rules: **health & care roles only; apply = link out to the original posting**. 62 vacancies
+on the site → 43 kept (care assistants/team leaders, nurses, managers, wellbeing leads;
+dropped domestic, kitchen, laundry, housekeeping, driver, reception). Loaded with
+`source='manual'`, `source_job_id='renaissance-care:<url path>'`; scraper in
+`scripts/job-scrapers/renaissance-care.py`. Descriptions are trimmed excerpts; the full text
+is on the original posting.
+
+**Open issue — all 43 are `review` (hidden).** Renaissance Care (Scotland) Ltd *is* on the
+register (Worker, A rating) but under **Musselburgh** (head office); the jobs are in the
+homes' towns (Dundee, Aberdeen, …), so `match_sponsor` returns `name_only`. Faking
+Musselburgh would misstate the job location and sidestep the exact-match rule, so it was not
+done. Founder chose "load hidden, decide later". Options on the table: (a) per-employer
+override list in a migration, (b) name-only matching (loosens the rule for everyone).
+Note also: 23 of 43 are `care_switchers_only` (care assistant titles); nurses are hourly so
+never get `badge_role` (needs annual salary ≥ £41,700 + SOC code). No SOC codes were set.
+
+### 27b. Second source — Hamill Homecare (2026-10-19)
+
+https://www.hamillhomecare.co.uk/working-with-us/ (WordPress, 3 `/job-listing/<slug>/` pages, robots.txt allows;
+no JSON feed, scraped by hand). All 3 kept (Complex Care Support Worker, Care Assistant, Rural Care Assistant),
+`source_job_id='hamill-homecare:<slug>'`, apply = link out. Same outcome as §27a: "Hamill Homecare Limited" is
+on the register under **Glasgow**; jobs are in Stirling/Killearn → `name_only` → `review` (hidden), all
+`care_switchers_only`. No posted/closing dates on the site, so `posted_at` = load time and no `expires_at`
+(these won't auto-expire; re-check the site to close them). Awaiting the multi-site matching decision.
+
+### 27c. Multi-site employers + location names — migration 0057 (2026-10-19)
+
+Founder: "a company can always have multiple sites — list all the vacancies for the same company but
+different locations, and display the location names." **Overrides the exact name+town rule from §27.**
+- `sponsored_job_rebadge` now lists a job (`badge_register`, `status='open'`) when the employer **name**
+  matches an active A-rated register entry, any town. `match_status` still records `exact` vs `name_only`;
+  new `register_town` records where the licence is registered. Name match is still the normalised full
+  name (`sponsor_key`), not fuzzy. Unregistered names stay `review`/hidden.
+- New `sponsored_jobs.location_name` (the site, e.g. "Benvie Care Home"); loader accepts `location_name`;
+  API returns `location_name, register_town, match_status`; page shows "Site, Town[, Region]", searches on
+  site name, and for `name_only` jobs the detail note says where the licence is registered.
+- Known risk to watch: two unrelated companies with the same normalised name would both match. Not seen yet.
+- Applied to the live DB via MCP 2026-10-19; **code ships with the next merge to `main`** (until then the
+  live page lists the jobs but doesn't show site names).
+
+### 27d. Third source — Hertfordshire Community NHS Trust via NHS Jobs (2026-10-19)
+
+Founder gave an NHS Jobs advert (C9812-26-0412, Healthcare Assistant — **already closed, not loaded**) and
+the HCT vacancies page (`hct.nhs.uk/work-with-us---current-vacancies`), asking for jobs that *say the
+position is sponsored*. hct.nhs.uk drops/503s requests from this sandbox, so the same vacancies were read
+from NHS Jobs instead: `https://beta.jobs.nhs.uk/candidate/search/results?employerCode=C9812&sort=publicationDateDesc`
+(16 live). Rule applied: load only health/care roles whose advert has the "Skilled worker sponsorship is
+welcome / Certificate of Sponsorship" wording (or "can sponsor") → **10 loaded** (`source_job_id`
+`nhs-jobs:<ref>`, apply = link to the NHS Jobs advert, closing date from the advert). Skipped: Healthcare
+Support Worker ("does not meet the criteria for Visa Sponsorship"), 4 roles with no sponsorship wording
+(receptionist, facilities, technical instructor, safeguarding admin), Intranet Officer (sponsor-friendly
+but not health/care). The "prioritise workers living in England…" paragraph is boilerplate on every HCT
+advert and was NOT treated as "this post is sponsored". No SOC codes set → no "Role meets visa rules" badge
+even though salaries are annual. Register: Hertfordshire Community NHS Trust, Welwyn Garden City, A rating.
+These expire on their closing dates (22–31 Oct); stale postings are closed by the daily recheck only.

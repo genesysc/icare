@@ -9,7 +9,7 @@ import { requireAuth } from "./middleware";
 // Unlike Sponsor check and News, this IS gated on a finished profile
 // (founder, 2026-10-19: "only accessible once someone has created a
 // profile"). RLS (sponsored_jobs_member_read: candidate + onboarding_done
-// + open + exact register match) is the real gate; the explicit check
+// + open + register name match) is the real gate; the explicit check
 // below just lets the page tell "finish your profile" apart from "no jobs".
 
 type Bindings = {
@@ -29,7 +29,7 @@ sponsoredJobs.use("*", requireAuth);
 const PAGE_SIZE = 20;
 
 const LIST_COLUMNS =
-  "id, source, title, employer_name, town, region, salary_min, salary_max, salary_period, sector, contract_type, hours, care_switchers_only, apply_mode, posted_at, expires_at, badge_register, badge_role, badge_employer_confirmed, register_date, checked_at";
+  "id, source, title, employer_name, town, region, location_name, register_town, match_status, salary_min, salary_max, salary_period, sector, contract_type, hours, care_switchers_only, apply_mode, posted_at, expires_at, badge_register, badge_role, badge_employer_confirmed, register_date, checked_at";
 
 const DETAIL_COLUMNS = `${LIST_COLUMNS}, soc_code, apply_url, description`;
 
@@ -66,7 +66,7 @@ sponsoredJobs.get("/", async (c) => {
     .select(LIST_COLUMNS, { count: "exact" })
     .order("posted_at", { ascending: false })
     .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
-  if (q) query = query.or(`title.ilike.*${q}*,employer_name.ilike.*${q}*,town.ilike.*${q}*`);
+  if (q) query = query.or(`title.ilike.*${q}*,employer_name.ilike.*${q}*,town.ilike.*${q}*,location_name.ilike.*${q}*`);
   if (region) query = query.eq("region", region);
 
   const { data, error, count } = await query;

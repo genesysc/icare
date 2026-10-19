@@ -5925,3 +5925,27 @@ profile… I will give you a list of jobs later to upload."
 - Pending: founder's job list to load (see §27 for the exact call);
   where application notifications go; Reed/Adzuna.
 
+
+## 2026-10-19 — First job source scraped: Renaissance Care
+
+- Founder gave https://www.renaissance-care.co.uk/careers/ as the test site; health & care
+  only, apply links out. Found the vacancy JSON endpoint, kept 43/62, loaded via
+  `upsert_sponsored_job` (MCP). Scraper: `scripts/job-scrapers/renaissance-care.py`.
+- All 43 landed as `review`/`name_only`: register town is Musselburgh, jobs are in other
+  towns. Not worked around; founder chose "load hidden, decide later" (see HANDOVER §27a).
+- Next: founder decision on multi-site employer matching; then more sites; re-run the
+  scraper to refresh/close stale postings (closed postings aren't auto-closed yet).
+- Not done: nothing pushed to main; no PR (not requested).
+
+## 2026-10-19 — Second job source: Hamill Homecare
+
+- 3 listings loaded hidden (`review`/`name_only`), same register-town mismatch as Renaissance
+  (register: Glasgow; jobs: Stirling). See HANDOVER §27b. No dates on the site, so no expiry.
+
+## 2026-10-19 — Multi-site matching (0057), location names, HCT via NHS Jobs
+
+- Founder: list same-company vacancies at different locations and show location names → migration
+  0057 (applied live), `location_name`/`register_town`, API + page changes. All 46 jobs went `open`.
+- Third source: 10 sponsored HCT roles from NHS Jobs (hct.nhs.uk itself blocks this sandbox). See HANDOVER §27c/§27d.
+- Verified: tsc clean; DB counts (Renaissance 43, HCT 10, Hamill 3, all open).
+- Next: merge to `main` to ship the page/API change (asked for by founder); more sites.
