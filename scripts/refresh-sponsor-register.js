@@ -93,6 +93,7 @@ async function main() {
   });
   if (begin.skip) {
     console.log(`Nothing to do: ${begin.reason}.`);
+    await recheckJobs();
     return;
   }
   const runId = begin.run_id;
@@ -148,6 +149,16 @@ async function main() {
 
   const result = await rpc("sponsor_refresh_complete", { p_secret: SECRET, p_run_id: runId });
   console.log("complete:", JSON.stringify(result));
+  await recheckJobs();
+}
+
+// Re-badge every listed sponsored job against the now-current register
+// (migration 0056): a job whose employer dropped off goes back to
+// 'review' and disappears from the board; expired ones close. Runs even
+// when the register was already current, so expiries still apply daily.
+async function recheckJobs() {
+  const r = await rpc("sponsored_jobs_recheck", { p_secret: SECRET });
+  console.log("jobs recheck:", JSON.stringify(r));
 }
 
 main().catch((err) => {

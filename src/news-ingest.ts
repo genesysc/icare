@@ -181,6 +181,28 @@ async function fetchFeed(url: string, label: string): Promise<RawItem[]> {
   }
 }
 
+// Rule-alert cards (HANDOVER_daily-news §5 Step 3) — GOV.UK Atom feeds for
+// the departments whose announcements change visas/sponsorship rules.
+// Verified working by hand (curl, 2026-10-15: UKVI + Home Office both 200
+// with 20 entries each). Headline + link + date + source only — no AI
+// rewriting. CQC / NMC / Skills for Care checked the same day: no usable
+// RSS/Atom feed (404s and an HTML page), so not included — never scrape,
+// per the handover.
+const RULE_ALERT_FEEDS: { url: string; label: string }[] = [
+  {
+    url: "https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=uk-visas-and-immigration",
+    label: "UKVI",
+  },
+  {
+    url: "https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=home-office",
+    label: "Home Office",
+  },
+  {
+    url: "https://www.gov.uk/search/news-and-communications.atom?organisations%5B%5D=department-of-health-and-social-care",
+    label: "GOV.UK (DHSC)",
+  },
+];
+
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
   "adult-social-care": ["social care", "care worker", "care home", "domiciliary", "elderly care", "aged care", "care sector", "carer"],
   "nhs-policy": ["nhs", "department of health", "dhsc", "government", "minister", "parliament", "workforce plan", "cqc", "policy"],
@@ -400,6 +422,32 @@ export async function scheduledNewsRefresh(_event: ScheduledController, env: Env
 
   const { error: pruneErr } = await supabase.rpc("prune_stale_news_items", { p_secret: secret });
   if (pruneErr) console.warn("[news-ingest] prune failed:", pruneErr.message);
+
+  // Rule alerts — zero-AI, fail-soft by design: a feed outage or a missing
+  // migration here must never fail the rest of the run (which already did
+  // its work above). Upsert by URL, so re-runs just refresh the 7-day pin
+  // window rather than duplicating cards.
+  try {
+    const alertResults = await Promise.all(RULE_ALERT_FEEDS.map((s) => fetchFeed(s.url, s.label)));
+    let alerts = 0;
+    for (const item of alertResults.flat()) {
+      const { error } = await supabase.rpc("ingest_rule_alert", {
+        p_secret: secret,
+        p_title: item.title,
+        p_url: item.url,
+        p_source: item.sourceName,
+        p_published_at: parsePubDate(item.pubDateRaw),
+      });
+      if (error) {
+        console.warn(`[news-ingest] rule-alert ingest failed for "${item.title.slice(0, 60)}": ${error.message}`);
+      } else {
+        alerts++;
+      }
+    }
+    console.log(`[news-ingest] rule alerts: ${alerts} upserted`);
+  } catch (err) {
+    console.warn("[news-ingest] rule-alert step failed:", err instanceof Error ? err.message : String(err));
+  }
 
   console.log(`[news-ingest] done — ${ingested} ingested (${newCandidates.length} new with image resolution attempted), ${failed} failed`);
   ctx.waitUntil(Promise.resolve()); // no background work outstanding, kept for signature clarity

@@ -5785,6 +5785,171 @@ Full write-up, decisions and founder actions: HANDOVER.md §25. Summary:
   icareltd.com. Founder to add that permission; until then every deploy
   is "red but live".
 
+---
+
+## 2026-10-15 — Daily news feature built (HANDOVER_daily-news, all of §5 except the digest)
+
+Scope was the daily news feature only — sponsor-register/jobs work left
+parked per the handover's §10 (no sponsor file touched except adding the
+News tab to sponsor-check.html's copied tab bar, which the tab-bar
+convention requires on every page).
+
+**§3 open questions, asked before building anything:**
+1. Pipeline shape — UNANSWERED. Went with the recommended default (a):
+   extend the blog flow (Markdown in `content/posts/`, approval = merge
+   a GitHub PR, published at `/blog/...`). No Supabase drafts table, no
+   admin UI. Revisit if the founder picks (b).
+2. Approver: Monique, daily.
+3. Draft notifications: email to info@icareltd.com — as the RECIPIENT.
+   Sender stays `hello@` per HANDOVER.md §2's firm rule (info@ is the
+   Zoho human inbox; automated mail must never claim to be it).
+4. Weekly digest: SKIPPED for now (no Sender.net group needed).
+5. Advice wording: ship with the §6 footer until solicitor sign-off.
+6. Design canvas: never received — built from rounds.html/blog styling.
+7. Rounds layout: connections feed in the middle, news in the right-hand
+   column (third-party sidebar stays hidden; the column now shows iCare's
+   own news instead).
+
+**Step 1 — drafter made reliable (`scripts/daily-news-draft.js`):**
+- Official feeds first: added GOV.UK UKVI + Home Office Atom feeds
+  (verified by hand with curl.exe 2026-10-15: both 200, 20 entries
+  each). CQC/NMC/Skills for Care checked the same day — no usable
+  RSS/Atom (404s, one HTML page) — documented in-code, not included.
+- Google News throttled 5 queries → 3, 2s stagger between fetches,
+  `GOOGLE_NEWS_ENABLED=0` kill-switch. Official feeds are now primary.
+- Shorter outputs: body budget 2500 → 1500 tokens (roundup 400–600
+  words, major 500–700) to stay inside Workers AI timeouts.
+- Compliance baked into the prompt (§6): What changed / Who it affects
+  / What to do next structure, Tier 1-link requirement for rule posts,
+  ≤1 short quote per source, DBS-language ban, care-worker sponsorship
+  dates, date-stamping facts.
+- `writePost()` now stamps `newsType` (roundup/sector-news), `reviewBy`
+  (+14 days — WARN-only nudge, not a blocker) and appends the §6 footer
+  as a trailing blockquote (safe: the duplicate-disclaimer strip only
+  touches LEADING blockquotes).
+- New `--dry-run`: fetch + cluster only, no AI calls, no file writes.
+- Workflow: fail-safe "draft ready" email step (to info@, from hello@,
+  `continue-on-error`, skipped when secrets absent). Needs
+  `SENDER_API_KEY` (+ optional `SENDER_FROM_EMAIL`) as GitHub secrets.
+
+**Step 2 — post types:** `newsType` (rule-alert/explainer/sector-news/
+roundup) validated-if-present by `scripts/build-blog-content.js`
+(optional, so the 13 existing posts keep building) + added to the
+`BlogPost` interface. Runtime already passed it through via `...fm`.
+
+**Step 3 — zero-AI rule alerts (the reliable daily heartbeat):**
+- Migration `20261015120000_0055_rule_alerts.sql` (FILE ONLY — not
+  applied: no Supabase access in this session. Founder: paste into the
+  SQL editor. CREATE-only, no DELETE/DROP, so it applies unattended):
+  `rule_alerts` (title/url-unique/source/published_at/pinned_until =
+  published+7d), candidate-only read policy, `ingest_rule_alert()`
+  SECURITY DEFINER gated by the existing `news_ingest_secret` row.
+- `src/news-ingest.ts`: same 2-hourly cron now also upserts UKVI/Home
+  Office/DHSC headlines via that RPC — fail-soft, never fails the run.
+
+**Step 4 — News tab + Rounds (`/news-feed` — `/news` was already the
+third-party API, so the page took the handover's suggested free path):**
+- New `src/news-feed.html` (sponsor-check's no-onboarding-gate pattern:
+  content for every signed-in account, tab bar only past onboarding,
+  employers pointed home). Pinned rule alerts ("Official source" pill
+  for Tier 1 only — never "Verified"), then iCare explainers from
+  `GET /news/icare-posts`, then the §6 footer. New routes in
+  `src/news.ts`: `GET /news/rule-alerts` (pinned + recent),
+  `GET /news/icare-posts` (BLOG_POSTS metadata, newest first).
+- News tab added to all 10 tab bars + nav-shell reference + Rounds
+  icon-nav (order: Rounds, Sponsors, News, Invites, Network, Messages,
+  Profile). 7 tabs fit at 320px (verified, zero overflow).
+- `src/rounds.html`: sidebar's third-party card stays `hidden`; a new
+  visible "Care & health news" card shows pinned alerts + latest posts
+  via `loadIcareNews()` (textContent-only rendering). Connections feed
+  stays the middle column, per the founder's layout call.
+
+**Step 5 — digest:** skipped per §3 Q4. No code.
+
+**Real bug found and fixed along the way:** `npm run build:blog`
+failed on EVERY post on this Windows machine (`missing frontmatter
+block`) — all 13 files check out with CRLF (core.autocrlf, no
+.gitattributes) while the parser's regex was LF-only. CI (LF) never saw
+it. Fixed with `\r?\n` in `parsePost()`; rebuild diff is exactly 1 line
+(the `newsType` interface addition), zero content churn.
+
+**Verified:** `tsc --noEmit` clean; `wrangler deploy --dry-run` clean
+(2190.59 KiB / 637.76 KiB gzip); drafter `--dry-run` live: 69 items, 8
+major candidates, 48 roundup (Google reachable today, no 503);
+`build:blog` 13 posts; Playwright (system Chrome) at 390px + 1440px:
+news-feed renders 2 alerts + 1 post with active News tab, Rounds shows
+the iCare card (3 rows) with third-party still hidden, all 9 other
+pages carry the News tab, zero horizontal overflow anywhere, zero
+pageerrors from the new code (remaining console noise is the file://
+CORS artifact on pre-existing pages' own data fetches, same limitation
+this repo's other file:// tests note).
+
+**Still open (founder actions):** ~~apply migration 0055~~ — APPLIED
+2026-10-15 by the founder via the SQL editor (confirmed successful).
+Rule alerts populate on the next 2-hourly cron run — nothing to
+backfill. Quick check anytime: `select count(*) from rule_alerts;`
+(0 until the first cron run after applying, then growing);
+`SENDER_API_KEY`/`SENDER_FROM_EMAIL` GitHub secrets for the notify
+step; first real AI draft PR still unproven end-to-end (no Workers AI
+call was made this session — deliberately, quota discipline);
+third-party Rounds sidebar stays hidden; deploy workflow still red
+(the Zone permission issue above — unchanged).
+
+**Shipped 2026-10-15:** committed (`a8d3725`, 22 files, +1236/−29) and
+pushed straight to `main` — deploy.yml deploys to production from there
+(same path the §24 commits took). Confirm live on https://icareltd.com
+(`/news-feed`, News tab, Rounds card) rather than the Action's colour,
+per the red-but-live caveat above.
+
+---
+
+## 2026-10-19 — UK sponsored jobs board built (HANDOVER.md §27)
+
+Founder: "start building the job board now… only accessible once someone
+has created a profile… the job board tab needs to be visible in their
+profile… I will give you a list of jobs later to upload."
+
+- Migration `0056_sponsored_jobs` written and **applied** via MCP
+  (create-only). Tables `sponsored_jobs`, `sponsored_job_applications`;
+  RLS = onboarded candidates only; loader `upsert_sponsored_job(jsonb)`
+  (exact register match → open, else review/hidden); daily
+  `sponsored_jobs_recheck` wired into the register refresh script;
+  `apply_to_sponsored_job`.
+- `src/sponsored-jobs.ts` (`/sponsored-jobs/*`), `src/jobs-board.html`
+  (`/jobs`), Jobs tab on every tab bar + Rounds icon-nav, Jobs board card
+  on the Profile page. Narrow-screen tab-bar rule added (8 tabs overflowed
+  320px by 51px before it).
+- Verified: tsc, wrangler dry-run, SQL loader + RLS role simulation
+  (rolled back), Playwright with a mocked API. Not yet exercised on the
+  live Worker with a real session.
+- Pending: founder's job list to load (see §27 for the exact call);
+  where application notifications go; Reed/Adzuna.
+
+
+## 2026-10-19 — First job source scraped: Renaissance Care
+
+- Founder gave https://www.renaissance-care.co.uk/careers/ as the test site; health & care
+  only, apply links out. Found the vacancy JSON endpoint, kept 43/62, loaded via
+  `upsert_sponsored_job` (MCP). Scraper: `scripts/job-scrapers/renaissance-care.py`.
+- All 43 landed as `review`/`name_only`: register town is Musselburgh, jobs are in other
+  towns. Not worked around; founder chose "load hidden, decide later" (see HANDOVER §27a).
+- Next: founder decision on multi-site employer matching; then more sites; re-run the
+  scraper to refresh/close stale postings (closed postings aren't auto-closed yet).
+- Not done: nothing pushed to main; no PR (not requested).
+
+## 2026-10-19 — Second job source: Hamill Homecare
+
+- 3 listings loaded hidden (`review`/`name_only`), same register-town mismatch as Renaissance
+  (register: Glasgow; jobs: Stirling). See HANDOVER §27b. No dates on the site, so no expiry.
+
+## 2026-10-19 — Multi-site matching (0057), location names, HCT via NHS Jobs
+
+- Founder: list same-company vacancies at different locations and show location names → migration
+  0057 (applied live), `location_name`/`register_town`, API + page changes. All 46 jobs went `open`.
+- Third source: 10 sponsored HCT roles from NHS Jobs (hct.nhs.uk itself blocks this sandbox). See HANDOVER §27c/§27d.
+- Verified: tsc clean; DB counts (Renaissance 43, HCT 10, Hamill 3, all open).
+- Next: merge to `main` to ship the page/API change (asked for by founder); more sites.
+
 ## 2026-10-15 — Daily sponsor refresh found broken; fix prepared; remaining build handed over
 
 - 06:20 UTC scheduled run never fired; a manual dispatch failed with

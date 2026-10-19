@@ -208,6 +208,7 @@ stop and ask the user — do not resolve it yourself.**
 | `src/nav-shell.html` | Reference file for the signed-in tab-bar shell (Sprint 19, six destinations — Messages added 2026-09-12, Home renamed to Rounds same day) — same "not imported, copy verbatim" convention as `auth-client.js`. Rounds/Invites/Pipelines/Network/Messages/Profile as a bottom-fixed bar at every viewport size (this codebase has no other desktop-specific layout), hand-authored inline SVG icons, one unread dot remaining (Invites — business state, see `notifications-bell.html`). Copied into `dashboard.html`, `invites.html`, `pipelines.html`, `rounds.html`, `network.html`, `messages.html`, `credentials.html`, `visibility.html` — update all eight if this file changes. **2026-09-15**: two real gaps found and fixed while wiring in the notification bell (below) — the Messages tab's own dot was dead markup, never wired up anywhere, now removed entirely in favour of the bell's unread indicator; and `credentials.html`/`visibility.html` had silently drifted to a stale five-item copy missing the Messages tab altogether, now brought current. Neither had been noticed because nothing exercised them until this pass touched every page in the list |
 | `src/notifications-bell.html` | **NEW 2026-09-15.** Reference file for the header notification bell — same "not imported, copy verbatim" convention as `nav-shell.html`/`auth-client.js`. Covers all four notification types (`notifications` table, migrations 0043/0044): connection request, connection accepted, message (with a body preview, matching `conversation_inbox`'s own convention), invite. Dropdown panel, unread dot, mark-one-read on click-through, mark-all-read. Copied into the same eight pages as `nav-shell.html`, placed in `<header class="nav">` next to Sign out (that header's two-child row became a `.nav-right` wrapper to fit it — **`.nav-right` must carry `position: relative`**, since the dropdown anchors against it, not against the bell's own small wrapper; anchoring to the wrapper instead left ~104px of the panel rendering off-screen left at 320px width, found only by checking a real narrow-viewport render, not by whether the panel opened) |
 | `src/sponsors.ts` / `src/sponsor-check.html` | **NEW 2026-10-14.** Sponsor licence check — `/sponsors/*` API + `/sponsor-check` page. See §25 |
+| `src/sponsored-jobs.ts` / `src/jobs-board.html` | **NEW 2026-10-19.** UK sponsored jobs board — `/sponsored-jobs/*` API + `/jobs` page, finished-profile candidates only. See §27 |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -2776,6 +2777,147 @@ for the screen designs — not received); Reed/Adzuna keys; sector scope
 notifications go; news approver; Sender.net digest group; whether the
 news pipeline extends `/blog` (recommended) or builds the spec's admin
 queue.
+
+---
+
+## 26. Daily news — built 2026-10-15 (HANDOVER_daily-news, digest excluded)
+
+Pipeline (a) won by default — the founder didn't answer the pipeline
+question, so the recommended blog+PR flow stands: Markdown in
+`content/posts/`, approval = Monique merges the GitHub PR, published at
+`/blog/...`. No Supabase drafts table, no admin UI. Weekly digest
+explicitly skipped (no Sender.net group needed).
+
+| Piece | What |
+|---|---|
+| Drafter (`scripts/daily-news-draft.js`, `--dry-run` added) | 6 official feeds (UKVI + Home Office Atom added 2026-10-15, both curl-verified 200/20 entries; CQC/NMC/Skills for Care have no usable feed — documented in-code), Google News cut 5→3 queries with 2s stagger + `GOOGLE_NEWS_ENABLED=0` kill-switch, shorter outputs (roundup 400–600w, major 500–700w, 1500-token budget), §6 compliance in the prompt, `newsType`/`reviewBy`(+14d)/§6-footer stamped per post. `build-blog-content.js` validates `newsType` when present and its frontmatter regex is now CRLF-tolerant (Windows checkouts broke every post before this). |
+| Rule alerts (migration `0055`, Worker cron, zero AI) | `rule_alerts` table + candidate-only read + secret-gated `ingest_rule_alert()` RPC (reuses `news_ingest_secret`); the 2-hourly cron upserts UKVI/Home Office/DHSC headlines, pinned 7 days. **Applied 2026-10-15** by the founder via the SQL editor. Alerts populate on the next cron run after that (`select count(*) from rule_alerts;` to check). |
+| News tab (`src/news-feed.html`, `/news-feed`) | Signed-in, no onboarding gate (sponsor-check pattern). Pinned rule alerts ("Official source" pill for Tier 1 only, never "Verified") + iCare explainers via new `GET /news/rule-alerts` and `GET /news/icare-posts` (`src/news.ts`), §6 footer at the bottom. `/news` was already taken by the third-party API, hence the path. |
+| Navigation | News tab third (Rounds, Sponsors, News, Invites, Network, Messages, Profile) in all 10 tab bars + nav-shell reference + Rounds icon-nav. Verified at 320px, zero overflow. |
+| Rounds (`src/rounds.html`) | Right column now shows iCare's own news (pinned alerts + latest posts, recency+pin only, never personalised — §1 #5); the third-party card stays `hidden`, backend untouched. Connections feed stays the middle column. |
+| Draft notification | Workflow emails `info@icareltd.com` (recipient — sender is always `hello@`, §2 rule) when a draft PR opens; fail-safe without secrets. Needs `SENDER_API_KEY` (+ optional `SENDER_FROM_EMAIL`) as GitHub Actions secrets. |
+
+First real AI-drafted PR is still unproven end-to-end (no Workers AI
+call made during the build — quota discipline); `--dry-run` proved
+fetch+cluster live (69 items → 8 major + 48 roundup). Sponsor work
+(§10/§25) untouched except the News tab appearing in sponsor-check's
+copied tab bar, per the tab-bar convention.
+
+---
+
+## 27. UK sponsored jobs board — built 2026-10-19 (Phase 3 of §25, manual job source)
+
+Founder asked to start the job board now (news/sponsor parts of the
+handover untouched), with two rules: **only accessible once someone has
+created a profile**, and **the Jobs tab must be visible in their
+profile**. Jobs will come as a list from the founder, loaded by an agent —
+no Reed/Adzuna yet.
+
+**Access rule, as built:** signed-in **candidate** with
+`candidates.onboarding_done = true`. Unlike Sponsor check/News (open
+straight after sign-up), Jobs is locked until onboarding is finished —
+the page shows a "Finish your profile →" card instead. Enforced in the DB
+(RLS), not just the page. Employers see an "for iCare members" card.
+
+| Piece | What |
+|---|---|
+| Migration `0056_sponsored_jobs` (**applied** via MCP 2026-10-19) | `sponsored_jobs` (separate from iRecruit's `jobs` — §25 name clash), `sponsored_job_applications` (unique per job+candidate, `destination` default `admin`, status new/reviewed/forwarded/rejected, no scores). `candidate_onboarding_done()` helper. RLS: jobs readable only when `status='open' and badge_register` and not expired and caller is an onboarded candidate; applications self-read only, no client write policy. `upsert_sponsored_job(jsonb)` loader (service role / SQL editor only — revoked from anon+authenticated), `sponsored_job_rebadge()` badge logic, `sponsored_jobs_recheck(secret)` (reuses `sponsor_refresh_secret`), `apply_to_sponsored_job(job_id, note)` (the only way to apply). |
+| Badge rules (in `sponsored_job_rebadge`) | `badge_register` only on an **exact** name+town `match_sponsor()` hit → `open`; `name_only`/`none` → `review`, never shown. `care_switchers_only` for SOC 6135/6136 or a "(senior) care worker/assistant" title. `badge_role` is deliberately conservative: SOC code present + annual `salary_min` ≥ £41,700 + not care-switchers — lower health/care thresholds aren't modelled, so those jobs just don't get the badge. `badge_employer_confirmed` is never set (reserved for iRecruit, Phase 5). |
+| Daily re-check | `scripts/refresh-sponsor-register.js` now calls `sponsored_jobs_recheck` after every run (also when the register was already current): jobs whose employer left the register drop to `review`; expired jobs close. |
+| `src/sponsored-jobs.ts` (`/sponsored-jobs`) | `GET /status` (`{access, total, regions}`), `GET /?q=&region=&page=` (20/page, newest first), `GET /:id`, `GET /me/applications`, `POST /:id/apply {note}`. All `requireAuth`; 403 `profile_required` when not onboarded. |
+| `src/jobs-board.html` (`/jobs`) | List + filters (text, region) + in-page detail (`/jobs?job=<id>`, back button/history work). Badges: "Licensed sponsor", "Role meets visa rules", "UK-based switchers only" (note colour), "Employer-confirmed sponsorship" only if that flag is ever set. Apply: `external` → link out (noopener, "Jobs by Adzuna" attribution if source=adzuna); `direct` → optional note + "Apply for this job" → recorded for the iCare team. Caveat block + "General information, not immigration advice". Never says "Verified". |
+| Navigation | **Jobs tab** added after Sponsors in all 12 tab bars + `nav-shell.html` + Rounds icon-nav (8 tabs). New `@media (max-width: 380px)` rule on the tab bar (and a 400px rule on Rounds' icon-nav) — without it 8 tabs overflowed a 320px phone by 51px; now 0 on every page (Playwright-measured). **Profile page** (`dashboard.html`) also has a "Jobs board → Browse jobs" card. |
+
+**Loading the founder's job list:** for each job,
+`select * from upsert_sponsored_job('{"source_job_id":"<stable id>","title":…,"employer_name":<legal name as on the register>,"town":…,"region":…,"salary_min":…,"salary_max":…,"salary_period":"year|hour","soc_code":…,"sector":…,"contract_type":…,"hours":…,"apply_url":<optional — omit for on-site apply>,"description":…,"expires_at":<optional>}'::jsonb);`
+The result row says whether it went `open` (shown) or `review` (employer
+not an exact name+town register match — fix the name/town to the
+register's legal entity and re-run, or leave it hidden). To take a job
+down: same call with `"status":"closed"`. Re-running with the same
+`source_job_id` updates in place.
+
+**Applications** go to the `sponsored_job_applications` table — read them
+in the Supabase dashboard in `created_at` order (no scoring/ranking, §1
+#5). **No admin notification yet** — where to send them (email/Slack) is
+still the handover's open question 5.
+
+**Verified:** `tsc` + `wrangler deploy --dry-run` clean; loader cases
+in SQL (rolled back): exact→open, care title→switchers-only, other
+town→review/name_only, invented employer→review/none, re-upsert
+closed→closed; RLS as real roles: onboarded candidate sees jobs + can
+apply (idempotent), unfinished candidate/employer/anon see 0 and can't
+apply, anon can't call the loader. Playwright (mocked API, 390px/320px):
+locked state, list, search, region, detail, apply → "You applied",
+"Applied" marker in list, external link, back/forward, zero JS errors.
+**Not yet tested against the live Worker with a real signed-in session**
+(no test account token in this environment) — check `/jobs` once
+deployed.
+
+**Still open:** the founder's job list (none loaded — the board shows its
+empty state); admin notification destination for applications; saved
+jobs/searches; Reed/Adzuna keys; lower salary thresholds for the role
+badge.
+
+
+### 27a. First scraped source — Renaissance Care (2026-10-19)
+
+First test of the manual loader with a real employer: https://www.renaissance-care.co.uk/careers/
+(JSON endpoint `/Umbraco/Surface/Career/VacancySearch`; robots.txt allows it). Founder
+rules: **health & care roles only; apply = link out to the original posting**. 62 vacancies
+on the site → 43 kept (care assistants/team leaders, nurses, managers, wellbeing leads;
+dropped domestic, kitchen, laundry, housekeeping, driver, reception). Loaded with
+`source='manual'`, `source_job_id='renaissance-care:<url path>'`; scraper in
+`scripts/job-scrapers/renaissance-care.py`. Descriptions are trimmed excerpts; the full text
+is on the original posting.
+
+**Open issue — all 43 are `review` (hidden).** Renaissance Care (Scotland) Ltd *is* on the
+register (Worker, A rating) but under **Musselburgh** (head office); the jobs are in the
+homes' towns (Dundee, Aberdeen, …), so `match_sponsor` returns `name_only`. Faking
+Musselburgh would misstate the job location and sidestep the exact-match rule, so it was not
+done. Founder chose "load hidden, decide later". Options on the table: (a) per-employer
+override list in a migration, (b) name-only matching (loosens the rule for everyone).
+Note also: 23 of 43 are `care_switchers_only` (care assistant titles); nurses are hourly so
+never get `badge_role` (needs annual salary ≥ £41,700 + SOC code). No SOC codes were set.
+
+### 27b. Second source — Hamill Homecare (2026-10-19)
+
+https://www.hamillhomecare.co.uk/working-with-us/ (WordPress, 3 `/job-listing/<slug>/` pages, robots.txt allows;
+no JSON feed, scraped by hand). All 3 kept (Complex Care Support Worker, Care Assistant, Rural Care Assistant),
+`source_job_id='hamill-homecare:<slug>'`, apply = link out. Same outcome as §27a: "Hamill Homecare Limited" is
+on the register under **Glasgow**; jobs are in Stirling/Killearn → `name_only` → `review` (hidden), all
+`care_switchers_only`. No posted/closing dates on the site, so `posted_at` = load time and no `expires_at`
+(these won't auto-expire; re-check the site to close them). Awaiting the multi-site matching decision.
+
+### 27c. Multi-site employers + location names — migration 0057 (2026-10-19)
+
+Founder: "a company can always have multiple sites — list all the vacancies for the same company but
+different locations, and display the location names." **Overrides the exact name+town rule from §27.**
+- `sponsored_job_rebadge` now lists a job (`badge_register`, `status='open'`) when the employer **name**
+  matches an active A-rated register entry, any town. `match_status` still records `exact` vs `name_only`;
+  new `register_town` records where the licence is registered. Name match is still the normalised full
+  name (`sponsor_key`), not fuzzy. Unregistered names stay `review`/hidden.
+- New `sponsored_jobs.location_name` (the site, e.g. "Benvie Care Home"); loader accepts `location_name`;
+  API returns `location_name, register_town, match_status`; page shows "Site, Town[, Region]", searches on
+  site name, and for `name_only` jobs the detail note says where the licence is registered.
+- Known risk to watch: two unrelated companies with the same normalised name would both match. Not seen yet.
+- Applied to the live DB via MCP 2026-10-19; **code ships with the next merge to `main`** (until then the
+  live page lists the jobs but doesn't show site names).
+
+### 27d. Third source — Hertfordshire Community NHS Trust via NHS Jobs (2026-10-19)
+
+Founder gave an NHS Jobs advert (C9812-26-0412, Healthcare Assistant — **already closed, not loaded**) and
+the HCT vacancies page (`hct.nhs.uk/work-with-us---current-vacancies`), asking for jobs that *say the
+position is sponsored*. hct.nhs.uk drops/503s requests from this sandbox, so the same vacancies were read
+from NHS Jobs instead: `https://beta.jobs.nhs.uk/candidate/search/results?employerCode=C9812&sort=publicationDateDesc`
+(16 live). Rule applied: load only health/care roles whose advert has the "Skilled worker sponsorship is
+welcome / Certificate of Sponsorship" wording (or "can sponsor") → **10 loaded** (`source_job_id`
+`nhs-jobs:<ref>`, apply = link to the NHS Jobs advert, closing date from the advert). Skipped: Healthcare
+Support Worker ("does not meet the criteria for Visa Sponsorship"), 4 roles with no sponsorship wording
+(receptionist, facilities, technical instructor, safeguarding admin), Intranet Officer (sponsor-friendly
+but not health/care). The "prioritise workers living in England…" paragraph is boilerplate on every HCT
+advert and was NOT treated as "this post is sponsored". No SOC codes set → no "Role meets visa rules" badge
+even though salaries are annual. Register: Hertfordshire Community NHS Trust, Welwyn Garden City, A rating.
+These expire on their closing dates (22–31 Oct); stale postings are closed by the daily recheck only.
 
 **2026-10-15 update:** the remaining build (Phases 2–5) is handed over in
 `docs/HANDOVER_sponsored-jobs-news_remaining-build.md` — start there. The
