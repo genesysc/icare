@@ -2858,3 +2858,23 @@ empty state); admin notification destination for applications; saved
 jobs/searches; Reed/Adzuna keys; lower salary thresholds for the role
 badge.
 
+
+### 27a. First scraped source — Renaissance Care (2026-10-19)
+
+First test of the manual loader with a real employer: https://www.renaissance-care.co.uk/careers/
+(JSON endpoint `/Umbraco/Surface/Career/VacancySearch`; robots.txt allows it). Founder
+rules: **health & care roles only; apply = link out to the original posting**. 62 vacancies
+on the site → 43 kept (care assistants/team leaders, nurses, managers, wellbeing leads;
+dropped domestic, kitchen, laundry, housekeeping, driver, reception). Loaded with
+`source='manual'`, `source_job_id='renaissance-care:<url path>'`; scraper in
+`scripts/job-scrapers/renaissance-care.py`. Descriptions are trimmed excerpts; the full text
+is on the original posting.
+
+**Open issue — all 43 are `review` (hidden).** Renaissance Care (Scotland) Ltd *is* on the
+register (Worker, A rating) but under **Musselburgh** (head office); the jobs are in the
+homes' towns (Dundee, Aberdeen, …), so `match_sponsor` returns `name_only`. Faking
+Musselburgh would misstate the job location and sidestep the exact-match rule, so it was not
+done. Founder chose "load hidden, decide later". Options on the table: (a) per-employer
+override list in a migration, (b) name-only matching (loosens the rule for everyone).
+Note also: 23 of 43 are `care_switchers_only` (care assistant titles); nurses are hourly so
+never get `badge_role` (needs annual salary ≥ £41,700 + SOC code). No SOC codes were set.

@@ -5925,3 +5925,14 @@ profile… I will give you a list of jobs later to upload."
 - Pending: founder's job list to load (see §27 for the exact call);
   where application notifications go; Reed/Adzuna.
 
+
+## 2026-10-19 — First job source scraped: Renaissance Care
+
+- Founder gave https://www.renaissance-care.co.uk/careers/ as the test site; health & care
+  only, apply links out. Found the vacancy JSON endpoint, kept 43/62, loaded via
+  `upsert_sponsored_job` (MCP). Scraper: `scripts/job-scrapers/renaissance-care.py`.
+- All 43 landed as `review`/`name_only`: register town is Musselburgh, jobs are in other
+  towns. Not worked around; founder chose "load hidden, decide later" (see HANDOVER §27a).
+- Next: founder decision on multi-site employer matching; then more sites; re-run the
+  scraper to refresh/close stale postings (closed postings aren't auto-closed yet).
+- Not done: nothing pushed to main; no PR (not requested).
