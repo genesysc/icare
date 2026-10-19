@@ -364,6 +364,9 @@ footer .bottom{padding:22px 0 calc(28px + env(safe-area-inset-bottom));
   display:flex;flex-wrap:wrap;gap:10px 20px;justify-content:space-between;align-items:center}
 footer .bottom p{margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;
   font-size:11px;letter-spacing:.05em;color:rgba(255,255,255,.4)}
+.live-stats{margin:18px 0 0;font-size:.95rem;color:var(--mute);display:flex;flex-wrap:wrap;gap:6px 18px}
+.live-stats b{color:var(--purple);font-weight:700}
+.live-stats[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -406,6 +409,9 @@ footer .bottom p{margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;
         </div>
         <p class="hero-note">Free for candidates. Your name, photo and contact details
           stay hidden from employers until you accept an invite.</p>
+        <!-- Live, real counts from /community/stats (migration 0059) —
+             hidden until loaded, and any zero is left out. -->
+        <p class="live-stats" data-live-stats hidden></p>
       </div>
 
       <div class="hero-media rise rise-3">
@@ -653,5 +659,26 @@ footer .bottom p{margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;
 })();
 </script>
 
+<script>
+// Real activity counts for the hero (migration 0059, HANDOVER §28).
+(function () {
+  fetch("/community/stats").then(function (r) { return r.ok ? r.json() : null; }).then(function (st) {
+    if (!st) return;
+    var box = document.querySelector("[data-live-stats]");
+    function add(n, label) {
+      if (!(n > 0)) return;
+      var span = document.createElement("span");
+      var b = document.createElement("b");
+      b.textContent = Number(n).toLocaleString("en-GB");
+      span.appendChild(b);
+      span.append(" " + label);
+      box.appendChild(span);
+    }
+    add(st.jobs_open, "UK sponsored jobs");
+    add(st.licensed_sponsors, "licensed sponsors to check");
+    if (box.childNodes.length) box.hidden = false;
+  }).catch(function () {});
+})();
+</script>
 </body>
 </html>
