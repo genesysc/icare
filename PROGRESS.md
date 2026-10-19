@@ -5924,4 +5924,11 @@ profile… I will give you a list of jobs later to upload."
   live Worker with a real session.
 - Pending: founder's job list to load (see §27 for the exact call);
   where application notifications go; Reed/Adzuna.
+- Shipped: PR genesysc/icare#62 squash-merged; `/jobs` live (200), API
+  401 signed-out. `sponsored_jobs` is empty (0 rows).
+- Founder decisions at session end: health & social care only; jobs will
+  come from websites the founder supplies (agent extracts + loads via
+  `upsert_sponsored_job`) — see HANDOVER §27 "Founder decisions" for the
+  rules (register legal name/town, no employer-confirmed badge, check site
+  terms, link to the original advert). Reed/Adzuna parked.
 

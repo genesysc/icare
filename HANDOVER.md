@@ -2858,3 +2858,24 @@ empty state); admin notification destination for applications; saved
 jobs/searches; Reed/Adzuna keys; lower salary thresholds for the role
 badge.
 
+**Founder decisions, 2026-10-19 (end of session):**
+- **Sectors: health and social care only** (closes the handover's open
+  question 2).
+- **Job source for now: websites the founder supplies** — the founder will
+  give employer/job-page URLs and an agent extracts each job's details
+  and loads them with `upsert_sponsored_job` (§27 call above). The founder
+  says these employers are confirmed sponsors. The register rule still
+  applies: a job only goes live on an exact name+town register match, so
+  record each employer's **legal name and town as they appear on the
+  register** (check with `/sponsor-check` or `match_sponsor()`), not the
+  brand name on the website. Do NOT set `badge_employer_confirmed` from
+  this — that badge needs the employer's written confirmation per job
+  (handover §4), not the founder's general knowledge. Check each site's
+  terms before extracting; write descriptions as short factual summaries
+  and link `apply_url` to the original advert rather than copying the
+  advert wholesale.
+- Reed/Adzuna API import: parked until the founder registers keys.
+- Branch note: after the squash-merge of #62 the dev branch was synced to
+  `main` with a no-change `-s ours` merge commit (a force push was blocked
+  by the auto-mode classifier). Content equals `main`; just branch on.
+
