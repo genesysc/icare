@@ -6018,3 +6018,42 @@ news. genesysc/icare#61 left open and unmerged (not watched). Wrote
 - Migration 0059 applied via MCP; 3 team posts seeded. Test posts by
   "Michael Murillo" (ids 6–8) unpublished earlier the same day (hard
   delete needs founder approval — SQL given to her).
+
+
+## 2026-10-19 — Source checks (nothing new loaded)
+
+- myjobscotland.gov.uk: robots.txt `Disallow: /` → not scraped; employer list (100 in filter) checked against the register: 39 exact name matches (24 councils, Richmond Fellowship Scotland, Carr Gomm, …).
+- totaljobs (Precious Homes): robots blocks query-string job pages and fetch failed; no "Precious Homes" on the register → not loaded.
+- Carr Gomm (carrgomm.org, 19 live vacancies, no robots.txt): 18/19 adverts say "policy not to offer sponsorship" → NOT loaded (would contradict a "Licensed sponsor" listing). The 19th is a relief Appropriate Adult role, no mention.
+- Richmond Fellowship: old careers URL now redirects to Waythrough (Recovery Focus) Workday site (robots allow `/Recovery_Focus_Careers/`; ~100 jobs, mostly England). Registered sponsor "The Richmond Fellowship Scotland" (Stepps) is a different entity from "Waythrough" (Bowburn, also on the register). Not loaded yet.
+- Quarriers (careers.quarriers.org.uk, robots allow): the given vacancy shows no roles (closed/expired); Quarriers not found on the register → not loaded.
+
+## 2026-10-19 — More source checks
+
+- Waythrough (Workday, ~100 live jobs, robots allow): all 100 adverts read; only 1 mentions sponsorship and it refuses ("we do not currently offer sponsorship") → none loaded.
+- Quarriers: no register entry under "quarrier*" (only unrelated quarries) → not a known trading name of a registered sponsor; nothing loaded.
+- Balmoral Homecare (careers.balmoralhsc.co.uk, 22 live, register: "Balmoral Homecare Ltd", Prestwick, A rating): 3 adverts explicitly say they don't offer sponsorship; 19 are silent. NOT loaded yet — awaiting founder decision on whether silent-on-sponsorship care jobs should be listed.
+- Avenues Group (register: Sidcup, A rating): vacancy listing only reachable via `/action/` URLs, which robots.txt disallows → not read.
+
+- Balmoral: 19 silent-on-sponsorship adverts loaded (18 open, 1 hidden: Esteem Care Dumfries & Galloway Ltd not on register). See HANDOVER §27e. Live DB now 74 jobs, 73 visible.
+
+- Bright Care (brightcare.co.uk, legal employer "Bright Care at Home Ltd", registered office Perth; register has "Bright Care at Home Ltd", Edinburgh, A rating): careers pages are generic role pages with a general Apply form, no individual dated vacancies → nothing loaded.
+- Avenues Group: one advert supplied (Female Support Worker, Caterham, ref 6507; `/description/` path is not robots-disallowed) loaded as `avenues:6507` (silent on sponsorship; register "Avenues Group", Sidcup). Their search listing is still unreadable (`/action/` disallowed), so only individually supplied links can be loaded. Live DB: 75 jobs, 74 visible.
+
+- Avenues, individually supplied adverts: loaded `avenues:6519` (Saffron Walden) and `avenues:6522` (Margate) alongside 6507 (Caterham); skipped 6557 Onboarding Coordinator (Sidcup, HR admin, not health/care). No closing dates on 6519/6522. Live DB: 77 jobs, 76 visible.
+
+- Randolph Hill (randolphhill.com, robots OK; register "Randolph Hill Nursing Homes (Scotland) Ltd", Edinburgh, A): 17 care/nursing adverts read. Nurse adverts say "from time to time we offer sponsorship to nurses" → loaded 2 (`randolph-hill:muirfield-charge-nurse-day-duty`, `…staff-nurse-day-duty-4`; Staff Nurse advert header says Muirfield, body says Fidra House, recorded both). 15 care assistant adverts say "as a general policy we do NOT offer sponsorship to care assistants" → not loaded. Non-care roles (chefs, domestic, HR) skipped.
+- Oakminster Healthcare (register: "Oakminster Healthcare Ltd", Glasgow, A; careers page says "We are able to offer sponsorship to Carers, Senior Carer Assistants and Registered Nurses"): vacancies are an embed from seemehired.com/jobs/filtered, which seemehired's robots.txt disallows; seemehired public job pages use numeric IDs with no employer name → not loaded. Need individual job links.
+- Live DB: 79 jobs, 78 visible.
+
+## 2026-10-19 — Sponsor register refresh fix (secret rotated); Inspire Wellbeing check
+
+- Register refresh Action failing since ~17 Oct with `sponsor_refresh_begin failed (400): unauthorized` — GitHub secret `SPONSOR_REFRESH_SECRET` didn't match `app_secrets.sponsor_refresh_secret`. DB value rotated to a fresh 64-char value (never read back by the agent). **Founder must copy it into GitHub → Settings → Secrets → Actions → `SPONSOR_REFRESH_SECRET`** (`select value from app_secrets where key = 'sponsor_refresh_secret';` in the Supabase SQL editor), then run the "Sponsor register refresh" workflow manually. The agent cannot set Actions secrets (proxy 403) and was blocked from printing the value. Register data is still the 14 Oct file until then; the 15 Oct run row is stuck at `loading`.
+- Inspire Wellbeing (inspirewellbeing.current-vacancies.com, Networx platform; register "Inspire Wellbeing Ltd", Belfast, A): the site's search endpoint returns `{"OK":false}` and the page shows "unable to find any roles" → no live vacancies found; nothing loaded.
+
+- Right at Home UK (rightathome.co.uk; national company Senior Care at Home Ltd is a franchisor, not itself on the register). 23 local franchisees ARE on the register (e.g. Dundee/Angus/North Fife, Bridgend & Vale, Nottingham, Tyneside…). 19 offices have `/<office>/available-opportunities/<job>/` pages (67 pages read; robots OK) but they are undated "always recruiting" pages: no posted/closing dates, some clearly stale (COVID wording, "April 2025", a £10.15/h rate). Sponsorship: none say "sponsored"; Grantham says "UK APPLICATIONS ONLY - NO SPONSORSHIP"; Mid Cheshire has an application question "Do you require sponsorship for this role?"; the rest are silent. NOT loaded — awaiting founder decision (risk: listing filled/old vacancies with no expiry).
+
+- Right at Home: loaded 53 undated "evergreen" job pages from 17 franchisee offices (`rightathome:<office>/<slug>`), each under its franchisee's exact register name, **30-day expiry (2026-11-19)** so they drop off unless re-checked; neutral generic descriptions + link to the office's advert. Excluded: Grantham (one ad says no sponsorship), 2 Mid Cheshire ads with a sponsorship question, COVID-era pages, "April 2025", Chiswick (£10.15/h), Loneliness Companion roles. All 53 `open`. Live DB: 133 jobs, 132 visible. Re-run/refresh needed before 19 Nov or they close automatically.
+
+## 2026-10-20 — Notes promoted to main; Right at Home batch kept (founder decision)
+- Founder asked to keep the 53 Right at Home jobs and promote to main. Board: 133 jobs, 132 visible.

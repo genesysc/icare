@@ -2959,3 +2959,23 @@ transactions (code stable, own code rejected, a new account's claim
 counts once, welcome appears only after "yes"); Rounds and landing
 rendered with Playwright at 390px/1280px, no overflow or JS errors.
 
+
+
+### 27e. Fourth source — Balmoral Homecare (2026-10-19)
+
+careers.balmoralhsc.co.uk (robots OK; 22 live). Founder chose to load the 19 adverts that are *silent* on
+sponsorship (same rule as Renaissance/Hamill; HCT stays "sponsored only"). Skipped the 3 that say
+"we do not offer sponsorship" (Care Worker – East Ayrshire, Dumfries, South Ayrshire). `source_job_id`
+`balmoral:<VacancyID>`, apply = link to the advert. 18 are `open` (employer "Balmoral Homecare Ltd", Prestwick,
+A rating, name match). 1 is **hidden**: "Emergency Care Responder – Dumfries (Esteem)" — the advert's employer is
+*Esteem Care Dumfries and Galloway Ltd*, not on the register, so it is not listed under Balmoral's licence.
+No posted/closing dates on the site (no auto-expiry). Same caveat as before: most are "Care Worker" roles →
+`care_switchers_only`; this board lists them on the employer's licence even though the adverts don't promise sponsorship.
+
+### 27f. Later sources and operational notes (2026-10-19/20)
+
+- **Avenues Group** (register "Avenues Group", Sidcup): their search listing is only reachable via `/action/` URLs that robots.txt disallows, so only individually supplied advert links are loaded (`avenues:<ref>`: Caterham 6507, Margate 6522, Saffron Walden 6519; Onboarding Coordinator 6557 skipped, not health/care).
+- **Randolph Hill**: 2 nurse adverts loaded ("from time to time we offer sponsorship to nurses"); 15 care-assistant adverts skipped ("we do NOT offer sponsorship to care assistants").
+- **Right at Home UK**: franchisor not on the register; 17 franchisee offices are. 53 undated "evergreen" job pages loaded (`rightathome:<office>/<slug>`) with a **30-day expiry (2026-11-19)** and neutral descriptions. Founder chose to keep them for now. These are the thinnest data on the board; hide with `update sponsored_jobs set status='closed' where source_job_id like 'rightathome:%'` if wanted.
+- **Not loaded / blocked** (details in PROGRESS.md): myjobscotland (robots `Disallow: /`), Totaljobs and CV-Library (bot walls), Carr Gomm and Waythrough (state no sponsorship), Quarriers and Bright Care (nothing loadable), Oakminster (feed path disallowed), Inspire Wellbeing (no live vacancies).
+- **Ops, needs the founder:** the daily sponsor-register refresh has been failing with `unauthorized`; the DB secret was rotated on 2026-10-19 (value not read by the agent). Copy `select value from app_secrets where key = 'sponsor_refresh_secret';` into the GitHub Actions secret `SPONSOR_REFRESH_SECRET`, then run the "Sponsor register refresh" workflow.
