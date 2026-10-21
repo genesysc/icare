@@ -440,7 +440,7 @@
     host.innerHTML = all.map(function (i) {
       var status = i.status === 'accepted' ? '<span class="pill ok">Accepted</span>'
         : i.status === 'declined' ? '<span class="pill">Declined</span>'
-        : i.status === 'revoked' ? '<span class="pill">Closed</span>'
+        : (i.status === 'revoked' || i.status === 'expired') ? '<span class="pill">Closed</span>'
         : '<span class="pill">New</span>';
       var actions = i.status === 'sent'
         ? '<div class="row"><button class="btn primary" data-accept="' + i.id + '">Accept</button><button class="btn secondary" data-decline="' + i.id + '">Decline</button></div>'

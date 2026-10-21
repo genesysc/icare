@@ -37,9 +37,9 @@ type PendingAlert = {
   to_email: string;
   display_name: string;
   job_title: string;
-  job_location: string;
-  pay_range: string;
-  start_date: string;
+  job_location: string | null;
+  pay_range: string | null;
+  start_date: string | null;
   blocks: string[] | null;
 };
 
@@ -53,21 +53,43 @@ export async function flushLiveInAlerts(env: Bindings, siteUrl: string): Promise
     return { sent: 0 };
   }
 
-  let sent = 0;
+  // One email per carer per run: weekly rows (claimed on Mondays) and any
+  // instant rows that arrive together are grouped into a single summary.
+  const byCarer = new Map<string, PendingAlert[]>();
   for (const alert of (data || []) as PendingAlert[]) {
     if (!alert.to_email) continue;
-    const blocks = (alert.blocks || []).map((block) => BLOCK_LABELS[block] || block).join(", ");
+    const list = byCarer.get(alert.carer_id) || [];
+    list.push(alert);
+    byCarer.set(alert.carer_id, list);
+  }
+
+  let sent = 0;
+  for (const alerts of byCarer.values()) {
     const { subject, html } = liveInAlertEmail({
-      displayName: alert.display_name,
-      jobTitle: alert.job_title,
-      jobLocation: alert.job_location,
-      payRange: alert.pay_range,
-      startDate: alert.start_date,
-      blocks,
+      displayName: alerts[0].display_name,
+      roles: alerts.map((alert) => ({
+        jobTitle: alert.job_title,
+        jobLocation: alert.job_location,
+        payRange: alert.pay_range,
+        startDate: alert.start_date,
+        blocks: (alert.blocks || []).map((block) => BLOCK_LABELS[block] || block).join(", "),
+      })),
       siteUrl,
     });
-    const result = await sendTransactionalEmail(env, alert.to_email, subject, html);
-    if (result.sent) sent += 1;
+    const result = await sendTransactionalEmail(env, alerts[0].to_email, subject, html);
+    if (result.sent) {
+      sent += 1;
+      continue;
+    }
+    // Put the rows back so the next cron run retries them.
+    for (const alert of alerts) {
+      const { error: releaseError } = await supabase.rpc("release_live_in_alert", {
+        p_secret: env.NEWS_INGEST_SECRET,
+        p_carer_id: alert.carer_id,
+        p_job_id: alert.job_id,
+      });
+      if (releaseError) console.log(`[live-in-alerts] release failed: ${releaseError.message}`);
+    }
   }
 
   return { sent };

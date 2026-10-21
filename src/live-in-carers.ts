@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
 
-// Live-in Carer Register — see supabase/migrations/20261020120000_0056.
+// Live-in Carer Register — see supabase/migrations/20261020120000_0060_live_in_carers.sql.
 //
 // Rules this file is responsible for enforcing (the DB enforces the rest):
 //   * the caller must already be a signed-in iCare member; there is no
@@ -321,8 +321,16 @@ liveIn.post("/me", requireAuth, async (c) => {
   const supabase = c.get("supabase");
   const userId = c.get("userId");
 
-  const { data: existing } = await supabase.from("live_in_carers").select("id").eq("user_id", userId).maybeSingle();
-  if (existing) return c.json({ error: "You already have a live-in carer profile", profile_id: existing.id }, 409);
+  // user_id is unique, so a carer who deleted their profile (soft delete)
+  // re-registers by reviving that row rather than inserting a second one.
+  const { data: existing } = await supabase
+    .from("live_in_carers")
+    .select("id, deleted_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (existing && !existing.deleted_at) {
+    return c.json({ error: "You already have a live-in carer profile", profile_id: existing.id }, 409);
+  }
 
   const body = await c.req.json().catch(() => ({}));
   const { value, consents, error, field } = validate(body, c.get("user"));
@@ -334,34 +342,45 @@ liveIn.post("/me", requireAuth, async (c) => {
     return c.json({ error: "Tick the privacy notice box to create your profile", field: "consentPrivacy" }, 400);
   }
 
-  const { data: created, error: insertError } = await supabase
-    .from("live_in_carers")
-    .insert({ user_id: userId, ...value })
-    .select("id")
-    .single();
+  const write = existing
+    ? supabase
+        .from("live_in_carers")
+        .update({ ...value, deleted_at: null, updated_at: new Date().toISOString() })
+        .eq("id", existing.id)
+        .eq("user_id", userId)
+    : supabase.from("live_in_carers").insert({ user_id: userId, ...value });
+  const { data: created, error: insertError } = await write.select("id").single();
 
   if (insertError) return c.json({ error: insertError.message }, 400);
 
-  const consentsOk = await recordConsents(supabase, created.id, consents, "web_form", {
-    privacy: false,
-    employer_view: false,
-    email_alerts: false,
-  });
+  // A revived profile keeps its consent history; only real changes append.
+  const previous = existing
+    ? await latestConsents(supabase, created.id)
+    : { privacy: false, employer_view: false, email_alerts: false };
+  const consentsOk = await recordConsents(supabase, created.id, consents, "web_form", previous);
 
-  if (!consentsOk) {
+  if (!consentsOk && !existing) {
     // Narrow RPC rather than a DELETE grant (which would let a client hard
     // delete past the soft-delete rule). Only removes a consent-less own row.
     await supabase.rpc("discard_live_in_profile", { p_carer_id: created.id });
     return c.json({ error: "Could not record your consent — please try again" }, 500);
   }
 
+  if (!consentsOk) return c.json({ error: "Profile saved, but your consent choices could not be recorded — please check them on your profile" }, 500);
+
+  // DBS is optional. The profile already exists at this point, so a failed
+  // certificate-number save must not fail registration (a retry would 409).
   const dbsNumber = str(body, "dbsNumber", 40);
+  let dbsSaved = true;
   if (dbsNumber) {
     const { error: dbsError } = await supabase.rpc("submit_live_in_dbs_number", { p_certificate_number: dbsNumber });
-    if (dbsError) return c.json({ error: dbsError.message }, 400);
+    if (dbsError) {
+      console.log(`[live-in] DBS number save failed: ${dbsError.message}`);
+      dbsSaved = false;
+    }
   }
 
-  return c.json({ profile_id: created.id }, 201);
+  return c.json({ profile_id: created.id, dbs_saved: dbsSaved }, 201);
 });
 
 liveIn.patch("/me", requireAuth, async (c) => {

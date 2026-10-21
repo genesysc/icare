@@ -182,6 +182,25 @@ as $$
   ), false);
 $$;
 
+-- An employer cannot read live_in_carers under RLS, so the invite policy
+-- checks the carer through this definer helper (an inline subquery would see
+-- no rows and reject every invite).
+create or replace function public.live_in_carer_invitable(p_carer_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from live_in_carers c
+     where c.id = p_carer_id
+       and c.deleted_at is null
+       and c.visibility = 'public'
+       and public.live_in_consent_granted(c.id, 'employer_view')
+  );
+$$;
+
 create or replace function public.touch_live_in_carer()
 returns trigger
 language plpgsql
@@ -198,6 +217,10 @@ for each row execute function public.touch_live_in_carer();
 
 -- A carer may only answer an invite. Job, employer and carer ids are fixed at
 -- creation, and a response is final (accepted -> declined is not allowed).
+-- Direct client updates (role authenticated/anon) may only move a 'sent'
+-- invite to 'accepted' or 'declined', stamping responded_at — never revive a
+-- revoked/expired invite. The SECURITY DEFINER revoke functions run as the
+-- function owner, so they can still set 'revoked'.
 create or replace function public.guard_live_in_invite()
 returns trigger
 language plpgsql
@@ -206,11 +229,19 @@ begin
   if new.carer_id <> old.carer_id
      or new.job_id <> old.job_id
      or new.employer_id <> old.employer_id
+     or new.created_at <> old.created_at
      or new.message is distinct from old.message then
     raise exception 'Only the invite response can be changed';
   end if;
   if old.responded_at is not null and new.status <> old.status then
     raise exception 'This invite has already been answered';
+  end if;
+  if current_user in ('authenticated', 'anon') then
+    if old.status <> 'sent'
+       or new.status not in ('accepted', 'declined')
+       or new.responded_at is null then
+      raise exception 'This invite can no longer be answered';
+    end if;
   end if;
   return new;
 end;
@@ -262,6 +293,8 @@ create policy live_in_invites_employer_read on live_in_invites
 create policy live_in_invites_employer_insert on live_in_invites
   for insert with check (
     employer_id = auth.uid()
+    and status = 'sent'
+    and responded_at is null
     and public.is_verified_employer()
     and exists (
       select 1 from jobs j
@@ -269,13 +302,7 @@ create policy live_in_invites_employer_insert on live_in_invites
          and j.employer_id = auth.uid()
          and j.status = 'active'
     )
-    and exists (
-      select 1 from live_in_carers c
-       where c.id = carer_id
-         and c.deleted_at is null
-         and c.visibility = 'public'
-         and public.live_in_consent_granted(c.id, 'employer_view')
-    )
+    and public.live_in_carer_invitable(carer_id)
   );
 
 -- No policies at all on live_in_alert_sends: the cron path is secret-gated
@@ -542,7 +569,13 @@ $$;
 -- Cron-only. Reuses the existing internal Worker secret (the same one the
 -- news ingest uses) rather than introducing a second secret the deploy would
 -- silently depend on. Claims rows by stamping sent_at, so a role can never be
--- claimed twice even if two cron runs overlap.
+-- claimed twice even if two cron runs overlap; release_live_in_alert() puts
+-- a row back if the email then fails to send.
+--
+-- Eligibility is re-checked here, not only at enqueue: a carer who has since
+-- switched alerts off, withdrawn email consent, hidden or deleted their
+-- profile is skipped (row marked sent, nothing emailed). 'weekly' rows are
+-- only claimed on Mondays (UK time); the Worker groups them into one email.
 create or replace function public.claim_live_in_alerts(p_secret text)
 returns table (
   carer_id     uuid,
@@ -563,7 +596,7 @@ declare
   v_secret text;
 begin
   select value into v_secret from app_secrets where key = 'news_ingest_secret';
-  if v_secret is null or p_secret <> v_secret then
+  if v_secret is null or p_secret is distinct from v_secret then
     raise exception 'unauthorized';
   end if;
 
@@ -575,7 +608,8 @@ begin
        select s2.id
          from live_in_alert_sends s2
         where s2.sent_at is null
-          and s2.channel = 'instant'
+          and (s2.channel = 'instant'
+               or extract(isodow from now() at time zone 'Europe/London') = 1)
         order by s2.created_at
         limit 200
         for update skip locked
@@ -595,7 +629,31 @@ begin
     join live_in_carers c on c.id = cl.carer_id
     join jobs j on j.id = cl.job_id
    where c.deleted_at is null
+     and c.visibility = 'public'
+     and c.alert_frequency <> 'off'
+     and public.live_in_consent_granted(c.id, 'email_alerts')
      and j.status = 'active';
+end;
+$$;
+
+-- Cron/Worker-only: un-claim one alert whose email failed, so the next cron
+-- run retries it.
+create or replace function public.release_live_in_alert(p_secret text, p_carer_id uuid, p_job_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_secret text;
+begin
+  select value into v_secret from app_secrets where key = 'news_ingest_secret';
+  if v_secret is null or p_secret is distinct from v_secret then
+    raise exception 'unauthorized';
+  end if;
+  update live_in_alert_sends
+     set sent_at = null
+   where carer_id = p_carer_id and job_id = p_job_id;
 end;
 $$;
 
@@ -619,7 +677,7 @@ declare
   v_secret text;
 begin
   select value into v_secret from app_secrets where key = 'news_ingest_secret';
-  if v_secret is null or p_secret <> v_secret then
+  if v_secret is null or p_secret is distinct from v_secret then
     raise exception 'unauthorized';
   end if;
 
@@ -702,6 +760,9 @@ grant execute on function public.enqueue_live_in_alerts(uuid) to authenticated;
 
 revoke all on function public.claim_live_in_alerts(text) from public, anon, authenticated;
 grant execute on function public.claim_live_in_alerts(text) to anon;
+
+revoke all on function public.release_live_in_alert(text, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.release_live_in_alert(text, uuid, uuid) to anon;
 
 revoke all on function public.live_in_invite_recipient(text, uuid) from public, anon, authenticated;
 grant execute on function public.live_in_invite_recipient(text, uuid) to anon;

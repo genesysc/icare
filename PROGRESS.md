@@ -6122,3 +6122,54 @@ and match `app_secrets` or alert/invite email no-ops.
   the pre-Jobs-tab copy) + the 380px rule; nav-shell list updated.
 - `tsc --noEmit` and `wrangler deploy --dry-run` clean. Still never
   runtime-tested (needs 0060 applied). Waiting on founder before merge.
+
+## 2026-10-21 — Debug pass on the live-in register + production secret fix
+
+Founder: "DBS is not a required step, they can skip it… before any of this
+ships, debug and fix everything you find that is wrong". Founder also said
+the employer side isn't really built, so don't prioritise it. Employer-side
+fixes below are the security/broken-flow minimum only.
+
+**Shipped to live now (existing production bug, not live-in):**
+- `0061_secret_null_check` APPLIED. `ingest_news_item`,
+  `prune_stale_news_items`, `news_item_known_external_ids`,
+  `news_ingest_status`, `ingest_rule_alert` used
+  `if v_secret is null or p_secret <> v_secret` → a NULL `p_secret` skipped
+  the check, so anyone with the public key could insert fake news or
+  official rule alerts. Rewritten to `is distinct from` in place (grants
+  kept). Live check: 0 vulnerable functions left; news sources all look
+  genuine, no sign it was abused. **Rule for new code: always
+  `p_secret is distinct from v_secret`.**
+
+**Fixed in 0060 / live-in code (still NOT applied/merged):**
+- Employer could insert an invite already `accepted` → unlocked carer
+  name/email/phone. Insert policy now requires `status='sent'` and
+  `responded_at is null`.
+- Employer invites could never be created at all: the policy's subquery on
+  `live_in_carers` ran under the employer's RLS (no rows). Now a definer
+  helper `live_in_carer_invitable()`.
+- Invite guard: a carer could move a revoked/expired invite to accepted (or
+  any status). Client updates may now only go `sent` → accepted/declined
+  with `responded_at`.
+- `claim_live_in_alerts` / `live_in_invite_recipient`: same null-secret
+  hole (would have leaked carer emails). Fixed.
+- Claim now re-checks alerts on + email consent + public + not deleted at
+  send time; new `release_live_in_alert()` un-claims on a failed send.
+- "Weekly summary" carers were never emailed (only `instant` was ever
+  claimed). Weekly rows now claimed on Mondays (UK) and the Worker groups
+  each carer's roles into one email.
+- Alert email: `escapeHtml(null)` crash would drop a whole batch; the
+  "Start" line showed the carer's own date as the job's (jobs have no start
+  date) → removed; copy no longer implies an invite exists.
+- A carer who deleted their profile could never re-register (409 on the
+  unique `user_id`) → POST revives the soft-deleted row.
+- DBS number save failing after the profile was created returned 400 → the
+  retry then 409'd. Now non-fatal.
+- Invite list showed `expired` as "New".
+- Copy: DBS optional/skippable; "premium membership" line removed (no such
+  product; contradicted `/terms`). HANDOVER §1 #1 note updated.
+- Local tests (Postgres 16 harness, Supabase default grants): 12 RLS/RPC
+  cases pass. Harness moved to `/srv/pgtest` (the scratchpad perms get
+  reset and kill the server).
+- Not reviewed in depth (employer side, deprioritised): `live-in-search.ts`
+  / `.html`, employer-home changes.

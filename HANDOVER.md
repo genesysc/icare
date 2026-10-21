@@ -35,10 +35,14 @@ stop and ask the user — do not resolve it yourself.**
    surface the conflict before building it.
    **⚠️ Scoped override, founder instruction 2026-10-20 (live-in register
    only):** asked directly, the founder chose "follow the attached doc"
-   over this rule for the live-in carer register. The shipped copy says a
-   profile is free, the carer pays for their own DBS check (a required
-   baseline cost), and an optional premium membership exists. This is a
-   deliberate, informed departure for that one surface — it does **not**
+   over this rule for the live-in carer register. **Revised 2026-10-21:**
+   the founder said DBS is NOT a required step — it can be skipped in the
+   register form and added later. The copy now says a profile is free,
+   iCare never charges carers, DBS is optional, and any DBS check / Update
+   Service subscription is arranged and paid for by the carer outside
+   iCare. The "optional premium membership" line was removed: no premium
+   product exists and `/terms` says "There is no premium profile". Put it
+   back only with a real product AND a terms change. This scoped note does **not**
    authorise a paid profile boost, paid ranking or any candidate fee
    elsewhere, and no ranking/boost path exists. Re-confirm before
    extending it.
@@ -3004,7 +3008,7 @@ the open questions are recorded here because they overrode the defaults:
 
 | Question | Founder answer |
 |---|---|
-| Payment copy | "Follow attached doc" — carer pays own DBS, premium membership optional. Scoped override of §1 #1, recorded there |
+| Payment copy | "Follow attached doc" — revised 2026-10-21: DBS optional (skippable), carer pays any DBS cost outside iCare; premium line removed (contradicted /terms, no such product). See §1 #1 |
 | Who can register | Existing signed-in iCare member only; no anonymous/second-account path |
 | Employer routes | `/employers/live-in-search` + `/:id` (the doc's `/irecruit/...` was not used) |
 | Name in search summary | Preferred name only, fallback `"Live-in carer"` |
