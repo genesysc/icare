@@ -9,14 +9,29 @@
 // are changed, and it is auditable.
 
 export type LiveInAlertRole = {
-  jobTitle: string | null;
-  jobLocation: string | null;
-  payRange: string | null;
-  // Unused in the email: `jobs` has no start date, and the carer's own
-  // earliest start must not be shown as if it were the role's.
-  startDate?: string | null;
+  title: string | null;
+  area: string | null;
+  rate: string;
+  startDate: string | null;
   blocks: string;
 };
+
+const RATE_BASIS_LABELS: Record<string, string> = { day: "per day", "24h": "per 24 hours", week: "per week" };
+
+// "£950.00 per week (plus travel)" — handover §7: rate basis and amount.
+export function formatLiveInRate(basis: string | null, pence: number | null, note: string | null): string {
+  const amount =
+    basis && typeof pence === "number"
+      ? `£${(pence / 100).toLocaleString("en-GB", { minimumFractionDigits: pence % 100 ? 2 : 0, maximumFractionDigits: 2 })} ${RATE_BASIS_LABELS[basis] || basis}`
+      : "";
+  if (amount && note) return `${amount} (${note})`;
+  return amount || note || "To be agreed";
+}
+
+function formatStart(date: string | null): string {
+  if (!date) return "To be agreed";
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
 
 export type LiveInAlertEmailData = {
   displayName: string;
@@ -29,26 +44,27 @@ export function liveInAlertEmail(data: LiveInAlertEmailData): { subject: string;
   const first = data.roles[0];
   const many = data.roles.length > 1;
   const subject = many
-    ? `${data.roles.length} live-in roles match your profile`
-    : `Live-in work in ${first.jobLocation || "your area"} — ${first.blocks || "block length on request"}`;
+    ? `${data.roles.length} new live-in vacancies on iCare`
+    : `New live-in vacancy: ${first.area || "UK"}${first.blocks ? ` — ${first.blocks}` : ""}`;
 
   const cards = data.roles
     .map(
       (role) => `
       <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:0 0 16px;border:1px solid #d9d2e6;border-radius:12px;">
         <tr><td style="padding:16px 18px;font-size:15px;line-height:1.7;">
-          ${role.jobTitle ? `<strong style="color:#330072;">${escapeHtml(role.jobTitle)}</strong><br />` : ""}
-          <strong>Area:</strong> ${escapeHtml(role.jobLocation || "Not specified")}<br />
-          <strong>Block:</strong> ${escapeHtml(role.blocks || "Not specified")}<br />
-          <strong>Rate:</strong> ${escapeHtml(role.payRange || "Not specified")}
+          ${role.title ? `<strong style="color:#330072;">${escapeHtml(role.title)}</strong><br />` : ""}
+          <strong>Area:</strong> ${escapeHtml(role.area || "Not specified")}<br />
+          <strong>Block:</strong> ${escapeHtml(role.blocks || "To be agreed")}<br />
+          <strong>Rate:</strong> ${escapeHtml(role.rate)}<br />
+          <strong>Start:</strong> ${escapeHtml(formatStart(role.startDate))}
         </td></tr>
       </table>`
     )
     .join("");
 
   const heading = many
-    ? `${data.roles.length} live-in roles match your profile, ${escapeHtml(firstName)}.`
-    : `Live-in work in ${escapeHtml(first.jobLocation || "your area")}, ${escapeHtml(firstName)}.`;
+    ? `${data.roles.length} new live-in vacancies, ${escapeHtml(firstName)}.`
+    : `New live-in vacancy in ${escapeHtml(first.area || "the UK")}, ${escapeHtml(firstName)}.`;
 
   const html = `<!doctype html>
 <html lang="en">
@@ -65,16 +81,16 @@ export function liveInAlertEmail(data: LiveInAlertEmailData): { subject: string;
       </h1>
 
       <p style="font-size:16px;line-height:1.6;margin:0 0 20px;">
-        ${many ? "Roles matching" : "A role matching"} the areas and block lengths on your live-in profile ${many ? "have" : "has"} been added.
+        ${many ? "New live-in vacancies have" : "A new live-in vacancy has"} been posted on iCare.
       </p>
 ${cards}
       <p style="font-size:16px;line-height:1.6;margin:8px 0 28px;">
-        If the employer invites you, the invite appears on your live-in profile and you decide whether to accept. Your name and contact details are not shared unless you do.
+        If you'd like to hear more, open your live-in profile and tap <strong>I'm interested</strong>. We only share your name and contact details with the iCare team when you do, and we'll be in touch.
       </p>
 
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 32px;">
         <tr><td>
-          <a href="${data.siteUrl}/live-in-profile" style="display:inline-block;padding:12px 24px;border-radius:999px;background:#330072;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;">Open my live-in profile</a>
+          <a href="${data.siteUrl}/live-in-profile#vacancies" style="display:inline-block;padding:12px 24px;border-radius:999px;background:#330072;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;">See the vacancy</a>
         </td></tr>
       </table>
 

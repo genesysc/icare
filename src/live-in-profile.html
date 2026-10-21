@@ -69,6 +69,10 @@
   .btn:disabled { opacity: .6; cursor: default; }
   .pill { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; background: var(--lavender); color: var(--muted); }
   .pill.ok { background: var(--teal-tint); color: #0B4D48; }
+  .facts { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 10px 0 0; font-size: 14px; }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; color: var(--ink); }
+  .vac-desc { margin-top: 10px !important; color: var(--ink) !important; white-space: pre-line; }
 
   form .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   form .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -138,7 +142,14 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="vacancies">
+      <h2>Live-in vacancies</h2>
+      <p class="sub">Posted by iCare. Tap <strong>I'm interested</strong> and the iCare team will contact you. Your name and contact details are only shared with iCare when you tap it.</p>
+      <div data-vacancies></div>
+      <p class="sub hidden" data-no-vacancies style="margin:0">No live-in vacancies right now. Switch on alerts below and we'll email you when one is posted.</p>
+    </div>
+
+    <div class="card hidden" data-invites-card>
       <h2>Invites</h2>
       <p class="sub">Accepting an invite shares your full profile with that employer for that job only.</p>
       <div data-invites></div>
@@ -147,15 +158,15 @@
 
     <div class="card" id="alerts">
       <h2>Alerts</h2>
-      <p class="sub">Alerts show the area, block length and rate of a role. They never include client details.</p>
+      <p class="sub">Alerts show the area, block length, rate and start date of a vacancy. They never include client details.</p>
       <label class="choice" style="margin-bottom:10px">
         <input type="checkbox" data-alerts-toggle>
-        <span>Email me when live-in availability matches my profile</span>
+        <span>Email me when iCare posts a new live-in vacancy</span>
       </label>
       <div data-frequency hidden>
         <span class="lbl">How often</span>
         <div class="grid-3" style="margin-top:6px">
-          <label class="choice"><input type="radio" name="freq" value="as-they-happen"> <span>As roles appear</span></label>
+          <label class="choice"><input type="radio" name="freq" value="as-they-happen"> <span>As vacancies are posted</span></label>
           <label class="choice"><input type="radio" name="freq" value="weekly"> <span>Weekly summary</span></label>
           <label class="choice"><input type="radio" name="freq" value="off" checked> <span>Off</span></label>
         </div>
@@ -429,8 +440,52 @@
     document.querySelector('[data-dbs-note]').textContent = note;
   }
 
+  var RATE_BASIS = { day: 'per day', '24h': 'per 24 hours', week: 'per week' };
+  function blockLabel(b) { for (var i = 0; i < BLOCKS.length; i++) if (BLOCKS[i][0] === b) return BLOCKS[i][1]; return b; }
+  function rateText(v) {
+    var amount = v.rate_basis && typeof v.rate_pence === 'number'
+      ? '£' + (v.rate_pence / 100).toLocaleString('en-GB', { minimumFractionDigits: v.rate_pence % 100 ? 2 : 0, maximumFractionDigits: 2 }) + ' ' + (RATE_BASIS[v.rate_basis] || v.rate_basis)
+      : '';
+    if (amount && v.rate_note) return amount + ' (' + v.rate_note + ')';
+    return amount || v.rate_note || 'To be agreed';
+  }
+  function dateText(d) {
+    return d ? new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : 'To be agreed';
+  }
+
+  function renderVacancies(vacancies, interested) {
+    var host = document.querySelector('[data-vacancies]');
+    document.querySelector('[data-no-vacancies]').classList.toggle('hidden', vacancies.length > 0);
+    host.innerHTML = vacancies.map(function (v) {
+      var done = interested.indexOf(v.id) !== -1;
+      return '<div class="invite"><h3>' + escapeHtml(v.title) + '</h3>' +
+        '<dl class="facts">' +
+        '<dt>Area</dt><dd>' + escapeHtml(v.area) + '</dd>' +
+        '<dt>Block</dt><dd>' + escapeHtml((v.blocks || []).map(blockLabel).join(', ') || 'To be agreed') + '</dd>' +
+        '<dt>Rate</dt><dd>' + escapeHtml(rateText(v)) + '</dd>' +
+        '<dt>Start</dt><dd>' + escapeHtml(dateText(v.start_date)) + '</dd>' +
+        '</dl>' +
+        (v.description ? '<p class="vac-desc">' + escapeHtml(v.description) + '</p>' : '') +
+        '<div class="row">' + (done
+          ? '<span class="pill ok">Interest sent</span><span style="font-size:14px;color:var(--muted)">The iCare team will contact you.</span>'
+          : '<button class="btn primary" data-interest="' + escapeHtml(v.id) + '">I\'m interested</button>') +
+        '</div></div>';
+    }).join('');
+  }
+
+  function loadVacancies() {
+    authFetch('/live-in-carers/vacancies').then(function (res) { return res.ok ? res.json() : null; }).then(function (body) {
+      if (!body) return;
+      renderVacancies(body.vacancies || [], body.interested || []);
+      if (location.hash === '#vacancies') document.getElementById('vacancies').scrollIntoView();
+    }).catch(function () {});
+  }
+
   function renderInvites(invites) {
     var host = document.querySelector('[data-invites]');
+    // Employer invites aren't live yet (iCare posts vacancies itself), so the
+    // card only appears once a carer actually has one.
+    document.querySelector('[data-invites-card]').classList.toggle('hidden', invites.length === 0);
     var empty = document.querySelector('[data-no-invites]');
     var pending = invites.filter(function (i) { return i.status === 'sent'; });
     var rest = invites.filter(function (i) { return i.status !== 'sent'; });
@@ -510,6 +565,7 @@
       state.profile = body.profile;
       renderDbs(body.dbs || { dbs_state: 'not_yet_verified' });
       renderInvites(body.invites || []);
+      loadVacancies();
       fillForm(body.profile);
       applyConsents(body.consents || {}, body.profile);
     }).catch(function (err) {
@@ -527,6 +583,24 @@
   });
 
   document.addEventListener('click', function (e) {
+    var interest = e.target.closest('[data-interest]');
+    if (interest) {
+      interest.disabled = true;
+      interest.textContent = 'Sending…';
+      authFetch('/live-in-carers/vacancies/' + interest.getAttribute('data-interest') + '/interest', { method: 'POST' })
+        .then(function (res) { return res.json().then(function (b) { return { ok: res.ok, body: b }; }); })
+        .then(function (r) {
+          if (!r.ok) throw new Error(r.body.error || 'Could not send your interest');
+          var row = interest.parentNode;
+          row.innerHTML = '<span class="pill ok">Interest sent</span><span style="font-size:14px;color:var(--muted)">The iCare team will contact you.</span>';
+        })
+        .catch(function (err) {
+          interest.disabled = false;
+          interest.textContent = "I'm interested";
+          alert(err.message);
+        });
+      return;
+    }
     var accept = e.target.closest('[data-accept]');
     var decline = e.target.closest('[data-decline]');
     if (!accept && !decline) return;

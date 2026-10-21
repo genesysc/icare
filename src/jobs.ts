@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
-import { enqueueLiveInAlerts } from "./live-in-alerts";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -195,11 +194,6 @@ jobs.post("/", async (c) => {
   const { data, error: insertError } = await supabase.from("jobs").insert({ employer_id: userId, ...value }).select().single();
   if (insertError) return c.json({ error: insertError.message }, 400);
 
-  // Fan out availability alerts for live-in roles. Fail-soft: the job exists
-  // whether or not any alert rows were queued.
-  if (data?.live_in_regions?.length && data?.live_in_blocks?.length) {
-    await enqueueLiveInAlerts(supabase, data.id);
-  }
 
   return c.json({ job: data }, 201);
 });
@@ -249,12 +243,6 @@ jobs.patch("/:id", async (c) => {
     .single();
   if (updateError) return c.json({ error: updateError.message }, 400);
 
-  // Editing a live-in role can widen its match. The alert ledger's
-  // unique(carer_id, job_id) means nobody who already got this job is
-  // emailed again.
-  if (data?.live_in_regions?.length && data?.live_in_blocks?.length) {
-    await enqueueLiveInAlerts(supabase, data.id);
-  }
 
   return c.json({ job: data });
 });

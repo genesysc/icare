@@ -40,6 +40,7 @@ import liveInCarersSuccessPage from "./live-in-carers-success.html";
 import liveInProfilePage from "./live-in-profile.html";
 import liveInSearchPage from "./live-in-search.html";
 import liveInCarersApi from "./live-in-carers";
+import { flushLiveIn } from "./live-in-alerts";
 import liveInSearchApi from "./live-in-search";
 import { scheduledNewsRefresh } from "./news-ingest";
 import { processSignupAlerts } from "./signup-alerts";
@@ -102,7 +103,7 @@ app.get("/assets/:name", (c) => {
 });
 app.get("/employers", (c) => c.html(employerLandingPage));
 
-// Live-in carer register (migration 0056). Page routes are registered before
+// Live-in carer register (migration 0060). Page routes are registered before
 // the /employers API mount for the same reason the landing page above is:
 // employersApi's requireAuth on "*" would otherwise 401 a public page.
 app.get("/live-in-carers", (c) => c.html(liveInCarersPage));
@@ -167,6 +168,22 @@ app.post("/internal/signup-alert", async (c) => {
   const job = processSignupAlerts(c.env, secret).then(
     (r) => console.log(`[signup-alert] claimed ${r.claimed}, sent ${r.sent}`),
     (err) => console.error(`[signup-alert] ${err instanceof Error ? err.message : err}`)
+  );
+  c.executionCtx.waitUntil(job);
+  return c.json({ ok: true }, 202);
+});
+
+// Live-in vacancy alerts + "I'm interested" emails (migration 0060,
+// src/live-in-alerts.ts). Pinged by the database (pg_net) when iCare posts a
+// live-in vacancy or a carer taps "I'm interested"; the 2-hourly cron is the
+// safety net. The secret is checked by the claim RPCs inside the database.
+app.post("/internal/live-in-ping", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const secret = body && typeof body.secret === "string" ? body.secret : "";
+  if (!secret) return c.json({ error: "missing secret" }, 401);
+  const job = flushLiveIn(c.env, secret, "https://icareltd.com").then(
+    (r) => console.log(`[live-in-ping] sent ${r.alerts} alert(s), ${r.interest} interest email(s)`),
+    (err) => console.error(`[live-in-ping] ${err instanceof Error ? err.message : err}`)
   );
   c.executionCtx.waitUntil(job);
   return c.json({ ok: true }, 202);

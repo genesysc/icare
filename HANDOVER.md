@@ -3083,3 +3083,49 @@ rows stay pending.
   `app_secrets`, or alert/invite email is a silent no-op.
 - `SENDER_API_KEY` still isn't a GitHub Actions secret (news draft email).
 
+
+### 29.1 iCare-posted live-in vacancies (founder, 2026-10-21)
+
+Founder: "we will be uploading [live-in vacancies] manually for the
+meantime … each time we upload a live-in care vacancy, we would be
+notifying those who have registered". Decisions (asked 2026-10-21):
+- **Responding:** "I'm interested" button → info@ gets the carer's name,
+  phone, email and profile for that vacancy. The tap is the consent.
+- **Who is emailed:** EVERY carer who opted into alerts (not only
+  region/block matches). Hidden/deleted profiles and withdrawn consent are
+  still excluded.
+- **Where shown:** live-in profile (`/live-in-profile#vacancies`) + a
+  "Live-in care" card on the Jobs tab (non-registered members see "Join the
+  live-in register").
+- **Posted as iCare:** no client or employer name, no address.
+
+Mechanics (all in 0060): `live_in_vacancies` (members read open rows;
+nobody but the DB owner writes) → AFTER INSERT/re-open trigger queues one
+`live_in_alert_sends` row per opted-in carer (instant or weekly) and pings
+`/internal/live-in-ping` (pg_net) → Worker `flushLiveIn()` emails them. The
+2-hourly cron is the safety net; weekly carers get one summary on Mondays.
+`express_live_in_interest()` → `live_in_vacancy_interest` → same ping →
+`claim_live_in_interest` / `live_in_interest_done` → email to info@ (retried
+if Sender fails). Employer-job alerts (`enqueue_live_in_alerts`) were
+REMOVED; employer invites (§29 above) are unchanged but not in use.
+
+**To post a vacancy** (SQL editor, or ask the agent). Inserting it as open
+emails carers immediately, so check it first:
+
+```sql
+insert into live_in_vacancies
+  (title, area, regions, blocks, rate_basis, rate_pence, rate_note, start_date, description)
+values (
+  'Live-in carer for a lady living with dementia',  -- no client name
+  'Harrogate, North Yorkshire',                     -- town/district only
+  '{north-east}',          -- london south-east east midlands north-west north-east south-west wales scotland northern-ireland
+  '{2w}',                  -- 1w 2w 4w 8w+ ongoing short-cover
+  'week', 95000,           -- day | 24h | week, amount in PENCE (or both null)
+  null,                    -- optional free text, e.g. 'plus travel' or '£140–£160 a day'
+  '2026-11-10',            -- or null = to be agreed
+  'Own room and bathroom. Driver preferred.'
+);
+-- Close it (hides it; interest no longer accepted):
+update live_in_vacancies set status = 'closed' where id = '<id>';
+```
+

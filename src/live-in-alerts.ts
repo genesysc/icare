@@ -1,17 +1,19 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { sendTransactionalEmail } from "./email";
-import { liveInAlertEmail } from "./emails/live-in-alert";
+import { liveInAlertEmail, formatLiveInRate } from "./emails/live-in-alert";
+import { liveInInterestEmail, type LiveInInterest } from "./emails/live-in-interest";
 
-// Flushes the live-in alert outbox from the existing 2-hourly cron.
+// Live-in vacancy alerts and "I'm interested" notifications (migration 0060,
+// HANDOVER §29).
 //
-// Matching itself happens when the job is created/edited
-// (enqueue_live_in_alerts), so this step only delivers already-deduped rows.
-// claim_live_in_alerts stamps sent_at as it hands rows over, which is what
-// guarantees no carer ever receives the same role twice.
+// iCare uploads each live-in vacancy itself (no employer posting screen yet).
+// Inserting an open vacancy queues one alert per opted-in carer in the DB and
+// pings POST /internal/live-in-ping; a carer tapping "I'm interested" pings
+// it too. The ping (and the 2-hourly cron, as the safety net) runs both
+// flushes below.
 //
-// Secret-gated rather than service_role, same as the news ingest. If the
-// secret isn't provisioned this is a no-op: rows stay pending in
-// live_in_alert_sends and nothing is lost.
+// Secret-gated rather than service_role, same as the news ingest: the secret
+// is forwarded to the claim RPCs, which are the real gate.
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -19,10 +21,11 @@ type Bindings = {
   SENDER_API_KEY?: string;
   SENDER_FROM_EMAIL?: string;
   SENDER_FROM_NAME?: string;
-  NEWS_INGEST_SECRET?: string;
 };
 
-const BLOCK_LABELS: Record<string, string> = {
+export const LIVE_IN_INTEREST_TO = "info@icareltd.com";
+
+export const BLOCK_LABELS: Record<string, string> = {
   "1w": "1 week",
   "2w": "2 weeks",
   "4w": "4 weeks",
@@ -33,21 +36,21 @@ const BLOCK_LABELS: Record<string, string> = {
 
 type PendingAlert = {
   carer_id: string;
-  job_id: string;
+  vacancy_id: string;
   to_email: string;
   display_name: string;
-  job_title: string;
-  job_location: string | null;
-  pay_range: string | null;
+  title: string;
+  area: string;
+  rate_basis: string | null;
+  rate_pence: number | null;
+  rate_note: string | null;
   start_date: string | null;
   blocks: string[] | null;
 };
 
-export async function flushLiveInAlerts(env: Bindings, siteUrl: string): Promise<{ sent: number }> {
-  if (!env.NEWS_INGEST_SECRET) return { sent: 0 };
-
+export async function flushLiveInAlerts(env: Bindings, secret: string, siteUrl: string): Promise<{ sent: number }> {
   const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY);
-  const { data, error } = await supabase.rpc("claim_live_in_alerts", { p_secret: env.NEWS_INGEST_SECRET });
+  const { data, error } = await supabase.rpc("claim_live_in_alerts", { p_secret: secret });
   if (error) {
     console.log(`[live-in-alerts] claim failed: ${error.message}`);
     return { sent: 0 };
@@ -68,9 +71,9 @@ export async function flushLiveInAlerts(env: Bindings, siteUrl: string): Promise
     const { subject, html } = liveInAlertEmail({
       displayName: alerts[0].display_name,
       roles: alerts.map((alert) => ({
-        jobTitle: alert.job_title,
-        jobLocation: alert.job_location,
-        payRange: alert.pay_range,
+        title: alert.title,
+        area: alert.area,
+        rate: formatLiveInRate(alert.rate_basis, alert.rate_pence, alert.rate_note),
         startDate: alert.start_date,
         blocks: (alert.blocks || []).map((block) => BLOCK_LABELS[block] || block).join(", "),
       })),
@@ -81,12 +84,12 @@ export async function flushLiveInAlerts(env: Bindings, siteUrl: string): Promise
       sent += 1;
       continue;
     }
-    // Put the rows back so the next cron run retries them.
+    // Put the rows back so the next ping / cron run retries them.
     for (const alert of alerts) {
       const { error: releaseError } = await supabase.rpc("release_live_in_alert", {
-        p_secret: env.NEWS_INGEST_SECRET,
+        p_secret: secret,
         p_carer_id: alert.carer_id,
-        p_job_id: alert.job_id,
+        p_vacancy_id: alert.vacancy_id,
       });
       if (releaseError) console.log(`[live-in-alerts] release failed: ${releaseError.message}`);
     }
@@ -95,15 +98,34 @@ export async function flushLiveInAlerts(env: Bindings, siteUrl: string): Promise
   return { sent };
 }
 
-export async function enqueueLiveInAlerts(
-  supabase: SupabaseClient<any, any, any>,
-  jobId: string
-): Promise<number> {
-  const { data, error } = await supabase.rpc("enqueue_live_in_alerts", { p_job_id: jobId } as any);
+// "I'm interested" -> email info@ with the carer's details for that vacancy.
+export async function flushLiveInInterest(env: Bindings, secret: string): Promise<{ sent: number }> {
+  const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY);
+  const { data, error } = await supabase.rpc("claim_live_in_interest", { p_secret: secret });
   if (error) {
-    // Never fail job creation over an alert fan-out.
-    console.log(`[live-in-alerts] enqueue failed for ${jobId}: ${error.message}`);
-    return 0;
+    console.log(`[live-in-interest] claim failed: ${error.message}`);
+    return { sent: 0 };
   }
-  return typeof data === "number" ? data : 0;
+
+  let sent = 0;
+  for (const row of (data || []) as LiveInInterest[]) {
+    const { subject, html } = liveInInterestEmail(row);
+    const result = await sendTransactionalEmail(env, LIVE_IN_INTEREST_TO, subject, html);
+    if (result.sent) sent += 1;
+    await supabase.rpc("live_in_interest_done", {
+      p_secret: secret,
+      p_vacancy_id: row.vacancy_id,
+      p_carer_id: row.carer_id,
+      p_sent: result.sent,
+    });
+  }
+  return { sent };
+}
+
+export async function flushLiveIn(env: Bindings, secret: string, siteUrl: string) {
+  const [alerts, interest] = await Promise.all([
+    flushLiveInAlerts(env, secret, siteUrl),
+    flushLiveInInterest(env, secret),
+  ]);
+  return { alerts: alerts.sent, interest: interest.sent };
 }

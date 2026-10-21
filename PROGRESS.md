@@ -6173,3 +6173,26 @@ fixes below are the security/broken-flow minimum only.
   reset and kill the server).
 - Not reviewed in depth (employer side, deprioritised): `live-in-search.ts`
   / `.html`, employer-home changes.
+
+## 2026-10-21 — Live-in: iCare-posted vacancies + "I'm interested" (not shipped)
+
+- Founder: iCare uploads live-in vacancies manually for now; registered
+  carers are notified each time. Built into 0060 (still not applied):
+  `live_in_vacancies`, `live_in_vacancy_interest`, publish trigger + pg_net
+  ping, interest claim/done RPCs; alert ledger now keyed on `vacancy_id`.
+  Employer-job enqueue removed (jobs.ts calls gone). HANDOVER §29.1 has the
+  decisions and the insert template.
+- Worker: `/internal/live-in-ping`, `flushLiveIn()` (alerts + interest) on
+  the ping and the 2-hourly cron; new `emails/live-in-interest.ts` (to
+  info@); alert email now shows title, area, block, rate (basis + amount)
+  and start date.
+- UI: "Live-in vacancies" card on `/live-in-profile` (Invites card hidden
+  unless the carer has one); "Live-in care" card on the Jobs tab;
+  registration copy updated to the iCare-posts-vacancies flow.
+- Tests: local Postgres — vacancy posts queue alerts for every opted-in
+  carer (none for alerts off), re-open doesn't duplicate, interest is
+  once-only, own-row only, needs a profile + open vacancy, info@ claim
+  returns details, null secret rejected, members can't insert vacancies,
+  anon can't read. Playwright mocks at 390px: profile + Jobs card (both
+  registered and not). tsc clean.
+

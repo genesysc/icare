@@ -490,4 +490,34 @@ liveIn.post("/invites/:id/respond", requireAuth, async (c) => {
   return c.json({ invite: data });
 });
 
+// iCare-posted live-in vacancies (any signed-in member can read open ones;
+// RLS). `interested` lists the vacancy ids this member already tapped.
+liveIn.get("/vacancies", requireAuth, async (c) => {
+  const supabase = c.get("supabase");
+  const [vacancies, profile] = await Promise.all([
+    supabase
+      .from("live_in_vacancies")
+      .select("id, title, area, regions, blocks, rate_basis, rate_pence, rate_note, start_date, description, published_at")
+      .order("published_at", { ascending: false })
+      .limit(50),
+    supabase.from("live_in_carers").select("id").eq("user_id", c.get("userId")).is("deleted_at", null).maybeSingle(),
+  ]);
+  if (vacancies.error) return c.json({ error: vacancies.error.message }, 500);
+
+  let interested: string[] = [];
+  if (profile.data) {
+    const { data } = await supabase.from("live_in_vacancy_interest").select("vacancy_id").eq("carer_id", profile.data.id);
+    interested = (data || []).map((row) => row.vacancy_id as string);
+  }
+  return c.json({ vacancies: vacancies.data || [], has_profile: !!profile.data, interested });
+});
+
+liveIn.post("/vacancies/:id/interest", requireAuth, async (c) => {
+  const id = c.req.param("id");
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return c.json({ error: "Unknown vacancy" }, 404);
+  const { data, error } = await c.get("supabase").rpc("express_live_in_interest", { p_vacancy_id: id });
+  if (error) return c.json({ error: error.message }, 400);
+  return c.json({ status: "ok", new: !!data });
+});
+
 export default liveIn;

@@ -133,16 +133,63 @@ create table live_in_invites (
 create index live_in_invites_carer_idx on live_in_invites (carer_id, created_at desc);
 create index live_in_invites_employer_idx on live_in_invites (employer_id, created_at desc);
 
--- Alert ledger. unique(carer_id, job_id) is the "never send the same role
--- twice" acceptance criterion; sent_at stays null until the cron claims it.
+-- iCare-posted live-in vacancies (founder, 2026-10-21). There is no employer
+-- posting screen yet: iCare uploads each vacancy itself (SQL editor / agent —
+-- HANDOVER §29 has the insert template). Posted AS iCARE: no client name, no
+-- employer name, no client address, ever — area is a town/district only.
+-- Inserting an 'open' row emails every carer who opted into alerts (trigger
+-- below); setting status 'closed' hides it.
+create table live_in_vacancies (
+  id            uuid primary key default gen_random_uuid(),
+  title         text not null,
+  area          text not null,
+  regions       text[] not null default '{}',
+  blocks        text[] not null default '{}',
+  rate_basis    text check (rate_basis in ('day', '24h', 'week')),
+  rate_pence    integer check (rate_pence >= 0),
+  rate_note     text,
+  start_date    date,
+  description   text,
+  status        text not null default 'open' check (status in ('open', 'closed')),
+  published_at  timestamptz not null default now(),
+  created_at    timestamptz not null default now(),
+
+  constraint live_in_vacancies_regions_known check (
+    regions <@ array['london', 'south-east', 'east', 'midlands', 'north-west',
+                     'north-east', 'south-west', 'wales', 'scotland',
+                     'northern-ireland']::text[]
+  ),
+  constraint live_in_vacancies_blocks_known check (
+    blocks <@ array['1w', '2w', '4w', '8w+', 'ongoing', 'short-cover']::text[]
+  ),
+  -- A rate amount without its basis (or vice versa) can't be shown honestly.
+  constraint live_in_vacancies_rate_pair check ((rate_basis is null) = (rate_pence is null))
+);
+
+create index live_in_vacancies_open_idx on live_in_vacancies (published_at desc) where status = 'open';
+
+-- "I'm interested": the carer's own tap is the consent to share their name
+-- and contact details with iCare for that vacancy. info@ is emailed (claim /
+-- done pair below, same shape as the sign-up alerts in 0058).
+create table live_in_vacancy_interest (
+  vacancy_id   uuid not null references live_in_vacancies(id) on delete cascade,
+  carer_id     uuid not null references live_in_carers(id) on delete cascade,
+  created_at   timestamptz not null default now(),
+  claimed_at   timestamptz,
+  notified_at  timestamptz,
+  primary key (vacancy_id, carer_id)
+);
+
+-- Alert ledger. unique(carer_id, vacancy_id) is the "never send the same role
+-- twice" acceptance criterion; sent_at stays null until the Worker claims it.
 create table live_in_alert_sends (
   id          uuid primary key default gen_random_uuid(),
   carer_id    uuid not null references live_in_carers(id) on delete cascade,
-  job_id      uuid not null references jobs(id) on delete cascade,
+  vacancy_id  uuid not null references live_in_vacancies(id) on delete cascade,
   channel     text not null check (channel in ('instant', 'weekly')),
   created_at  timestamptz not null default now(),
   sent_at     timestamptz,
-  unique (carer_id, job_id)
+  unique (carer_id, vacancy_id)
 );
 
 create index live_in_alert_sends_pending_idx on live_in_alert_sends (sent_at) where sent_at is null;
@@ -260,6 +307,16 @@ alter table live_in_dbs enable row level security;
 alter table live_in_consents enable row level security;
 alter table live_in_invites enable row level security;
 alter table live_in_alert_sends enable row level security;
+alter table live_in_vacancies enable row level security;
+alter table live_in_vacancy_interest enable row level security;
+
+-- Any signed-in member can see open vacancies (live-in profile + Jobs tab).
+create policy live_in_vacancies_member_read on live_in_vacancies
+  for select to authenticated using (status = 'open');
+
+-- A carer sees only their own "interested" rows; written via the RPC only.
+create policy live_in_vacancy_interest_self_read on live_in_vacancy_interest
+  for select using (public.live_in_self(carer_id));
 
 create policy live_in_carers_self_read on live_in_carers
   for select using (user_id = auth.uid());
@@ -515,54 +572,179 @@ begin
 end;
 $$;
 
--- Called by the Worker immediately after a live-in job is created or edited.
--- Matching is regions + blocks only (founder decision, 2026-10-20): radius is
--- stored and shown, but not used until a geocoder is added.
-create or replace function public.enqueue_live_in_alerts(p_job_id uuid)
-returns integer
+-- Fire-and-forget ping so new vacancy alerts and "I'm interested" emails go
+-- out within seconds, not at the next 2-hourly cron (which is the safety
+-- net). Same pattern as signup_alert_ping (0058): never raises.
+create or replace function public.live_in_ping()
+returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_job record;
-  v_count integer;
+  v_secret text;
 begin
-  select id, employer_id, status, live_in_regions, live_in_blocks
-    into v_job
-    from jobs
-   where id = p_job_id;
+  select value into v_secret from app_secrets where key = 'news_ingest_secret';
+  if v_secret is null then
+    return;
+  end if;
+  perform net.http_post(
+    url := 'https://icareltd.com/internal/live-in-ping',
+    body := jsonb_build_object('secret', v_secret),
+    headers := jsonb_build_object('Content-Type', 'application/json'),
+    timeout_milliseconds := 10000
+  );
+exception when others then
+  null;
+end;
+$$;
 
-  if v_job.id is null then
-    raise exception 'Unknown job';
-  end if;
-  if v_job.employer_id <> auth.uid() or not public.is_verified_employer() then
-    raise exception 'unauthorized';
-  end if;
-  if v_job.status <> 'active'
-     or coalesce(array_length(v_job.live_in_regions, 1), 0) = 0
-     or coalesce(array_length(v_job.live_in_blocks, 1), 0) = 0 then
-    return 0;
-  end if;
-
-  with matched as (
-    insert into live_in_alert_sends (carer_id, job_id, channel)
+-- A vacancy going live (inserted as 'open', or re-opened) queues one alert per
+-- carer who opted in. Founder decision 2026-10-21: EVERY opted-in carer, not
+-- only region/block matches. Dedupe is the unique(carer_id, vacancy_id).
+create or replace function public.live_in_vacancy_published()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status = 'open' and (tg_op = 'INSERT' or old.status <> 'open') then
+    insert into live_in_alert_sends (carer_id, vacancy_id, channel)
     select c.id,
-           p_job_id,
+           new.id,
            case when c.alert_frequency = 'weekly' then 'weekly' else 'instant' end
       from live_in_carers c
      where c.deleted_at is null
        and c.visibility = 'public'
        and c.alert_frequency <> 'off'
        and public.live_in_consent_granted(c.id, 'email_alerts')
-       and c.regions && v_job.live_in_regions
-       and c.blocks && v_job.live_in_blocks
-    on conflict (carer_id, job_id) do nothing
-    returning 1
-  )
-  select count(*) into v_count from matched;
+    on conflict (carer_id, vacancy_id) do nothing;
+    perform public.live_in_ping();
+  end if;
+  return new;
+end;
+$$;
 
-  return v_count;
+create trigger live_in_vacancies_published
+after insert or update of status on live_in_vacancies
+for each row execute function public.live_in_vacancy_published();
+
+-- Carer taps "I'm interested". Returns true the first time, false if they
+-- already had. Needs a live (not deleted) live-in profile and an open vacancy.
+create or replace function public.express_live_in_interest(p_vacancy_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_carer_id uuid;
+begin
+  select id into v_carer_id from live_in_carers where user_id = auth.uid() and deleted_at is null;
+  if v_carer_id is null then
+    raise exception 'Create your live-in profile first';
+  end if;
+  if not exists (select 1 from live_in_vacancies where id = p_vacancy_id and status = 'open') then
+    raise exception 'This vacancy is no longer open';
+  end if;
+  insert into live_in_vacancy_interest (vacancy_id, carer_id)
+  values (p_vacancy_id, v_carer_id)
+  on conflict do nothing;
+  if not found then
+    return false;
+  end if;
+  perform public.live_in_ping();
+  return true;
+end;
+$$;
+
+-- Worker-only (secret): claim up to 20 un-notified interests (re-claimable
+-- after 10 minutes if the Worker died mid-send) with what info@ needs.
+create or replace function public.claim_live_in_interest(p_secret text)
+returns table (
+  vacancy_id        uuid,
+  carer_id          uuid,
+  vacancy_title     text,
+  vacancy_area      text,
+  full_name         text,
+  preferred_name    text,
+  email             text,
+  phone             text,
+  role              text,
+  experience        text,
+  live_in_experience text,
+  regions           text[],
+  postcode_area     text,
+  blocks            text[],
+  start_date        date,
+  rate_basis        text,
+  rate_pence        integer,
+  rtw               text,
+  dbs_state         text,
+  interested_at     timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v_secret text;
+begin
+  select value into v_secret from app_secrets where key = 'news_ingest_secret';
+  if v_secret is null or p_secret is distinct from v_secret then
+    raise exception 'unauthorized';
+  end if;
+
+  return query
+  with claimed as (
+    update live_in_vacancy_interest x
+       set claimed_at = now()
+     where (x.vacancy_id, x.carer_id) in (
+       select y.vacancy_id, y.carer_id
+         from live_in_vacancy_interest y
+        where y.notified_at is null
+          and (y.claimed_at is null or y.claimed_at < now() - interval '10 minutes')
+        order by y.created_at
+        limit 20
+        for update skip locked
+     )
+    returning x.vacancy_id, x.carer_id, x.created_at
+  )
+  select cl.vacancy_id, cl.carer_id, v.title, v.area,
+         c.full_name, c.preferred_name, c.email, c.phone, c.role, c.experience,
+         c.live_in_experience, c.regions, c.postcode_area, c.blocks, c.start_date,
+         c.rate_basis, c.rate_pence, c.rtw,
+         coalesce(d.dbs_state, 'not_yet_verified'), cl.created_at
+    from claimed cl
+    join live_in_vacancies v on v.id = cl.vacancy_id
+    join live_in_carers c on c.id = cl.carer_id
+    left join live_in_dbs d on d.carer_id = c.id
+   order by cl.created_at;
+end;
+$$;
+
+create or replace function public.live_in_interest_done(p_secret text, p_vacancy_id uuid, p_carer_id uuid, p_sent boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_secret text;
+begin
+  select value into v_secret from app_secrets where key = 'news_ingest_secret';
+  if v_secret is null or p_secret is distinct from v_secret then
+    raise exception 'unauthorized';
+  end if;
+  if p_sent then
+    update live_in_vacancy_interest set notified_at = now()
+     where vacancy_id = p_vacancy_id and carer_id = p_carer_id;
+  else
+    update live_in_vacancy_interest set claimed_at = null
+     where vacancy_id = p_vacancy_id and carer_id = p_carer_id and notified_at is null;
+  end if;
 end;
 $$;
 
@@ -579,12 +761,14 @@ $$;
 create or replace function public.claim_live_in_alerts(p_secret text)
 returns table (
   carer_id     uuid,
-  job_id       uuid,
+  vacancy_id   uuid,
   to_email     text,
   display_name text,
-  job_title    text,
-  job_location text,
-  pay_range    text,
+  title        text,
+  area         text,
+  rate_basis   text,
+  rate_pence   integer,
+  rate_note    text,
   start_date   date,
   blocks       text[]
 )
@@ -614,31 +798,33 @@ begin
         limit 200
         for update skip locked
      )
-    returning s.carer_id, s.job_id
+    returning s.carer_id, s.vacancy_id
   )
   select c.id,
-         j.id,
+         v.id,
          c.email,
-         coalesce(nullif(btrim(c.preferred_name), ''), 'there'),
-         j.title,
-         j.location,
-         j.pay_range,
-         c.start_date,
-         j.live_in_blocks
+         coalesce(nullif(btrim(c.preferred_name), ''), split_part(btrim(c.full_name), ' ', 1)),
+         v.title,
+         v.area,
+         v.rate_basis,
+         v.rate_pence,
+         v.rate_note,
+         v.start_date,
+         v.blocks
     from claimed cl
     join live_in_carers c on c.id = cl.carer_id
-    join jobs j on j.id = cl.job_id
+    join live_in_vacancies v on v.id = cl.vacancy_id
    where c.deleted_at is null
      and c.visibility = 'public'
      and c.alert_frequency <> 'off'
      and public.live_in_consent_granted(c.id, 'email_alerts')
-     and j.status = 'active';
+     and v.status = 'open';
 end;
 $$;
 
 -- Cron/Worker-only: un-claim one alert whose email failed, so the next cron
 -- run retries it.
-create or replace function public.release_live_in_alert(p_secret text, p_carer_id uuid, p_job_id uuid)
+create or replace function public.release_live_in_alert(p_secret text, p_carer_id uuid, p_vacancy_id uuid)
 returns void
 language plpgsql
 security definer
@@ -653,7 +839,7 @@ begin
   end if;
   update live_in_alert_sends
      set sent_at = null
-   where carer_id = p_carer_id and job_id = p_job_id;
+   where carer_id = p_carer_id and vacancy_id = p_vacancy_id;
 end;
 $$;
 
@@ -755,8 +941,21 @@ grant execute on function public.submit_live_in_dbs_number(text) to authenticate
 
 revoke all on function public.confirm_live_in_dbs_state(uuid, text, date) from public, anon, authenticated;
 
-revoke all on function public.enqueue_live_in_alerts(uuid) from public, anon;
-grant execute on function public.enqueue_live_in_alerts(uuid) to authenticated;
+revoke all on live_in_vacancies from anon;
+revoke all on live_in_vacancy_interest from anon, authenticated;
+grant select on live_in_vacancies to authenticated;
+grant select on live_in_vacancy_interest to authenticated;
+
+revoke all on function public.live_in_ping() from public, anon, authenticated;
+revoke all on function public.live_in_vacancy_published() from public, anon, authenticated;
+
+revoke all on function public.express_live_in_interest(uuid) from public, anon;
+grant execute on function public.express_live_in_interest(uuid) to authenticated;
+
+revoke all on function public.claim_live_in_interest(text) from public, anon, authenticated;
+grant execute on function public.claim_live_in_interest(text) to anon;
+revoke all on function public.live_in_interest_done(text, uuid, uuid, boolean) from public, anon, authenticated;
+grant execute on function public.live_in_interest_done(text, uuid, uuid, boolean) to anon;
 
 revoke all on function public.claim_live_in_alerts(text) from public, anon, authenticated;
 grant execute on function public.claim_live_in_alerts(text) to anon;
