@@ -6211,3 +6211,7 @@ fixes below are the security/broken-flow minimum only.
   as the canonical copy. Playwright (mocked APIs) at 320/390/1280: no
   horizontal scroll, 6 tabs on every page, menu opens/closes (outside
   click, Esc), Sign out still calls /auth/logout.
+- Founder: "the live-in page should be under Jobs". `/live-in-profile`
+  now highlights the Jobs tab (not the header Profile icon); the Jobs-tab
+  "Live-in care" card always shows (registered + no vacancies → "Your
+  live-in profile"); the Live-in card was removed from the Profile page.

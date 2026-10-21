@@ -758,7 +758,6 @@ function icareRequireAuth(signInPath) {
       if (!r.ok) return;
       var vacancies = r.body.vacancies || [];
       var registered = !!r.body.has_profile;
-      if (registered && !vacancies.length) return;
       var list = document.querySelector("[data-livein-list]");
       list.textContent = "";
       vacancies.slice(0, 3).forEach(function (v) {
@@ -778,9 +777,11 @@ function icareRequireAuth(signInPath) {
       var sub = document.querySelector("[data-livein-sub]");
       var cta = document.querySelector("[data-livein-cta]");
       if (registered) {
-        sub.textContent = "Posted by iCare. Open your live-in profile to see the details and tap \u201cI'm interested\u201d.";
-        cta.textContent = vacancies.length > 3 ? "See all " + vacancies.length + " live-in vacancies" : "See live-in vacancies";
-        cta.href = "/live-in-profile#vacancies";
+        sub.textContent = vacancies.length
+          ? "Posted by iCare. Open your live-in profile to see the details and tap \u201cI'm interested\u201d."
+          : "No live-in vacancies right now. We'll email you when iCare posts one, if you've switched alerts on.";
+        cta.textContent = !vacancies.length ? "Your live-in profile" : vacancies.length > 3 ? "See all " + vacancies.length + " live-in vacancies" : "See live-in vacancies";
+        cta.href = vacancies.length ? "/live-in-profile#vacancies" : "/live-in-profile";
       } else {
         sub.textContent = vacancies.length
           ? "Posted by iCare. Join the live-in register to say you're interested and get emailed when new ones are posted."
