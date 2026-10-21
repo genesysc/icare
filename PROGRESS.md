@@ -6196,3 +6196,22 @@ fixes below are the security/broken-flow minimum only.
   anon can't read. Playwright mocks at 390px: profile + Jobs card (both
   registered and not). tsc clean.
 
+
+## 2026-10-21 — Nav revamp: labels + Messages/Profile moved to the header (not shipped)
+
+- Founder: tab icons need their names under them; Messages + Profile
+  should sit top-right by Sign out (chose "icons top-right" over a
+  hamburger). Tab bar is now 6: Rounds, Sponsors, Jobs, News, Invites,
+  Network. Every signed-in page (the 13 in nav-shell.html's list) has a
+  Messages icon + a Profile icon top-right; Profile opens a menu
+  (My profile, Sign out — the button keeps `data-sign-out`, so each page's
+  existing handler still works). Rounds' top icon-nav now has labels.
+  The 8-tab 380px squeeze rule became a lighter 360px one.
+- Applied by one script so every copy is identical; nav-shell.html updated
+  as the canonical copy. Playwright (mocked APIs) at 320/390/1280: no
+  horizontal scroll, 6 tabs on every page, menu opens/closes (outside
+  click, Esc), Sign out still calls /auth/logout.
+- Founder: "the live-in page should be under Jobs". `/live-in-profile`
+  now highlights the Jobs tab (not the header Profile icon); the Jobs-tab
+  "Live-in care" card always shows (registered + no vacancies → "Your
+  live-in profile"); the Live-in card was removed from the Profile page.

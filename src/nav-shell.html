@@ -13,6 +13,14 @@
   it has no tab bar; a candidate isn't in the signed-in "app" proper until
   onboarding is done.)
 
+  2026-10-21 (founder): Messages and Profile LEFT the tab bar (6 tabs:
+  Rounds, Sponsors, Jobs, News, Invites, Network). They are now header
+  icons top-right on every page in the list above: a Messages link and a
+  Profile button that opens a small menu (My profile, Sign out). The
+  markup (`.hdr-actions` span replacing the old Sign out button), its CSS
+  block and the small toggle script are copied verbatim into each page —
+  copy from dashboard.html. rounds.html's top icon-nav now has labels.
+
   2026-10-14 (founder decision): "Sponsors" (/sponsor-check, Sponsor
   check — HANDOVER.md §25) added second, and Pipelines HIDDEN from the
   bar for now — /pipelines itself still works and is still linked from
@@ -76,8 +84,8 @@
   }
   .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
   .tab-bar-item.is-active { color: var(--teal-700); }
-  /* 8 tabs since Jobs (2026-10-19): tighten below 380px so the bar fits a 320px phone */
-  @media (max-width: 380px) { .tab-bar-item { padding: 9px 1px 8px; font-size: 9px; letter-spacing: 0; min-width: 0; } }
+  /* 6 tabs since 2026-10-21 (Messages + Profile moved to the header): only a small tighten for 320px phones */
+  @media (max-width: 360px) { .tab-bar-item { padding: 9px 2px 8px; font-size: 10px; min-width: 0; } }
   .tab-bar-item .tab-bar-icon-wrap { position: relative; }
   .tab-bar-dot {
     position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px;
@@ -113,13 +121,5 @@
   <a href="/network" class="tab-bar-item" data-tab="network">
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
     <span>Network</span>
-  </a>
-  <a href="/messages" class="tab-bar-item" data-tab="messages">
-    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-    <span>Messages</span>
-  </a>
-  <a href="/dashboard" class="tab-bar-item" data-tab="profile">
-    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-    <span>Profile</span>
   </a>
 </nav>
