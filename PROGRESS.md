@@ -6057,3 +6057,142 @@ news. genesysc/icare#61 left open and unmerged (not watched). Wrote
 
 ## 2026-10-20 — Notes promoted to main; Right at Home batch kept (founder decision)
 - Founder asked to keep the 53 Right at Home jobs and promote to main. Board: 133 jobs, 132 visible.
+
+## 2026-10-20 — Live-in carer register (migration 0056, pages + APIs wired)
+
+Built the live-in carer register from the uploaded prototype + handover,
+on this repo's real stack (Hono + static HTML + Supabase) rather than the
+handover's Next.js assumption. Founder answered the open questions the
+same day: follow the attached doc on payment copy (recorded as a scoped
+override of §1 #1), existing signed-in members only, employer routes
+under `/employers/live-in-search`, preferred-name-only in summaries, and
+region+block matching with no geocoding. Full summary in `HANDOVER.md`
+§27.
+
+**New files:** migration `20261020120000_0056_live_in_carers.sql`;
+`src/live-in-carers.ts`, `src/live-in-search.ts`,
+`src/live-in-alerts.ts`; `src/emails/live-in-invite.ts`,
+`src/emails/live-in-alert.ts`; `src/live-in-carers.html`,
+`src/live-in-carers-success.html`, `src/live-in-profile.html`,
+`src/live-in-search.html`. Patched `src/index.ts` (routes, page GETs
+before the `/employers` API mount, UUID-constrained detail route),
+`src/jobs.ts` (nullable `live_in_regions`/`live_in_blocks`, enqueue on
+create/edit, revoke on close), `src/news-ingest.ts` (flush before any
+early return).
+
+**Fixed while wiring, not in the original draft:**
+- `/me`'s invite embed returned null job details — `jobs` has no
+  candidate read policy. Replaced with a `live_in_carer_invites` view.
+- Closing a job tried to update invites, but employers have no UPDATE
+  policy there. Replaced with the ownership-checked
+  `revoke_live_in_invites_for_job()` RPC, which also avoids letting an
+  employer mark their own invite accepted.
+- Consent history logged a fresh privacy grant on every save. Now
+  append-only on actual change.
+- The "compensating delete" after a failed consent insert had no DELETE
+  policy (silent no-op). Now a narrow `discard_live_in_profile()` RPC
+  that only removes an own, consent-less row.
+- Added specialisms/languages to the edit form; registration data was
+  otherwise uneditable. Removed a no-op self-assignment.
+- An empty rate field validated as £0. Now rejected, matching the
+  required field. Returning carers hitting `/live-in-carers` are
+  redirected to `/live-in-profile` instead of getting a 409 on submit.
+
+**Verified:** `tsc --noEmit` clean; `wrangler deploy --dry-run` clean
+(2305.41 KiB / 663.72 KiB gzip). No live/runtime test possible — the
+migration isn't applied yet.
+
+**Still open:** apply `0056` via the SQL editor (no destructive DDL),
+then smoke-test `/live-in-carers`, `/live-in-profile`,
+`/employers/live-in-search` and its detail route logged in at
+390px/1440px. Weekly digest is enqueued but unbuilt; hard delete still
+soft pending the retention decision; `NEWS_INGEST_SECRET` must be set
+and match `app_secrets` or alert/invite email no-ops.
+
+## 2026-10-21 — Live-in carer register merged onto current main (not shipped yet)
+
+- Founder uploaded `icare-live-in-register-2026-10-21.zip`: a full repo
+  snapshot from a separate session = main @ eaaa366 (15 Oct) + the live-in
+  register (HANDOVER §29). Extracted the exact base→snapshot diff
+  (CRLF-normalised; only live-in files changed) and 3-way-applied it onto
+  current main. Conflicts only in docs + `src/index.ts` imports (kept both).
+- Migration renumbered 0056 → **0060** (`0056` is the jobs board on main).
+  Not applied. Checked live DB: no `live_in_*` objects exist, no clashes.
+- `live-in-profile.html` tab bar synced to the current 8-tab bar (it had
+  the pre-Jobs-tab copy) + the 380px rule; nav-shell list updated.
+- `tsc --noEmit` and `wrangler deploy --dry-run` clean. Still never
+  runtime-tested (needs 0060 applied). Waiting on founder before merge.
+
+## 2026-10-21 — Debug pass on the live-in register + production secret fix
+
+Founder: "DBS is not a required step, they can skip it… before any of this
+ships, debug and fix everything you find that is wrong". Founder also said
+the employer side isn't really built, so don't prioritise it. Employer-side
+fixes below are the security/broken-flow minimum only.
+
+**Shipped to live now (existing production bug, not live-in):**
+- `0061_secret_null_check` APPLIED. `ingest_news_item`,
+  `prune_stale_news_items`, `news_item_known_external_ids`,
+  `news_ingest_status`, `ingest_rule_alert` used
+  `if v_secret is null or p_secret <> v_secret` → a NULL `p_secret` skipped
+  the check, so anyone with the public key could insert fake news or
+  official rule alerts. Rewritten to `is distinct from` in place (grants
+  kept). Live check: 0 vulnerable functions left; news sources all look
+  genuine, no sign it was abused. **Rule for new code: always
+  `p_secret is distinct from v_secret`.**
+
+**Fixed in 0060 / live-in code (still NOT applied/merged):**
+- Employer could insert an invite already `accepted` → unlocked carer
+  name/email/phone. Insert policy now requires `status='sent'` and
+  `responded_at is null`.
+- Employer invites could never be created at all: the policy's subquery on
+  `live_in_carers` ran under the employer's RLS (no rows). Now a definer
+  helper `live_in_carer_invitable()`.
+- Invite guard: a carer could move a revoked/expired invite to accepted (or
+  any status). Client updates may now only go `sent` → accepted/declined
+  with `responded_at`.
+- `claim_live_in_alerts` / `live_in_invite_recipient`: same null-secret
+  hole (would have leaked carer emails). Fixed.
+- Claim now re-checks alerts on + email consent + public + not deleted at
+  send time; new `release_live_in_alert()` un-claims on a failed send.
+- "Weekly summary" carers were never emailed (only `instant` was ever
+  claimed). Weekly rows now claimed on Mondays (UK) and the Worker groups
+  each carer's roles into one email.
+- Alert email: `escapeHtml(null)` crash would drop a whole batch; the
+  "Start" line showed the carer's own date as the job's (jobs have no start
+  date) → removed; copy no longer implies an invite exists.
+- A carer who deleted their profile could never re-register (409 on the
+  unique `user_id`) → POST revives the soft-deleted row.
+- DBS number save failing after the profile was created returned 400 → the
+  retry then 409'd. Now non-fatal.
+- Invite list showed `expired` as "New".
+- Copy: DBS optional/skippable; "premium membership" line removed (no such
+  product; contradicted `/terms`). HANDOVER §1 #1 note updated.
+- Local tests (Postgres 16 harness, Supabase default grants): 12 RLS/RPC
+  cases pass. Harness moved to `/srv/pgtest` (the scratchpad perms get
+  reset and kill the server).
+- Not reviewed in depth (employer side, deprioritised): `live-in-search.ts`
+  / `.html`, employer-home changes.
+
+## 2026-10-21 — Live-in: iCare-posted vacancies + "I'm interested" (not shipped)
+
+- Founder: iCare uploads live-in vacancies manually for now; registered
+  carers are notified each time. Built into 0060 (still not applied):
+  `live_in_vacancies`, `live_in_vacancy_interest`, publish trigger + pg_net
+  ping, interest claim/done RPCs; alert ledger now keyed on `vacancy_id`.
+  Employer-job enqueue removed (jobs.ts calls gone). HANDOVER §29.1 has the
+  decisions and the insert template.
+- Worker: `/internal/live-in-ping`, `flushLiveIn()` (alerts + interest) on
+  the ping and the 2-hourly cron; new `emails/live-in-interest.ts` (to
+  info@); alert email now shows title, area, block, rate (basis + amount)
+  and start date.
+- UI: "Live-in vacancies" card on `/live-in-profile` (Invites card hidden
+  unless the carer has one); "Live-in care" card on the Jobs tab;
+  registration copy updated to the iCare-posts-vacancies flow.
+- Tests: local Postgres — vacancy posts queue alerts for every opted-in
+  carer (none for alerts off), re-open doesn't duplicate, interest is
+  once-only, own-row only, needs a profile + open vacancy, info@ claim
+  returns details, null secret rejected, members can't insert vacancies,
+  anon can't read. Playwright mocks at 390px: profile + Jobs card (both
+  registered and not). tsc clean.
+

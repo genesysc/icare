@@ -259,6 +259,10 @@
   .pill.role { background: var(--lavender); color: var(--purple); border: 1px solid var(--line); }
   .pill.confirmed { background: var(--purple); color: var(--white); }
   .pill.note { background: var(--note-bg); color: var(--note-ink); }
+  .livein h2 { font-size: 22px; margin-top: -6px; }
+  .livein-sub { font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); }
+  .livein .job { cursor: default; }
+  .livein .job:hover { border-color: var(--line); }
 
   .detail h2 { font-size: clamp(1.5rem, 4.5vw, 2rem); line-height: 1.15; overflow-wrap: anywhere; }
   .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; margin: 0; }
@@ -318,6 +322,14 @@
         <p class="lede">Every job here is from an employer that holds a Home Office licence to sponsor Skilled Worker visas. Tap a job for the details and how to apply.</p>
         <p class="stamp" data-stamp></p>
       </header>
+
+      <section class="card livein" aria-labelledby="livein-title" data-livein hidden>
+        <p class="eyebrow">Live-in care</p>
+        <h2 id="livein-title">Live-in care vacancies</h2>
+        <p class="livein-sub" data-livein-sub></p>
+        <ul class="jobs" data-livein-list></ul>
+        <a class="btn teal" data-livein-cta href="/live-in-carers"></a>
+      </section>
 
       <section class="card" aria-label="Jobs" data-list>
         <form class="filters" data-form autocomplete="off">
@@ -554,6 +566,7 @@ function icareRequireAuth(signInPath) {
     detailEl.hidden = true;
     listEl.hidden = false;
     listHeadEl.hidden = false;
+    liveInEl.hidden = !liveInReady;
     if (push) history.pushState({}, "", "/jobs");
   }
 
@@ -673,6 +686,7 @@ function icareRequireAuth(signInPath) {
   function openJob(id, push) {
     listEl.hidden = true;
     listHeadEl.hidden = true;
+    liveInEl.hidden = true;
     detailEl.hidden = false;
     detailBody.textContent = "";
     detailBody.appendChild(el("p", "status", "Loading…"));
@@ -698,8 +712,60 @@ function icareRequireAuth(signInPath) {
     if (id) openJob(id, false); else showList(false);
   }
 
+  // Live-in vacancies (iCare-posted, migration 0060). Registered live-in
+  // carers see the latest few and go to their live-in profile to say they're
+  // interested; everyone else sees a "Join the live-in register" card.
+  var liveInEl = document.querySelector("[data-livein]");
+  var liveInReady = false;
+  var LIVE_IN_BLOCKS = { "1w": "1 week", "2w": "2 weeks", "4w": "4 weeks", "8w+": "8 weeks or more", ongoing: "Ongoing", "short-cover": "Short cover" };
+  var LIVE_IN_BASIS = { day: "per day", "24h": "per 24 hours", week: "per week" };
+  function liveInRate(v) {
+    var amount = v.rate_basis && typeof v.rate_pence === "number" ? money(v.rate_pence / 100) + " " + (LIVE_IN_BASIS[v.rate_basis] || v.rate_basis) : "";
+    return amount || v.rate_note || "Rate to be agreed";
+  }
+  function loadLiveIn() {
+    jget("/live-in-carers/vacancies").then(function (r) {
+      if (!r.ok) return;
+      var vacancies = r.body.vacancies || [];
+      var registered = !!r.body.has_profile;
+      if (registered && !vacancies.length) return;
+      var list = document.querySelector("[data-livein-list]");
+      list.textContent = "";
+      vacancies.slice(0, 3).forEach(function (v) {
+        var li = el("li");
+        var card = el("div", "job");
+        card.appendChild(el("div", "job-title", v.title));
+        var meta = el("div", "job-meta");
+        meta.appendChild(el("span", null, v.area));
+        var blocks = (v.blocks || []).map(function (b) { return LIVE_IN_BLOCKS[b] || b; }).join(", ");
+        if (blocks) meta.appendChild(el("span", null, blocks));
+        meta.appendChild(el("span", null, liveInRate(v)));
+        if (v.start_date) meta.appendChild(el("span", null, "Starts " + formatDate(v.start_date)));
+        card.appendChild(meta);
+        li.appendChild(card);
+        list.appendChild(li);
+      });
+      var sub = document.querySelector("[data-livein-sub]");
+      var cta = document.querySelector("[data-livein-cta]");
+      if (registered) {
+        sub.textContent = "Posted by iCare. Open your live-in profile to see the details and tap \u201cI'm interested\u201d.";
+        cta.textContent = vacancies.length > 3 ? "See all " + vacancies.length + " live-in vacancies" : "See live-in vacancies";
+        cta.href = "/live-in-profile#vacancies";
+      } else {
+        sub.textContent = vacancies.length
+          ? "Posted by iCare. Join the live-in register to say you're interested and get emailed when new ones are posted."
+          : "Looking for live-in work? Join the live-in register and we'll email you when iCare posts a live-in vacancy.";
+        cta.textContent = "Join the live-in register";
+        cta.href = "/live-in-carers";
+      }
+      liveInReady = true;
+      liveInEl.hidden = !detailEl.hidden;
+    }).catch(function () {});
+  }
+
   function startBoard(status) {
     boardEl.hidden = false;
+    loadLiveIn();
     (status.regions || []).forEach(function (r) {
       var o = el("option", null, r);
       o.value = r;

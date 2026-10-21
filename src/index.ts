@@ -35,6 +35,13 @@ import sponsors from "./sponsors";
 import sponsorCheckPage from "./sponsor-check.html";
 import sponsoredJobs from "./sponsored-jobs";
 import jobsBoardPage from "./jobs-board.html";
+import liveInCarersPage from "./live-in-carers.html";
+import liveInCarersSuccessPage from "./live-in-carers-success.html";
+import liveInProfilePage from "./live-in-profile.html";
+import liveInSearchPage from "./live-in-search.html";
+import liveInCarersApi from "./live-in-carers";
+import { flushLiveIn } from "./live-in-alerts";
+import liveInSearchApi from "./live-in-search";
 import { scheduledNewsRefresh } from "./news-ingest";
 import { processSignupAlerts } from "./signup-alerts";
 import community from "./community";
@@ -96,6 +103,21 @@ app.get("/assets/:name", (c) => {
 });
 app.get("/employers", (c) => c.html(employerLandingPage));
 
+// Live-in carer register (migration 0060). Page routes are registered before
+// the /employers API mount for the same reason the landing page above is:
+// employersApi's requireAuth on "*" would otherwise 401 a public page.
+app.get("/live-in-carers", (c) => c.html(liveInCarersPage));
+app.get("/live-in-carers/success", (c) => c.html(liveInCarersSuccessPage));
+app.get("/live-in-profile", (c) => c.html(liveInProfilePage));
+app.get("/employers/live-in-search", (c) => c.html(liveInSearchPage));
+// UUID-constrained so it can't swallow the API's own `/carers` path.
+app.get("/employers/live-in-search/:id{[0-9a-fA-F-]{36}}", (c) => c.html(liveInSearchPage));
+
+// API. Mounted before employersApi so the live-in router's own requireAuth
+// runs once, not behind the generic /employers/* middleware.
+app.route("/live-in-carers", liveInCarersApi);
+app.route("/employers/live-in-search", liveInSearchApi);
+
 // Must be registered after the public GET /employers landing-page route
 // above — employersApi mounts requireAuth on "*", and Hono runs matching
 // middleware in registration order, so mounting it first would 401 the
@@ -146,6 +168,22 @@ app.post("/internal/signup-alert", async (c) => {
   const job = processSignupAlerts(c.env, secret).then(
     (r) => console.log(`[signup-alert] claimed ${r.claimed}, sent ${r.sent}`),
     (err) => console.error(`[signup-alert] ${err instanceof Error ? err.message : err}`)
+  );
+  c.executionCtx.waitUntil(job);
+  return c.json({ ok: true }, 202);
+});
+
+// Live-in vacancy alerts + "I'm interested" emails (migration 0060,
+// src/live-in-alerts.ts). Pinged by the database (pg_net) when iCare posts a
+// live-in vacancy or a carer taps "I'm interested"; the 2-hourly cron is the
+// safety net. The secret is checked by the claim RPCs inside the database.
+app.post("/internal/live-in-ping", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const secret = body && typeof body.secret === "string" ? body.secret : "";
+  if (!secret) return c.json({ error: "missing secret" }, 401);
+  const job = flushLiveIn(c.env, secret, "https://icareltd.com").then(
+    (r) => console.log(`[live-in-ping] sent ${r.alerts} alert(s), ${r.interest} interest email(s)`),
+    (err) => console.error(`[live-in-ping] ${err instanceof Error ? err.message : err}`)
   );
   c.executionCtx.waitUntil(job);
   return c.json({ ok: true }, 202);
@@ -264,7 +302,7 @@ app.get("/llms.txt", (c) => {
   const lines = [
     "# iCare",
     "",
-    "> The professional network for UK health and social care. Candidates prove their registrations, training and checks once, then carry that trust to every employer on iCare — candidates never pay, employers do.",
+    "> The professional network for UK health and social care. Candidates prove their registrations, training and checks once, then carry that trust to every employer on iCare. Joining is free for candidates.",
     "",
     `- [Insights (blog)](${origin}/blog): workforce news, careers and policy across UK health and social care, explained plainly.`,
     `- [Sitemap](${origin}/sitemap.xml)`,
