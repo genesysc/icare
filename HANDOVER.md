@@ -35,14 +35,16 @@ stop and ask the user — do not resolve it yourself.**
    surface the conflict before building it.
    **⚠️ Scoped override, founder instruction 2026-10-20 (live-in register
    only):** asked directly, the founder chose "follow the attached doc"
-   over this rule for the live-in carer register. **Revised 2026-10-21:**
-   the founder said DBS is NOT a required step — it can be skipped in the
-   register form and added later. The copy now says a profile is free,
-   iCare never charges carers, DBS is optional, and any DBS check / Update
-   Service subscription is arranged and paid for by the carer outside
-   iCare. The "optional premium membership" line was removed: no premium
-   product exists and `/terms` says "There is no premium profile". Put it
-   back only with a real product AND a terms change. This scoped note does **not**
+   over this rule for the live-in carer register. **Revised 2026-10-21 (founder):** "it's not about whether they
+   never pay — obviously they pay for their own DBS check". Live-in FAQ copy
+   (founder's words): "Creating a profile is free. A DBS check is optional
+   when you register. If you get one, you pay for it yourself. A premium
+   membership is available but optional, and details of premium membership
+   will be released later." Premium = LinkedIn-style extra benefits, to be
+   defined later. `/terms` ("iCare never charges candidates for anything…
+   There is no premium profile") now CONTRADICTS this and needs rewording —
+   pending founder + solicitor sign-off (Conduct of Employment Agencies
+   Regulations 2003 limit fees to work-seekers). This scoped note does **not**
    authorise a paid profile boost, paid ranking or any candidate fee
    elsewhere, and no ranking/boost path exists. Re-confirm before
    extending it.

@@ -285,7 +285,7 @@ app.get("/llms.txt", (c) => {
   const lines = [
     "# iCare",
     "",
-    "> The professional network for UK health and social care. Candidates prove their registrations, training and checks once, then carry that trust to every employer on iCare — candidates never pay, employers do.",
+    "> The professional network for UK health and social care. Candidates prove their registrations, training and checks once, then carry that trust to every employer on iCare. Joining is free for candidates.",
     "",
     `- [Insights (blog)](${origin}/blog): workforce news, careers and policy across UK health and social care, explained plainly.`,
     `- [Sitemap](${origin}/sitemap.xml)`,
