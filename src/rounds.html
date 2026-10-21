@@ -338,16 +338,17 @@
   }
   .nav.is-hidden { transform: translateY(-100%); }
 
-  .icon-nav { display: flex; justify-content: center; gap: 4px; padding: 2px 16px 12px; }
+  .icon-nav { display: flex; justify-content: center; gap: 2px; padding: 2px 10px 10px; }
   .icon-nav-item {
-    width: 40px; height: 40px; border-radius: 50%; flex: none;
-    display: flex; align-items: center; justify-content: center;
+    flex: 1 1 0; max-width: 84px; min-width: 0; border-radius: 12px; padding: 6px 2px 5px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
     color: var(--ink-faint); text-decoration: none;
     transition: background 0.15s ease, color 0.15s ease;
   }
   .icon-nav-item svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
-  /* 8 icons since Jobs (2026-10-19): fit a 320px phone */
-  @media (max-width: 400px) { .icon-nav { gap: 0; padding-left: 8px; padding-right: 8px; } .icon-nav-item { width: 36px; height: 36px; } }
+  .icon-nav-label { font-size: 11px; font-weight: 600; letter-spacing: 0.01em; line-height: 1.1; white-space: nowrap; }
+  /* 6 labelled tabs since 2026-10-21 (Messages + Profile moved to the header) */
+  @media (max-width: 360px) { .icon-nav { padding-left: 4px; padding-right: 4px; } .icon-nav-label { font-size: 10px; } }
   .icon-nav-item:hover { background: rgba(51, 0, 114, 0.08); color: var(--plum-950); }
   .icon-nav-item.is-active { background: rgba(51, 0, 114, 0.1); color: var(--plum-950); }
   .icon-nav-icon-wrap { position: relative; display: flex; }
@@ -433,6 +434,33 @@
   .invite-share { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
   .invite-share a, .invite-share button { font-size: 12.5px; font-weight: 700; text-decoration: none; color: var(--teal-700); background: var(--teal-100); border: none; border-radius: 999px; padding: 7px 12px; cursor: pointer; }
   .invite-count { font-size: 12.5px; color: var(--ink-faint); margin-top: 10px; }
+
+  /* Header account icons (2026-10-21, founder): Messages + Profile moved out
+     of the tab bar to the top-right; Profile opens a small menu with
+     "My profile" and "Sign out". Same block on every signed-in page —
+     see nav-shell.html. */
+  .hdr-actions { position: relative; display: flex; align-items: center; gap: 2px; }
+  .hdr-icon {
+    position: relative; background: none; border: none; cursor: pointer; text-decoration: none;
+    width: 36px; height: 36px; margin: 0 1px; display: flex; align-items: center; justify-content: center;
+    color: var(--ink-faint, #8a8599); border-radius: 999px;
+  }
+  .hdr-icon:hover, .hdr-icon[aria-expanded="true"] { color: var(--teal-700, #007A72); background: rgba(51, 0, 114, 0.06); }
+  .hdr-icon.is-active { color: var(--teal-700, #007A72); background: rgba(0, 164, 153, 0.12); }
+  .hdr-icon svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .hdr-icon:focus-visible { outline: 3px solid var(--teal, #00A499); outline-offset: 1px; }
+  .acct-menu {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; min-width: 170px;
+    background: #fff; border: 1px solid var(--line, #D9D2E6); border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(51, 0, 114, 0.14); padding: 6px; display: flex; flex-direction: column;
+  }
+  .acct-menu[hidden] { display: none; }
+  .acct-menu a, .acct-menu .sign-out {
+    display: block; width: 100%; text-align: left; padding: 10px 12px; border-radius: 8px; border: 0; background: none;
+    font: inherit; font-size: 14.5px; font-weight: 600; color: var(--plum-950, #241533); text-decoration: none; cursor: pointer;
+  }
+  .acct-menu a:hover, .acct-menu .sign-out:hover { background: rgba(51, 0, 114, 0.06); color: var(--plum-950, #241533); }
+  .acct-menu .sign-out { color: var(--ink-faint, #8a8599); }
 </style>
 </head>
 <body>
@@ -456,41 +484,51 @@
           <div class="notif-list" data-notif-list></div>
         </div>
       </div>
-      <button class="sign-out" data-sign-out>Sign out</button>
+      <span class="hdr-actions">
+      <a href="/messages" class="hdr-icon" title="Messages" aria-label="Messages">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </a>
+      <button type="button" class="hdr-icon" data-acct-btn title="Your account" aria-label="Your account" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </button>
+      <div class="acct-menu" data-acct-menu hidden>
+        <a href="/dashboard">My profile</a>
+        <button class="sign-out" data-sign-out>Sign out</button>
+      </div>
+    </span>
     </div>
   </div>
-  <!-- Icon-only nav — replaces the app's shared bottom tab bar on this
-       page only (nav-shell.html's own copy is untouched, still live on
-       the other 7 signed-in pages). Same 6 real destinations and same
-       SVG icon paths as nav-shell.html, just icon-only and here instead
-       of fixed to the bottom — see HANDOVER.md for the scope reasoning. -->
+  <!-- Top nav — replaces the app's shared bottom tab bar on this page
+       only. Same destinations and SVG icon paths as nav-shell.html, here
+       instead of fixed to the bottom. Labels added and Messages/Profile
+       moved to the header icons 2026-10-21 (founder). -->
   <nav class="icon-nav" aria-label="Main">
     <a href="/rounds" class="icon-nav-item is-active" data-tab="rounds" title="Rounds" aria-label="Rounds">
       <svg viewBox="0 0 24 24"><polyline points="2 14 6 14 9 5 14 21 17 14 22 14"/></svg>
+      <span class="icon-nav-label">Rounds</span>
     </a>
     <a href="/sponsor-check" class="icon-nav-item" data-tab="sponsors" title="Sponsor check" aria-label="Sponsor check">
       <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+      <span class="icon-nav-label">Sponsors</span>
     </a>
     <a href="/jobs" class="icon-nav-item" data-tab="jobs" title="Jobs" aria-label="Jobs">
       <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      <span class="icon-nav-label">Jobs</span>
     </a>
     <a href="/news-feed" class="icon-nav-item" data-tab="news" title="News" aria-label="News">
       <svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg>
+      <span class="icon-nav-label">News</span>
     </a>
     <a href="/invites" class="icon-nav-item" data-tab="invites" title="Invites" aria-label="Invites">
       <span class="icon-nav-icon-wrap">
         <svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg>
         <span class="tab-bar-dot" data-invites-dot></span>
       </span>
+      <span class="icon-nav-label">Invites</span>
     </a>
     <a href="/network" class="icon-nav-item" data-tab="network" title="Network" aria-label="Network">
       <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-    </a>
-    <a href="/messages" class="icon-nav-item" data-tab="messages" title="Messages" aria-label="Messages">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-    </a>
-    <a href="/dashboard" class="icon-nav-item" data-tab="profile" title="Profile" aria-label="Profile">
-      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span class="icon-nav-label">Network</span>
     </a>
   </nav>
 </header>
@@ -1855,6 +1893,20 @@ function icareRequireAuth(signInPath) {
     document.querySelector("[data-invite-card]").hidden = false;
   }).catch(function () {});
 })();
+</script>
+<script>
+  // Account menu (header Profile icon). Plain toggle; closes on outside
+  // click and Escape. The Sign out button keeps its data-sign-out hook, so
+  // each page's existing sign-out handler still works.
+  (function () {
+    var btn = document.querySelector("[data-acct-btn]");
+    var menu = document.querySelector("[data-acct-menu]");
+    if (!btn || !menu) return;
+    function setOpen(open) { menu.hidden = !open; btn.setAttribute("aria-expanded", open ? "true" : "false"); }
+    btn.addEventListener("click", function (e) { e.stopPropagation(); setOpen(menu.hidden); });
+    document.addEventListener("click", function (e) { if (!menu.hidden && !menu.contains(e.target)) setOpen(false); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !menu.hidden) { setOpen(false); btn.focus(); } });
+  })();
 </script>
 </body>
 </html>
