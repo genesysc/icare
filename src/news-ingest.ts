@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { flushLiveInAlerts } from "./live-in-alerts";
 
 // News feed cron ingestion — migration 0048/0049. Runs on
 // wrangler.jsonc's triggers.crons, no HTTP request/response involved at
@@ -24,6 +25,9 @@ type Env = {
   UNSPLASH_ACCESS_KEY?: string;
   NEWS_INGEST_SECRET?: string;
   NEWSDATA_API_KEY?: string;
+  SENDER_API_KEY?: string;
+  SENDER_FROM_EMAIL?: string;
+  SENDER_FROM_NAME?: string;
 };
 
 const FEEDS: { url: string; label: string }[] = [
@@ -324,6 +328,16 @@ export async function scheduledNewsRefresh(_event: ScheduledController, env: Env
   }
 
   const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY);
+
+  // Live-in availability alerts ride along on this cron rather than adding a
+  // second schedule. Done before the feed work (and before any early return)
+  // so a quiet news run can't starve the alert queue.
+  try {
+    const alerts = await flushLiveInAlerts(env, "https://icareltd.com");
+    if (alerts.sent) console.log(`[live-in-alerts] sent ${alerts.sent} availability alert(s)`);
+  } catch (err) {
+    console.error("[live-in-alerts] flush failed:", err instanceof Error ? err.message : err);
+  }
 
   const feedResults = await Promise.all(FEEDS.map((s) => fetchFeed(s.url, s.label)));
   const newsDataResults = env.NEWSDATA_API_KEY

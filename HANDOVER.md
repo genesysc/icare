@@ -33,6 +33,15 @@ stop and ask the user — do not resolve it yourself.**
    credit for paid features") and was explicitly rejected once this rule
    surfaced. If a future request implies a candidate payment path,
    surface the conflict before building it.
+   **⚠️ Scoped override, founder instruction 2026-10-20 (live-in register
+   only):** asked directly, the founder chose "follow the attached doc"
+   over this rule for the live-in carer register. The shipped copy says a
+   profile is free, the carer pays for their own DBS check (a required
+   baseline cost), and an optional premium membership exists. This is a
+   deliberate, informed departure for that one surface — it does **not**
+   authorise a paid profile boost, paid ranking or any candidate fee
+   elsewhere, and no ranking/boost path exists. Re-confirm before
+   extending it.
 2. **Badge grades are earned, never bought, never mis-graded.** Four
    fixed grades on `badges.grade` (confirmed against the real DB enum):
    `verified` (checked against a public register/identity provider,
@@ -209,6 +218,12 @@ stop and ask the user — do not resolve it yourself.**
 | `src/notifications-bell.html` | **NEW 2026-09-15.** Reference file for the header notification bell — same "not imported, copy verbatim" convention as `nav-shell.html`/`auth-client.js`. Covers all four notification types (`notifications` table, migrations 0043/0044): connection request, connection accepted, message (with a body preview, matching `conversation_inbox`'s own convention), invite. Dropdown panel, unread dot, mark-one-read on click-through, mark-all-read. Copied into the same eight pages as `nav-shell.html`, placed in `<header class="nav">` next to Sign out (that header's two-child row became a `.nav-right` wrapper to fit it — **`.nav-right` must carry `position: relative`**, since the dropdown anchors against it, not against the bell's own small wrapper; anchoring to the wrapper instead left ~104px of the panel rendering off-screen left at 320px width, found only by checking a real narrow-viewport render, not by whether the panel opened) |
 | `src/sponsors.ts` / `src/sponsor-check.html` | **NEW 2026-10-14.** Sponsor licence check — `/sponsors/*` API + `/sponsor-check` page. See §25 |
 | `src/sponsored-jobs.ts` / `src/jobs-board.html` | **NEW 2026-10-19.** UK sponsored jobs board — `/sponsored-jobs/*` API + `/jobs` page, finished-profile candidates only. See §27 |
+
+| `src/live-in-carers.ts` | **NEW 2026-10-20.** Live-in carer register API, `/live-in-carers` — `GET/POST/PATCH/DELETE /me`, `POST /invites/:id/respond`. Server-authoritative validation; stamps email/name from the authenticated account. See §27 |
+| `src/live-in-search.ts` | **NEW 2026-10-20.** Employer API, `/employers/live-in-search` — `GET /carers`, `GET /carers/:id`, `POST /carers/:id/invite`. Recency ordering only, never rate/score. See §27 |
+| `src/live-in-alerts.ts` | **NEW 2026-10-20.** `enqueueLiveInAlerts()` (called on job create/edit) + `flushLiveInAlerts()` (rides the existing 2-hourly news cron). Secret-gated RPCs; no second secret. See §27 |
+| `src/emails/live-in-invite.ts` / `src/emails/live-in-alert.ts` | **NEW 2026-10-20.** Invite + matching-role emails. No client details in alerts; profile-page unsubscribe link. See §27 |
+| `src/live-in-carers.html` / `src/live-in-carers-success.html` / `src/live-in-profile.html` / `src/live-in-search.html` | **NEW 2026-10-20.** Registration (`/live-in-carers`), post-submit (`/live-in-carers/success`), carer manage page (`/live-in-profile`), employer search + detail (`/employers/live-in-search`, `/:id`). See §27 |
 | `src/html.d.ts` | Ambient module declaration so `tsc` accepts importing `.html` as a string |
 | `.github/workflows/deploy.yml` | CI: typecheck, `wrangler deploy` on push to `main` |
 | `PROGRESS.md` | Full session log — read for history/detail this doc doesn't cover |
@@ -2979,3 +2994,86 @@ No posted/closing dates on the site (no auto-expiry). Same caveat as before: mos
 - **Right at Home UK**: franchisor not on the register; 17 franchisee offices are. 53 undated "evergreen" job pages loaded (`rightathome:<office>/<slug>`) with a **30-day expiry (2026-11-19)** and neutral descriptions. Founder chose to keep them for now. These are the thinnest data on the board; hide with `update sponsored_jobs set status='closed' where source_job_id like 'rightathome:%'` if wanted.
 - **Not loaded / blocked** (details in PROGRESS.md): myjobscotland (robots `Disallow: /`), Totaljobs and CV-Library (bot walls), Carr Gomm and Waythrough (state no sponsorship), Quarriers and Bright Care (nothing loadable), Oakminster (feed path disallowed), Inspire Wellbeing (no live vacancies).
 - **Ops, needs the founder:** the daily sponsor-register refresh has been failing with `unauthorized`; the DB secret was rotated on 2026-10-19 (value not read by the agent). Copy `select value from app_secrets where key = 'sponsor_refresh_secret';` into the GitHub Actions secret `SPONSOR_REFRESH_SECRET`, then run the "Sponsor register refresh" workflow.
+
+## 29. Live-in carer register — built 2026-10-20 in a separate session, merged 2026-10-21 (migration `0060`)
+
+Built from the uploaded `live-in-carers.html` prototype +
+`live-in-carers-handover.md`, on the real stack (Hono + static HTML +
+Supabase), **not** the handover's Next.js assumption. Founder answers to
+the open questions are recorded here because they overrode the defaults:
+
+| Question | Founder answer |
+|---|---|
+| Payment copy | "Follow attached doc" — carer pays own DBS, premium membership optional. Scoped override of §1 #1, recorded there |
+| Who can register | Existing signed-in iCare member only; no anonymous/second-account path |
+| Employer routes | `/employers/live-in-search` + `/:id` (the doc's `/irecruit/...` was not used) |
+| Name in search summary | Preferred name only, fallback `"Live-in carer"` |
+| Alert matching | Regions + blocks only, no geocoding; radius is stored/shown but not matched |
+
+**Compliance encoded in the schema, not just the UI**
+
+- Three DBS states only: `not_yet_verified` / `current` / `new_info`
+  (rendered "Not Yet Verified" / "Current: no new information" / "New
+  information reported"). Never "verified" or "clean". A certificate
+  number cannot move the state; only the staff-only
+  `confirm_live_in_dbs_state()` can, and it is not granted to
+  `authenticated`.
+- Three separate append-only consent rows (`privacy`, `employer_view`,
+  `email_alerts`), each with `text_version` and its own timestamp.
+  Privacy is required to create; the other two are independent opt-ins.
+- Employer-readable views (`live_in_carer_summaries`,
+  `live_in_carer_details`) never expose `full_name`/`email`/`phone`/
+  `postcode_private`. Details unlock only while an accepted invite exists
+  for a job the employer owns **and** that job is still `active` — so
+  closing a job revokes access with no cron or cleanup. There is no
+  general DELETE grant, so the soft-delete rule can't be bypassed.
+- Nothing ranks or scores a candidate: the summary view has no ordering,
+  and the API's only order is `updated_at desc`.
+- Hidden profiles are excluded from search **and** alert matching
+  (`visibility = 'public'` in both). Alerts never include client details
+  or the employer's identity beyond the job's title/location/rate.
+- Alert dedupe is `unique(carer_id, job_id)` in `live_in_alert_sends`;
+  `claim_live_in_alerts()` stamps `sent_at` under `for update skip
+  locked`, so overlap can't double-send.
+
+**Routes**
+
+| Route | What |
+|---|---|
+| `GET /live-in-carers` | Registration page (gated client-side to a signed-in session; email read-only) |
+| `GET /live-in-carers/success` | Post-submit manage/unsubscribe page |
+| `GET /live-in-profile` | Carer manage page — invites accept/decline, DBS display, full edit, alerts toggle, delete. The doc's `/account/live-in` was not used because this repo has no `/account` prefix |
+| `GET /employers/live-in-search` + `/:id{uuid}` | Employer search + detail. The page route is UUID-constrained so it can't swallow the API's `/carers` path |
+| `/live-in-carers/*` API | `GET/POST/PATCH/DELETE /me`, `POST /invites/:id/respond` |
+| `/employers/live-in-search/*` API | `GET /carers`, `GET /carers/:id`, `POST /carers/:id/invite` |
+
+Page GETs and both new API mounts are registered **before**
+`app.route("/employers", employersApi)`, whose `use("*", requireAuth)`
+would otherwise 401 the public pages.
+
+**Jobs** gained nullable `live_in_regions` / `live_in_blocks` (validated
+against the same known-value lists). Creating or editing a live-in job
+calls `enqueue_live_in_alerts`; closing one calls
+`revoke_live_in_invites_for_job` (an RPC, because employers deliberately
+have no UPDATE policy on invites — otherwise they could self-accept).
+
+**Cron / secrets** — delivery reuses the existing `news_ingest_secret`
+(`app_secrets` row + `NEWS_INGEST_SECRET` Worker binding) and the existing
+2-hourly cron: `scheduledNewsRefresh` calls `flushLiveInAlerts` before any
+early return. No new schedule and no second secret. If the secret is
+missing, invites/alerts still persist but email is silently skipped and
+rows stay pending.
+
+**Still open**
+
+- Migration `0056` is written but **not applied** — no DB access in the
+  build session. Apply via the SQL editor (no destructive DDL), then
+  smoke-test all four pages logged in at 390px/1440px.
+- Weekly digest (`alert_frequency='weekly'`) is enqueued but has no
+  sender; only `channel='instant'` is claimed.
+- Hard delete of live-in profiles is still soft (`deleted_at`) pending the
+  legal retention decision.
+- `NEWS_INGEST_SECRET` must exist as a Worker secret and match
+  `app_secrets`, or alert/invite email is a silent no-op.
+- `SENDER_API_KEY` still isn't a GitHub Actions secret (news draft email).
+

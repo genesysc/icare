@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
+import { enqueueLiveInAlerts } from "./live-in-alerts";
 
 type Bindings = {
   SUPABASE_URL: string;
@@ -55,7 +56,23 @@ type JobInput = {
   health_safety_risks?: string | null;
   sponsorship_offered: string;
   description_body?: string | null;
+  // Live-in register (migration 0056): only set on live-in roles, and only
+  // these two fields drive alert matching. Nullable for every other job.
+  live_in_regions: string[] | null;
+  live_in_blocks: string[] | null;
 };
+
+const LIVE_IN_REGIONS = ["london", "south-east", "east", "midlands", "north-west", "north-east", "south-west", "wales", "scotland", "northern-ireland"];
+const LIVE_IN_BLOCKS = ["1w", "2w", "4w", "8w+", "ongoing", "short-cover"];
+
+function knownArray(body: Record<string, unknown>, key: string, allowed: string[]): string[] | null | undefined {
+  const value = body[key];
+  if (value === null || value === undefined) return null;
+  if (!Array.isArray(value)) return undefined;
+  const items = [...new Set(value.filter((item): item is string => typeof item === "string"))];
+  if (items.some((item) => !allowed.includes(item))) return undefined;
+  return items.length > 0 ? items : null;
+}
 
 function validateJobInput(body: Record<string, unknown>, professionIds: Set<string>): { value?: JobInput; error?: string } {
   const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -80,6 +97,11 @@ function validateJobInput(body: Record<string, unknown>, professionIds: Set<stri
     return { error: "New overseas sponsorship isn't available for this role — overseas recruitment for Care Worker and Senior Care Worker roles closed 22 July 2025. Only an existing visa holder switching employer can be sponsored." };
   }
 
+  const liveInRegions = knownArray(body, "live_in_regions", LIVE_IN_REGIONS);
+  const liveInBlocks = knownArray(body, "live_in_blocks", LIVE_IN_BLOCKS);
+  if (liveInRegions === undefined) return { error: "live_in_regions contains an unknown region" };
+  if (liveInBlocks === undefined) return { error: "live_in_blocks contains an unknown block length" };
+
   return {
     value: {
       title,
@@ -93,6 +115,8 @@ function validateJobInput(body: Record<string, unknown>, professionIds: Set<stri
       health_safety_risks: typeof body.health_safety_risks === "string" ? body.health_safety_risks.trim() || null : null,
       sponsorship_offered: sponsorshipOffered,
       description_body: typeof body.description_body === "string" ? body.description_body.trim() || null : null,
+      live_in_regions: liveInRegions,
+      live_in_blocks: liveInBlocks,
     },
   };
 }
@@ -171,6 +195,12 @@ jobs.post("/", async (c) => {
   const { data, error: insertError } = await supabase.from("jobs").insert({ employer_id: userId, ...value }).select().single();
   if (insertError) return c.json({ error: insertError.message }, 400);
 
+  // Fan out availability alerts for live-in roles. Fail-soft: the job exists
+  // whether or not any alert rows were queued.
+  if (data?.live_in_regions?.length && data?.live_in_blocks?.length) {
+    await enqueueLiveInAlerts(supabase, data.id);
+  }
+
   return c.json({ job: data }, 201);
 });
 
@@ -219,6 +249,13 @@ jobs.patch("/:id", async (c) => {
     .single();
   if (updateError) return c.json({ error: updateError.message }, 400);
 
+  // Editing a live-in role can widen its match. The alert ledger's
+  // unique(carer_id, job_id) means nobody who already got this job is
+  // emailed again.
+  if (data?.live_in_regions?.length && data?.live_in_blocks?.length) {
+    await enqueueLiveInAlerts(supabase, data.id);
+  }
+
   return c.json({ job: data });
 });
 
@@ -245,6 +282,11 @@ jobs.patch("/:id/close", async (c) => {
   // stale open pipelines pointing at a job that no longer exists to invite
   // against.
   await supabase.from("shortlists").update({ closed_at: new Date().toISOString() }).eq("job_id", jobId).is("closed_at", null);
+
+  // Same idea for live-in: unanswered invites expire, and the detail view
+  // already stops returning an accepted carer once the job isn't active.
+  // RPC because there is deliberately no employer UPDATE policy on invites.
+  await supabase.rpc("revoke_live_in_invites_for_job", { p_job_id: jobId });
 
   return c.json({ job: data });
 });

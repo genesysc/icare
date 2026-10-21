@@ -35,6 +35,12 @@ import sponsors from "./sponsors";
 import sponsorCheckPage from "./sponsor-check.html";
 import sponsoredJobs from "./sponsored-jobs";
 import jobsBoardPage from "./jobs-board.html";
+import liveInCarersPage from "./live-in-carers.html";
+import liveInCarersSuccessPage from "./live-in-carers-success.html";
+import liveInProfilePage from "./live-in-profile.html";
+import liveInSearchPage from "./live-in-search.html";
+import liveInCarersApi from "./live-in-carers";
+import liveInSearchApi from "./live-in-search";
 import { scheduledNewsRefresh } from "./news-ingest";
 import { processSignupAlerts } from "./signup-alerts";
 import community from "./community";
@@ -95,6 +101,21 @@ app.get("/assets/:name", (c) => {
   });
 });
 app.get("/employers", (c) => c.html(employerLandingPage));
+
+// Live-in carer register (migration 0056). Page routes are registered before
+// the /employers API mount for the same reason the landing page above is:
+// employersApi's requireAuth on "*" would otherwise 401 a public page.
+app.get("/live-in-carers", (c) => c.html(liveInCarersPage));
+app.get("/live-in-carers/success", (c) => c.html(liveInCarersSuccessPage));
+app.get("/live-in-profile", (c) => c.html(liveInProfilePage));
+app.get("/employers/live-in-search", (c) => c.html(liveInSearchPage));
+// UUID-constrained so it can't swallow the API's own `/carers` path.
+app.get("/employers/live-in-search/:id{[0-9a-fA-F-]{36}}", (c) => c.html(liveInSearchPage));
+
+// API. Mounted before employersApi so the live-in router's own requireAuth
+// runs once, not behind the generic /employers/* middleware.
+app.route("/live-in-carers", liveInCarersApi);
+app.route("/employers/live-in-search", liveInSearchApi);
 
 // Must be registered after the public GET /employers landing-page route
 // above — employersApi mounts requireAuth on "*", and Hono runs matching

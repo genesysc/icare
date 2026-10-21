@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Register as a live-in carer | iCare</title>
+<meta name="description" content="Register as a live-in carer on iCare. Tell us where you can work, for how long, and your rates. Employers see your profile and send invites; there is no ranking or scoring.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --purple: #330072;
+    --purple-deep: #220050;
+    --teal: #00A499;
+    --teal-tint: #E0F4F2;
+    --lavender: #F4F1F8;
+    --ink: #1C1530;
+    --muted: #5B5470;
+    --line: #D9D2E6;
+    --white: #FFFFFF;
+    --danger: #A4262C;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--lavender);
+    color: var(--ink);
+    font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  h1, h2, h3 { font-family: "Fraunces", Georgia, serif; color: var(--purple); line-height: 1.2; margin: 0; font-weight: 700; }
+  a { color: var(--purple); }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 20px; }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+
+  .topbar { background: var(--white); border-bottom: 1px solid var(--line); }
+  .topbar .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .wordmark { font-family: "Fraunces", Georgia, serif; font-weight: 700; font-size: 24px; color: var(--purple); text-decoration: none; }
+  .wordmark span { color: var(--teal); }
+  .topbar nav a { font-size: 14px; color: var(--muted); text-decoration: none; margin-left: 18px; }
+
+  .hero { background: var(--purple); color: var(--white); padding: 56px 0 48px; }
+  .hero h1 { color: var(--white); font-size: clamp(32px, 5vw, 44px); margin: 10px 0 14px; }
+  .hero .eyebrow { color: #9FE7DF; }
+  .hero p { margin: 0 0 14px; max-width: 62ch; color: #E9E3F5; }
+  .explain {
+    margin-top: 28px;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+  }
+  .explain h2 { color: var(--white); font-size: 20px; margin-bottom: 8px; }
+  .explain ul { margin: 12px 0 0; padding-left: 20px; color: #E9E3F5; }
+  .explain li { margin-bottom: 6px; }
+
+  main { padding: 40px 0 24px; }
+  .intro-note { color: var(--muted); margin: 0 0 28px; max-width: 66ch; }
+  form { display: grid; gap: 22px; }
+  fieldset {
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin: 0;
+    min-width: 0;
+  }
+  legend {
+    padding: 0 8px;
+    font-family: "Fraunces", Georgia, serif;
+    font-size: 21px;
+    font-weight: 600;
+    color: var(--purple);
+  }
+  .step { display: inline-block; color: var(--teal); margin-right: 6px; }
+  .hint { color: var(--muted); font-size: 14px; margin: 2px 0 14px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  label.lbl, .lbl { font-weight: 600; font-size: 15px; }
+  .req { color: var(--danger); }
+  input[type=text], input[type=email], input[type=tel], input[type=number], input[type=date], select, textarea {
+    font: inherit;
+    padding: 11px 12px;
+    border: 1px solid #B9AFCB;
+    border-radius: 8px;
+    background: var(--white);
+    color: var(--ink);
+    width: 100%;
+  }
+  input[readonly] { background: #F6F4FA; color: var(--muted); }
+  textarea { min-height: 90px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { border-color: var(--purple); outline: 2px solid var(--teal); outline-offset: 0; }
+  .choice {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--white);
+    cursor: pointer;
+    font-size: 15px;
+  }
+  .choice:hover { border-color: var(--purple); }
+  .choice input { margin-top: 4px; accent-color: var(--purple); width: 18px; height: 18px; flex: none; }
+  .choice:has(input:checked) { border-color: var(--purple); background: #F7F4FC; box-shadow: inset 3px 0 0 var(--teal); }
+  .choice small { display: block; color: var(--muted); font-size: 13px; }
+
+  .amount { position: relative; }
+  .amount span {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); font-family: "IBM Plex Mono", monospace;
+  }
+  .amount input { padding-left: 30px; }
+
+  .dbs-status {
+    margin-top: 10px; padding: 12px 14px; border-radius: 8px;
+    background: var(--teal-tint); color: #0B4D48; font-size: 14px;
+  }
+
+  .consent { background: var(--purple-deep); color: #E9E3F5; border-radius: var(--radius); padding: 22px 24px; }
+  .consent h2 { color: var(--white); font-size: 21px; margin-bottom: 10px; }
+  .consent .choice { background: transparent; border-color: rgba(255,255,255,.3); color: #E9E3F5; }
+  .consent .choice small { color: #BFB4D6; }
+  .consent .choice:has(input:checked) { background: rgba(255,255,255,.08); border-color: var(--teal); box-shadow: none; }
+  .consent .choice input { accent-color: var(--teal); }
+
+  .submit-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; padding-top: 6px; }
+  .submit-row p { margin: 0; color: var(--muted); font-size: 14px; max-width: 46ch; }
+  button.primary {
+    font: inherit; font-weight: 700; font-size: 16px;
+    background: var(--purple); color: var(--white);
+    border: 0; border-radius: 999px; padding: 14px 28px; cursor: pointer;
+  }
+  button.primary:hover { background: var(--purple-deep); }
+  button.primary:disabled { opacity: .6; cursor: default; }
+  .success { display: none; background: var(--teal-tint); color: #0B4D48; padding: 18px 20px; border-radius: var(--radius); }
+  .success.show { display: block; }
+  .error-msg { display: none; color: var(--danger); font-size: 14px; }
+  .error-msg.show { display: block; }
+
+  .signin-gate {
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--purple);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    margin-bottom: 26px;
+  }
+  .signin-gate h2 { font-size: 21px; margin-bottom: 8px; }
+  .signin-gate p { margin: 0 0 14px; color: var(--muted); }
+  .signin-gate a.btn {
+    display: inline-block; background: var(--purple); color: var(--white);
+    text-decoration: none; font-weight: 700; padding: 12px 22px; border-radius: 999px;
+  }
+
+  .section { padding: 36px 0; }
+  .section h2 { font-size: 28px; margin-bottom: 18px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; list-style: none; padding: 0; margin: 0; }
+  .steps li { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+  .steps .n { font-family: "IBM Plex Mono", monospace; color: var(--teal); font-size: 13px; }
+  .steps h3 { font-size: 18px; margin: 6px 0 6px; }
+  .steps p { margin: 0; color: var(--muted); font-size: 15px; }
+  details { background: var(--white); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; }
+  details summary { cursor: pointer; font-weight: 600; color: var(--purple); }
+  details p { margin: 10px 0 0; color: var(--muted); }
+
+  footer { border-top: 1px solid var(--line); background: var(--white); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+  footer p { margin: 0 0 8px; }
+
+  body.gated form { display: none; }
+
+  @media (max-width: 680px) {
+    .grid-2, .grid-3, .steps { grid-template-columns: 1fr; }
+    fieldset { padding: 18px; }
+    .topbar nav { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="wordmark" href="/" aria-label="iCare home">i<span>Care</span></a>
+    <nav aria-label="Main">
+      <a href="/">For care workers</a>
+      <a href="/employers">For employers</a>
+      <a href="/sign-in?next=/live-in-carers">Sign in</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <p class="mono eyebrow">For live-in carers</p>
+    <h1>Register as a live-in carer</h1>
+    <p>Tell us where you're willing to work, for how long, and what you charge. Employers who need live-in support can then find your profile and invite you to apply.</p>
+
+    <div class="explain" role="note">
+      <h2>What is live-in care?</h2>
+      <p>Live-in care means a carer lives in the client's home for an agreed period, providing support over the course of the day and night. It covers personal care, companionship, medication prompts, and help around the home, and it suits people who need continuous support but want to stay where they are.</p>
+      <ul>
+        <li>Carers usually work set blocks, such as one or two weeks, followed by agreed time off.</li>
+        <li>Accommodation, meals and sleeping arrangements are agreed with the employer before a block starts.</li>
+        <li>Pay is usually agreed as a day rate, a weekly rate, or a 24-hour rate.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<main class="wrap">
+  <div class="signin-gate" data-signin-gate hidden>
+    <h2>Sign in to join the live-in register</h2>
+    <p>The live-in carer register is for existing iCare members. Sign in, or create a free iCare account first — you'll come straight back here.</p>
+    <a class="btn" href="/sign-in?next=/live-in-carers" data-signin-link>Sign in or create an account</a>
+  </div>
+
+  <p class="intro-note">Fields marked <span class="req">*</span> are required. Your contact details are never shown on your public profile. Employers can only see them after you accept an invite.</p>
+
+  <form id="liveInForm" novalidate>
+
+    <fieldset>
+      <legend><span class="step">01</span>About you</legend>
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="fullName">Full name <span class="req">*</span></label>
+          <input type="text" id="fullName" name="fullName" autocomplete="name" required>
+        </div>
+        <div class="field">
+          <label class="lbl" for="preferredName">Preferred name <span class="mono" style="color:var(--muted)">optional</span></label>
+          <input type="text" id="preferredName" name="preferredName" autocomplete="nickname">
+        </div>
+        <div class="field">
+          <label class="lbl" for="email">Email <span class="req">*</span></label>
+          <input type="email" id="email" name="email" autocomplete="email" readonly required>
+        </div>
+        <div class="field">
+          <label class="lbl" for="phone">Mobile <span class="req">*</span></label>
+          <input type="tel" id="phone" name="phone" autocomplete="tel" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Your role <span class="req">*</span></span>
+        <div class="grid-2">
+          <label class="choice"><input type="radio" name="role" value="care-assistant" required> <span>Care assistant</span></label>
+          <label class="choice"><input type="radio" name="role" value="senior-care-worker"> <span>Senior care worker</span></label>
+          <label class="choice"><input type="radio" name="role" value="nurse-hca"> <span>Nurse or healthcare assistant<small>Qualified nursing or HCA background</small></span></label>
+          <label class="choice"><input type="radio" name="role" value="other"> <span>Other care role</span></label>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="experience">Years of live-in or care experience <span class="req">*</span></label>
+          <select id="experience" name="experience" required>
+            <option value="">Select</option>
+            <option value="&lt;1y">Less than 1 year</option>
+            <option value="1-3y">1 to 3 years</option>
+            <option value="3-5y">3 to 5 years</option>
+            <option value="5-10y">5 to 10 years</option>
+            <option value="10y+">10+ years</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="liveInExperience">Have you done live-in work before? <span class="req">*</span></label>
+          <select id="liveInExperience" name="liveInExperience" required>
+            <option value="">Select</option>
+            <option value="yes-regular">Yes, regularly</option>
+            <option value="yes-few">Yes, a few times</option>
+            <option value="no-keen">No, but I'm keen to start</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Specialisms <span class="mono" style="color:var(--muted)">optional, tick all that apply</span></span>
+        <div class="grid-3">
+          <label class="choice"><input type="checkbox" name="specialisms" value="dementia"> <span>Dementia</span></label>
+          <label class="choice"><input type="checkbox" name="specialisms" value="end-of-life"> <span>End of life</span></label>
+          <label class="choice"><input type="checkbox" name="specialisms" value="mobility"> <span>Mobility and moving and handling</span></label>
+          <label class="choice"><input type="checkbox" name="specialisms" value="learning-disability"> <span>Learning disabilities</span></label>
+          <label class="choice"><input type="checkbox" name="specialisms" value="mental-health"> <span>Mental health support</span></label>
+          <label class="choice"><input type="checkbox" name="specialisms" value="childrens"> <span>Children and young adults</span></label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="languages">Languages you speak <span class="mono" style="color:var(--muted)">optional</span></label>
+        <input type="text" id="languages" name="languages" placeholder="e.g. English, Tagalog, Polish">
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend><span class="step">02</span>Where you'll work</legend>
+      <p class="hint">Choose every area you're willing to live in for a block. You can change this at any time.</p>
+
+      <div class="field">
+        <span class="lbl">Regions <span class="req">*</span></span>
+        <div class="grid-3">
+          <label class="choice"><input type="checkbox" name="regions" value="london"> <span>London</span></label>
+          <label class="choice"><input type="checkbox" name="regions" value="south-east"> <span>South East</span></label>
+          <label class="choice"><input type="checkbox" name="regions" value="east"> <span>East of England</span></label>
+          <label class="choice"><input type="checkbox" name="regions" value="midlands"> <span>Midlands</span></label>
+          <label class="choice"><input type="checkbox" name="regions" value="north-west"> <span>North West</span></label>
+          <label class="choice"><input type="checkbox" name="regions" value="north-east"> <span>North East and Yorkshire</span></label>
+          <label class="choice"><input type="checkbox" name="regions" value="south-west"> <span>South West</span></label>
+          <label class="choice"><input type="checkbox" name="regions" value="wales"> <span>Wales</span></label>
+          <label class="choice"><input type="checkbox" name="regions" value="scotland"> <span>Scotland</span></label>
+          <label class="choice"><input type="checkbox" name="regions" value="northern-ireland"> <span>Northern Ireland</span></label>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="postcode">Home postcode <span class="req">*</span></label>
+          <input type="text" id="postcode" name="postcode" autocomplete="postal-code" required placeholder="e.g. EN3 4HY">
+        </div>
+        <div class="field">
+          <label class="lbl" for="radius">Willing to travel from home <span class="req">*</span></label>
+          <select id="radius" name="radius" required>
+            <option value="">Select</option>
+            <option value="10">Up to 10 miles</option>
+            <option value="25">Up to 25 miles</option>
+            <option value="50">Up to 50 miles</option>
+            <option value="100">Up to 100 miles</option>
+            <option value="uk">Anywhere in the UK</option>
+          </select>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:8px">Employers see the area only, never your postcode.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend><span class="step">03</span>How long and when</legend>
+      <p class="hint">Tick the block lengths you're open to. Employers see these to work out whether you fit their care plan.</p>
+
+      <div class="field">
+        <span class="lbl">Block lengths <span class="req">*</span></span>
+        <div class="grid-3">
+          <label class="choice"><input type="checkbox" name="blocks" value="1w"> <span>1 week</span></label>
+          <label class="choice"><input type="checkbox" name="blocks" value="2w"> <span>2 weeks</span></label>
+          <label class="choice"><input type="checkbox" name="blocks" value="4w"> <span>4 weeks</span></label>
+          <label class="choice"><input type="checkbox" name="blocks" value="8w+"> <span>8 weeks or more</span></label>
+          <label class="choice"><input type="checkbox" name="blocks" value="ongoing"> <span>Ongoing placement</span></label>
+          <label class="choice"><input type="checkbox" name="blocks" value="short-cover"> <span>Short cover, 1 to 3 days</span></label>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="startDate">Earliest start date <span class="req">*</span></label>
+          <input type="date" id="startDate" name="startDate" required>
+        </div>
+        <div class="field">
+          <label class="lbl" for="timeOff">Time off between blocks</label>
+          <select id="timeOff" name="timeOff">
+            <option value="">Select</option>
+            <option value="same-as-block">Same as the block (e.g. 1 week on, 1 week off)</option>
+            <option value="half-block">Half the block length</option>
+            <option value="flexible">Flexible, to agree with the employer</option>
+          </select>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend><span class="step">04</span>Your rates</legend>
+      <p class="hint">Enter the rate you'd normally accept. You can negotiate the final rate with each employer. Rates are not used to rank or sort profiles.</p>
+
+      <div class="field">
+        <span class="lbl">How you charge <span class="req">*</span></span>
+        <div class="grid-3">
+          <label class="choice"><input type="radio" name="rateBasis" value="day" required> <span>Per day<small>Standard 8 to 12 hour day</small></span></label>
+          <label class="choice"><input type="radio" name="rateBasis" value="24h"> <span>Per 24 hours<small>Full live-in shift</small></span></label>
+          <label class="choice"><input type="radio" name="rateBasis" value="week"> <span>Per week</span></label>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="rateAmount">Rate (GBP) <span class="req">*</span></label>
+          <div class="amount">
+            <span>£</span>
+            <input type="number" id="rateAmount" name="rateAmount" min="0" step="0.50" inputmode="decimal" required>
+          </div>
+        </div>
+        <div class="field">
+          <label class="lbl" for="rateNegotiable">Negotiable?</label>
+          <select id="rateNegotiable" name="rateNegotiable">
+            <option value="">Select</option>
+            <option value="fixed">Fixed</option>
+            <option value="open">Open to discussion</option>
+            <option value="depends-on-block">Depends on the block length</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="rateNotes">What's included in the rate?</label>
+        <textarea id="rateNotes" name="rateNotes" placeholder="e.g. meals on shift, travel between blocks, mileage, use of your own car"></textarea>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Accommodation <span class="req">*</span></span>
+        <div class="grid-2">
+          <label class="choice"><input type="radio" name="accommodation" value="own-room" required> <span>I need my own room and bathroom</span></label>
+          <label class="choice"><input type="radio" name="accommodation" value="shared-ok"> <span>A shared room is fine</span></label>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend><span class="step">05</span>Eligibility</legend>
+
+      <div class="field">
+        <span class="lbl">Do you have the right to work in the UK? <span class="req">*</span></span>
+        <div class="grid-2">
+          <label class="choice"><input type="radio" name="rtw" value="yes" required> <span>Yes, without restriction</span></label>
+          <label class="choice"><input type="radio" name="rtw" value="existing-visa"> <span>Yes, on a Health and Care Worker visa, switching employer<small>Current sponsor licence holder change only</small></span></label>
+          <label class="choice"><input type="radio" name="rtw" value="no-or-unsure"> <span>No, or I'm not sure</span></label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="dbsNumber">DBS certificate number <span class="mono" style="color:var(--muted)">optional for now</span></label>
+        <input type="text" id="dbsNumber" name="dbsNumber" placeholder="e.g. 001234567890">
+        <div class="dbs-status" role="status">
+          Your DBS status will show as <strong>Not Yet Verified</strong> until we confirm it through the DBS Update Service. Entering a certificate number doesn't change this on its own. Verification costs are paid by you, as your DBS check is a required baseline cost.
+        </div>
+      </div>
+    </fieldset>
+
+    <section class="consent" aria-labelledby="consentHead">
+      <h2 id="consentHead">Your consent and visibility</h2>
+
+      <div class="field">
+        <span class="lbl" style="color:var(--white)">Who can see your profile? <span class="req">*</span></span>
+        <div class="grid-2">
+          <label class="choice"><input type="radio" name="visibility" value="public" required> <span>iCare members only<small>Recommended. Not visible on the open web.</small></span></label>
+          <label class="choice"><input type="radio" name="visibility" value="hidden"> <span>Hidden<small>You won't appear in employer searches</small></span></label>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label class="choice"><input type="checkbox" name="consentPrivacy" required> <span>I've read the <a href="/privacy" target="_blank" style="color:#9FE7DF">privacy notice</a> and agree to iCare storing my details to create my profile. <span class="req">*</span><small>You can withdraw consent and delete your profile at any time.</small></span></label>
+      </div>
+      <div class="field">
+        <label class="choice"><input type="checkbox" name="consentInvite"> <span>Employers may view my profile summary and invite me to apply for live-in roles.<small>Employers see your role, areas, block lengths, rates and specialisms. Your name and contact details are only shared after you accept an invite for a specific job.</small></span></label>
+      </div>
+
+      <div class="field">
+        <label class="choice"><input type="checkbox" name="consentAlerts"> <span>Email me when live-in availability matches my profile.<small>Optional. Alerts show the area, block length and rate of the role. They never include client details. You can unsubscribe from any email.</small></span></label>
+      </div>
+
+      <div class="field" data-frequency-field hidden>
+        <span class="lbl" style="color:var(--white)">How often should we email you?</span>
+        <div class="grid-3">
+          <label class="choice"><input type="radio" name="alertFrequency" value="as-they-happen"> <span>As roles appear</span></label>
+          <label class="choice"><input type="radio" name="alertFrequency" value="weekly"> <span>Weekly summary</span></label>
+          <label class="choice"><input type="radio" name="alertFrequency" value="off" checked> <span>Off for now</span></label>
+        </div>
+      </div>
+    </section>
+
+    <div class="submit-row">
+      <p>By registering, you agree to our <a href="/terms" target="_blank">terms</a>. We never sell your data.</p>
+      <button class="primary" type="submit">Register as a live-in carer</button>
+    </div>
+    <p class="error-msg" id="errorMsg" role="alert"></p>
+  </form>
+
+  <section class="section" aria-labelledby="howHead">
+    <h2 id="howHead">How it works</h2>
+    <ol class="steps">
+      <li><span class="n">STEP 1</span><h3>Create your profile</h3><p>Add your role, experience, specialisms, locations, block lengths and rates.</p></li>
+      <li><span class="n">STEP 2</span><h3>Get matched to live-in work</h3><p>Employers can view your profile summary. If you opt in, we email you when live-in availability matches your areas and block lengths. Your contact details stay private.</p></li>
+      <li><span class="n">STEP 3</span><h3>Accept the invites you want</h3><p>When an employer invites you, you choose whether to accept. Only then is your full profile shared for that role.</p></li>
+    </ol>
+  </section>
+
+  <section class="section" aria-labelledby="faqHead">
+    <h2 id="faqHead">Questions carers ask</h2>
+    <details>
+      <summary>Does iCare rank or score carers?</summary>
+      <p>No. Profiles aren't scored, ranked or sorted by rate. Employers search by the details you choose to share, and they decide who to invite.</p>
+    </details>
+    <details>
+      <summary>Do I pay to join?</summary>
+      <p>Creating a profile is free. You pay for your own DBS check, which is a required step. A premium membership is available but optional.</p>
+    </details>
+    <details>
+      <summary>Who sees my phone number and email?</summary>
+      <p>Nobody on the public profile. An employer only sees your full contact details after you accept an invite for a specific role, and access ends when that pipeline closes.</p>
+    </details>
+    <details>
+      <summary>How will I hear about live-in work?</summary>
+      <p>Two ways. Employers can view your profile summary and invite you. If you tick the email option, we also send alerts when a live-in role matches your areas and block lengths. Alerts go as they appear or as a weekly summary, whichever you pick.</p>
+    </details>
+    <details>
+      <summary>Can I stop the emails?</summary>
+      <p>Yes. Every email has a link to your live-in profile, where you can change your frequency or switch alerts off at any time. Employers can still view your profile unless you hide it.</p>
+    </details>
+    <details>
+      <summary>Can I change my rates or locations later?</summary>
+      <p>Yes. Update your profile at any time. Changes apply to future invites only.</p>
+    </details>
+    <details>
+      <summary>Can I work as a live-in carer if I need sponsorship?</summary>
+      <p>Overseas sponsorship for care worker and senior care worker roles closed on 22 July 2025, so new sponsored applicants can't be placed in these roles. If you already hold a Health and Care Worker visa, you may be able to switch employer. Check with an immigration adviser before you apply.</p>
+    </details>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><strong>iCare</strong>, a UK healthcare workforce network. Operating under the Employment Agencies Act 1973 and UK GDPR.</p>
+    <p>Live-in care is regulated where it's provided personal care. Employers are responsible for their own CQC registration. <a href="/privacy">Privacy notice</a> · <a href="/terms">Terms</a></p>
+  </div>
+</footer>
+
+<script>
+  var ICARE_SESSION_KEY = "icare_session";
+  var form = document.getElementById('liveInForm');
+  var errorMsg = document.getElementById('errorMsg');
+  var gate = document.querySelector('[data-signin-gate]');
+  var frequencyField = document.querySelector('[data-frequency-field]');
+  var alertsBox = form.querySelector('input[name="consentAlerts"]');
+
+  function getSession() {
+    try { var raw = localStorage.getItem(ICARE_SESSION_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+  }
+  function clearSession() { try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {} }
+  function expired(s) { return !s || !s.expires_at || Date.now() >= s.expires_at * 1000; }
+
+  var session = getSession();
+  if (expired(session)) {
+    document.body.classList.add('gated');
+    gate.hidden = false;
+  } else {
+    var user = session.user || {};
+    var meta = user.user_metadata || {};
+    document.getElementById('email').value = user.email || "";
+    if (meta.full_name) document.getElementById('fullName').value = meta.full_name;
+    document.getElementById('startDate').min = new Date().toISOString().slice(0, 10);
+
+    // Returning carers manage their profile rather than re-registering.
+    fetch('/live-in-carers/me', { headers: { 'Authorization': 'Bearer ' + session.access_token } })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (body) {
+        if (body && body.has_profile) window.location.replace('/live-in-profile');
+      })
+      .catch(function () {});
+  }
+
+  function toggleFrequency() {
+    frequencyField.hidden = !alertsBox.checked;
+    if (!alertsBox.checked) {
+      var off = form.querySelector('input[name="alertFrequency"][value="off"]');
+      if (off) off.checked = true;
+    }
+  }
+  alertsBox.addEventListener('change', toggleFrequency);
+  toggleFrequency();
+
+  function collect() {
+    var checked = function (name) {
+      return Array.prototype.map.call(form.querySelectorAll('input[name="' + name + '"]:checked'), function (el) { return el.value; });
+    };
+    var one = function (name) {
+      var el = form.querySelector('input[name="' + name + '"]:checked');
+      return el ? el.value : "";
+    };
+    var val = function (id) { return document.getElementById(id).value.trim(); };
+
+    return {
+      fullName: val('fullName'),
+      preferredName: val('preferredName'),
+      email: val('email'),
+      phone: val('phone'),
+      role: one('role'),
+      experience: val('experience'),
+      liveInExperience: val('liveInExperience'),
+      specialisms: checked('specialisms'),
+      languages: val('languages'),
+      regions: checked('regions'),
+      postcode: val('postcode'),
+      radius: val('radius'),
+      blocks: checked('blocks'),
+      startDate: val('startDate'),
+      timeOff: val('timeOff'),
+      rateBasis: one('rateBasis'),
+      rateAmount: val('rateAmount') === "" ? null : Number(val('rateAmount')),
+      rateNegotiable: val('rateNegotiable'),
+      rateNotes: val('rateNotes'),
+      accommodation: one('accommodation'),
+      rtw: one('rtw'),
+      dbsNumber: val('dbsNumber'),
+      visibility: one('visibility'),
+      consentPrivacy: form.querySelector('input[name="consentPrivacy"]').checked,
+      consentInvite: form.querySelector('input[name="consentInvite"]').checked,
+      consentAlerts: alertsBox.checked,
+      alertFrequency: alertsBox.checked ? (one('alertFrequency') || 'off') : 'off'
+    };
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    errorMsg.classList.remove('show');
+    errorMsg.textContent = "";
+
+    var data = collect();
+    var ok = form.checkValidity();
+    var regionTicked = data.regions.length > 0;
+    var blockTicked = data.blocks.length > 0;
+    var consentTicked = data.consentPrivacy;
+
+    if (!ok || !regionTicked || !blockTicked || !consentTicked) {
+      errorMsg.textContent = "Please complete the required fields, choose at least one region and block length, and tick the privacy consent box.";
+      errorMsg.classList.add('show');
+      var firstInvalid = form.querySelector(':invalid');
+      if (firstInvalid) firstInvalid.focus();
+      return;
+    }
+
+    var button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    button.textContent = "Creating your profile…";
+
+    fetch('/live-in-carers/me', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify(data)
+    })
+      .then(function (res) { return res.json().then(function (body) { return { status: res.status, body: body }; }); })
+      .then(function (result) {
+        if (result.status === 401) {
+          clearSession();
+          window.location.href = '/sign-in?next=/live-in-carers';
+          return;
+        }
+        if (result.status >= 400) throw new Error(result.body.error || 'Could not create your profile');
+        window.location.href = '/live-in-carers/success';
+      })
+      .catch(function (err) {
+        errorMsg.textContent = err.message;
+        errorMsg.classList.add('show');
+        errorMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      })
+      .then(function () {
+        button.disabled = false;
+        button.textContent = "Register as a live-in carer";
+      });
+  });
+</script>
+</body>
+</html>

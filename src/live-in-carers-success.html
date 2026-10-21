@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your live-in carer profile is in | iCare</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --purple: #330072;
+    --purple-deep: #220050;
+    --teal: #00A499;
+    --teal-tint: #E0F4F2;
+    --lavender: #F4F1F8;
+    --ink: #1C1530;
+    --muted: #5B5470;
+    --line: #D9D2E6;
+    --white: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--lavender);
+    color: var(--ink);
+    font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  h1 { font-family: "Fraunces", Georgia, serif; color: var(--purple); line-height: 1.2; margin: 0; font-weight: 700; }
+  a { color: var(--purple); }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 0 20px; width: 100%; }
+  .topbar { background: var(--white); border-bottom: 1px solid var(--line); }
+  .topbar .wrap { display: flex; align-items: center; height: 60px; }
+  .wordmark { font-family: "Fraunces", Georgia, serif; font-weight: 700; font-size: 24px; color: var(--purple); text-decoration: none; }
+  .wordmark span { color: var(--teal); }
+  main { flex: 1; padding: 56px 0 40px; }
+  .card { background: var(--white); border: 1px solid var(--line); border-radius: 14px; padding: 32px 28px; }
+  .pill { display: inline-block; background: var(--teal-tint); color: #0B4D48; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 5px 10px; border-radius: 999px; margin-bottom: 16px; }
+  h1 { font-size: clamp(28px, 5vw, 36px); margin-bottom: 12px; }
+  p { margin: 0 0 16px; color: var(--muted); }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 26px 0 8px; }
+  .actions a { display: inline-block; text-decoration: none; font-weight: 700; border-radius: 999px; padding: 13px 22px; font-size: 15px; }
+  .actions a.primary { background: var(--purple); color: var(--white); }
+  .actions a.secondary { background: var(--white); color: var(--purple); border: 1px solid var(--line); }
+  .note { margin-top: 26px; padding: 16px 18px; background: var(--lavender); border-radius: 10px; font-size: 14px; color: var(--muted); }
+  footer { padding: 24px 0 40px; color: var(--muted); font-size: 13px; }
+  footer p { margin: 0; }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="wordmark" href="/" aria-label="iCare home">i<span>Care</span></a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <div class="card">
+      <span class="pill">Profile created</span>
+      <h1>Thanks, your live-in carer profile is in.</h1>
+      <p>We'll confirm your email and let you know when an employer invites you to apply. Nothing about you is shared with an employer until you accept an invite for a specific role.</p>
+
+      <div class="actions">
+        <a class="primary" href="/live-in-profile">Manage your profile</a>
+        <a class="secondary" href="/live-in-profile#alerts">Unsubscribe from alerts</a>
+      </div>
+
+      <div class="note">
+        Your DBS status shows as <strong>Not Yet Verified</strong> until it's confirmed through the DBS Update Service. Entering a certificate number doesn't change that on its own.
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><strong>iCare</strong>, a UK healthcare workforce network.</p>
+  </div>
+</footer>
+</body>
+</html>

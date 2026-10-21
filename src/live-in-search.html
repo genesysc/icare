@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live-in carer search | iCare</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --purple: #330072; --purple-deep: #220050; --teal: #00A499; --teal-tint: #E0F4F2;
+    --lavender: #F4F1F8; --ink: #1C1530; --muted: #5B5470; --line: #D9D2E6;
+    --white: #FFFFFF; --danger: #A4262C; --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--lavender); color: var(--ink); font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.6; }
+  h1, h2, h3 { font-family: "Fraunces", Georgia, serif; color: var(--purple); line-height: 1.2; margin: 0; font-weight: 700; }
+  a { color: var(--purple); }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+  .nav { position: sticky; top: 0; z-index: 30; background: var(--white); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; }
+  .logo { font-family: "Fraunces", Georgia, serif; font-weight: 700; font-size: 22px; color: var(--purple); text-decoration: none; }
+  .logo em { color: var(--teal); font-style: normal; }
+  .nav a.back { font-size: 13px; color: var(--muted); text-decoration: none; }
+  main { padding: 30px 0 48px; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #007A72; margin: 0 0 6px; }
+  .lede { color: var(--muted); margin: 8px 0 22px; max-width: 70ch; }
+  .card { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; margin-bottom: 16px; }
+  .filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .lbl { font-weight: 600; font-size: 13px; }
+  select, input, textarea { font: inherit; padding: 10px 12px; border: 1px solid #B9AFCB; border-radius: 8px; background: var(--white); color: var(--ink); width: 100%; }
+  textarea { min-height: 78px; resize: vertical; }
+  .btn { font: inherit; font-weight: 700; font-size: 14px; border-radius: 999px; padding: 11px 20px; cursor: pointer; border: 0; }
+  .btn.primary { background: var(--purple); color: var(--white); }
+  .btn.secondary { background: var(--white); color: var(--purple); border: 1px solid var(--line); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .results { display: grid; gap: 12px; }
+  .carer { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; text-decoration: none; color: inherit; display: block; }
+  .carer:hover { border-color: var(--purple); }
+  .carer h2 { font-size: 20px; }
+  .carer p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .tag { background: var(--lavender); color: var(--muted); border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+  .tag.dbs { background: var(--teal-tint); color: #0B4D48; }
+  .tag.dbs.danger { background: #FBEAEA; color: #7C1D22; }
+  .rate { font-family: "IBM Plex Mono", monospace; color: var(--purple); font-weight: 500; }
+  .empty { color: var(--muted); padding: 18px 0; }
+  .status { font-size: 14px; margin-top: 12px; }
+  .status.error { color: var(--danger); }
+  .status.ok { color: #007A72; }
+  .hidden { display: none !important; }
+  .detail-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; }
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; font-size: 15px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+  .locked { background: var(--lavender); border-radius: 10px; padding: 14px 16px; font-size: 14px; color: var(--muted); }
+  .danger-note { background: #FBEAEA; color: #7C1D22; border-radius: 10px; padding: 14px 16px; font-size: 14px; }
+  @media (max-width: 760px) { .filters { grid-template-columns: 1fr 1fr; } .detail-grid { grid-template-columns: 1fr; } .kv { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <a class="back" href="/employer/home">← Back to iRecruit</a>
+</header>
+
+<main class="wrap">
+  <div data-list-view>
+    <p class="eyebrow">iRecruit · Live-in</p>
+    <h1>Live-in carers</h1>
+    <p class="lede">Filter by area, block length and start date. Results are most recently updated first — never by rate, score or fit. Open a profile to invite someone to a live-in job.</p>
+
+    <section class="card" aria-label="Filters">
+      <div class="filters">
+        <div class="field">
+          <label class="lbl" for="f-region">Region</label>
+          <select id="f-region">
+            <option value="">Any</option>
+            <option value="london">London</option>
+            <option value="south-east">South East</option>
+            <option value="east">East of England</option>
+            <option value="midlands">Midlands</option>
+            <option value="north-west">North West</option>
+            <option value="north-east">North East and Yorkshire</option>
+            <option value="south-west">South West</option>
+            <option value="wales">Wales</option>
+            <option value="scotland">Scotland</option>
+            <option value="northern-ireland">Northern Ireland</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="f-block">Block length</label>
+          <select id="f-block">
+            <option value="">Any</option>
+            <option value="1w">1 week</option>
+            <option value="2w">2 weeks</option>
+            <option value="4w">4 weeks</option>
+            <option value="8w+">8 weeks or more</option>
+            <option value="ongoing">Ongoing</option>
+            <option value="short-cover">Short cover</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="f-role">Role</label>
+          <select id="f-role">
+            <option value="">Any</option>
+            <option value="care-assistant">Care assistant</option>
+            <option value="senior-care-worker">Senior care worker</option>
+            <option value="nurse-hca">Nurse or HCA</option>
+            <option value="other">Other care role</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="f-start">Available by</label>
+          <input type="date" id="f-start">
+        </div>
+      </div>
+      <p class="status" data-status role="status" aria-live="polite"></p>
+    </section>
+
+    <div class="results" data-results></div>
+  </div>
+
+  <div data-detail-view class="hidden">
+    <p class="eyebrow">iRecruit · Live-in profile</p>
+    <p style="margin:0 0 18px"><a href="/employers/live-in-search" style="font-size:14px">← Back to results</a></p>
+    <div data-detail></div>
+  </div>
+</main>
+
+<script>
+  var ICARE_SESSION_KEY = "icare_session";
+  var REGION_LABELS = { "london":"London","south-east":"South East","east":"East of England","midlands":"Midlands","north-west":"North West","north-east":"North East and Yorkshire","south-west":"South West","wales":"Wales","scotland":"Scotland","northern-ireland":"Northern Ireland" };
+  var BLOCK_LABELS = { "1w":"1 week","2w":"2 weeks","4w":"4 weeks","8w+":"8 weeks or more","ongoing":"Ongoing","short-cover":"Short cover" };
+  var ROLE_LABELS = { "care-assistant":"Care assistant","senior-care-worker":"Senior care worker","nurse-hca":"Nurse or HCA","other":"Other care role" };
+  var DBS = {
+    not_yet_verified: { label: "Not Yet Verified", danger: false },
+    current: { label: "Current: no new information", danger: false },
+    new_info: { label: "New information reported", danger: true }
+  };
+
+  var session = null;
+  try { var raw = localStorage.getItem(ICARE_SESSION_KEY); session = raw ? JSON.parse(raw) : null; } catch (e) {}
+  if (!session || !session.expires_at || Date.now() >= session.expires_at * 1000) {
+    window.location.href = '/employer/sign-in?next=' + encodeURIComponent(location.pathname);
+  }
+
+  function authFetch(url, options) {
+    options = options || {};
+    var headers = Object.assign({}, options.headers || {});
+    if (session && session.access_token) headers['Authorization'] = 'Bearer ' + session.access_token;
+    return fetch(url, Object.assign({}, options, { headers: headers }));
+  }
+
+  function money(pence) { return '£' + (pence / 100).toFixed(2).replace(/\.00$/, ''); }
+  function rateLabel(basis) { return basis === '24h' ? 'per 24 hours' : basis === 'week' ? 'per week' : 'per day'; }
+  function escapeHtml(text) { return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function dbsTag(state) {
+    var meta = DBS[state] || DBS.not_yet_verified;
+    return '<span class="tag dbs' + (meta.danger ? ' danger' : '') + '">' + meta.label + '</span>';
+  }
+
+  function renderCard(carer) {
+    var regions = (carer.regions || []).map(function (r) { return REGION_LABELS[r] || r; }).slice(0, 3).join(', ');
+    var blocks = (carer.blocks || []).map(function (b) { return BLOCK_LABELS[b] || b; }).join(', ');
+    return '<a class="carer" href="/employers/live-in-search/' + carer.id + '">' +
+      '<h2>' + escapeHtml(carer.display_name) + '</h2>' +
+      '<p>' + escapeHtml(ROLE_LABELS[carer.role] || carer.role) + ' · ' + escapeHtml(regions) + '</p>' +
+      '<p><span class="rate">' + money(carer.rate_pence) + '</span> ' + rateLabel(carer.rate_basis) +
+      ' · from ' + escapeHtml(carer.start_date) + '</p>' +
+      '<div class="tags"><span class="tag">' + escapeHtml(blocks) + '</span>' + dbsTag(carer.dbs_state) + '</div>' +
+      '</a>';
+  }
+
+  function loadList() {
+    var params = new URLSearchParams();
+    var region = document.getElementById('f-region').value;
+    var block = document.getElementById('f-block').value;
+    var role = document.getElementById('f-role').value;
+    var start = document.getElementById('f-start').value;
+    if (region) params.set('region', region);
+    if (block) params.set('block', block);
+    if (role) params.set('role', role);
+    if (start) params.set('startBy', start);
+
+    var status = document.querySelector('[data-status]');
+    status.textContent = 'Loading…';
+    status.className = 'status';
+
+    authFetch('/employers/live-in-search/carers?' + params.toString()).then(function (res) {
+      if (res.status === 401) { window.location.href = '/employer/sign-in'; throw new Error('redirect'); }
+      return res.json();
+    }).then(function (body) {
+      if (body.error) throw new Error(body.error);
+      var carers = body.carers || [];
+      document.querySelector('[data-results]').innerHTML = carers.map(renderCard).join('') ||
+        '<p class="empty">No live-in carers match those filters yet.</p>';
+      status.textContent = carers.length + (carers.length === 1 ? ' carer' : ' carers') + ' · most recently updated first';
+    }).catch(function (err) {
+      if (err.message === 'redirect') return;
+      status.textContent = err.message;
+      status.className = 'status error';
+    });
+  }
+
+  ['f-region', 'f-block', 'f-role', 'f-start'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', loadList);
+  });
+
+  var segments = location.pathname.replace(/\/+$/, '').split('/');
+  var carerId = segments[segments.length - 1] !== 'live-in-search' ? segments[segments.length - 1] : null;
+
+  function loadDetail(id) {
+    document.querySelector('[data-list-view]').classList.add('hidden');
+    document.querySelector('[data-detail-view]').classList.remove('hidden');
+
+    authFetch('/employers/live-in-search/carers/' + encodeURIComponent(id)).then(function (res) {
+      if (res.status === 401) { window.location.href = '/employer/sign-in'; throw new Error('redirect'); }
+      return res.json();
+    }).then(function (body) {
+      if (body.error) throw new Error(body.error);
+      var carer = body.carer;
+      var full = body.access === 'full';
+      var meta = DBS[carer.dbs_state] || DBS.not_yet_verified;
+
+      var contact = full
+        ? '<div class="card"><h3 style="font-size:18px">Contact</h3><dl class="kv"><dt>Name</dt><dd>' + escapeHtml(carer.full_name) + '</dd><dt>Email</dt><dd>' + escapeHtml(carer.email) + '</dd><dt>Phone</dt><dd>' + escapeHtml(carer.phone) + '</dd></dl></div>'
+        : '<div class="locked"><strong>Contact details are private.</strong><br>Accepting your invite unlocks the carer\'s name, email and phone for this job only, while the job stays open.</div>';
+
+      var dbsBlock = meta.danger
+        ? '<div class="danger-note"><strong>' + meta.label + '</strong><br>This needs re-checking before any placement.</div>'
+        : '<p style="margin:12px 0 0;font-size:14px;color:var(--muted)"><strong>' + meta.label + '</strong>' + (carer.dbs_check_date ? ' · checked ' + escapeHtml(carer.dbs_check_date) : '') + '</p>';
+
+      document.querySelector('[data-detail]').innerHTML =
+        '<div class="detail-grid">' +
+          '<div class="card">' +
+            '<h1 style="font-size:30px">' + escapeHtml(carer.display_name || carer.full_name) + '</h1>' +
+            '<p style="margin:4px 0 0;color:var(--muted)">' + escapeHtml(ROLE_LABELS[carer.role] || carer.role) + ' · ' + escapeHtml(carer.postcode_area) + '</p>' +
+            '<dl class="kv" style="margin-top:18px">' +
+              '<dt>Areas</dt><dd>' + escapeHtml((carer.regions || []).map(function (r) { return REGION_LABELS[r] || r; }).join(', ')) + '</dd>' +
+              '<dt>Area shown</dt><dd>' + escapeHtml(carer.postcode_area) + '</dd>' +
+              '<dt>Travel</dt><dd>' + escapeHtml(carer.radius === 'uk' ? 'Anywhere in the UK' : 'Up to ' + carer.radius + ' miles') + '</dd>' +
+              '<dt>Blocks</dt><dd>' + escapeHtml((carer.blocks || []).map(function (b) { return BLOCK_LABELS[b] || b; }).join(', ')) + '</dd>' +
+              '<dt>Earliest start</dt><dd>' + escapeHtml(carer.start_date) + '</dd>' +
+              '<dt>Rate</dt><dd><span class="rate">' + money(carer.rate_pence) + '</span> ' + rateLabel(carer.rate_basis) + (carer.rate_negotiable ? ' · ' + escapeHtml(carer.rate_negotiable) : '') + '</dd>' +
+              '<dt>Experience</dt><dd>' + escapeHtml(carer.experience) + '</dd>' +
+              '<dt>Accommodation</dt><dd>' + escapeHtml(carer.accommodation === 'own-room' ? 'Own room and bathroom' : 'Shared room is fine') + '</dd>' +
+              '<dt>Specialisms</dt><dd>' + escapeHtml((carer.specialisms || []).join(', ') || '—') + '</dd>' +
+              '<dt>Languages</dt><dd>' + escapeHtml(carer.languages || '—') + '</dd>' +
+              (carer.rate_notes ? '<dt>Included</dt><dd>' + escapeHtml(carer.rate_notes) + '</dd>' : '') +
+            '</dl>' +
+            dbsBlock +
+          '</div>' +
+          '<div>' +
+            contact +
+            '<div class="card"><h3 style="font-size:18px">Invite to a live-in job</h3>' +
+              '<p style="font-size:14px;color:var(--muted);margin:6px 0 12px">An invite is tied to one job. Nothing beyond this summary is shared until the carer accepts.</p>' +
+              '<div class="field" style="margin-bottom:10px"><label class="lbl" for="invite-job">Job</label><select id="invite-job"><option value="">Loading jobs…</option></select></div>' +
+              '<div class="field" style="margin-bottom:12px"><label class="lbl" for="invite-message">Message (optional)</label><textarea id="invite-message" maxlength="1000"></textarea></div>' +
+              '<button class="btn primary" data-invite>Send invite</button>' +
+              '<p class="status" data-invite-status role="status"></p>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      loadJobs();
+
+      document.querySelector('[data-invite]').addEventListener('click', function () {
+        var jobId = document.getElementById('invite-job').value;
+        var message = document.getElementById('invite-message').value.trim();
+        var status = document.querySelector('[data-invite-status]');
+        if (!jobId) { status.textContent = 'Choose a live-in job first.'; status.className = 'status error'; return; }
+        var btn = document.querySelector('[data-invite]');
+        btn.disabled = true;
+        authFetch('/employers/live-in-search/carers/' + encodeURIComponent(id) + '/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: jobId, message: message })
+        }).then(function (res) { return res.json().then(function (b) { return { status: res.status, body: b }; }); })
+          .then(function (r) {
+            if (r.status >= 400) throw new Error(r.body.error || 'Could not send the invite');
+            status.textContent = 'Invite sent. The carer will see it on their live-in profile.';
+            status.className = 'status ok';
+          })
+          .catch(function (err) { status.textContent = err.message; status.className = 'status error'; })
+          .then(function () { btn.disabled = false; });
+      });
+    }).catch(function (err) {
+      if (err.message === 'redirect') return;
+      document.querySelector('[data-detail]').innerHTML = '<div class="card"><p class="status error">' + escapeHtml(err.message) + '</p></div>';
+    });
+  }
+
+  function loadJobs() {
+    var select = document.getElementById('invite-job');
+    authFetch('/employers/jobs?status=active').then(function (res) { return res.json(); }).then(function (body) {
+      var jobs = (body.jobs || []).filter(function (j) { return j.live_in_regions && j.live_in_regions.length; });
+      if (jobs.length === 0) {
+        select.innerHTML = '<option value="">No live-in jobs yet</option>';
+        select.disabled = true;
+        return;
+      }
+      select.innerHTML = jobs.map(function (j) {
+        return '<option value="' + j.id + '">' + escapeHtml(j.title) + ' — ' + escapeHtml(j.location) + '</option>';
+      }).join('');
+    }).catch(function () {
+      select.innerHTML = '<option value="">Could not load jobs</option>';
+      select.disabled = true;
+    });
+  }
+
+  if (carerId) loadDetail(carerId); else loadList();
+</script>
+</body>
+</html>

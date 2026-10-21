@@ -6057,3 +6057,68 @@ news. genesysc/icare#61 left open and unmerged (not watched). Wrote
 
 ## 2026-10-20 — Notes promoted to main; Right at Home batch kept (founder decision)
 - Founder asked to keep the 53 Right at Home jobs and promote to main. Board: 133 jobs, 132 visible.
+
+## 2026-10-20 — Live-in carer register (migration 0056, pages + APIs wired)
+
+Built the live-in carer register from the uploaded prototype + handover,
+on this repo's real stack (Hono + static HTML + Supabase) rather than the
+handover's Next.js assumption. Founder answered the open questions the
+same day: follow the attached doc on payment copy (recorded as a scoped
+override of §1 #1), existing signed-in members only, employer routes
+under `/employers/live-in-search`, preferred-name-only in summaries, and
+region+block matching with no geocoding. Full summary in `HANDOVER.md`
+§27.
+
+**New files:** migration `20261020120000_0056_live_in_carers.sql`;
+`src/live-in-carers.ts`, `src/live-in-search.ts`,
+`src/live-in-alerts.ts`; `src/emails/live-in-invite.ts`,
+`src/emails/live-in-alert.ts`; `src/live-in-carers.html`,
+`src/live-in-carers-success.html`, `src/live-in-profile.html`,
+`src/live-in-search.html`. Patched `src/index.ts` (routes, page GETs
+before the `/employers` API mount, UUID-constrained detail route),
+`src/jobs.ts` (nullable `live_in_regions`/`live_in_blocks`, enqueue on
+create/edit, revoke on close), `src/news-ingest.ts` (flush before any
+early return).
+
+**Fixed while wiring, not in the original draft:**
+- `/me`'s invite embed returned null job details — `jobs` has no
+  candidate read policy. Replaced with a `live_in_carer_invites` view.
+- Closing a job tried to update invites, but employers have no UPDATE
+  policy there. Replaced with the ownership-checked
+  `revoke_live_in_invites_for_job()` RPC, which also avoids letting an
+  employer mark their own invite accepted.
+- Consent history logged a fresh privacy grant on every save. Now
+  append-only on actual change.
+- The "compensating delete" after a failed consent insert had no DELETE
+  policy (silent no-op). Now a narrow `discard_live_in_profile()` RPC
+  that only removes an own, consent-less row.
+- Added specialisms/languages to the edit form; registration data was
+  otherwise uneditable. Removed a no-op self-assignment.
+- An empty rate field validated as £0. Now rejected, matching the
+  required field. Returning carers hitting `/live-in-carers` are
+  redirected to `/live-in-profile` instead of getting a 409 on submit.
+
+**Verified:** `tsc --noEmit` clean; `wrangler deploy --dry-run` clean
+(2305.41 KiB / 663.72 KiB gzip). No live/runtime test possible — the
+migration isn't applied yet.
+
+**Still open:** apply `0056` via the SQL editor (no destructive DDL),
+then smoke-test `/live-in-carers`, `/live-in-profile`,
+`/employers/live-in-search` and its detail route logged in at
+390px/1440px. Weekly digest is enqueued but unbuilt; hard delete still
+soft pending the retention decision; `NEWS_INGEST_SECRET` must be set
+and match `app_secrets` or alert/invite email no-ops.
+
+## 2026-10-21 — Live-in carer register merged onto current main (not shipped yet)
+
+- Founder uploaded `icare-live-in-register-2026-10-21.zip`: a full repo
+  snapshot from a separate session = main @ eaaa366 (15 Oct) + the live-in
+  register (HANDOVER §29). Extracted the exact base→snapshot diff
+  (CRLF-normalised; only live-in files changed) and 3-way-applied it onto
+  current main. Conflicts only in docs + `src/index.ts` imports (kept both).
+- Migration renumbered 0056 → **0060** (`0056` is the jobs board on main).
+  Not applied. Checked live DB: no `live_in_*` objects exist, no clashes.
+- `live-in-profile.html` tab bar synced to the current 8-tab bar (it had
+  the pre-Jobs-tab copy) + the 380px rule; nav-shell list updated.
+- `tsc --noEmit` and `wrangler deploy --dry-run` clean. Still never
+  runtime-tested (needs 0060 applied). Waiting on founder before merge.

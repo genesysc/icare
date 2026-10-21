@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your live-in profile | iCare</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --purple: #330072;
+    --purple-deep: #220050;
+    --teal: #00A499;
+    --teal-tint: #E0F4F2;
+    --lavender: #F4F1F8;
+    --ink: #1C1530;
+    --ink-faint: #7A7490;
+    --muted: #5B5470;
+    --line: #D9D2E6;
+    --white: #FFFFFF;
+    --danger: #A4262C;
+    --teal-500: #00A499;
+    --teal-700: #007A72;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--lavender);
+    color: var(--ink);
+    font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    padding-bottom: 80px;
+  }
+  h1, h2, h3 { font-family: "Fraunces", Georgia, serif; color: var(--purple); line-height: 1.2; margin: 0; font-weight: 700; }
+  a { color: var(--purple); }
+  :focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+
+  .nav { position: sticky; top: 0; z-index: 30; background: var(--white); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; }
+  .logo { font-family: "Fraunces", Georgia, serif; font-weight: 700; font-size: 22px; color: var(--purple); text-decoration: none; }
+  .logo em { color: var(--teal); font-style: normal; }
+  .nav-right { display: flex; align-items: center; gap: 14px; }
+  .sign-out { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; }
+
+  main { padding: 32px 0 24px; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--teal-700); margin: 0 0 6px; }
+  .lede { color: var(--muted); margin: 8px 0 24px; max-width: 66ch; }
+
+  .card { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; margin-bottom: 18px; }
+  .card h2 { font-size: 20px; margin-bottom: 4px; }
+  .card .sub { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+
+  .dbs { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 10px; background: var(--teal-tint); color: #0B4D48; font-size: 14px; }
+  .dbs.is-danger { background: #FBEAEA; color: #7C1D22; }
+  .dbs strong { display: block; font-size: 15px; margin-bottom: 2px; }
+
+  .invite { border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 10px; }
+  .invite h3 { font-size: 17px; margin-bottom: 2px; }
+  .invite p { margin: 0; color: var(--muted); font-size: 14px; }
+  .invite .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
+  .btn { font: inherit; font-weight: 700; font-size: 14px; border-radius: 999px; padding: 10px 18px; cursor: pointer; border: 0; }
+  .btn.primary { background: var(--purple); color: var(--white); }
+  .btn.secondary { background: var(--white); color: var(--purple); border: 1px solid var(--line); }
+  .btn.danger { background: var(--white); color: var(--danger); border: 1px solid #E4C2C4; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; padding: 4px 9px; border-radius: 999px; background: var(--lavender); color: var(--muted); }
+  .pill.ok { background: var(--teal-tint); color: #0B4D48; }
+
+  form .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  form .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .lbl { font-weight: 600; font-size: 14px; }
+  input[type=text], input[type=tel], input[type=number], input[type=date], select, textarea {
+    font: inherit; padding: 10px 12px; border: 1px solid #B9AFCB; border-radius: 8px; background: var(--white); color: var(--ink); width: 100%;
+  }
+  textarea { min-height: 80px; resize: vertical; }
+  .choice { display: flex; align-items: flex-start; gap: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .choice input { margin-top: 3px; accent-color: var(--purple); width: 17px; height: 17px; flex: none; }
+  .choice:has(input:checked) { border-color: var(--purple); background: #F7F4FC; box-shadow: inset 3px 0 0 var(--teal); }
+  .status { font-size: 14px; margin-top: 12px; }
+  .status.error { color: var(--danger); }
+  .status.ok { color: var(--teal-700); }
+  .hidden { display: none !important; }
+
+  .tab-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; background: var(--white); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0); }
+  .tab-bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px 8px; text-decoration: none; color: var(--ink-faint); font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em; }
+  .tab-bar-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .tab-bar-item.is-active { color: var(--teal-700); }
+  .tab-bar-item .tab-bar-icon-wrap { position: relative; }
+  .tab-bar-dot { position: absolute; top: -2px; right: -4px; width: 8px; height: 8px; border-radius: 999px; background: var(--teal-500); border: 1.5px solid var(--white); display: none; }
+  .tab-bar-dot.is-visible { display: block; }
+  @media (max-width: 380px) { .tab-bar-item { padding: 9px 1px 8px; font-size: 9px; letter-spacing: 0; min-width: 0; } }
+
+  @media (max-width: 680px) {
+    form .grid-2, form .grid-3 { grid-template-columns: 1fr; }
+    .card { padding: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <a href="/" class="logo">i<em>Care</em></a>
+  <div class="nav-right">
+    <a href="/dashboard" style="font-size:13px;color:var(--muted);text-decoration:none">Profile</a>
+    <button class="sign-out" data-sign-out>Sign out</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="eyebrow">Live-in register</p>
+  <h1>Your live-in profile</h1>
+  <p class="lede">Employers see the summary below, never your name, phone, email or postcode. Those unlock only after you accept an invite for a specific job, and only while that job is open.</p>
+
+  <div class="card" data-loading>
+    <p class="sub" style="margin:0">Loading your profile…</p>
+  </div>
+
+  <div class="card hidden" data-not-joined>
+    <h2>You're not on the live-in register yet</h2>
+    <p class="sub">Join to tell employers where you'll work, how long a block you'll do and your rates.</p>
+    <a class="btn primary" href="/live-in-carers" style="display:inline-block;text-decoration:none">Join the live-in register</a>
+  </div>
+
+  <div class="hidden" data-profile>
+    <div class="card">
+      <h2>DBS status</h2>
+      <p class="sub">Only the DBS Update Service can confirm this. A certificate number on its own never changes it.</p>
+      <div class="dbs" data-dbs>
+        <div>
+          <strong data-dbs-label>Not Yet Verified</strong>
+          <span data-dbs-note></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Invites</h2>
+      <p class="sub">Accepting an invite shares your full profile with that employer for that job only.</p>
+      <div data-invites></div>
+      <p class="sub hidden" data-no-invites style="margin:0">No invites yet. We'll email you if you opted into alerts.</p>
+    </div>
+
+    <div class="card" id="alerts">
+      <h2>Alerts</h2>
+      <p class="sub">Alerts show the area, block length and rate of a role. They never include client details.</p>
+      <label class="choice" style="margin-bottom:10px">
+        <input type="checkbox" data-alerts-toggle>
+        <span>Email me when live-in availability matches my profile</span>
+      </label>
+      <div data-frequency hidden>
+        <span class="lbl">How often</span>
+        <div class="grid-3" style="margin-top:6px">
+          <label class="choice"><input type="radio" name="freq" value="as-they-happen"> <span>As roles appear</span></label>
+          <label class="choice"><input type="radio" name="freq" value="weekly"> <span>Weekly summary</span></label>
+          <label class="choice"><input type="radio" name="freq" value="off" checked> <span>Off</span></label>
+        </div>
+      </div>
+      <p class="status" data-alert-status></p>
+    </div>
+
+    <form class="card" data-edit-form novalidate>
+      <h2>Edit your details</h2>
+      <p class="sub">Saving re-runs the same checks as registration.</p>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="p-preferredName">Preferred name</label>
+          <input type="text" id="p-preferredName" name="preferredName" maxlength="100">
+        </div>
+        <div class="field">
+          <label class="lbl" for="p-phone">Mobile</label>
+          <input type="tel" id="p-phone" name="phone" required>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="p-role">Role</label>
+          <select id="p-role" name="role" required>
+            <option value="care-assistant">Care assistant</option>
+            <option value="senior-care-worker">Senior care worker</option>
+            <option value="nurse-hca">Nurse or healthcare assistant</option>
+            <option value="other">Other care role</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="p-experience">Experience</label>
+          <select id="p-experience" name="experience" required>
+            <option value="&lt;1y">Less than 1 year</option>
+            <option value="1-3y">1 to 3 years</option>
+            <option value="3-5y">3 to 5 years</option>
+            <option value="5-10y">5 to 10 years</option>
+            <option value="10y+">10+ years</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="p-liveInExperience">Live-in experience</label>
+          <select id="p-liveInExperience" name="liveInExperience" required>
+            <option value="yes-regular">Yes, regularly</option>
+            <option value="yes-few">Yes, a few times</option>
+            <option value="no-keen">No, but I'm keen to start</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="p-postcode">Home postcode</label>
+          <input type="text" id="p-postcode" name="postcode" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Regions</span>
+        <div class="grid-3" data-regions></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="p-radius">Travel from home</label>
+          <select id="p-radius" name="radius" required>
+            <option value="10">Up to 10 miles</option>
+            <option value="25">Up to 25 miles</option>
+            <option value="50">Up to 50 miles</option>
+            <option value="100">Up to 100 miles</option>
+            <option value="uk">Anywhere in the UK</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="p-startDate">Earliest start date</label>
+          <input type="date" id="p-startDate" name="startDate" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Block lengths</span>
+        <div class="grid-3" data-blocks></div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Specialisms</span>
+        <div class="grid-2" data-specialisms></div>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="p-languages">Languages you speak</label>
+        <input type="text" id="p-languages" name="languages" maxlength="200" placeholder="e.g. English, Tagalog, Polish">
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="p-timeOff">Time off between blocks</label>
+          <select id="p-timeOff" name="timeOff">
+            <option value="">Select</option>
+            <option value="same-as-block">Same as the block</option>
+            <option value="half-block">Half the block length</option>
+            <option value="flexible">Flexible</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="p-accommodation">Accommodation</label>
+          <select id="p-accommodation" name="accommodation" required>
+            <option value="own-room">I need my own room and bathroom</option>
+            <option value="shared-ok">A shared room is fine</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="p-rateBasis">How you charge</label>
+          <select id="p-rateBasis" name="rateBasis" required>
+            <option value="day">Per day</option>
+            <option value="24h">Per 24 hours</option>
+            <option value="week">Per week</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="p-rateAmount">Rate (GBP)</label>
+          <input type="number" id="p-rateAmount" name="rateAmount" min="0" step="0.5" required>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label class="lbl" for="p-rateNegotiable">Negotiable?</label>
+          <select id="p-rateNegotiable" name="rateNegotiable">
+            <option value="">Select</option>
+            <option value="fixed">Fixed</option>
+            <option value="open">Open to discussion</option>
+            <option value="depends-on-block">Depends on the block length</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="p-rtw">Right to work</label>
+          <select id="p-rtw" name="rtw" required>
+            <option value="yes">Yes, without restriction</option>
+            <option value="existing-visa">Health and Care Worker visa, switching employer</option>
+            <option value="no-or-unsure">No, or not sure</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="p-rateNotes">What's included in the rate?</label>
+        <textarea id="p-rateNotes" name="rateNotes" maxlength="1000"></textarea>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="p-dbsNumber">DBS certificate number</label>
+        <input type="text" id="p-dbsNumber" name="dbsNumber" placeholder="Leave blank to keep what's on file">
+      </div>
+
+      <div class="field">
+        <span class="lbl">Who can see your profile?</span>
+        <div class="grid-2" style="margin-top:6px">
+          <label class="choice"><input type="radio" name="visibility" value="public"> <span>iCare members only</span></label>
+          <label class="choice"><input type="radio" name="visibility" value="hidden"> <span>Hidden — pause my profile</span></label>
+        </div>
+      </div>
+
+      <label class="choice" style="margin-bottom:10px">
+        <input type="checkbox" data-employer-view>
+        <span>Employers may view my summary and invite me to live-in roles</span>
+      </label>
+
+      <button class="btn primary" type="submit">Save changes</button>
+      <p class="status" data-save-status role="status"></p>
+    </form>
+
+    <div class="card">
+      <h2>Delete your live-in profile</h2>
+      <p class="sub">This removes you from employer search and stops all alerts. Your iCare account stays open.</p>
+      <button class="btn danger" data-delete>Delete my live-in profile</button>
+      <p class="status" data-delete-status role="status"></p>
+    </div>
+  </div>
+</main>
+
+<nav class="tab-bar" aria-label="Main">
+  <a href="/rounds" class="tab-bar-item" data-tab="rounds"><svg viewBox="0 0 24 24"><polyline points="2 14 6 14 9 5 14 21 17 14 22 14"/></svg><span>Rounds</span></a>
+  <a href="/sponsor-check" class="tab-bar-item" data-tab="sponsors"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg><span>Sponsors</span></a>
+  <a href="/jobs" class="tab-bar-item" data-tab="jobs"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg><span>Jobs</span></a>
+  <a href="/news-feed" class="tab-bar-item" data-tab="news"><svg viewBox="0 0 24 24"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6z"/></svg><span>News</span></a>
+  <a href="/invites" class="tab-bar-item" data-tab="invites"><span class="tab-bar-icon-wrap"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22 6 12 13 2 6"/></svg><span class="tab-bar-dot" data-invites-dot></span></span><span>Invites</span></a>
+  <a href="/network" class="tab-bar-item" data-tab="network"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Network</span></a>
+  <a href="/messages" class="tab-bar-item" data-tab="messages"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Messages</span></a>
+  <a href="/dashboard" class="tab-bar-item is-active" data-tab="profile"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span>Profile</span></a>
+</nav>
+
+<script>
+  var ICARE_SESSION_KEY = "icare_session";
+  var REGIONS = [["london","London"],["south-east","South East"],["east","East of England"],["midlands","Midlands"],["north-west","North West"],["north-east","North East and Yorkshire"],["south-west","South West"],["wales","Wales"],["scotland","Scotland"],["northern-ireland","Northern Ireland"]];
+  var BLOCKS = [["1w","1 week"],["2w","2 weeks"],["4w","4 weeks"],["8w+","8 weeks or more"],["ongoing","Ongoing placement"],["short-cover","Short cover, 1 to 3 days"]];
+  var SPECIALISMS = [["dementia","Dementia"],["end-of-life","End of life"],["mobility","Mobility and moving and handling"],["learning-disability","Learning disabilities"],["mental-health","Mental health support"],["childrens","Children and young adults"]];
+  var DBS = {
+    not_yet_verified: { label: "Not Yet Verified", note: "Awaiting confirmation through the DBS Update Service.", danger: false },
+    current: { label: "Current: no new information", note: "", danger: false },
+    new_info: { label: "New information reported", note: "This needs re-checking before a placement.", danger: true }
+  };
+
+  var session = null;
+  try { var raw = localStorage.getItem(ICARE_SESSION_KEY); session = raw ? JSON.parse(raw) : null; } catch (e) {}
+  if (!session || !session.expires_at || Date.now() >= session.expires_at * 1000) {
+    window.location.href = '/sign-in?next=/live-in-profile';
+  }
+
+  var state = { profile: null, consents: { employer_view: false, email_alerts: false } };
+  var loading = document.querySelector('[data-loading]');
+  var notJoined = document.querySelector('[data-not-joined]');
+  var profileWrap = document.querySelector('[data-profile]');
+
+  function authFetch(url, options) {
+    options = options || {};
+    var headers = Object.assign({}, options.headers || {});
+    if (session && session.access_token) headers['Authorization'] = 'Bearer ' + session.access_token;
+    return fetch(url, Object.assign({}, options, { headers: headers }));
+  }
+
+  function tokenise(value) {
+    return value.replace(/\s+/g, ' ').trim();
+  }
+
+  function regionChecks() {
+    var host = document.querySelector('[data-regions]');
+    host.innerHTML = REGIONS.map(function (r) {
+      return '<label class="choice"><input type="checkbox" name="regions" value="' + r[0] + '"> <span>' + r[1] + '</span></label>';
+    }).join('');
+  }
+  function blockChecks() {
+    var host = document.querySelector('[data-blocks]');
+    host.innerHTML = BLOCKS.map(function (b) {
+      return '<label class="choice"><input type="checkbox" name="blocks" value="' + b[0] + '"> <span>' + b[1] + '</span></label>';
+    }).join('');
+  }
+  function specialismChecks() {
+    var host = document.querySelector('[data-specialisms]');
+    host.innerHTML = SPECIALISMS.map(function (s) {
+      return '<label class="choice"><input type="checkbox" name="specialisms" value="' + s[0] + '"> <span>' + s[1] + '</span></label>';
+    }).join('');
+  }
+  regionChecks();
+  blockChecks();
+  specialismChecks();
+
+  function setChecks(name, values) {
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="' + name + '"]'), function (el) {
+      el.checked = values.indexOf(el.value) !== -1;
+    });
+  }
+  function getChecks(name) {
+    return Array.prototype.map.call(document.querySelectorAll('input[name="' + name + '"]:checked'), function (el) { return el.value; });
+  }
+
+  function renderDbs(dbs) {
+    var meta = DBS[dbs.dbs_state] || DBS.not_yet_verified;
+    var box = document.querySelector('[data-dbs]');
+    box.classList.toggle('is-danger', !!meta.danger);
+    document.querySelector('[data-dbs-label]').textContent = meta.label;
+    var note = meta.note;
+    if (dbs.dbs_state === 'current' && dbs.dbs_check_date) {
+      note = 'Checked ' + new Date(dbs.dbs_check_date + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + '.';
+    }
+    document.querySelector('[data-dbs-note]').textContent = note;
+  }
+
+  function renderInvites(invites) {
+    var host = document.querySelector('[data-invites]');
+    var empty = document.querySelector('[data-no-invites]');
+    var pending = invites.filter(function (i) { return i.status === 'sent'; });
+    var rest = invites.filter(function (i) { return i.status !== 'sent'; });
+    var all = pending.concat(rest);
+    empty.classList.toggle('hidden', all.length > 0);
+
+    host.innerHTML = all.map(function (i) {
+      var status = i.status === 'accepted' ? '<span class="pill ok">Accepted</span>'
+        : i.status === 'declined' ? '<span class="pill">Declined</span>'
+        : i.status === 'revoked' ? '<span class="pill">Closed</span>'
+        : '<span class="pill">New</span>';
+      var actions = i.status === 'sent'
+        ? '<div class="row"><button class="btn primary" data-accept="' + i.id + '">Accept</button><button class="btn secondary" data-decline="' + i.id + '">Decline</button></div>'
+        : '';
+      var note = i.status === 'accepted'
+        ? (i.job_status === 'active'
+          ? '<p style="margin-top:8px">The employer can see your contact details while this job is open.</p>'
+          : '<p style="margin-top:8px">This job has closed, so the employer can no longer see your contact details.</p>')
+        : '';
+      return '<div class="invite"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
+        '<div><h3>' + escapeHtml(i.title || 'Live-in role') + '</h3>' +
+        '<p>' + escapeHtml(i.location || '') + ' · ' + escapeHtml(i.pay_range || '') + '</p></div>' + status + '</div>' +
+        (i.message ? '<p style="margin-top:8px;color:var(--ink)">' + escapeHtml(i.message) + '</p>' : '') +
+        note + actions + '</div>';
+    }).join('');
+  }
+
+  function fillForm(profile) {
+    document.getElementById('p-preferredName').value = profile.preferred_name || '';
+    document.getElementById('p-phone').value = profile.phone || '';
+    document.getElementById('p-role').value = profile.role;
+    document.getElementById('p-experience').value = profile.experience;
+    document.getElementById('p-liveInExperience').value = profile.live_in_experience;
+    document.getElementById('p-postcode').value = profile.postcode_private || '';
+    document.getElementById('p-radius').value = profile.radius;
+    document.getElementById('p-startDate').value = profile.start_date;
+    document.getElementById('p-timeOff').value = profile.time_off || '';
+    document.getElementById('p-accommodation').value = profile.accommodation;
+    document.getElementById('p-rateBasis').value = profile.rate_basis;
+    document.getElementById('p-rateAmount').value = (profile.rate_pence / 100).toFixed(2);
+    document.getElementById('p-rateNegotiable').value = profile.rate_negotiable || '';
+    document.getElementById('p-rtw').value = profile.rtw;
+    document.getElementById('p-rateNotes').value = profile.rate_notes || '';
+    setChecks('regions', profile.regions || []);
+    setChecks('blocks', profile.blocks || []);
+    setChecks('specialisms', profile.specialisms || []);
+    document.getElementById('p-languages').value = profile.languages || '';
+    var vis = document.querySelector('input[name="visibility"][value="' + profile.visibility + '"]');
+    if (vis) vis.checked = true;
+  }
+
+  function applyConsents(consents, profile) {
+    state.consents = consents;
+    document.querySelector('[data-employer-view]').checked = !!consents.employer_view;
+    document.querySelector('[data-alerts-toggle]').checked = !!consents.email_alerts && profile.visibility === 'public';
+    var freq = profile.alert_frequency || 'off';
+    var radio = document.querySelector('input[name="freq"][value="' + freq + '"]');
+    if (radio) radio.checked = true;
+    document.querySelector('[data-frequency]').hidden = !document.querySelector('[data-alerts-toggle]').checked;
+  }
+
+  function load() {
+    authFetch('/live-in-carers/me').then(function (res) {
+      if (res.status === 401) { window.location.href = '/sign-in?next=/live-in-profile'; throw new Error('redirect'); }
+      return res.json();
+    }).then(function (body) {
+      loading.classList.add('hidden');
+      if (!body.has_profile) {
+        // No profile yet — send them straight to registration, so the
+        // dashboard link and a post-sign-in landing both reach the form
+        // rather than an empty management page.
+        window.location.replace('/live-in-carers');
+        return;
+      }
+      document.title = 'Your live-in profile | iCare';
+      profileWrap.classList.remove('hidden');
+      state.profile = body.profile;
+      renderDbs(body.dbs || { dbs_state: 'not_yet_verified' });
+      renderInvites(body.invites || []);
+      fillForm(body.profile);
+      applyConsents(body.consents || {}, body.profile);
+    }).catch(function (err) {
+      if (err.message === 'redirect') return;
+      loading.innerHTML = '<p class="status error">Could not load your profile. Please refresh.</p>';
+    });
+  }
+
+  document.querySelector('[data-alerts-toggle]').addEventListener('change', function (e) {
+    document.querySelector('[data-frequency]').hidden = !e.target.checked;
+    if (!e.target.checked) {
+      var off = document.querySelector('input[name="freq"][value="off"]');
+      if (off) off.checked = true;
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    var accept = e.target.closest('[data-accept]');
+    var decline = e.target.closest('[data-decline]');
+    if (!accept && !decline) return;
+    var id = accept ? accept.getAttribute('data-accept') : decline.getAttribute('data-decline');
+    var action = accept ? 'accept' : 'decline';
+    authFetch('/live-in-carers/invites/' + id + '/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action })
+    }).then(function (res) { return res.json().then(function (b) { return { status: res.status, body: b }; }); })
+      .then(function (r) {
+        if (r.status >= 400) throw new Error(r.body.error || 'Could not update the invite');
+        load();
+      })
+      .catch(function (err) { alert(err.message); });
+  });
+
+  document.querySelector('[data-edit-form]').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var status = document.querySelector('[data-save-status]');
+    status.textContent = '';
+    status.className = 'status';
+
+    var payload = {
+      preferredName: document.getElementById('p-preferredName').value.trim(),
+      phone: document.getElementById('p-phone').value.trim(),
+      role: document.getElementById('p-role').value,
+      experience: document.getElementById('p-experience').value,
+      liveInExperience: document.getElementById('p-liveInExperience').value,
+      postcode: document.getElementById('p-postcode').value.trim(),
+      radius: document.getElementById('p-radius').value,
+      startDate: document.getElementById('p-startDate').value,
+      timeOff: document.getElementById('p-timeOff').value,
+      accommodation: document.getElementById('p-accommodation').value,
+      rateBasis: document.getElementById('p-rateBasis').value,
+      rateAmount: Number(document.getElementById('p-rateAmount').value),
+      rateNegotiable: document.getElementById('p-rateNegotiable').value,
+      rtw: document.getElementById('p-rtw').value,
+      rateNotes: document.getElementById('p-rateNotes').value.trim(),
+      dbsNumber: document.getElementById('p-dbsNumber').value.trim(),
+      regions: getChecks('regions'),
+      blocks: getChecks('blocks'),
+      specialisms: getChecks('specialisms'),
+      languages: document.getElementById('p-languages').value.trim(),
+      visibility: (document.querySelector('input[name="visibility"]:checked') || {}).value || 'public',
+      consentPrivacy: true,
+      consentInvite: document.querySelector('[data-employer-view]').checked,
+      consentAlerts: document.querySelector('[data-alerts-toggle]').checked,
+      alertFrequency: (document.querySelector('input[name="freq"]:checked') || {}).value || 'off'
+    };
+
+    if (!isFinite(payload.rateAmount) || payload.rateAmount < 0) {
+      status.textContent = 'Enter a valid rate.';
+      status.className = 'status error';
+      return;
+    }
+
+    authFetch('/live-in-carers/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (res) { return res.json().then(function (b) { return { status: res.status, body: b }; }); })
+      .then(function (r) {
+        if (r.status >= 400) throw new Error(r.body.error || 'Could not save');
+        status.textContent = 'Saved.';
+        status.className = 'status ok';
+        load();
+      })
+      .catch(function (err) {
+        status.textContent = err.message;
+        status.className = 'status error';
+      });
+  });
+
+  document.querySelector('[data-delete]').addEventListener('click', function () {
+    if (!window.confirm('Delete your live-in profile? This removes you from employer search and stops all alerts.')) return;
+    var status = document.querySelector('[data-delete-status]');
+    authFetch('/live-in-carers/me', { method: 'DELETE' }).then(function (res) { return res.json(); })
+      .then(function (body) {
+        if (body.error) throw new Error(body.error);
+        window.location.href = '/live-in-carers';
+      })
+      .catch(function (err) { status.textContent = err.message; status.className = 'status error'; });
+  });
+
+  document.querySelector('[data-sign-out]').addEventListener('click', function () {
+    try { localStorage.removeItem(ICARE_SESSION_KEY); } catch (e) {}
+    window.location.href = '/';
+  });
+
+  function escapeHtml(text) {
+    return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  load();
+</script>
+</body>
+</html>
