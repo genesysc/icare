@@ -28,6 +28,7 @@
   --border:#D9D2E9;
   --body:#6B6280;
   --ink:#330072;
+  --teal:#00A499;
   --white:#FFFFFF;
   --shell:24px;
   --max:1120px;
@@ -68,10 +69,10 @@ p{margin:0 0 16px}
 @media (max-width:900px){.grid-4,.grid-13{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:640px){.grid-2,.grid-3,.grid-4,.grid-13{grid-template-columns:1fr}}
 /* nav */
-.nav{background:var(--navy);color:#fff;padding:16px 0;position:sticky;top:0;z-index:50}
+.nav{background:var(--paper);color:var(--ink);padding:16px 0;position:sticky;top:0;z-index:50;border-bottom:1px solid var(--border)}
 .nav-inner{display:flex;align-items:center;justify-content:space-between;gap:16px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px}
-.brand-mark{width:34px;height:34px;border-radius:8px;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700}
+.logo{font-family:'Fraunces',Georgia,serif;font-weight:800;font-size:22px;letter-spacing:-.02em;text-decoration:none;flex:none;color:var(--ink)}
+.logo span{color:var(--teal)}
 /* hero */
 .hero{background:var(--navy);color:#fff;padding:72px 0 64px}
 .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center}
@@ -174,8 +175,8 @@ details p{color:var(--body);margin:12px 0 0}
 
 <nav class="nav">
   <div class="shell nav-inner">
-    <div class="brand"><span class="brand-mark">i</span> iCare</div>
-    <a class="btn btn-outline" href="#price">See how to start</a>
+    <a class="logo" href="/">i<span>Care</span></a>
+    <a class="btn btn-navy" href="#price">See how to start</a>
   </div>
 </nav>
 
@@ -446,7 +447,7 @@ details p{color:var(--body);margin:12px 0 0}
   <div class="shell">
     <div class="footer-grid">
       <div>
-        <strong style="color:#fff">iCare</strong>
+        <a class="logo" href="/" style="color:#fff">i<span>Care</span></a>
         <p style="margin:8px 0 0">Bolton, United Kingdom. Career coaching and tailored support for people looking for work in the UK.</p>
       </div>
       <div>
