@@ -7,6 +7,7 @@ import employerChat from "./employer-chat";
 import jobs from "./jobs";
 import waitlist from "./waitlist";
 import landingPage from "./landing.html";
+import careerCoachingPage from "./career-coaching.html";
 import heroClinicianJpg from "./assets/hero-clinician.jpg";
 import careHandsJpg from "./assets/care-hands.jpg";
 import workforceCorridorJpg from "./assets/workforce-corridor.jpg";
@@ -70,6 +71,10 @@ app.route("/sponsors", sponsors);
 app.route("/sponsored-jobs", sponsoredJobs);
 
 app.get("/", (c) => c.html(landingPage));
+
+// Career coaching + tailored support landing page (Genesys, separate from iCare).
+app.get("/career-coaching", (c) => c.html(careerCoachingPage));
+app.get("/coaching", (c) => c.html(careerCoachingPage));
 
 // /welcome only ever existed because `/` was still the pre-launch waitlist page
 // and there was nowhere with real Log in / Sign up entry points (2026-09-10).
@@ -259,7 +264,7 @@ app.get("/media-check", async (c) => {
 // sitemap/robots pair that didn't exist before.
 app.get("/sitemap.xml", (c) => {
   const origin = new URL(c.req.url).origin;
-  const staticUrls = ["/", "/employers", "/privacy", "/terms", "/blog"];
+  const staticUrls = ["/", "/employers", "/career-coaching", "/privacy", "/terms", "/blog"];
   const categoryUrls = CATEGORY_LIST.map((cat) => `/blog/category/${cat.slug}`);
   const postEntries = BLOG_POSTS.map((p) => ({ loc: `/blog/${p.slug}`, lastmod: p.dateModified }));
   const entries = [

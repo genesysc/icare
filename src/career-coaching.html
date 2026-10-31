@@ -1,0 +1,468 @@
+﻿<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<script>
+(function () {
+  if (window.location.hash.indexOf("access_token=") !== -1) {
+    var target = window.location.hash.indexOf("type=recovery") !== -1 ? "/reset-password" : "/verify";
+    window.location.replace(target + window.location.hash);
+  }
+})();
+</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Career Coaching + Tailored Support | iCare</title>
+<meta name="description" content="You didn't come this far to give up now. Career coaching and tailored support for people looking for work in the UK, with someone in your corner for three months.">
+<meta name="theme-color" content="#330072">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Public+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#330072;
+  --navy-dk:#25004F;
+  --mid-navy:#4A1A8A;
+  --gold:#00A499;
+  --gold-dk:#00726B;
+  --cream:#F4F1F8;
+  --border:#D9D2E9;
+  --body:#6B6280;
+  --ink:#330072;
+  --white:#FFFFFF;
+  --shell:24px;
+  --max:1120px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--cream);color:var(--ink);
+  font-family:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--gold);outline-offset:3px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto}}
+.shell{max-width:var(--max);margin:0 auto;padding:0 var(--shell)}
+section{padding:72px 0}
+h1,h2,h3{font-family:'Fraunces',serif;font-weight:600;letter-spacing:-.01em;margin:0}
+h1{font-size:clamp(34px,6vw,62px);line-height:1.05}
+h2{font-size:clamp(26px,4vw,40px);line-height:1.1}
+h3{font-size:20px}
+p{margin:0 0 16px}
+.eyebrow{display:inline-block;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--gold-dk);background:rgba(0,164,153,.12);border:1px solid rgba(0,164,153,.35);padding:6px 12px;border-radius:999px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:14px 24px;border-radius:999px;font-weight:600;font-size:15px;border:1px solid transparent;cursor:pointer;transition:transform .15s ease,background .15s ease;text-decoration:none}
+.btn-gold{background:var(--gold);color:var(--navy)}
+.btn-gold:hover{background:#f0c97a;transform:translateY(-1px)}
+.btn-outline{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
+.btn-outline:hover{border-color:#fff}
+.btn-navy{background:var(--navy);color:#fff}
+.btn-navy:hover{background:var(--navy-dk)}
+.card{background:var(--white);border:1px solid var(--border);border-radius:18px;padding:24px}
+.card-gold{border-color:var(--gold);border-width:2px}
+.muted{color:var(--body)}
+.small{font-size:14px}
+.center{text-align:center}
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.grid-13{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media (max-width:900px){.grid-4,.grid-13{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:640px){.grid-2,.grid-3,.grid-4,.grid-13{grid-template-columns:1fr}}
+/* nav */
+.nav{background:var(--navy);color:#fff;padding:16px 0;position:sticky;top:0;z-index:50}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px}
+.brand-mark{width:34px;height:34px;border-radius:8px;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700}
+/* hero */
+.hero{background:var(--navy);color:#fff;padding:72px 0 64px}
+.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center}
+.hero h1{color:#fff}
+.hero .sub{color:rgba(255,255,255,.82);font-size:19px;margin:18px 0 14px;max-width:52ch}
+.hero .line{color:var(--gold);font-family:'Fraunces',serif;font-style:italic;font-size:20px;margin:0 0 24px}
+.hero-card{background:var(--mid-navy);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:24px}
+.hero-card h3{color:#fff;margin:0 0 14px;font-size:18px}
+.hero-row{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.1)}
+.hero-row:last-child{border-bottom:0}
+.hero-q{color:var(--gold);font-weight:600;font-size:14px;min-width:110px}
+.hero-a{color:rgba(255,255,255,.85);font-size:14px}
+.hero-small{color:rgba(255,255,255,.65);font-size:13px;margin-top:16px}
+.tile{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:18px;text-align:center}
+.tile .n{font-family:'Fraunces',serif;font-size:22px;color:var(--navy);font-weight:600}
+.tile .l{font-size:12px;color:var(--body);margin-top:4px}
+/* sections */
+.cream{background:var(--cream)}
+.white{background:var(--white)}
+.navy{background:var(--navy);color:#fff}
+.navy h2{color:#fff}
+.navy .muted{color:rgba(255,255,255,.75)}
+.section-title{margin-bottom:12px}
+.section-sub{color:var(--body);max-width:62ch;margin:0 0 36px;font-size:17px}
+.navy .section-sub{color:rgba(255,255,255,.75)}
+/* thought cards */
+.thought{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:18px;font-family:'Fraunces',serif;font-style:italic;color:var(--navy);font-size:17px}
+.reassure{background:var(--navy);color:#fff;border-radius:18px;padding:28px;margin-top:28px}
+.reassure p{color:rgba(255,255,255,.85);margin:0}
+/* paths */
+.path-card{background:var(--white);border:1px solid var(--border);border-radius:18px;padding:24px}
+.path-card h3{color:var(--navy);margin-bottom:8px}
+/* honesty */
+.honesty-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:640px){.honesty-grid{grid-template-columns:1fr}}
+.promise{background:var(--white);border:1px solid var(--border);border-radius:18px;padding:24px}
+.promise h3{margin-bottom:10px}
+.promise ul{margin:0;padding-left:20px;color:var(--body)}
+.promise li{margin:6px 0}
+.promise.no{background:var(--cream)}
+/* steps */
+.step{background:var(--white);border:1px solid var(--border);border-radius:18px;padding:24px}
+.step .num{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--gold-dk);font-weight:600;margin-bottom:8px}
+.step h3{margin-bottom:6px}
+.step ul{margin:10px 0 0;padding:0;list-style:none}
+.step li{display:flex;gap:8px;align-items:flex-start;margin:6px 0;font-size:14px;color:var(--body)}
+.step li svg{flex-shrink:0;margin-top:3px}
+/* corner cards */
+.corner{background:var(--white);border:2px solid var(--gold);border-radius:18px;padding:22px}
+.corner h3{color:var(--navy);margin-bottom:6px;font-size:18px}
+.corner p{color:var(--body);font-size:14px;margin:0}
+/* extras */
+.extra{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;gap:12px;align-items:flex-start}
+.extra svg{flex-shrink:0;color:var(--gold-dk)}
+.extra span{font-size:14px;color:var(--ink);font-weight:500}
+/* price */
+.price-card{background:var(--white);border:2px solid var(--navy);border-radius:20px;padding:32px;max-width:520px;margin:0 auto;text-align:center}
+.price-old{text-decoration:line-through;color:var(--body);font-size:20px}
+.price-new{font-family:'Fraunces',serif;font-size:48px;color:var(--navy);font-weight:700;margin:6px 0}
+.price-code{display:inline-block;background:var(--cream);border:1px dashed var(--border);padding:6px 12px;border-radius:8px;font-weight:600;font-size:14px;margin:12px 0}
+.badge-deadline{display:inline-block;background:var(--gold);color:var(--navy);font-weight:700;font-size:12px;padding:6px 12px;border-radius:999px;margin-bottom:16px}
+/* coach */
+.coach{display:grid;grid-template-columns:200px 1fr;gap:32px;align-items:start}
+.coach-photo{width:200px;height:200px;border-radius:50%;background:var(--cream);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--body);font-size:14px;text-align:center}
+@media (max-width:640px){.coach{grid-template-columns:1fr}.coach-photo{margin:0 auto}}
+.quote{font-family:'Fraunces',serif;font-style:italic;font-size:24px;color:var(--navy);margin:0 0 16px}
+/* faq */
+details{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:16px 20px;margin:0 0 12px}
+details summary{cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:28px}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:"+";color:var(--gold-dk);font-size:22px;font-weight:400}
+details[open] summary::after{content:"âˆ’"}
+details p{color:var(--body);margin:12px 0 0}
+/* footer */
+.footer{background:var(--navy-dk);color:rgba(255,255,255,.7);padding:48px 0 24px;font-size:14px}
+.footer a{color:rgba(255,255,255,.7);text-decoration:underline}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:24px;margin-bottom:24px}
+@media (max-width:640px){.footer-grid{grid-template-columns:1fr}}
+.disclaimer{border-top:1px solid rgba(255,255,255,.15);padding-top:16px;font-size:13px;color:rgba(255,255,255,.55)}
+.icon{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.icon-gold{color:var(--gold-dk)}
+@media (max-width:880px){.hero-grid{grid-template-columns:1fr}.hero{padding:56px 0 48px}section{padding:56px 0}}
+</style>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="8" y1="2" x2="8" y2="18" stroke="currentColor" stroke-width="1.8"/><line x1="16" y1="6" x2="16" y2="22" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" stroke="currentColor" stroke-width="1.8" fill="none"/></symbol>
+  <symbol id="i-graduation" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 12v5c3 3 9 3 12 0v-5" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<nav class="nav">
+  <div class="shell nav-inner">
+    <div class="brand"><span class="brand-mark">i</span> iCare</div>
+    <a class="btn btn-outline" href="#price">See how to start</a>
+  </div>
+</nav>
+
+<main>
+  <section class="hero">
+    <div class="shell hero-grid">
+      <div>
+        <span class="eyebrow">Career coaching + tailored support</span>
+        <h1>You didn't come this far to give up now.</h1>
+        <p class="sub">Another application sent. Another week of silence. The savings going down, the family asking questions, the visa dates in the back of your mind.</p>
+        <p class="line">It isn't because you're not good enough. You just need someone in your corner.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <a class="btn btn-gold" href="https://buy.stripe.com/eVq5kEaIwfAZ7i22MZ73G0n" target="_blank" rel="noopener">Get a coach in your corner</a>
+          <a class="btn btn-outline" href="#paths">Where are you right now?</a>
+        </div>
+        <p class="hero-small">Â£399.20 with code CC20 (was Â£499). Instalments available, subject to approval.</p>
+      </div>
+      <div class="hero-card">
+        <h3>From worry to a plan</h3>
+        <div class="hero-row"><span class="hero-q">Is it my CV?</span><span class="hero-a">A CV built for UK employers</span></div>
+        <div class="hero-row"><span class="hero-q">I freeze in interviews.</span><span class="hero-a">Answers you have practised out loud</span></div>
+        <div class="hero-row"><span class="hero-q">Where do I even look?</span><span class="hero-a">A clear plan and regular UK opportunity updates</span></div>
+        <div class="hero-row"><span class="hero-q">Nobody replies.</span><span class="hero-a">Help following up on applications you've made</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="white">
+    <div class="shell">
+      <div class="grid-4">
+        <div class="tile"><div class="n">300 min</div><div class="l">One-to-one interview prep</div></div>
+        <div class="tile"><div class="n">Unlimited</div><div class="l">CV revisions</div></div>
+        <div class="tile"><div class="n">10â€“4</div><div class="l">Chat support, Monâ€“Fri UK time</div></div>
+        <div class="tile"><div class="n">3 months</div><div class="l">Support, plus 30 days after you start work</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cream">
+    <div class="shell">
+      <h2>Sound familiar?</h2>
+      <p class="section-sub">These are things people tell us. You are not the only one thinking them.</p>
+      <div class="grid-3">
+        <div class="thought">"Why does nobody reply?"</div>
+        <div class="thought">"What if the problem is me?"</div>
+        <div class="thought">"My visa dates are getting closer and I don't have a plan."</div>
+        <div class="thought">"Should I wait for the right job, or take anything?"</div>
+        <div class="thought">"I can't let my family down."</div>
+        <div class="thought">"I don't even know where to start."</div>
+      </div>
+      <div class="reassure">
+        <p>Looking for work in the UK is hard, especially when you are new here. The rules are confusing, the silence is loud, and the pressure to provide is real. You deserve someone who will explain how it works, practise with you, and stay with you until things move.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="white" id="paths">
+    <div class="shell">
+      <h2>Where are you right now?</h2>
+      <p class="section-sub">Pick the one that sounds most like you. There is no wrong answer.</p>
+      <div class="grid-3">
+        <div class="path-card">
+          <h3>I don't know where to start.</h3>
+          <p class="muted">You have sent applications and heard nothing back, and now you are not sure what to fix first. We start with where you are, not where you think you should be, and build a clear first plan together.</p>
+        </div>
+        <div class="path-card">
+          <h3>I want the right job, not just any job.</h3>
+          <p class="muted">You do not want to settle. You want work that uses your skills and moves your career forward. We help you aim with purpose, not panic, and get ready for the roles you actually want.</p>
+        </div>
+        <div class="path-card">
+          <h3>I just need to start working.</h3>
+          <p class="muted">Sometimes the priority is simply to start earning and get a foot in the door. There is no shame in that. We help you find realistic options and build from there, at your pace.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cream">
+    <div class="shell">
+      <h2>About sponsorship, and about what we can promise</h2>
+      <p class="section-sub">Many employers cannot or will not sponsor. Nobody can promise a sponsored job, and we will not sell you false hope. What we can do is make sure that when you do get a chance, you are ready for it.</p>
+      <div class="honesty-grid">
+        <div class="promise">
+          <h3>We will</h3>
+          <ul>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Work hard alongside you</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Tell you what is realistic</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Coach you at every step</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Follow up on applications you have made, with your OK</li>
+          </ul>
+        </div>
+        <div class="promise no">
+          <h3>We can't</h3>
+          <ul>
+            <li><svg class="icon"><use href="#i-shield"/></svg> Promise a job, an interview, a salary or sponsorship</li>
+            <li><svg class="icon"><use href="#i-shield"/></svg> Find vacancies or apply for you</li>
+            <li><svg class="icon"><use href="#i-shield"/></svg> Give immigration or visa advice (speak to a regulated adviser)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="white">
+    <div class="shell">
+      <h2>How we walk with you</h2>
+      <p class="section-sub">Four stages, at your pace. Support lasts three months from your discovery session.</p>
+      <div class="grid-2">
+        <div class="step">
+          <span class="num">01</span>
+          <h3>Get clear</h3>
+          <p class="muted">Know where you are heading before you spend another hour applying.</p>
+          <ul>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Discovery session</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Direction plan (roles, industries, locations)</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Job market map</li>
+          </ul>
+        </div>
+        <div class="step">
+          <span class="num">02</span>
+          <h3>Get ready</h3>
+          <p class="muted">Look and sound like the candidate UK employers want.</p>
+          <ul>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> UK CV</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Cover letter template</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> LinkedIn makeover</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> First recorded mock interview with written notes</li>
+          </ul>
+        </div>
+        <div class="step">
+          <span class="num">03</span>
+          <h3>Keep going</h3>
+          <p class="muted">Stay consistent when the silence drags on.</p>
+          <ul>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Weekly check-in and tracker</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Tailored CV per role type</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Interview coaching before every real interview</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Follow-up on applications you have made (with your OK)</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> UK opportunities bulletin</li>
+          </ul>
+        </div>
+        <div class="step">
+          <span class="num">04</span>
+          <h3>Land it and settle in</h3>
+          <p class="muted">From offer to first day, and beyond.</p>
+          <ul>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> Offer and salary coaching</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> UK workplace confidence session</li>
+            <li><svg class="icon icon-gold"><use href="#i-check"/></svg> 30 days of chat support after you start</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cream" id="included">
+    <div class="shell">
+      <h2>In your corner</h2>
+      <p class="section-sub">The feeling first, then the thing we do about it.</p>
+      <div class="grid-3">
+        <div class="corner"><h3>Someone to ask when panic hits</h3><p>Chat, Monday to Friday, 10am to 4pm UK time, same working day replies.</p></div>
+        <div class="corner"><h3>A CV that finally does you justice</h3><p>Unlimited revisions until it sounds like you.</p></div>
+        <div class="corner"><h3>Walk into interviews feeling ready</h3><p>300 minutes of one-to-one interview prep, booked in blocks.</p></div>
+        <div class="corner"><h3>Help when the silence drags on</h3><p>Application follow-up on the roles you have already applied for.</p></div>
+        <div class="corner"><h3>Know what is out there</h3><p>A UK opportunities bulletin so you are not searching alone.</p></div>
+      </div>
+      <p class="muted" style="margin-top:24px">Plus the extras below, all included in the same price.</p>
+      <div class="grid-13" style="margin-top:16px">
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-star"/></svg><span>Discovery session and direction plan</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-file"/></svg><span>Cover letter and LinkedIn makeover</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-message"/></svg><span>Recorded mock interview feedback</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-clock"/></svg><span>Weekly plan and check-in</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-users"/></svg><span>Networking and outreach scripts</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-heart"/></svg><span>UK workplace confidence session</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-shield"/></svg><span>Assessment centre and aptitude practice</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-briefcase"/></svg><span>Skills gap plan</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-map"/></svg><span>Location guides</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-star"/></svg><span>Offer and salary coaching</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-users"/></svg><span>Monthly group masterclass</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-message"/></svg><span>Peer community chat</span></div>
+        <div class="extra"><svg class="icon icon-gold"><use href="#i-clock"/></svg><span>First 30 days support</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="white" id="price">
+    <div class="shell">
+      <h2 class="center">Three months with someone in your corner.</h2>
+      <p class="section-sub center" style="margin-left:auto;margin-right:auto">We know money is tight. There is one price, no upsells, and instalments are available subject to approval.</p>
+      <div class="price-card">
+        <span class="badge-deadline">Offer ends 31 October</span>
+        <div class="price-old">Â£499</div>
+        <div class="price-new">Â£399.20</div>
+        <p class="muted small">Use code <strong>CC20</strong> at checkout for 20% off.</p>
+        <div class="price-code">CC20</div>
+        <div style="margin:18px 0">
+          <a class="btn btn-navy" href="https://buy.stripe.com/eVq5kEaIwfAZ7i22MZ73G0n" target="_blank" rel="noopener">Start with a coach in your corner</a>
+        </div>
+        <p class="muted small">Instalments via Klarna or Clearpay, subject to their approval and terms. Full refund if you cancel within 14 days before your first session.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="cream">
+    <div class="shell">
+      <h2>Your coach</h2>
+      <div class="coach">
+        <div class="coach-photo">Photo to follow</div>
+        <div>
+          <p class="quote">"I know what it feels like to start over."</p>
+          <p class="muted">I moved from the Philippines to the UAE and later to Europe. I started as a marketing assistant at 21 and grew into global strategy roles, and I hold an Executive Master from SDA Bocconi and ESADE. I coach because I remember what it felt like to be new, unsure, and determined all at once.</p>
+          <p class="muted small">Coach name and final bio to be confirmed before launch.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="white">
+    <div class="shell" style="max-width:760px">
+      <h2>Frequently asked questions</h2>
+      <p class="section-sub">The real fears, answered plainly.</p>
+      <details>
+        <summary>I need sponsorship. Can you get it for me?</summary>
+        <p>No. We cannot promise sponsorship, or find sponsored roles for you. Many employers cannot or will not sponsor. What we can do is make sure that when you do get a chance, you are ready for it. For visa or immigration questions, speak to a regulated adviser.</p>
+      </details>
+      <details>
+        <summary>What if I just need any job to start?</summary>
+        <p>That is completely fine. There is no shame in starting somewhere. We help you find realistic options and build from there, at your pace.</p>
+      </details>
+      <details>
+        <summary>I've been rejected a lot. Will this really help?</summary>
+        <p>Rejection is common, and it is rarely about you as a person. We look at what is not working, improve your CV and interviews, and keep you going. We cannot promise an outcome, but you will not be doing it alone.</p>
+      </details>
+      <details>
+        <summary>Do you find jobs or apply for me?</summary>
+        <p>No. You find and apply for roles. We follow up on applications you have already made, with your permission, and coach you through the process.</p>
+      </details>
+      <details>
+        <summary>How long does support last?</summary>
+        <p>Three months from your discovery session, plus 30 days of chat support after you start work.</p>
+      </details>
+      <details>
+        <summary>What if I change my mind?</summary>
+        <p>You can cancel within 14 days before your first session for a full refund. Once coaching has started, refunds are not available. Refunds still apply if we fail to deliver what was sold.</p>
+      </details>
+      <details>
+        <summary>Money is tight. Can I pay in instalments?</summary>
+        <p>Yes, via Klarna or Clearpay, subject to their approval and terms. Credit is not assured.</p>
+      </details>
+      <details>
+        <summary>Is the discount code still valid?</summary>
+        <p>Code CC20 gives 20% off, bringing the price to Â£399.20. The offer ends 31 October 2026.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="navy">
+    <div class="shell center">
+      <h2>You don't have to figure this out alone.</h2>
+      <p class="section-sub" style="margin:12px auto 28px">Take the next step when you are ready.</p>
+      <a class="btn btn-gold" href="https://buy.stripe.com/eVq5kEaIwfAZ7i22MZ73G0n" target="_blank" rel="noopener">Start with a coach in your corner</a>
+      <p style="margin-top:20px;color:rgba(255,255,255,.75)">Not sure yet? Write to us at <a href="mailto:info@icareltd.com" style="color:var(--gold)">info@icareltd.com</a></p>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="shell">
+    <div class="footer-grid">
+      <div>
+        <strong style="color:#fff">iCare</strong>
+        <p style="margin:8px 0 0">Bolton, United Kingdom. Career coaching and tailored support for people looking for work in the UK.</p>
+      </div>
+      <div>
+        <p style="margin:0 0 6px"><a href="mailto:info@icareltd.com">info@icareltd.com</a></p>
+        <p style="margin:0"><a href="/privacy">Privacy</a></p>
+      </div>
+      <div>
+        <p style="margin:0 0 6px"><a href="/terms">Terms</a></p>
+        <p style="margin:0"><a href="#price">See how to start</a></p>
+      </div>
+    </div>
+    <div class="disclaimer">
+      iCare is a trading name of Genesys Consultancy Ltd, Bolton, United Kingdom. Career coaching and tailored support. Not a recruitment service: we do not speak for you to employers, find roles or apply on your behalf, and we cannot promise a job, an interview, a salary or sponsorship. For immigration or visa advice, speak to a regulated adviser. Refunds within 14 days before the first session; none once coaching has started, unless we fail to deliver what was sold. Prices shown include any applicable taxes.
+    </div>
+  </div>
+</footer>
+</body>
+</html>
+

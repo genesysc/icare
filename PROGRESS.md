@@ -6215,3 +6215,10 @@ fixes below are the security/broken-flow minimum only.
   now highlights the Jobs tab (not the header Profile icon); the Jobs-tab
   "Live-in care" card always shows (registered + no vacancies → "Your
   live-in profile"); the Live-in card was removed from the Profile page.
+
+## 2026-10-31 - Career coaching landing page
+
+- Added new standalone landing page at /career-coaching (alias /coaching) in src/career-coaching.html, implementing the approved 'Career Coaching + Tailored Support' handover (Board B, emotional version + tailored support).
+- Brand: Genesys navy/gold, Fraunces + Public Sans; sections: hero, at-a-glance tiles, sound familiar, paths, honesty about sponsorship, how we walk, in your corner + tailored support grid, price, coach, FAQ, final CTA, footer disclaimer.
+- Wired import and routes in src/index.ts; added /career-coaching to sitemap. Typecheck and wrangler dry-run pass.
+
