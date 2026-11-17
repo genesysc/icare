@@ -2,18 +2,21 @@
 """Daily job sync for the iCare sponsored-jobs board (HANDOVER.md 27, runbook:
 docs/JOB_BOARD_LOADING.md). Run by .github/workflows/job-sync.yml.
 
-  python3 scripts/job-sync/sync.py            # dry run: fetch + parse + print, writes nothing
+  python3 scripts/job-sync/sync.py                  # dry run: fetch + parse, writes ./job-sync-out/*.json only
+  python3 scripts/job-sync/sync.py --only balmoral  # one source
   SPONSOR_REFRESH_SECRET=... python3 scripts/job-sync/sync.py --apply
 
 For each source in SOURCES it reads the employer's public pages, applies the
 agreed rules (health & care roles only; never load an advert that refuses
 sponsorship), pushes the jobs through the secret-gated RPC
-sync_sponsored_jobs (migration 0063) and closes jobs of that source that were
-not seen. Rules this script enforces, so nobody has to remember them:
+sync_sponsored_jobs (migration 0063) and closes jobs of that source that are no
+longer advertised. Rules this script enforces, so nobody has to remember them:
 
   * robots.txt is honoured (path checked as written AND lower-cased, so a
     `Disallow: /umbraco` also blocks /Umbraco/...). A source that is blocked or
-    returns nothing is reported as FAILED and nothing of it is closed.
+    returns nothing is reported FAILED and nothing of it is closed.
+  * Verify before closing: a job the listing no longer shows is only closed
+    after its own page has been re-read (listings such as sitemaps can lag).
   * close_unseen_sponsored_jobs refuses to close if < half of a source's live
     jobs were seen, so a layout change or a block can't wipe the board.
   * No dates on the page -> expires_at is rolled 30 days forward on every run,
@@ -38,20 +41,22 @@ from datetime import datetime, timedelta, timezone
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://blflbiwqflidltqflwew.supabase.co")
 SUPABASE_KEY = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_Ply3rrROmY-6gNxnppBwvg_eXI-z5pd")
 SECRET = os.environ.get("SPONSOR_REFRESH_SECRET")
-UA = "iCareJobSync/1.0 (+https://icareltd.com)"
+UA = "Mozilla/5.0 (compatible; iCareJobSync/1.0; +https://icareltd.com)"
 ROLLING_DAYS = 30
 BATCH = 10
 NOW = datetime.now(timezone.utc)
+TODAY = NOW.strftime("%Y-%m-%d")
 ROLLING_EXPIRY = (NOW + timedelta(days=ROLLING_DAYS)).strftime("%Y-%m-%dT23:59:59+00")
 
-# A job is skipped when its advert says any of these (sponsorship refused,
-# or the advert only asks the question without saying it is offered).
+# A job is skipped when its advert says any of these (sponsorship refused).
 REFUSES = re.compile(
     r"(do(?:es)? not|don'?t|doesn'?t|unable to|cannot|can'?t|not able to|currently not|not currently)\s+(?:\w+\s+){0,3}(?:offer|provide|sponsor|consider)[^.\n]{0,40}sponsor"
-    r"|no\s+sponsorship|sponsorship\s+(?:is\s+)?(?:not|unavailable)|UK applications only|not meet the criteria for visa sponsorship"
-    r"|do you require sponsorship",
+    r"|no\s+sponsorship|sponsorship\s+(?:is\s+)?(?:not|unavailable)|UK applications only|not meet the criteria for visa sponsorship",
     re.I,
 )
+# An application-form question, not a statement. Renaissance's forms carry it
+# on every page, so it is only used where we decided to treat it as a "no".
+SPONSOR_QUESTION = re.compile(r"do you require sponsorship", re.I)
 STALE = re.compile(r"coronavirus|covid", re.I)
 
 
@@ -97,12 +102,23 @@ class Http:
         wait = self.last.get(host, 0) + delay - time.time()
         if wait > 0:
             time.sleep(wait)
-        req = urllib.request.Request(url, data=data, headers=headers or {})
-        try:
-            with self.opener.open(req, timeout=40) as r:
-                return r.read().decode("utf-8", "ignore")
-        finally:
-            self.last[host] = time.time()
+        last_err = None
+        for pause in (0, 4, 12):  # retry transient resets / timeouts / 5xx
+            if pause:
+                time.sleep(pause)
+            req = urllib.request.Request(url, data=data, headers=headers or {})
+            try:
+                with self.opener.open(req, timeout=40) as r:
+                    return r.read().decode("utf-8", "ignore")
+            except urllib.error.HTTPError as e:
+                if e.code < 500 and e.code != 429:
+                    raise
+                last_err = e
+            except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
+                last_err = e
+            finally:
+                self.last[host] = time.time()
+        raise last_err
 
 
 def text_of(page):
@@ -138,6 +154,7 @@ def iso_date(s, fmt):
 
 
 # ------------------------------------------------------------ renaissance ---
+REN_BASE = "https://www.renaissance-care.co.uk"
 REN_KEEP = re.compile(r"care assistant|care team leader|nurse|home manager|deputy manager|wellbeing lead", re.I)
 REN_TOWNS = {"meadowlark": "Forres", "benvie": "Dundee", "jesmond": "Aberdeen", "glencairn": "Edinburgh",
              "riverside": "Aberdeen", "letham": "Edinburgh", "malin": "Girvan", "berelands": "Prestwick",
@@ -149,61 +166,60 @@ REN_HOMES = {"benvie": "Benvie Care Home", "letham": "Letham Park Care Home", "m
              "croftbank": "Croftbank House Care Home", "cowdray": "Cowdray Club Care Home"}
 
 
-def source_renaissance(h):
-    base = "https://www.renaissance-care.co.uk"
-    sm = h.get(base + "/sitemap.xml")
+def ren_urls(h):
+    sm = h.get(REN_BASE + "/sitemap.xml")
     urls = sorted({u for u in re.findall(r"<loc>([^<]+)</loc>", sm)
-                   if re.match(re.escape(base) + r"/career-hub/[a-z0-9-]+/[a-z0-9-]+/$", u)})
-    jobs, seen_pages = [], 0
-    for u in urls:
-        slug_home = u.split("/")[-3]
-        page = h.get(u)
-        L = lines_of(page)
-        try:
-            i = L.index("Career Hub")
-        except ValueError:
-            continue
-        title = L[i + 1]
-        seen_pages += 1
-        if not REN_KEEP.search(title):
-            continue
-        posted, closes = after(L, "Posted"), after(L, "Closes")
-        if not posted or not closes:
-            continue
-        expires = iso_date(closes, "%B %d, %Y")
-        if expires < NOW.strftime("%Y-%m-%d"):
-            continue
-        body = text_of(page)
-        if REFUSES.search(body):
-            continue
-        loc_i = L.index("Location:") if "Location:" in L else -1
-        loc = " ".join(L[loc_i + 1: loc_i + 5]) if loc_i >= 0 else ""
-        key = next((k for k in REN_TOWNS if k in (slug_home + " " + loc + " " + title).lower()), None)
-        if not key:
-            continue  # unknown home: leave for a human (reported below)
-        rate = after(L, "Rate") or ""
-        pay = hourly(rate)
-        desc_lines = [x for x in L[i + 3:] if len(x) > 60 and not x.startswith(("Posted", "Location"))][:2]
-        hrs = re.search(r"(\d{2}(?:\.\d+)?)\s*hours?\s*(?:per|a)\s*week", body, re.I)
-        contract = (after(L, "Contract") or "").strip() or None
-        if "bank" in u.lower():
-            contract = "Bank"
-        jobs.append({
-            "source_job_id": "renaissance-care:career-hub/" + "/".join(u.rstrip("/").split("/")[-2:]),
-            "title": re.sub(r"\s+", " ", title).strip(),
-            "employer_name": "Renaissance Care (Scotland) Ltd",
-            "town": REN_TOWNS[key], "region": (L[loc_i + 1] if loc_i >= 0 else None),
-            "location_name": REN_HOMES.get(key, key.title() + " Care Home"),
-            "salary_min": min(pay) if pay else None, "salary_max": max(pay) if pay else None,
-            "salary_period": "hour" if pay else "year",
-            "sector": "Nursing" if "nurse" in title.lower() else "Adult social care",
-            "contract_type": contract, "hours": (hrs.group(1) + " hours per week") if hrs and float(hrs.group(1)) >= 20 else None,
-            "apply_url": u, "description": excerpt(" ".join(desc_lines)),
-            "posted_at": iso_date(posted, "%B %d, %Y"), "expires_at": expires + "T23:59:59+00",
-        })
-    if seen_pages == 0:
-        raise RuntimeError("no job pages parsed")
-    return jobs
+                   if re.match(re.escape(REN_BASE) + r"/career-hub/[a-z0-9-]+/[a-z0-9-]+/$", u)})
+    if not urls:
+        raise RuntimeError("sitemap lists no job pages")
+    return urls
+
+
+def ren_parse(h, u):
+    """One job page -> payload dict, or None if it is not a live health & care job."""
+    page = h.get(u)
+    L = lines_of(page)
+    if "Career Hub" not in L:
+        return None
+    i = L.index("Career Hub")
+    title = L[i + 1]
+    if not REN_KEEP.search(title):
+        return None
+    posted, closes = after(L, "Posted"), after(L, "Closes")
+    if not posted or not closes:
+        return None
+    expires = iso_date(closes, "%B %d, %Y")
+    if expires < TODAY:
+        return None
+    body = text_of(page)
+    if REFUSES.search(body):
+        return None
+    slug_home = u.split("/")[-3]
+    loc_i = L.index("Location:") if "Location:" in L else -1
+    loc = " ".join(L[loc_i + 1: loc_i + 5]) if loc_i >= 0 else ""
+    key = next((k for k in REN_TOWNS if k in (slug_home + " " + loc + " " + title).lower()), None)
+    if not key:
+        return None  # unknown care home: needs a human to add it to REN_TOWNS
+    pay = hourly(after(L, "Rate") or "")
+    desc_lines = [x for x in L[i + 3:] if len(x) > 60 and not x.startswith(("Posted", "Location"))][:2]
+    hrs = re.search(r"(\d{2}(?:\.\d+)?)\s*hours?\s*(?:per|a)\s*week", body, re.I)
+    contract = (after(L, "Contract") or "").strip() or None
+    if "bank" in u.lower():
+        contract = "Bank"
+    return {
+        "source_job_id": "renaissance-care:career-hub/" + "/".join(u.rstrip("/").split("/")[-2:]),
+        "title": re.sub(r"\s+", " ", title).strip(),
+        "employer_name": "Renaissance Care (Scotland) Ltd",
+        "town": REN_TOWNS[key], "region": (L[loc_i + 1] if loc_i >= 0 else None),
+        "location_name": REN_HOMES.get(key, key.title() + " Care Home"),
+        "salary_min": min(pay) if pay else None, "salary_max": max(pay) if pay else None,
+        "salary_period": "hour" if pay else "year",
+        "sector": "Nursing" if "nurse" in title.lower() else "Adult social care",
+        "contract_type": contract,
+        "hours": (hrs.group(1) + " hours per week") if hrs and float(hrs.group(1)) >= 20 else None,
+        "apply_url": u, "description": excerpt(" ".join(desc_lines)),
+        "posted_at": iso_date(posted, "%B %d, %Y"), "expires_at": expires + "T23:59:59+00",
+    }
 
 
 # ---------------------------------------------------------------- balmoral --
@@ -212,10 +228,11 @@ BAL_REGION = {"prestwick": "Ayrshire", "ayr": "Ayrshire", "castle douglas": "Dum
               "dumfries": "Dumfries & Galloway", "stranraer": "Dumfries & Galloway",
               "clydebank": "Glasgow area", "bishopbriggs": "Glasgow area", "bearsden": "Glasgow area",
               "clackmannanshire": "Forth Valley", "stirling": "Forth Valley", "falkirk": "Forth Valley",
-              "west lothian": "West Lothian", "winchburgh": "West Lothian", "dundee": "Tayside"}
+              "west lothian": "West Lothian", "winchburgh": "West Lothian", "dundee": "Tayside",
+              "edinburgh": "Lothian"}
 
 
-def source_balmoral(h):
+def bal_ids(h):
     list_url = BAL_BASE + "vacancy-search-results.aspx"
     page = h.get(list_url)
     ids = re.findall(r"VacancyID=(\d+)", page)
@@ -233,41 +250,40 @@ def source_balmoral(h):
     ids = list(dict.fromkeys(ids))
     if not ids:
         raise RuntimeError("no vacancy ids found")
-    jobs = []
-    for vid in ids:
-        u = f"{BAL_BASE}vacancy-details.aspx?VacancyID={vid}"
-        L = lines_of(h.get(u))
-        try:
-            i = L.index("Call us for any questions")
-        except ValueError:
-            continue
-        title = L[i + 2]
-        body = "\n".join(L[i:])
-        if REFUSES.search(body) or STALE.search(body):
-            continue
-        sal = after(L, "Advertising Salary") or ""
-        m = re.search(r"£\s?([\d,]+(?:\.\d+)?)\s*(per annum|per hour|an hour|p/h)?", sal)
-        smin = float(m.group(1).replace(",", "")) if m else None
-        period = "hour" if m and (m.group(2) or "").lower() != "per annum" and smin and smin < 100 else "year"
-        suffix = re.split(r"\s+-\s+", title, maxsplit=1)[-1] if " - " in title else None
-        loc_line = next((x for x in L[i:i + 14] if x.lower().startswith(("ayrshire", "dumfries", "castle", "bearsden", "stirling",
-                                                                        "livingston", "west lothian", "falkirk", "dundee"))), "")
-        town = (suffix or loc_line or "Scotland").split("/")[0].split(",")[0].strip()
-        town = re.sub(r"\s*\(.*\)$", "", town)
-        region = next((r for k, r in BAL_REGION.items() if k in (town + " " + loc_line).lower()), None)
-        esteem = "esteem care" in body[:900].lower()
-        about = body.split("About The Role", 1)[-1].strip().split("\n")
-        jobs.append({
-            "source_job_id": f"balmoral:{vid}",
-            "title": title,
-            "employer_name": "Esteem Care Dumfries and Galloway Ltd" if esteem else "Balmoral Homecare Ltd",
-            "town": town, "region": region, "location_name": town,
-            "salary_min": smin, "salary_max": smin, "salary_period": period, "sector": "Home care",
-            "contract_type": "Bank" if re.search(r"\bbank\b", body[:1500], re.I) else None,
-            "apply_url": u, "description": excerpt(next((x for x in about if len(x) > 60), title)),
-            "expires_at": ROLLING_EXPIRY,
-        })
-    return jobs
+    return [f"{BAL_BASE}vacancy-details.aspx?VacancyID={v}" for v in ids]
+
+
+def bal_parse(h, u):
+    vid = u.rsplit("=", 1)[-1]
+    L = lines_of(h.get(u))
+    if "Call us for any questions" not in L:
+        return None
+    i = L.index("Call us for any questions")
+    title = L[i + 2]
+    body = "\n".join(L[i:])
+    if REFUSES.search(body) or STALE.search(body):
+        return None
+    sal = after(L, "Advertising Salary") or ""
+    m = re.search(r"£\s?([\d,]+(?:\.\d+)?)\s*(per annum|per hour|an hour|p/h)?", sal)
+    smin = float(m.group(1).replace(",", "")) if m else None
+    period = "hour" if m and (m.group(2) or "").lower() != "per annum" and smin and smin < 100 else "year"
+    suffix = re.split(r"\s+-\s+", title, maxsplit=1)[-1] if " - " in title else None
+    loc_line = next((x for x in L[i:i + 14] if x.lower().startswith(("ayrshire", "dumfries", "castle", "bearsden", "stirling",
+                                                                    "livingston", "west lothian", "falkirk", "dundee", "edinburgh"))), "")
+    town = (suffix or loc_line or "Scotland").split("/")[0].split(",")[0].strip()
+    town = re.sub(r"\s*\(.*\)$", "", town)
+    region = next((r for k, r in BAL_REGION.items() if k in (town + " " + loc_line).lower()), None)
+    esteem = "esteem care" in body[:900].lower()
+    about = body.split("About The Role", 1)[-1].strip().split("\n")
+    return {
+        "source_job_id": f"balmoral:{vid}", "title": title,
+        "employer_name": "Esteem Care Dumfries and Galloway Ltd" if esteem else "Balmoral Homecare Ltd",
+        "town": town, "region": region, "location_name": town,
+        "salary_min": smin, "salary_max": smin, "salary_period": period, "sector": "Home care",
+        "contract_type": "Bank" if re.search(r"\bbank\b", body[:1500], re.I) else None,
+        "apply_url": u, "description": excerpt(next((x for x in about if len(x) > 60), title)),
+        "expires_at": ROLLING_EXPIRY,
+    }
 
 
 # ------------------------------------------------------------- right at home -
@@ -295,45 +311,52 @@ RAH_OFFICES = {  # office slug -> (exact register name, town, region)
 RAH_SKIP_TITLE = re.compile(r"loneliness companion|\b20(?:1\d|2[0-5])\b", re.I)
 
 
-def source_rightathome(h):
-    jobs, pages = [], 0
-    for slug, (employer, town, region) in RAH_OFFICES.items():
+def rah_urls(h):
+    out = []
+    for slug in RAH_OFFICES:
         sm = h.get(f"{RAH_BASE}/{slug}/sitemap.xml")
-        for u in sorted(set(re.findall(r"<loc>([^<]+/available-opportunities/[a-z0-9-]+/)</loc>", sm))):
-            page = h.get(u)
-            L = lines_of(page)
-            t = "\n".join(L)
-            pages += 1
-            m = re.search(r"Careers\n/\n([^\n]+)", t)
-            title = m.group(1).strip() if m else None
-            if not title or RAH_SKIP_TITLE.search(title) or STALE.search(t) or REFUSES.search(t):
-                continue
-            pay = hourly(t)
-            if re.findall(r"£\s?(\d{1,2}\.\d{2})\s?(?:per hour|/hr|ph|p/h)", t) and any(float(x) < 12 for x in
-                    re.findall(r"£\s?(\d{1,2}\.\d{2})\s?(?:per hour|/hr|ph|p/h)", t)):
-                continue  # rate below minimum wage: an old page
-            suffix = re.split(r"\s+[-–:]\s+", title, maxsplit=1)[-1] if re.search(r"\s[-–:]\s", title) else None
-            jtown = suffix if (slug == "cheshireeast" and suffix) else town
-            jobs.append({
-                "source_job_id": "rightathome:" + slug + "/" + u.rstrip("/").split("/")[-1],
-                "title": title, "employer_name": employer, "town": jtown, "region": region,
-                "location_name": suffix if suffix and len(suffix) < 60 else None,
-                "salary_min": min(pay) if pay else None, "salary_max": max(pay) if pay else None,
-                "salary_period": "hour" if pay else "year", "sector": "Home care",
-                "apply_url": u,
-                "description": f"{title} with {re.sub(r'^.*?(Right at Home)', r'Right at Home', employer, flags=re.I)}. "
-                               "An evergreen recruitment page on the office's website; check the advert for current availability, pay and hours.",
-                "expires_at": ROLLING_EXPIRY,
-            })
-    if pages == 0:
+        out += sorted(set(re.findall(r"<loc>([^<]+/available-opportunities/[a-z0-9-]+/)</loc>", sm)))
+    if not out:
         raise RuntimeError("no job pages found")
-    return jobs
+    return out
 
 
+def rah_parse(h, u):
+    slug = u.replace(RAH_BASE + "/", "").split("/")[0]
+    if slug not in RAH_OFFICES:
+        return None
+    employer, town, region = RAH_OFFICES[slug]
+    t = "\n".join(lines_of(h.get(u)))
+    m = re.search(r"Careers\n/\n([^\n]+)", t)
+    title = m.group(1).strip() if m else None
+    if not title or RAH_SKIP_TITLE.search(title) or STALE.search(t) or REFUSES.search(t) or SPONSOR_QUESTION.search(t):
+        return None
+    rates = [float(x) for x in re.findall(r"£\s?(\d{1,2}\.\d{2})\s?(?:per hour|/hr|ph|p/h)", t)]
+    if any(r < 12 for r in rates):
+        return None  # rate below minimum wage: an old page
+    pay = hourly(t)
+    suffix = re.split(r"\s+[-–:]\s+", title, maxsplit=1)[-1] if re.search(r"\s[-–:]\s", title) else None
+    return {
+        "source_job_id": "rightathome:" + slug + "/" + u.rstrip("/").split("/")[-1],
+        "title": title, "employer_name": employer,
+        "town": suffix if (slug == "cheshireeast" and suffix) else town, "region": region,
+        "location_name": suffix if suffix and len(suffix) < 60 else None,
+        "salary_min": min(pay) if pay else None, "salary_max": max(pay) if pay else None,
+        "salary_period": "hour" if pay else "year", "sector": "Home care",
+        "apply_url": u,
+        "description": f"{title} with {re.sub(r'^.*?(Right at Home)', r'Right at Home', employer, flags=re.I)}. "
+                       "An evergreen recruitment page on the office's website; check the advert for current availability, pay and hours.",
+        "expires_at": ROLLING_EXPIRY,
+    }
+
+
+# verify_missing: the listing can lag behind the live site (Renaissance's sitemap
+# omits brand-new jobs), so a job it no longer shows has its own page re-read
+# before it is closed. Balmoral's list is authoritative (delisted pages still load).
 SOURCES = [
-    ("renaissance-care:", "Renaissance Care", source_renaissance),
-    ("balmoral:", "Balmoral Homecare", source_balmoral),
-    ("rightathome:", "Right at Home (17 offices)", source_rightathome),
+    {"prefix": "renaissance-care:", "name": "Renaissance Care", "list": ren_urls, "parse": ren_parse, "verify_missing": True},
+    {"prefix": "balmoral:", "name": "Balmoral Homecare", "list": bal_ids, "parse": bal_parse, "verify_missing": False},
+    {"prefix": "rightathome:", "name": "Right at Home (17 offices)", "list": rah_urls, "parse": rah_parse, "verify_missing": True},
 ]
 
 
@@ -349,43 +372,77 @@ def rpc(fn, args):
         raise RuntimeError(f"{fn} failed ({e.code}): {e.read().decode('utf-8', 'ignore')[:300]}")
 
 
+def run_source(h, src, apply):
+    row = {"source": src["name"], "found": 0, "new": 0, "updated": 0, "open": 0, "hidden": 0, "closed": 0,
+           "rechecked": 0, "status": "ok"}
+    urls = src["list"](h)
+    jobs = []
+    for u in urls:
+        j = src["parse"](h, u)
+        if j:
+            jobs.append(j)
+    if not jobs:
+        raise RuntimeError("0 jobs found")
+
+    if src["verify_missing"] and apply:
+        seen = {j["apply_url"] for j in jobs}
+        live = rpc("live_sponsored_job_urls", {"p_secret": SECRET, "p_prefix": src["prefix"]})
+        for item in live:
+            if item["url"] and item["url"] not in seen and item["url"] not in urls:
+                row["rechecked"] += 1
+                try:
+                    j = src["parse"](h, item["url"])
+                except urllib.error.HTTPError as e:
+                    if e.code in (404, 410):
+                        j = None  # page is gone: safe to close
+                    else:
+                        raise
+                if j:
+                    jobs.append(j)
+
+    ids = [j["source_job_id"] for j in jobs]
+    if len(ids) != len(set(ids)):
+        raise RuntimeError("duplicate job ids")
+    jobs = [{k: v for k, v in j.items() if v is not None} for j in jobs]
+    row["found"] = len(jobs)
+    if apply:
+        for i in range(0, len(jobs), BATCH):
+            r = rpc("sync_sponsored_jobs", {"p_secret": SECRET, "p_jobs": jobs[i:i + BATCH]})
+            for k in ("new", "updated", "open", "hidden"):
+                row[k] += r[k]
+        row["closed"] = rpc("close_unseen_sponsored_jobs",
+                            {"p_secret": SECRET, "p_prefix": src["prefix"], "p_seen": ids})["closed"]
+    else:
+        os.makedirs("job-sync-out", exist_ok=True)
+        with open(f"job-sync-out/{src['prefix'].rstrip(':')}.json", "w") as f:
+            json.dump(jobs, f, indent=1, ensure_ascii=False)
+    return row
+
+
 def main():
     apply = "--apply" in sys.argv
     if apply and not SECRET:
         sys.exit("SPONSOR_REFRESH_SECRET is not set")
+    only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
     h = Http()
     report, failed = [], False
-    for prefix, name, fn in SOURCES:
-        row = {"source": name, "found": 0, "new": 0, "updated": 0, "open": 0, "hidden": 0, "closed": 0, "status": "ok"}
+    for src in SOURCES:
+        if only and only not in src["prefix"]:
+            continue
         try:
-            jobs = fn(h)
-            ids = [j["source_job_id"] for j in jobs]
-            if len(ids) != len(set(ids)):
-                raise RuntimeError("duplicate job ids")
-            jobs = [{k: v for k, v in j.items() if v is not None} for j in jobs]
-            row["found"] = len(jobs)
-            if not jobs:
-                raise RuntimeError("0 jobs found")
-            if apply:
-                for i in range(0, len(jobs), BATCH):
-                    r = rpc("sync_sponsored_jobs", {"p_secret": SECRET, "p_jobs": jobs[i:i + BATCH]})
-                    for k in ("new", "updated", "open", "hidden"):
-                        row[k] += r[k]
-                c = rpc("close_unseen_sponsored_jobs", {"p_secret": SECRET, "p_prefix": prefix, "p_seen": ids})
-                row["closed"] = c["closed"]
-            else:
-                os.makedirs("job-sync-out", exist_ok=True)
-                with open(f"job-sync-out/{prefix.rstrip(':')}.json", "w") as f:
-                    json.dump(jobs, f, indent=1, ensure_ascii=False)
+            row = run_source(h, src, apply)
         except Exception as e:  # one failing source must not stop the others
-            row["status"] = f"FAILED: {e}"
+            row = {"source": src["name"], "found": 0, "new": 0, "updated": 0, "open": 0, "hidden": 0, "closed": 0,
+                   "rechecked": 0, "status": f"FAILED: {e}"}
             failed = True
         report.append(row)
         print(row, flush=True)
 
-    lines = ["| Source | Found | New | Updated | Open | Hidden | Closed | Status |", "|---|---|---|---|---|---|---|---|"]
+    lines = ["| Source | Found | New | Updated | Open | Hidden | Closed | Re-checked | Status |",
+             "|---|---|---|---|---|---|---|---|---|"]
     for r in report:
-        lines.append(f"| {r['source']} | {r['found']} | {r['new']} | {r['updated']} | {r['open']} | {r['hidden']} | {r['closed']} | {r['status']} |")
+        lines.append(f"| {r['source']} | {r['found']} | {r['new']} | {r['updated']} | {r['open']} | {r['hidden']} | "
+                     f"{r['closed']} | {r['rechecked']} | {r['status']} |")
     summary = "\n".join(["### Job sync" + ("" if apply else " (dry run — nothing written)")] + lines)
     print(summary)
     if os.environ.get("GITHUB_STEP_SUMMARY"):

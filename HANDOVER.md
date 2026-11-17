@@ -3179,3 +3179,19 @@ select a.full_name, a.email, j.requested_at from jobs_board_access j join accoun
 Not built: an in-app admin list (approval is by the emailed link or SQL);
 the member's bell notification on approval (they get the email).
 
+
+
+### 27g. Daily job sync — Stage 1 of "less manual work" (2026-11-17)
+
+Migrations **0063** (`sync_sponsored_jobs`, `close_unseen_sponsored_jobs`) and **0064**
+(`live_sponsored_job_urls`) — secret-gated (anon + `sponsor_refresh_secret`, NULL-safe), applied to the live DB. `scripts/job-sync/sync.py`
+(Python stdlib) + `.github/workflows/job-sync.yml` (daily 07:40 UTC, manual dispatch with an `apply` switch) re-read Renaissance Care
+(sitemap + job pages — **not** the `/Umbraco/…` feed, because robots.txt has `Disallow: /umbraco`), Balmoral (ASP.NET list + detail pages)
+and Right at Home (17 office sitemaps). Safeguards: robots check on every URL (also lower-cased path); verify-before-close for sources whose
+listing can lag (Renaissance's sitemap omits brand-new jobs); close refuses if < half of a source's live jobs were seen; 30-day rolling expiry
+where the site shows no dates; one failing source never stops the others, the run goes red. Renaissance's application form carries a
+"Do you require sponsorship?" question on every page — treated as form boilerplate there (not a refusal); still treated as a "no" for Right at Home
+(Mid Cheshire), as decided earlier. A dry run on 2026-11-17 against the live DB showed real drift since October (Renaissance +13 new / 8 gone,
+Balmoral +5 / 2 gone), which the sync will apply. Next stages (see the plan given to the founder): config-driven employers, NHS Jobs per
+employer code, Reed/Adzuna, employer self-posting, an admin "needs attention" view; and a discovery tool that takes employer names from the
+register, finds their sites/careers pages and other job boards (Firecrawl/Indeed connectors), proposed 2026-11-17.
