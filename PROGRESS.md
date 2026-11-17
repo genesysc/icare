@@ -6237,3 +6237,11 @@ fixes below are the security/broken-flow minimum only.
 - Brand: Genesys navy/gold, Fraunces + Public Sans; sections: hero, at-a-glance tiles, sound familiar, paths, honesty about sponsorship, how we walk, in your corner + tailored support grid, price, coach, FAQ, final CTA, footer disclaimer.
 - Wired import and routes in src/index.ts; added /career-coaching to sitemap. Typecheck and wrangler dry-run pass.
 
+
+## 2026-11-17 — Career coaching linked from the home page
+
+- Founder: "have the career-coaching page visible in the home page".
+  `landing.html` now links `/career-coaching` from the top nav, the mobile
+  menu and the footer's Candidates column. The page itself (another
+  session's work) is untouched. NOTE for the founder: that page still says
+  "Offer ends 5 November" / code CC20 — past as of 2026-11-17.
