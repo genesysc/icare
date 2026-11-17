@@ -348,8 +348,18 @@
   <section class="card locked" data-locked hidden>
     <p class="eyebrow">Jobs</p>
     <h2 data-locked-title>Create your profile to open the jobs board</h2>
-    <p data-locked-text>The iCare jobs board lists UK health and care jobs from employers on the Home Office sponsor register. It opens as soon as you've finished your iCare profile.</p>
+    <p data-locked-text>The iCare jobs board lists UK health and care jobs from employers on the Home Office sponsor register. It opens once you have finished your iCare profile and we have approved your request.</p>
     <a class="btn" href="/onboarding" data-locked-link>Finish your profile →</a>
+    <button class="btn" type="button" data-request-access hidden>Request access</button>
+    <p class="status" data-request-status role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card livein" aria-labelledby="livein-title" data-livein hidden>
+    <p class="eyebrow">Live-in care</p>
+    <h2 id="livein-title">Live-in care vacancies</h2>
+    <p class="livein-sub" data-livein-sub></p>
+    <ul class="jobs" data-livein-list></ul>
+    <a class="btn teal" data-livein-cta href="/live-in-carers"></a>
   </section>
 
   <div data-board hidden>
@@ -361,13 +371,6 @@
         <p class="stamp" data-stamp></p>
       </header>
 
-      <section class="card livein" aria-labelledby="livein-title" data-livein hidden>
-        <p class="eyebrow">Live-in care</p>
-        <h2 id="livein-title">Live-in care vacancies</h2>
-        <p class="livein-sub" data-livein-sub></p>
-        <ul class="jobs" data-livein-list></ul>
-        <a class="btn teal" data-livein-cta href="/live-in-carers"></a>
-      </section>
 
       <section class="card" aria-label="Jobs" data-list>
         <form class="filters" data-form autocomplete="off">
@@ -534,6 +537,51 @@ function icareRequireAuth(signInPath) {
     lockedEl.hidden = false;
   }
 
+  // Locked states from /sponsored-jobs/status (migration 0062): finish the
+  // profile, request access, waiting for iCare, or declined.
+  var requestBtn = document.querySelector("[data-request-access]");
+  var requestStatus = document.querySelector("[data-request-status]");
+  function showLocked(state) {
+    var link = document.querySelector("[data-locked-link]");
+    requestBtn.hidden = true;
+    requestStatus.textContent = "";
+    if (state === "not_requested") {
+      lock("Request access to the jobs board", "The jobs board is open to members we've approved. Ask for access and the iCare team will review your request. We'll email you as soon as you're in.", null, null);
+      link.hidden = true;
+      requestBtn.hidden = false;
+      requestBtn.disabled = false;
+    } else if (state === "requested") {
+      lock("Request received", "Thanks. The iCare team is reviewing your request and we'll email you as soon as the jobs board is open to you.", null, null);
+      link.hidden = true;
+    } else if (state === "declined") {
+      lock("We can't open the jobs board for you right now", "If you think this is a mistake, email info@icareltd.com and we'll look again.", null, null);
+      link.hidden = true;
+    } else {
+      link.hidden = false;
+      lock("Create your profile to open the jobs board", "The iCare jobs board lists UK health and care jobs from employers on the Home Office sponsor register. Finish your iCare profile, then ask for access.", "Finish your profile \u2192", "/onboarding");
+    }
+  }
+  requestBtn.addEventListener("click", function () {
+    requestBtn.disabled = true;
+    requestStatus.className = "status";
+    requestStatus.textContent = "Sending your request…";
+    jpost("/sponsored-jobs/access/request").then(function (r) {
+      if (r.status === 401) { icareClearSession(); icareRequireAuth(); return; }
+      if (!r.ok) {
+        requestBtn.disabled = false;
+        requestStatus.className = "status err";
+        requestStatus.textContent = (r.body && r.body.error) || "Couldn't send your request. Please try again.";
+        return;
+      }
+      if (r.body.state === "approved") { window.location.reload(); return; }
+      showLocked(r.body.state);
+    }).catch(function () {
+      requestBtn.disabled = false;
+      requestStatus.className = "status err";
+      requestStatus.textContent = "Couldn't send your request. Please check your connection and try again.";
+    });
+  });
+
   function setStatus(nodes, isErr) {
     statusEl.textContent = "";
     statusEl.className = "status" + (isErr ? " err" : "");
@@ -572,7 +620,7 @@ function icareRequireAuth(signInPath) {
       if (seq !== state.seq) return;
       moreBtn.disabled = false;
       if (r.status === 401) { icareClearSession(); icareRequireAuth(); return; }
-      if (r.status === 403) { lock(); return; }
+      if (r.status === 403) { window.location.href = "/jobs"; return; }
       if (!r.ok) { setStatus("Couldn't load jobs. Please try again.", true); return; }
       state.total = r.body.total;
       r.body.jobs.forEach(function (j) { jobsEl.appendChild(renderJob(j)); });
@@ -724,7 +772,7 @@ function icareRequireAuth(signInPath) {
     window.scrollTo(0, 0);
     jget("/sponsored-jobs/" + encodeURIComponent(id)).then(function (r) {
       if (r.status === 401) { icareClearSession(); icareRequireAuth(); return; }
-      if (r.status === 403) { lock(); return; }
+      if (r.status === 403) { window.location.href = "/jobs"; return; }
       if (!r.ok) {
         detailBody.textContent = "";
         detailBody.appendChild(el("p", "status err", (r.body && r.body.error) || "Couldn't load this job."));
@@ -796,7 +844,6 @@ function icareRequireAuth(signInPath) {
 
   function startBoard(status) {
     boardEl.hidden = false;
-    loadLiveIn();
     (status.regions || []).forEach(function (r) {
       var o = el("option", null, r);
       o.value = r;
@@ -833,9 +880,11 @@ function icareRequireAuth(signInPath) {
       lock("The jobs board is for iCare members", "Jobs are listed for candidates with an iCare profile.", "Back to your dashboard →", "/employer/home");
       return;
     }
+    loadLiveIn();
     return jget("/sponsored-jobs/status").then(function (s) {
       if (s.status === 401) { icareClearSession(); icareRequireAuth(); return; }
-      if (!s.ok || !s.body.access) { lock(); return; }
+      if (!s.ok) { lock("Couldn't load the jobs board", "Please check your connection and refresh the page.", "Refresh", "/jobs"); return; }
+      if (!s.body.access) { showLocked(s.body.state); return; }
       document.querySelector("[data-tab-bar]").hidden = false;
       jget("/candidates/me/shortlists").then(function (r) {
         if (r.ok) {

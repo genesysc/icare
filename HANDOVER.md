@@ -3129,3 +3129,52 @@ values (
 update live_in_vacancies set status = 'closed' where id = '<id>';
 ```
 
+## 30. Jobs board: request access, approved by iCare (founder, 2026-11-17; migration `0062`)
+
+The wall on the jobs board is no longer just "finish your profile". A member
+must ALSO be approved by iCare:
+
+1. Finished profile → the Jobs tab shows **Request access**.
+2. Tapping it emails **info@** (name, email, profession, town) with a
+   **Review this request** link. DB ping → `/internal/jobs-access-ping`
+   (pg_net); the 2-hourly cron is the safety net.
+3. The link (`/internal/jobs-access/<64-hex token>`) opens a confirm page
+   with **Approve** / **Decline** (POST, so an email scanner opening it
+   changes nothing). The token is the credential: the email goes only to
+   info@ and says not to forward it.
+4. Approve emails the member ("You now have access") and opens the board;
+   decline sends nothing and the member sees "We can't open the jobs board
+   for you right now… email info@". Approve also works on a declined
+   request (undo a mistake); decline only on a pending one. A second press
+   never emails twice.
+
+Enforcement is in the database, not the page: `sponsored_jobs_member_read`
+and `apply_to_sponsored_job()` now require `candidate_jobs_access()`
+(finished profile AND `jobs_board_access.status = 'approved'`). Table
+`jobs_board_access` has no policies; everything goes through definer
+functions (`request_jobs_access`, `my_jobs_access`, the worker-secret
+claim/done pair, and the token pair `jobs_access_request_by_token` /
+`decide_jobs_access`). Worker: `src/jobs-access.ts`,
+`src/emails/jobs-access.ts`, routes in `src/index.ts`, cron flush in
+`src/news-ingest.ts`, `/sponsored-jobs/status` now returns `state`
+(`profile_required | not_requested | requested | declined`) and
+`POST /sponsored-jobs/access/request`.
+
+**Existing members were NOT grandfathered** (10 had finished a profile, 0
+applications): they see Request access like everyone else. The live-in card
+on the Jobs tab stays visible while the board is locked.
+
+Founder-side SQL (SQL editor):
+```sql
+-- approve everyone who has already finished a profile (no emails are sent)
+insert into jobs_board_access (candidate_id, status, decided_at, notified_at)
+select id, 'approved', now(), now() from candidates where onboarding_done
+on conflict (candidate_id) do update set status = 'approved', decided_at = now();
+-- approve / decline one person by hand
+update jobs_board_access set status = 'approved', decided_at = now() where candidate_id = '<uuid>';
+-- who is waiting
+select a.full_name, a.email, j.requested_at from jobs_board_access j join accounts a on a.id = j.candidate_id where j.status = 'requested' order by 3;
+```
+Not built: an in-app admin list (approval is by the emailed link or SQL);
+the member's bell notification on approval (they get the email).
+

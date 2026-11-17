@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { flushLiveIn } from "./live-in-alerts";
+import { processJobsAccessRequests } from "./jobs-access";
 
 // News feed cron ingestion — migration 0048/0049. Runs on
 // wrangler.jsonc's triggers.crons, no HTTP request/response involved at
@@ -337,6 +338,14 @@ export async function scheduledNewsRefresh(_event: ScheduledController, env: Env
     if (liveIn.alerts || liveIn.interest) console.log(`[live-in] sent ${liveIn.alerts} alert(s), ${liveIn.interest} interest email(s)`);
   } catch (err) {
     console.error("[live-in-alerts] flush failed:", err instanceof Error ? err.message : err);
+  }
+
+  // Jobs-board access request emails: same safety-net idea (migration 0062).
+  try {
+    const access = await processJobsAccessRequests(env, secret, "https://icareltd.com");
+    if (access.sent) console.log(`[jobs-access] sent ${access.sent} request email(s)`);
+  } catch (err) {
+    console.error("[jobs-access] flush failed:", err instanceof Error ? err.message : err);
   }
 
   const feedResults = await Promise.all(FEEDS.map((s) => fetchFeed(s.url, s.label)));
