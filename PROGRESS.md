@@ -6216,6 +6216,21 @@ fixes below are the security/broken-flow minimum only.
   "Live-in care" card always shows (registered + no vacancies → "Your
   live-in profile"); the Live-in card was removed from the Profile page.
 
+## 2026-11-17 — Jobs board: request access + approval (HANDOVER §30)
+
+- Founder: "I thought we'd put up a wall… new users would need to request
+  access" (the code only required a finished profile) → "build 2 and ship".
+  Migration `0062_jobs_board_access`, `src/jobs-access.ts`, routes, cron
+  flush, locked-state UI on `jobs-board.html`.
+- Tested: local Postgres (finished-not-approved sees 0 jobs and cannot
+  apply; unfinished cannot request; request pings once; member can't read
+  the table or approve themselves; null/bad tokens find nothing; decline →
+  approve → repeat gives the right `changed` flags; approved sees jobs and
+  applies; back to requested hides them again; anon can't call member
+  RPCs). `wrangler dev` with a mocked Supabase: review page escapes names,
+  404 on bad/short tokens, approve emails once, junk action 400, ping
+  needs a secret. Playwright 390px: all four locked states, request click,
+  live-in card visible while locked, no console errors.
 ## 2026-10-31 - Career coaching landing page
 
 - Added new standalone landing page at /career-coaching (alias /coaching) in src/career-coaching.html, implementing the approved 'Career Coaching + Tailored Support' handover (Board B, emotional version + tailored support).

@@ -42,6 +42,7 @@ import liveInProfilePage from "./live-in-profile.html";
 import liveInSearchPage from "./live-in-search.html";
 import liveInCarersApi from "./live-in-carers";
 import { flushLiveIn } from "./live-in-alerts";
+import { processJobsAccessRequests, lookupJobsAccess, decideJobsAccess } from "./jobs-access";
 import liveInSearchApi from "./live-in-search";
 import { scheduledNewsRefresh } from "./news-ingest";
 import { processSignupAlerts } from "./signup-alerts";
@@ -192,6 +193,65 @@ app.post("/internal/live-in-ping", async (c) => {
   );
   c.executionCtx.waitUntil(job);
   return c.json({ ok: true }, 202);
+});
+
+// Jobs-board access requests (migration 0062, src/jobs-access.ts). The ping
+// is called by the database (pg_net) and the cron; the secret is checked by
+// the claim RPC inside the database.
+app.post("/internal/jobs-access-ping", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const secret = body && typeof body.secret === "string" ? body.secret : "";
+  if (!secret) return c.json({ error: "missing secret" }, 401);
+  const job = processJobsAccessRequests(c.env, secret, "https://icareltd.com").then(
+    (r) => console.log(`[jobs-access] sent ${r.sent} request email(s)`),
+    (err) => console.error(`[jobs-access] ${err instanceof Error ? err.message : err}`)
+  );
+  c.executionCtx.waitUntil(job);
+  return c.json({ ok: true }, 202);
+});
+
+// The review page linked from the info@ email. GET only shows the request;
+// the decision is a POST, so an email scanner opening the link changes
+// nothing. The 128-bit token in the URL is the credential.
+function accessPage(title: string, body: string): string {
+  return `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>${title} | iCare</title><style>body{margin:0;background:#F4F1F8;color:#1C1530;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55}main{max-width:480px;margin:48px auto;padding:0 20px}.card{background:#fff;border:1px solid #D9D2E6;border-radius:14px;padding:24px}h1{font-size:22px;margin:0 0 8px;color:#330072}p{margin:0 0 14px}form{display:flex;gap:10px;flex-wrap:wrap}button{font:inherit;font-weight:700;border-radius:999px;padding:12px 22px;cursor:pointer;border:1px solid #D9D2E6;background:#fff;color:#330072}button.go{background:#330072;color:#fff;border-color:#330072}small{color:#5B5470}</style></head><body><main><div class="card">${body}</div></main></body></html>`;
+}
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const STATUS_TEXT: Record<string, string> = {
+  requested: "Waiting for your decision.",
+  approved: "Already approved. They can use the jobs board.",
+  declined: "Currently declined. You can still approve them.",
+};
+
+app.get("/internal/jobs-access/:token{[0-9a-f]{64}}", async (c) => {
+  c.header("Cache-Control", "no-store");
+  const token = c.req.param("token");
+  const req = await lookupJobsAccess(c.env, token);
+  if (!req) return c.html(accessPage("Not found", "<h1>Request not found</h1><p>This link isn't valid any more.</p>"), 404);
+  return c.html(
+    accessPage(
+      "Jobs board access",
+      `<h1>Jobs board access</h1><p><strong>${esc(req.full_name || "A member")}</strong> has asked to use the iCare jobs board.</p><p><small>${esc(STATUS_TEXT[req.status] || req.status)}</small></p>` +
+        `<form method="post"><button class="go" name="action" value="approve">Approve</button>${req.status === "requested" ? '<button name="action" value="decline">Decline</button>' : ""}</form>`
+    )
+  );
+});
+
+app.post("/internal/jobs-access/:token{[0-9a-f]{64}}", async (c) => {
+  c.header("Cache-Control", "no-store");
+  const token = c.req.param("token");
+  const form = await c.req.parseBody().catch(() => ({} as Record<string, unknown>));
+  const action = form["action"];
+  if (action !== "approve" && action !== "decline") return c.text("Bad request", 400);
+  const result = await decideJobsAccess(c.env, token, action === "approve", "https://icareltd.com");
+  if (!result) return c.html(accessPage("Not found", "<h1>Request not found</h1><p>This link isn't valid any more.</p>"), 404);
+  const msg =
+    result.status === "approved"
+      ? `${esc(result.full_name || "The member")} is approved${result.changed ? " and we've emailed them" : " (they already were)"}.`
+      : result.status === "declined"
+        ? `${esc(result.full_name || "The member")} is declined. They won't be emailed.`
+        : `Nothing changed: ${esc(STATUS_TEXT[result.status] || result.status)}`;
+  return c.html(accessPage("Done", `<h1>Done</h1><p>${msg}</p>`));
 });
 
 app.get("/db-check", async (c) => {
