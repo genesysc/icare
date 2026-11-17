@@ -6245,3 +6245,8 @@ fixes below are the security/broken-flow minimum only.
   menu and the footer's Candidates column. The page itself (another
   session's work) is untouched. NOTE for the founder: that page still says
   "Offer ends 5 November" / code CC20 — past as of 2026-11-17.
+- Founder: "remove the banner and the CC20 code". `career-coaching.html`:
+  removed the "Offer ends 5 November" badge, the CC20 code (price card,
+  hero line, and the "Is the discount code still valid?" FAQ). The page now
+  shows the full price, £499. The Stripe payment link was not touched; if
+  Stripe still accepts CC20, deactivate the promotion code there.
