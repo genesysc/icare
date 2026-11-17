@@ -1,0 +1,37 @@
+name: Job board sync
+
+# Daily re-read of the employer sources behind the jobs board — see
+# scripts/job-sync/sync.py, migration 0063 and docs/JOB_BOARD_LOADING.md.
+# Runs after the sponsor-register refresh (06:20 / 14:20 UTC) so new jobs are
+# matched against the freshest register. Uses the same SPONSOR_REFRESH_SECRET.
+# A run that finds a source blocked/changed goes red (GitHub emails the owner)
+# and leaves that source's jobs untouched.
+on:
+  schedule:
+    - cron: "40 7 * * *"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Write to the database (untick for a dry run that only prints what it found)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync jobs
+        env:
+          SPONSOR_REFRESH_SECRET: ${{ secrets.SPONSOR_REFRESH_SECRET }}
+          APPLY: ${{ github.event_name == 'schedule' && 'true' || inputs.apply }}
+        run: |
+          if [ "$APPLY" = "true" ]; then
+            python3 scripts/job-sync/sync.py --apply
+          else
+            python3 scripts/job-sync/sync.py
+          fi
