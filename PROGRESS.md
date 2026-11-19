@@ -6250,3 +6250,8 @@ fixes below are the security/broken-flow minimum only.
   hero line, and the "Is the discount code still valid?" FAQ). The page now
   shows the full price, £499. The Stripe payment link was not touched; if
   Stripe still accepts CC20, deactivate the promotion code there.
+
+## 2026-11-19 — Home Instead and Caremark lists (see HANDOVER §27h)
+- Home Instead: 30 names checked, nothing loadable (generic application pages; API robots-disallowed; homecare.co.uk bot-walled).
+- Caremark: 35 names; 2 positive-sponsorship adverts loaded (Southampton, Guildford & Woking); 12 silent adverts held for a founder decision; most Caremark adverts refuse sponsorship.
+- Daily job sync (Stage 1) is built and tested on the branch; PR/merge still waiting on the founder.
