@@ -6250,3 +6250,7 @@ fixes below are the security/broken-flow minimum only.
   hero line, and the "Is the discount code still valid?" FAQ). The page now
   shows the full price, £499. The Stripe payment link was not touched; if
   Stripe still accepts CC20, deactivate the promotion code there.
+- Founder: "FAQ section: remove the refund part" (career coaching). Removed
+  the "What if I change my mind?" FAQ item. NOT removed (not asked): the
+  refund sentence under the price card's button, and the refund line in the
+  page footer's legal text.
