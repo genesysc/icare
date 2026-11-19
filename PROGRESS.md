@@ -6254,3 +6254,7 @@ fixes below are the security/broken-flow minimum only.
   the "What if I change my mind?" FAQ item. NOT removed (not asked): the
   refund sentence under the price card's button, and the refund line in the
   page footer's legal text.
+- Founder: "remove the other refund lines too". Career coaching now has no
+  refund wording anywhere (price-card line and footer legal line removed).
+  Reminder given: UK online buyers normally have a statutory 14-day cancel
+  right regardless of page wording.
