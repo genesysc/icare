@@ -6278,3 +6278,7 @@ fixes below are the security/broken-flow minimum only.
 - Sent via Sender transactional from hello@ (never info@). Tested local
   Postgres (null secret, eligibility, no double claim, release on failure)
   and `wrangler dev` with a mocked Supabase.
+- 2026-11-19: SENT. 0063 applied, merged (#75), `select onboarding_nudge_ping();`
+  run once → 20 claimed, 20 marked sent (18 Gmail, 2 Yahoo). Not re-run: the
+  5 skipped (4 unconfirmed emails, 1 staff address) stay skipped. Replies go
+  to hello@; the email also names info@.
