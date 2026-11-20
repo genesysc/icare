@@ -92,6 +92,28 @@ describe("processCompany", () => {
   });
 });
 
+describe("apply link fallback", () => {
+  it("uses the careers page as the apply link when the job has none of its own", async () => {
+    const { store, published } = fakeStore();
+    const [id] = await createBatch(store, ["Acme Ltd"]);
+    await processCompany(store, deps({ extractVacancies: async () => [J({ applyUrl: "" })] }), id);
+    expect(published.length).toBe(1);
+    expect(published[0].job.applyUrl).toBe("https://a.co/careers");
+  });
+  it("makes a relative apply link absolute against the careers page", async () => {
+    const { store, published } = fakeStore();
+    const [id] = await createBatch(store, ["Acme Ltd"]);
+    await processCompany(store, deps({ extractVacancies: async () => [J({ applyUrl: "/jobs/42" })] }), id);
+    expect(published[0].job.applyUrl).toBe("https://a.co/jobs/42");
+  });
+  it("keeps an absolute apply link as it is", async () => {
+    const { store, published } = fakeStore();
+    const [id] = await createBatch(store, ["Acme Ltd"]);
+    await processCompany(store, deps(), id);
+    expect(published[0].job.applyUrl).toBe("https://a.co/1");
+  });
+});
+
 describe("contacts in the pipeline", () => {
   it("saves contacts found for the company, even when no jobs pass", async () => {
     const saved: any[] = [];
