@@ -2,7 +2,7 @@ import { parseHourlyPay } from "./pay";
 import { detectSponsorship, mapSponsorshipState, type SponsorshipState } from "./sponsorship";
 
 export type RejectReason =
-  | "pay_unverified" | "below_minimum" | "no_apply_link" | "duplicate"
+  | "below_minimum" | "no_apply_link" | "duplicate"
   | "no_register_match" | "sponsorship_refused";
 
 export interface Job {
@@ -30,8 +30,9 @@ export const jobKey = (title: string, location: string) =>
 export function evaluateJob(job: Job, ctx: Ctx): Verdict {
   const reasons: RejectReason[] = [];
   const pay = parseHourlyPay(job.payText, job.hoursText, ctx.settings.defaultWeeklyHours);
-  if (pay.hourly === null) reasons.push("pay_unverified");
-  else if (Math.round(pay.hourly * 100) / 100 < ctx.settings.minHourlyPay) reasons.push("below_minimum");
+  // Pay not stated is allowed (founder ruling 2026-11-20): many employers do not
+  // publish pay. Pay that IS stated must meet the minimum.
+  if (pay.hourly !== null && Math.round(pay.hourly * 100) / 100 < ctx.settings.minHourlyPay) reasons.push("below_minimum");
   if (!job.applyUrl || !/^https?:\/\//i.test(job.applyUrl)) reasons.push("no_apply_link");
   if (!ctx.registerMatched) reasons.push("no_register_match");
   if (ctx.existingKeys.has(jobKey(job.title, job.location))) reasons.push("duplicate");

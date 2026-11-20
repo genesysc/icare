@@ -11,7 +11,7 @@ email.**
 
 | Rule | Result if it fails |
 |---|---|
-| Pay is stated and ≥ the minimum (setting, default £12.83/hr). Annual pay is converted at the stated hours, else 37.5 h/week. "Competitive/negotiable/blank" is not pay. | `pay_unverified` / `below_minimum` |
+| If pay IS stated it must be at least the minimum (setting, default £12.83/hr; annual pay converted at the stated hours, else 37.5 h/week). **Pay not stated is allowed** (founder ruling 2026-11-20) and shows as "Salary not stated". | `below_minimum` |
 | Advert has a working http(s) apply link. If the advert has none of its own, the employer's careers page is used (founder ruling 2026-11-20). | `no_apply_link` |
 | Company is on the register (matched by name) | `no_register_match` |
 | Same company + title + location is not already listed | `duplicate` |
@@ -54,6 +54,6 @@ read closes nothing.
 
 ## Contacts
 
-Saved in `company_contacts`. Free-provider personal addresses are skipped; addresses in
+Saved in `company_contacts` with the company's website (migration 0066). Free-provider personal addresses are skipped; addresses in
 `contact_suppressions` are skipped; companies without Ltd/LLP/PLC/CIC are flagged
 "sole trader" (their email may be personal data — check PECR before any outreach).

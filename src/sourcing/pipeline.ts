@@ -16,7 +16,7 @@ export interface Store {
   existingKeys(companyId: string): Promise<Set<string>>;
   publish(companyId: string, job: Job, verdict: Verdict): Promise<{ published: boolean; reason?: string }>;
   reject(companyId: string, job: Job, reasons: string[]): Promise<void>;
-  saveContacts?(companyId: string, contacts: Contact[]): Promise<void>;
+  saveContacts?(companyId: string, contacts: Contact[], website: string): Promise<void>;
 }
 
 export interface Deps {
@@ -62,7 +62,7 @@ export async function processCompany(store: Store, deps: Deps, companyId: string
   if (deps.findContacts && store.saveContacts) {
     try {
       const found = await deps.findContacts(website);
-      if (found.length) await store.saveContacts(companyId, found);
+      if (found.length) await store.saveContacts(companyId, found, website);
     } catch (e) {
       if (e instanceof CostCapExceeded) throw e;
       // contacts are a bonus: never block job processing
