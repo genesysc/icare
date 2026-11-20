@@ -1,4 +1,4 @@
-import { CostCapExceeded } from "./firecrawl";
+import { CostCapExceeded, RateLimited } from "./firecrawl";
 import { normaliseName } from "./names";
 import type { Contact } from "./contacts";
 import { evaluateJob, jobKey, type Job, type Settings, type Verdict } from "./rules";
@@ -97,8 +97,8 @@ export async function processCompany(store: Store, deps: Deps, companyId: string
 
 export async function runBatch(
   store: Store, deps: Deps, ids: string[],
-): Promise<{ processed: number; stoppedForCost: boolean }> {
-  let processed = 0;
+): Promise<{ processed: number; stoppedForCost: boolean; rateLimited: number }> {
+  let processed = 0, rateLimited = 0;
   for (const id of ids) {
     try {
       await processCompany(store, deps, id);
@@ -106,10 +106,15 @@ export async function runBatch(
     } catch (e) {
       if (e instanceof CostCapExceeded) {
         await store.updateCompany(id, { status: "needs_a_look", status_detail: "batch cost cap reached" });
-        return { processed, stoppedForCost: true };
+        return { processed, stoppedForCost: true, rateLimited };
+      }
+      if (e instanceof RateLimited) {
+        rateLimited++;
+        await store.updateCompany(id, { status: "queued", status_detail: "Firecrawl rate limit - run it again in a minute" });
+        continue;
       }
       await store.updateCompany(id, { status: "needs_a_look", status_detail: `error: ${(e as Error).message}`.slice(0, 200) });
     }
   }
-  return { processed, stoppedForCost: false };
+  return { processed, stoppedForCost: false, rateLimited };
 }

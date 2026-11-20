@@ -13,11 +13,13 @@ export function parseHourlyPay(
   defaultWeeklyHours: number,
 ): PayResult {
   if (!payText) return UNVERIFIED;
-  const m = payText.match(/£\s*(\d[\d,]*(?:\.\d+)?)/);
+  // "£13.50 per hour", or a bare figure such as "54000.00"
+  const m = payText.match(/£\s*(\d[\d,]*(?:\.\d+)?)/) ?? payText.trim().match(/^(\d[\d,]*(?:\.\d+)?)$/);
   if (!m) return UNVERIFIED;
   const amount = parseFloat(m[1].replace(/,/g, ""));
   if (!isFinite(amount) || amount <= 0) return UNVERIFIED;
   const t = payText.toLowerCase();
+  if (!payText.includes("£") && amount < 100) return UNVERIFIED; // a small bare number has no unit
 
   if (/(per|an?|\/)\s*(hour|hr)\b|\bph\b|hourly/.test(t)) return { hourly: amount };
   if (/(per|a|\/)\s*(month|week|day)\b|monthly|weekly|daily/.test(t)) return UNVERIFIED;

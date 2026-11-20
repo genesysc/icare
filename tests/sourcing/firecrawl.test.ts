@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createClient, findWebsite, findCareersUrl, extractVacancies, CostCapExceeded } from "../../src/sourcing/firecrawl";
+import { createClient, findWebsite, findCareersUrl, extractVacancies, CostCapExceeded, RateLimited } from "../../src/sourcing/firecrawl";
 
 function mock(responses: unknown[]) {
   const calls: { url: string; init: RequestInit }[] = [];
@@ -10,6 +10,40 @@ function mock(responses: unknown[]) {
   }) as unknown as typeof fetch;
   return { calls, fetchFn };
 }
+
+describe("directories are not company websites", () => {
+  it.each(["https://www.carehome.co.uk/carehome.cfm/id/1", "https://www.homecare.co.uk/x", "https://www.autumna.co.uk/y", "https://www.nhs.uk/z"])("skips %s", async (u) => {
+    const m = mock([{ success: true, data: { web: [{ url: u }, { url: "https://www.realcare.co.uk/about" }] } }]);
+    const c = createClient({ apiKey: "k", fetchFn: m.fetchFn, costCap: 5 });
+    expect(await findWebsite(c, "Real Care Ltd")).toBe("https://www.realcare.co.uk");
+  });
+});
+
+describe("rate limits", () => {
+  const seq = (statuses: number[]) => {
+    let n = 0;
+    const fetchFn = (async () => {
+      const st = statuses[Math.min(n++, statuses.length - 1)];
+      return new Response(JSON.stringify({ success: true, data: { web: [] } }), { status: st });
+    }) as unknown as typeof fetch;
+    return { fetchFn, count: () => n };
+  };
+  it("retries a 429 with backoff and counts cost only for the call that worked", async () => {
+    const s = seq([429, 429, 200]);
+    const waits: number[] = [];
+    const c = createClient({ apiKey: "k", fetchFn: s.fetchFn, costCap: 5, sleep: async (ms) => { waits.push(ms); } });
+    await findWebsite(c, "A");
+    expect(s.count()).toBe(3);
+    expect(waits.length).toBe(2);
+    expect(c.used).toBe(1);
+  });
+  it("throws RateLimited when it keeps getting 429", async () => {
+    const s = seq([429]);
+    const c = createClient({ apiKey: "k", fetchFn: s.fetchFn, costCap: 5, sleep: async () => {} });
+    await expect(findWebsite(c, "A")).rejects.toBeInstanceOf(RateLimited);
+    expect(c.used).toBe(0);
+  });
+});
 
 describe("default fetch", () => {
   it("calls the global fetch without binding it to the client (Workers throw 'Illegal invocation' otherwise)", async () => {

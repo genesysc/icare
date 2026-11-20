@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createBatch, processCompany, runBatch, type Store, type Deps } from "../../src/sourcing/pipeline";
-import { CostCapExceeded } from "../../src/sourcing/firecrawl";
+import { CostCapExceeded, RateLimited } from "../../src/sourcing/firecrawl";
 import { normaliseName } from "../../src/sourcing/names";
 import type { Job } from "../../src/sourcing/rules";
 
@@ -151,6 +151,14 @@ describe("runBatch", () => {
     expect(published.length).toBe(1);
     expect(rejected[0].reasons).toContain("daily_cap");
     expect(companies.get(ids[0]).status).toBe("needs_a_look");
+  });
+  it("a rate-limited company goes back to waiting (not needs_a_look) and is reported", async () => {
+    const { store, companies } = fakeStore();
+    const ids = await createBatch(store, ["Acme Ltd"]);
+    const r = await runBatch(store, deps({ findWebsite: async () => { throw new RateLimited(); } }), ids);
+    expect(companies.get(ids[0]).status).toBe("queued");
+    expect(companies.get(ids[0]).status_detail).toMatch(/rate limit/i);
+    expect(r.rateLimited).toBe(1);
   });
   it("a cost-cap error stops the batch and marks the company needs_a_look", async () => {
     const { store, companies } = fakeStore();
