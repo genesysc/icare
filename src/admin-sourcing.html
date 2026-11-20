@@ -60,7 +60,7 @@ async function load(){
   o.companies.forEach(function(c){NAMES[c.id]=c.name});
   fill("co",["Company","Status","Careers page","Checked"],o.companies.map(function(c){return[c.name,STATUS[c.status]||c.status,c.careers_url||"",c.last_checked_at?c.last_checked_at.slice(0,10):""]}));
   fill("rej",["Company","Job","Location","Why rejected"],o.rejections.map(function(r){return[NAMES[r.company_id]||"",r.title,r.location,(r.reasons||[]).map(function(x){return REASON[x]||x}).join("; ")]}));
-  fill("ct",["Company","Type","Email","Name / role","Sole trader?"],o.contacts.map(function(k){return[NAMES[k.company_id]||"",k.kind==="generic_email"?"Business email":"Named contact",k.email,[k.name,k.role].filter(Boolean).join(", "),k.sole_trader?"Yes - check before contacting":""]}));
+  fill("ct",["Company","Type","Email","Name / role","Website"],o.contacts.map(function(k){return[NAMES[k.company_id]||"",k.kind==="generic_email"?"Business email":"Named contact",k.email,[k.name,k.role].filter(Boolean).join(", "),k.website||""]}));
   var s=document.getElementById("set");s.textContent="";
   var L={min_hourly_pay:"Minimum hourly pay (£)",expiry_days:"Jobs expire after (days)",default_weekly_hours:"Default weekly hours",daily_publish_cap:"Max jobs published per day"};
   o.settings.forEach(function(x){var l=document.createElement("label");l.textContent=(L[x.key]||x.key)+" ";var i=document.createElement("input");i.type="number";i.step="any";i.dataset.k=x.key;i.value=x.value;l.appendChild(i);s.appendChild(l)});

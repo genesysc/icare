@@ -92,6 +92,16 @@ describe("processCompany", () => {
   });
 });
 
+describe("pay not stated", () => {
+  it("publishes a job with no pay figure", async () => {
+    const { store, published } = fakeStore();
+    const [id] = await createBatch(store, ["Acme Ltd"]);
+    await processCompany(store, deps({ extractVacancies: async () => [J({ title: "Deputy Manager", payText: null })] }), id);
+    expect(published.length).toBe(1);
+    expect(published[0].verdict.hourly).toBeNull();
+  });
+});
+
 describe("apply link fallback", () => {
   it("uses the careers page as the apply link when the job has none of its own", async () => {
     const { store, published } = fakeStore();
@@ -117,11 +127,11 @@ describe("apply link fallback", () => {
 describe("contacts in the pipeline", () => {
   it("saves contacts found for the company, even when no jobs pass", async () => {
     const saved: any[] = [];
-    const { store } = fakeStore({ saveContacts: async (id, contacts) => { saved.push({ id, contacts }); } });
+    const { store } = fakeStore({ saveContacts: async (id, contacts, website) => { saved.push({ id, contacts, website }); } });
     const [id] = await createBatch(store, ["Acme Ltd"]);
     const contact = { kind: "generic_email" as const, email: "info@a.co", sourceUrl: "https://a.co" };
     await processCompany(store, deps({ extractVacancies: async () => [], findContacts: async () => [contact] }), id);
-    expect(saved).toEqual([{ id, contacts: [contact] }]);
+    expect(saved).toEqual([{ id, contacts: [contact], website: "https://a.co" }]);
   });
   it("a contact lookup failure does not stop job processing", async () => {
     const { store, published } = fakeStore({ saveContacts: async () => {} });

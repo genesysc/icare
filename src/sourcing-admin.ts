@@ -87,7 +87,7 @@ export function supabaseStore(db: SupabaseClient, batchId: string | null): Store
       const r = data as { published: boolean; reason?: string };
       return r;
     },
-    async saveContacts(companyId, contacts) {
+    async saveContacts(companyId, contacts, website) {
       const { data: co } = await db.from("companies").select("name").eq("id", companyId).single();
       await saveContacts({
         async suppressed() {
@@ -95,7 +95,7 @@ export function supabaseStore(db: SupabaseClient, batchId: string | null): Store
           return new Set((data ?? []).map((r: any) => String(r.email).toLowerCase()));
         },
         async insert(rows) { await db.from("company_contacts").upsert(rows, { onConflict: "company_id,email", ignoreDuplicates: true }); },
-      }, companyId, co?.name ?? "", contacts);
+      }, companyId, co?.name ?? "", contacts, website);
     },
     async reject(companyId, job, reasons) {
       await db.from("job_rejections").insert({
@@ -173,7 +173,7 @@ sourcingAdmin.get("/overview", async (c) => {
     db.from("companies").select("id,name,website,careers_url,status,status_detail,last_checked_at").order("created_at", { ascending: false }).limit(300),
     db.from("job_rejections").select("id,company_id,title,location,apply_url,pay_text,reasons,created_at").order("created_at", { ascending: false }).limit(300),
     db.from("sourcing_settings").select("key,value"),
-    db.from("company_contacts").select("id,company_id,kind,email,name,role,sole_trader,source_url").order("created_at", { ascending: false }).limit(500),
+    db.from("company_contacts").select("id,company_id,kind,email,name,role,website,source_url").order("created_at", { ascending: false }).limit(500),
   ]);
   return c.json({ companies: companies.data ?? [], rejections: rejections.data ?? [], settings: settings.data ?? [], contacts: contacts.data ?? [] });
 });

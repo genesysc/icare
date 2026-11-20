@@ -20,8 +20,21 @@ describe("evaluateJob", () => {
     expect(r.publish).toBe(false);
     expect(r.reasons).toContain("below_minimum");
   });
-  it("competitive pay is pay_unverified", () => {
-    expect(evaluateJob(job({ payText: "Competitive" }), ctx()).reasons).toContain("pay_unverified");
+  it("pay not stated does not reject a job (founder ruling 2026-11-20)", () => {
+    for (const payText of ["Competitive", "Negotiable", "", null]) {
+      const r = evaluateJob(job({ payText }), ctx());
+      expect(r.publish).toBe(true);
+      expect(r.reasons).toEqual([]);
+      expect(r.hourly).toBeNull();
+    }
+  });
+  it("pay not stated is still rejected for the other reasons", () => {
+    const r = evaluateJob(job({ payText: "", applyUrl: "" }), ctx());
+    expect(r.publish).toBe(false);
+    expect(r.reasons).toEqual(["no_apply_link"]);
+  });
+  it("pay stated but below the minimum is still rejected", () => {
+    expect(evaluateJob(job({ title: "Registered Nurse", payText: "£10.75/ hour" }), ctx()).reasons).toEqual(["below_minimum"]);
   });
   it("£24,000 per annum with no hours converts at 37.5h and fails", () => {
     const r = evaluateJob(job({ payText: "£24,000 per annum" }), ctx());
@@ -42,8 +55,8 @@ describe("evaluateJob", () => {
     expect(evaluateJob(job({ description: "We are unable to offer sponsorship" }), ctx()).reasons).toContain("sponsorship_refused");
   });
   it("collects several reasons", () => {
-    const r = evaluateJob(job({ payText: "", applyUrl: "" }), ctx({ registerMatched: false }));
-    expect(r.reasons).toEqual(expect.arrayContaining(["pay_unverified", "no_apply_link", "no_register_match"]));
+    const r = evaluateJob(job({ payText: "£10 per hour", applyUrl: "" }), ctx({ registerMatched: false }));
+    expect(r.reasons).toEqual(expect.arrayContaining(["below_minimum", "no_apply_link", "no_register_match"]));
   });
   it("caps a care title with sponsorship wording at switch_only", () => {
     const r = evaluateJob(job({ title: "Care Worker", description: "Visa sponsorship available" }), ctx());

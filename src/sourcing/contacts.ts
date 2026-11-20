@@ -33,12 +33,12 @@ export interface ContactStore {
   insert(rows: Record<string, unknown>[]): Promise<void>;
 }
 
-export async function saveContacts(store: ContactStore, companyId: string, companyName: string, contacts: Contact[]): Promise<number> {
+export async function saveContacts(store: ContactStore, companyId: string, companyName: string, contacts: Contact[], website: string | null = null): Promise<number> {
   const suppressed = await store.suppressed();
   const sole = isLikelySoleTrader(companyName);
   const rows = contacts
     .filter((c) => !suppressed.has(c.email.toLowerCase()))
-    .map((c) => ({ company_id: companyId, kind: c.kind, email: c.email, name: c.name ?? null, role: c.role ?? null, source_url: c.sourceUrl, sole_trader: sole }));
+    .map((c) => ({ company_id: companyId, kind: c.kind, email: c.email, name: c.name ?? null, role: c.role ?? null, source_url: c.sourceUrl, website, sole_trader: sole }));
   if (rows.length) await store.insert(rows);
   return rows.length;
 }

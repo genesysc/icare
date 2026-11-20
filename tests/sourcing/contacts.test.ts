@@ -40,8 +40,8 @@ describe("saveContacts", () => {
     const n = await saveContacts(store, "c1", "J Smith Care", [
       { kind: "generic_email", email: "info@a.co.uk", sourceUrl: "u" },
       { kind: "generic_email", email: "jobs@a.co.uk", sourceUrl: "u" },
-    ]);
+    ], "https://a.co.uk");
     expect(n).toBe(1);
-    expect(saved).toEqual([{ company_id: "c1", kind: "generic_email", email: "jobs@a.co.uk", name: null, role: null, source_url: "u", sole_trader: true }]);
+    expect(saved).toEqual([{ company_id: "c1", kind: "generic_email", email: "jobs@a.co.uk", name: null, role: null, source_url: "u", website: "https://a.co.uk", sole_trader: true }]);
   });
 });
