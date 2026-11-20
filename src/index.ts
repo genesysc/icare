@@ -45,6 +45,7 @@ import liveInSearchPage from "./live-in-search.html";
 import liveInCarersApi from "./live-in-carers";
 import { flushLiveIn } from "./live-in-alerts";
 import { processJobsAccessRequests, lookupJobsAccess, decideJobsAccess } from "./jobs-access";
+import { processOnboardingNudges } from "./onboarding-nudge";
 import liveInSearchApi from "./live-in-search";
 import { scheduledNewsRefresh } from "./news-ingest";
 import { processSignupAlerts } from "./signup-alerts";
@@ -259,6 +260,21 @@ app.post("/internal/jobs-access/:token{[0-9a-f]{64}}", async (c) => {
         ? `${esc(result.full_name || "The member")} is declined. They won't be emailed.`
         : `Nothing changed: ${esc(STATUS_TEXT[result.status] || result.status)}`;
   return c.html(accessPage("Done", `<h1>Done</h1><p>${msg}</p>`));
+});
+
+// One-off "finish your profile" email (migration 0063, src/onboarding-nudge.ts).
+// Only the database calls this (onboarding_nudge_ping()); the secret is
+// checked by the claim RPC.
+app.post("/internal/onboarding-nudge-ping", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const secret = body && typeof body.secret === "string" ? body.secret : "";
+  if (!secret) return c.json({ error: "missing secret" }, 401);
+  const job = processOnboardingNudges(c.env, secret, "https://icareltd.com").then(
+    (r) => console.log(`[onboarding-nudge] claimed ${r.claimed}, sent ${r.sent}`),
+    (err) => console.error(`[onboarding-nudge] ${err instanceof Error ? err.message : err}`)
+  );
+  c.executionCtx.waitUntil(job);
+  return c.json({ ok: true }, 202);
 });
 
 app.get("/db-check", async (c) => {

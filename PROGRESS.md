@@ -6263,3 +6263,32 @@ fixes below are the security/broken-flow minimum only.
 - Caremark: 35 names; 2 positive-sponsorship adverts loaded (Southampton, Guildford & Woking); 12 silent adverts held for a founder decision; most Caremark adverts refuse sponsorship.
 - Daily job sync (Stage 1) is built and tested on the branch; PR/merge still waiting on the founder.
 - 2026-11-19: loaded the 12 silent Caremark adverts on founder approval (Caremark total 14 open). Board ≈ 147 jobs. Caremark not yet part of the daily sync (expiry 2026-12-19).
+
+- Founder: "FAQ section: remove the refund part" (career coaching). Removed
+  the "What if I change my mind?" FAQ item. NOT removed (not asked): the
+  refund sentence under the price card's button, and the refund line in the
+  page footer's legal text.
+- Founder: "remove the other refund lines too". Career coaching now has no
+  refund wording anywhere (price-card line and footer legal line removed).
+  Reminder given: UK online buyers normally have a statutory 14-day cancel
+  right regardless of page wording.
+
+## 2026-11-19 — One-off "finish your profile" email (migration 0063)
+
+- Found why Network looks empty: Network lists only published profiles; 9
+  of 34 candidates have finished onboarding, 23 are stuck at step 1 (20 of
+  them signed up after 14 Sep — nobody since then has finished).
+- Founder asked for a nudge email + a Sender group; the Sender MCP can't
+  create groups (only add to existing ones) and can only draft campaigns, so
+  the founder said "send it individually". Built: `onboarding_nudges` table,
+  `claim_onboarding_nudges` / `onboarding_nudge_done` (secret-gated),
+  `onboarding_nudge_ping()` (run by hand), Worker `/internal/onboarding-nudge-ping`,
+  `src/onboarding-nudge.ts`, `src/emails/onboarding-nudge.ts`. Not on any
+  cron. Each member is emailed at most once ever.
+- Eligibility: active candidate, onboarding not done, signed up > 24h ago,
+  email CONFIRMED, not @icare-test.invalid / @genesysconsultancy.co.uk /
+  @icareltd.com. Live count before sending: 20 of the 25 (4 unconfirmed
+  emails + 1 staff address skipped).
+- Sent via Sender transactional from hello@ (never info@). Tested local
+  Postgres (null secret, eligibility, no double claim, release on failure)
+  and `wrangler dev` with a mocked Supabase.
