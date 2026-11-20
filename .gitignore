@@ -2,3 +2,7 @@ node_modules/
 .wrangler/
 dist/
 .dev.vars
+
+__pycache__/
+
+.superpowers/

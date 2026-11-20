@@ -81,6 +81,26 @@ select employer_name, title, expires_at from sponsored_jobs
  where status = 'open' and expires_at < now() + interval '7 days' order by expires_at;
 ```
 
+## Daily sync (Stage 1, from 2026-11-17)
+
+Renaissance Care, Balmoral and Right at Home (17 offices) are re-read every day by
+`.github/workflows/job-sync.yml` → `scripts/job-sync/sync.py` (07:40 UTC, after the
+register refresh). It adds new jobs, updates changed ones and closes ones that have
+gone, using the agreed rules (health & care only, skip adverts that refuse sponsorship,
+honour robots.txt). It reuses the existing `SPONSOR_REFRESH_SECRET`; no new secret.
+
+- **Run it by hand:** GitHub → Actions → "Job board sync" → Run workflow. Untick
+  "apply" for a dry run that only prints what it found (see the run's Summary tab).
+- **Red run** = a source was blocked, changed layout or returned nothing. Its jobs are
+  left untouched; tell Claude and it will fix that source.
+- **Adding an employer to the sync:** needs a small reader in `sync.py` (a "list" step
+  and a "parse one page" step) — ask Claude. Grantham (Right at Home) is deliberately
+  excluded because its advert says no sponsorship.
+- **Hiding a synced job for good:** closing it in the database is undone by the next
+  run if the employer still lists it; remove it from the reader's rules instead.
+- Jobs on these sources still get a 30-day rolling `expires_at` when the site shows no
+  dates, refreshed each run — if the sync stops, they drop off within 30 days.
+
 ## Keeping it fresh
 
 - Jobs with an `expires_at` disappear on that date by themselves. Others stay

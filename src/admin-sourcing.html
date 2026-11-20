@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>iCare · Sponsor job sourcing (admin)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=IBM+Plex+Mono&family=Public+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--purple:#330072;--teal:#00A499;--lav:#F4F1F8;--ink:#1c1530;--bad:#b3261e}
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 "Public Sans",system-ui,sans-serif;color:var(--ink);background:var(--lav)}
+main{max-width:1000px;margin:0 auto;padding:24px 16px 80px}
+h1,h2{font-family:Fraunces,serif;color:var(--purple);margin:.2em 0}
+section{background:#fff;border-radius:12px;padding:16px;margin:16px 0;box-shadow:0 1px 3px rgba(51,0,114,.12)}
+textarea{width:100%;min-height:140px;font:14px "IBM Plex Mono",monospace;padding:8px;border:1px solid #cdbfe3;border-radius:8px}
+button{background:var(--purple);color:#fff;border:0;border-radius:8px;padding:10px 16px;font:600 15px "Public Sans",sans-serif;cursor:pointer}
+button:disabled{opacity:.5}button.alt{background:var(--teal)}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #eee;vertical-align:top}
+.tbl{overflow-x:auto}.pill{display:inline-block;padding:1px 8px;border-radius:99px;background:var(--lav);font-size:12px}
+.bad{color:var(--bad)}.note{font-size:13px;color:#5a4d78}#msg{margin:8px 0;font-weight:600}
+label{display:inline-block;margin:4px 12px 4px 0;font-size:14px}input[type=number]{width:90px}
+</style>
+</head>
+<body>
+<main>
+<h1>Sponsor job sourcing</h1>
+<p class="note">Admin only. Paste company names already confirmed on the sponsor register. iCare finds their site and careers page, reads the vacancies, and publishes the ones that pass the rules. This page never sends email.</p>
+<div id="msg" role="status"></div>
+
+<section>
+<h2>1. Add companies</h2>
+<textarea id="names" placeholder="One company name per line"></textarea>
+<p><button id="go">Find jobs</button> <span id="prog" class="note"></span></p>
+</section>
+
+<section><h2>2. Companies</h2><div class="tbl"><table id="co"></table></div></section>
+<section><h2>3. Rejected jobs</h2><p class="note">Jobs that failed a rule. They are never shown on the board.</p><div class="tbl"><table id="rej"></table></div></section>
+<section><h2>4. Saved contacts</h2><p class="note">Public business contacts saved for later outreach. Nothing is sent from here.</p><div class="tbl"><table id="ct"></table></div></section>
+<section><h2>5. Settings</h2><div id="set"></div><p><button class="alt" id="save">Save settings</button> <button id="up" class="alt">Re-check live jobs</button></p></section>
+</main>
+<script>
+var API="/admin/sourcing/api";
+function tok(){try{var s=JSON.parse(localStorage.getItem("icare_session")||"null");return s&&s.access_token}catch(e){return null}}
+function say(t,bad){var m=document.getElementById("msg");m.textContent=t;m.className=bad?"bad":""}
+async function api(path,opt){
+  var t=tok(); if(!t){location.href="/sign-in";return null}
+  opt=opt||{};opt.headers={Authorization:"Bearer "+t,"Content-Type":"application/json"};
+  var r=await fetch(API+path,opt);var j=await r.json().catch(function(){return{}});
+  if(r.status===403){say("This page is for the iCare admin only.",true);return null}
+  if(!r.ok){say(j.error||("Error "+r.status),true);return null}
+  return j}
+var REASON={pay_unverified:"Pay not stated clearly",below_minimum:"Pay below the minimum",no_apply_link:"No apply link",duplicate:"Already listed",no_register_match:"Not on the sponsor register",sponsorship_refused:"Advert says no sponsorship",daily_cap:"Daily publish limit reached"};
+var STATUS={queued:"Waiting",no_website:"No website found",no_careers_page:"No careers page found",no_vacancies:"No vacancies found",done:"Done",needs_a_look:"Needs a look"};
+function row(t,cells,head){var tr=document.createElement("tr");cells.forEach(function(c){var e=document.createElement(head?"th":"td");e.textContent=c==null?"":c;tr.appendChild(e)});t.appendChild(tr)}
+function fill(id,head,rows){var t=document.getElementById(id);t.textContent="";row(t,head,true);rows.forEach(function(r){row(t,r)});if(!rows.length)row(t,["Nothing yet"])}
+var NAMES={};
+async function load(){
+  var o=await api("/overview");if(!o)return;
+  o.companies.forEach(function(c){NAMES[c.id]=c.name});
+  fill("co",["Company","Status","Careers page","Checked"],o.companies.map(function(c){return[c.name,STATUS[c.status]||c.status,c.careers_url||"",c.last_checked_at?c.last_checked_at.slice(0,10):""]}));
+  fill("rej",["Company","Job","Location","Why rejected"],o.rejections.map(function(r){return[NAMES[r.company_id]||"",r.title,r.location,(r.reasons||[]).map(function(x){return REASON[x]||x}).join("; ")]}));
+  fill("ct",["Company","Type","Email","Name / role","Sole trader?"],o.contacts.map(function(k){return[NAMES[k.company_id]||"",k.kind==="generic_email"?"Business email":"Named contact",k.email,[k.name,k.role].filter(Boolean).join(", "),k.sole_trader?"Yes - check before contacting":""]}));
+  var s=document.getElementById("set");s.textContent="";
+  var L={min_hourly_pay:"Minimum hourly pay (£)",expiry_days:"Jobs expire after (days)",default_weekly_hours:"Default weekly hours",daily_publish_cap:"Max jobs published per day"};
+  o.settings.forEach(function(x){var l=document.createElement("label");l.textContent=(L[x.key]||x.key)+" ";var i=document.createElement("input");i.type="number";i.step="any";i.dataset.k=x.key;i.value=x.value;l.appendChild(i);s.appendChild(l)});
+}
+document.getElementById("go").onclick=async function(){
+  var names=document.getElementById("names").value.split("\n").map(function(s){return s.trim()}).filter(Boolean);
+  if(!names.length){say("Paste at least one company name.",true);return}
+  this.disabled=true;say("Starting...");
+  var b=await api("/batches",{method:"POST",body:JSON.stringify({names:names})});
+  if(!b){this.disabled=false;return}
+  var n=0;
+  for(var i=0;i<b.companyIds.length;i++){
+    document.getElementById("prog").textContent="Company "+(i+1)+" of "+b.companyIds.length+"...";
+    var r=await api("/process/"+b.companyIds[i],{method:"POST"});
+    if(!r)break;n++;
+    if(r.stoppedForCost){say("Stopped: the cost limit for this batch was reached. Remaining companies are waiting.",true);break}
+  }
+  document.getElementById("prog").textContent="";if(!document.getElementById("msg").className)say("Finished "+n+" compan"+(n===1?"y":"ies")+".");
+  this.disabled=false;load()};
+document.getElementById("save").onclick=async function(){
+  var body={};document.querySelectorAll("#set input").forEach(function(i){body[i.dataset.k]=Number(i.value)});
+  if(await api("/settings",{method:"PUT",body:JSON.stringify(body)}))say("Settings saved.")};
+document.getElementById("up").onclick=async function(){
+  var r=await api("/upkeep",{method:"POST"});if(r)say("Re-checked "+r.rechecked+" live jobs; closed "+r.expired+" expired.");load()};
+load();
+</script>
+</body>
+</html>

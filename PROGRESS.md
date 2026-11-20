@@ -9,6 +9,13 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
+## 2026-11-20 — Sponsor sourcing tool built (branch claude/adoring-mayer-tlvorf, unmerged)
+
+Built per the founder's handover spec: pay parsing, sponsorship detection + care-title cap, rules
+engine, name matching, Firecrawl wrapper, pipeline, upkeep, contacts, admin API + page, migration
+0065 (dry-run only, not applied). 86 vitest tests. See HANDOVER §31 and docs/SPONSOR_SOURCING.md.
+Stage 1 daily job sync (§27a-h) still awaiting go-ahead to merge.
+
 ## Status: Candidate track complete, merged and deployed; employer track next
 
 PR #9, #10, #11, #12, #13, and now #14 all merged and deployed
@@ -6250,6 +6257,13 @@ fixes below are the security/broken-flow minimum only.
   hero line, and the "Is the discount code still valid?" FAQ). The page now
   shows the full price, £499. The Stripe payment link was not touched; if
   Stripe still accepts CC20, deactivate the promotion code there.
+
+## 2026-11-19 — Home Instead and Caremark lists (see HANDOVER §27h)
+- Home Instead: 30 names checked, nothing loadable (generic application pages; API robots-disallowed; homecare.co.uk bot-walled).
+- Caremark: 35 names; 2 positive-sponsorship adverts loaded (Southampton, Guildford & Woking); 12 silent adverts held for a founder decision; most Caremark adverts refuse sponsorship.
+- Daily job sync (Stage 1) is built and tested on the branch; PR/merge still waiting on the founder.
+- 2026-11-19: loaded the 12 silent Caremark adverts on founder approval (Caremark total 14 open). Board ≈ 147 jobs. Caremark not yet part of the daily sync (expiry 2026-12-19).
+
 - Founder: "FAQ section: remove the refund part" (career coaching). Removed
   the "What if I change my mind?" FAQ item. NOT removed (not asked): the
   refund sentence under the price card's button, and the refund line in the

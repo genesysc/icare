@@ -3179,3 +3179,37 @@ select a.full_name, a.email, j.requested_at from jobs_board_access j join accoun
 Not built: an in-app admin list (approval is by the emailed link or SQL);
 the member's bell notification on approval (they get the email).
 
+
+
+### 27g. Daily job sync — Stage 1 of "less manual work" (2026-11-17)
+
+Migrations **0063** (`sync_sponsored_jobs`, `close_unseen_sponsored_jobs`) and **0064**
+(`live_sponsored_job_urls`) — secret-gated (anon + `sponsor_refresh_secret`, NULL-safe), applied to the live DB. `scripts/job-sync/sync.py`
+(Python stdlib) + `.github/workflows/job-sync.yml` (daily 07:40 UTC, manual dispatch with an `apply` switch) re-read Renaissance Care
+(sitemap + job pages — **not** the `/Umbraco/…` feed, because robots.txt has `Disallow: /umbraco`), Balmoral (ASP.NET list + detail pages)
+and Right at Home (17 office sitemaps). Safeguards: robots check on every URL (also lower-cased path); verify-before-close for sources whose
+listing can lag (Renaissance's sitemap omits brand-new jobs); close refuses if < half of a source's live jobs were seen; 30-day rolling expiry
+where the site shows no dates; one failing source never stops the others, the run goes red. Renaissance's application form carries a
+"Do you require sponsorship?" question on every page — treated as form boilerplate there (not a refusal); still treated as a "no" for Right at Home
+(Mid Cheshire), as decided earlier. A dry run on 2026-11-17 against the live DB showed real drift since October (Renaissance +13 new / 8 gone,
+Balmoral +5 / 2 gone), which the sync will apply. Next stages (see the plan given to the founder): config-driven employers, NHS Jobs per
+employer code, Reed/Adzuna, employer self-posting, an admin "needs attention" view; and a discovery tool that takes employer names from the
+register, finds their sites/careers pages and other job boards (Firecrawl/Indeed connectors), proposed 2026-11-17.
+
+### 27h. Franchise lists from the founder — Home Instead, Caremark (2026-11-19)
+
+Founder supplies lists of register names (spreadsheet/paste); we check the exact register spelling in `sponsors`, find each office's own vacancy pages, read them with robots honoured, and load only what passes the sponsorship rule.
+- **Home Instead** (30 franchisees, all on the register; 23 mapped to `homeinstead.co.uk/recruitment/<office>/`): offices only have a generic "Care Professional" application; one specific job (Wandsworth Deputy Care Manager) had closed on 2025-08-01. Their portal reads `api-v2.homeinstead.co.uk`, whose robots.txt is `Disallow: /` — not used (one request was made before that was noticed; response discarded). Indeed connector: nothing. homecare.co.uk: bot wall (Imperva) — not usable. Nothing loaded. Unmapped: Aylesbury Vale, Lowestoft, Folkestone/Hythe/Ashford, Birmingham, South Bucks, Brighton/Hove/Shoreham, Home Instead UK Ltd (HQ).
+- **Caremark** (35 listed, all on the register): job pages are `caremark.co.uk/jobs/<slug>/` (listed in `jobs-sitemap.xml`, 340 pages; 113 modified since Aug 2026 were read). The national postcode search returned nothing anywhere. Most adverts explicitly refuse sponsorship (≈26 of 111 pages; whole offices such as Worcester/Wychavon, Bromley, Kensington, Bexhill & Hastings, St Helens, Glasgow West, Eastleigh). Loaded 2 that positively say sponsorship is offered: Southampton (K. N. Care Limited, "jobs for sponsorship… Certificate of Sponsorship", `caremark:care-assistant-14-2`) and Guildford & Woking (D&D Porter, "only offer sponsorship to those people already in the UK", `caremark:care-assistant-94`); 30-day expiry (2026-12-19). 12 further adverts on listed offices are silent on sponsorship (Barnsley 2, Merton 3, Warwick 3, Wakefield 1, Arun 1, Solcare Broxtowe & Erewash 2) — NOT loaded, awaiting the founder's rule. Many listed offices had no recently updated job page.
+- **Update 2026-11-19:** founder approved loading the 12 silent Caremark adverts (Barnsley 2, Merton 3, Warwick 3, Wakefield 1, Arun 1, Solcare Broxtowe & Erewash 2; `caremark:<slug>`, descriptions say the advert is silent on sponsorship, 30-day expiry 2026-12-19). Caremark total on the board: 14, all open. Caveats: Solcare's advertised range starts at £11.30 (below minimum wage) so no salary is shown, only the quoted range in the description; Arun shows "from £15.38" (advert range £15.38–£30.75); the Merton Care Manager advert is only reachable at an odd sitemap URL (`/https/wwwcaremarkcouk/jobs/care-manager-4/`). These pages have no closing date, so they expire on 2026-12-19 unless re-checked; Caremark is not yet in the daily sync.
+
+
+## 31. Sponsor job sourcing tool — built 2026-11-20 (NOT merged, migration `0065` NOT applied)
+
+Admin-only `/admin/sourcing` (src/admin-sourcing.html, src/sourcing-admin.ts, src/sourcing/*.ts).
+Paste register-confirmed company names → find site/careers page (Firecrawl) → extract vacancies →
+deterministic rules (src/sourcing/rules.ts) → auto-publish to `sponsored_jobs` via the admin-only
+`publish_sourced_job()`; failures go to `job_rejections`; contacts to `company_contacts`. Never sends
+email. Tests: `npm test` (vitest, tests/sourcing/). Runbook + pilot: `docs/SPONSOR_SOURCING.md`.
+Open: what £12.83 means (NLW is £12.71), legal sign-off on care-role wording, admin login email,
+`FIRECRAWL_API_KEY` secret, applying 0065, live Firecrawl calls unverified (mock-tested only).

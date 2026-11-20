@@ -7,7 +7,8 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "build:blog": "node scripts/build-blog-content.js",
-    "draft:daily-news": "node scripts/daily-news-draft.js"
+    "draft:daily-news": "node scripts/daily-news-draft.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.47.10",
@@ -20,6 +21,7 @@
     "marked": "^18.0.13",
     "rss-parser": "^3.13.0",
     "typescript": "^5.7.2",
+    "vitest": "^5.1.1",
     "wrangler": "^4.28.0"
   }
 }
