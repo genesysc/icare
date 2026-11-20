@@ -12,7 +12,7 @@ email.**
 | Rule | Result if it fails |
 |---|---|
 | Pay is stated and ≥ the minimum (setting, default £12.83/hr). Annual pay is converted at the stated hours, else 37.5 h/week. "Competitive/negotiable/blank" is not pay. | `pay_unverified` / `below_minimum` |
-| Advert has a working http(s) apply link | `no_apply_link` |
+| Advert has a working http(s) apply link. If the advert has none of its own, the employer's careers page is used (founder ruling 2026-11-20). | `no_apply_link` |
 | Company is on the register (matched by name) | `no_register_match` |
 | Same company + title + location is not already listed | `duplicate` |
 | Advert does not say it refuses sponsorship | `sponsorship_refused` |
@@ -23,7 +23,9 @@ Care Worker / Senior Care Worker / Care Assistant / Carer adverts are never show
 sponsorship they show "switch only" with the note *Check sponsorship with the employer*.
 **That wording needs legal sign-off before launch.**
 
-## One-off set-up (not done yet)
+Role types are not filtered: any role at a healthcare employer can be shown (founder ruling 2026-11-20).
+
+## One-off set-up (done 2026-11-20: migration applied, admin added, Firecrawl secret set)
 
 1. Review, then apply `supabase/migrations/20261120100000_0065_sponsor_sourcing.sql`
    (it has been dry-run in a rolled-back transaction only).

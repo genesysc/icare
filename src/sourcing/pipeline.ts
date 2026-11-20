@@ -27,6 +27,16 @@ export interface Deps {
   findContacts?(website: string): Promise<Contact[]>;
 }
 
+/**
+ * Where an advert has no link of its own, link to the employer's careers page
+ * (their own posting). Relative links are resolved against that page.
+ */
+export function resolveApplyUrl(applyUrl: string, careersUrl: string): string {
+  const u = (applyUrl || "").trim();
+  if (!u) return careersUrl;
+  try { return new URL(u, careersUrl).toString(); } catch { return careersUrl; }
+}
+
 /** One row per company, however it is spelled or how often it is pasted. */
 export async function createBatch(store: Store, names: string[]): Promise<string[]> {
   const seen = new Set<string>();
@@ -69,7 +79,8 @@ export async function processCompany(store: Store, deps: Deps, companyId: string
   let published = await store.publishedToday();
   let capped = false;
 
-  for (const job of jobs) {
+  for (const raw of jobs) {
+    const job = { ...raw, applyUrl: resolveApplyUrl(raw.applyUrl, careers) };
     const verdict = evaluateJob(job, { registerMatched, existingKeys: keys, settings });
     if (!verdict.publish) { await store.reject(companyId, job, verdict.reasons); continue; }
     if (published >= settings.dailyPublishCap) {
