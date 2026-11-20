@@ -19,7 +19,7 @@ export interface Client {
 export const CALL_COST = { search: 1, extract: 1 } as const;
 
 export function createClient(o: { apiKey: string; fetchFn?: typeof fetch; costCap: number }): Client {
-  return { apiKey: o.apiKey, fetchFn: o.fetchFn ?? fetch, costCap: o.costCap, used: 0 };
+  return { apiKey: o.apiKey, fetchFn: o.fetchFn ?? ((input, init) => fetch(input, init)), costCap: o.costCap, used: 0 };
 }
 
 async function call(c: Client, path: string, cost: number, body: unknown): Promise<any> {
