@@ -13,6 +13,7 @@ email.**
 |---|---|
 | If pay IS stated it must be at least the minimum (setting, default £12.83/hr; annual pay converted at the stated hours, else 37.5 h/week). **Pay not stated is allowed** (founder ruling 2026-11-20) and shows as "Salary not stated". | `below_minimum` |
 | Advert has a working http(s) apply link. If the advert has none of its own, the employer's careers page is used (founder ruling 2026-11-20). | `no_apply_link` |
+| Advert has a location (town/site) | `no_location` |
 | Company is on the register (matched by name) | `no_register_match` |
 | Same company + title + location is not already listed | `duplicate` |
 | Advert does not say it refuses sponsorship | `sponsorship_refused` |
@@ -22,6 +23,8 @@ Care Worker / Senior Care Worker / Care Assistant / Carer adverts are never show
 "new applicant" sponsorship (that route closed 22 July 2025). If the advert mentions
 sponsorship they show "switch only" with the note *Check sponsorship with the employer*.
 **That wording needs legal sign-off before launch.**
+
+The website found for a company must contain a distinctive word from the company's name (franchise names count: `surecare.co.uk` for "SureCare Leeds"); directories, regulators and sponsor lists are refused. A refused company shows "No website found" so you can check it by hand.
 
 Role types are not filtered: any role at a healthcare employer can be shown (founder ruling 2026-11-20).
 

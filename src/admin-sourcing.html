@@ -50,7 +50,7 @@ async function api(path,opt){
   if(r.status===403){say("This page is for the iCare admin only.",true);return null}
   if(!r.ok){say(j.error||("Error "+r.status),true);return null}
   return j}
-var REASON={pay_unverified:"Pay not stated clearly",below_minimum:"Pay below the minimum",no_apply_link:"No apply link",duplicate:"Already listed",no_register_match:"Not on the sponsor register",sponsorship_refused:"Advert says no sponsorship",daily_cap:"Daily publish limit reached"};
+var REASON={pay_unverified:"Pay not stated clearly",below_minimum:"Pay below the minimum",no_apply_link:"No apply link",no_location:"No location given",duplicate:"Already listed",no_register_match:"Not on the sponsor register",sponsorship_refused:"Advert says no sponsorship",daily_cap:"Daily publish limit reached"};
 var STATUS={queued:"Waiting",no_website:"No website found",no_careers_page:"No careers page found",no_vacancies:"No vacancies found",done:"Done",needs_a_look:"Needs a look"};
 function row(t,cells,head){var tr=document.createElement("tr");cells.forEach(function(c){var e=document.createElement(head?"th":"td");e.textContent=c==null?"":c;tr.appendChild(e)});t.appendChild(tr)}
 function fill(id,head,rows){var t=document.getElementById(id);t.textContent="";row(t,head,true);rows.forEach(function(r){row(t,r)});if(!rows.length)row(t,["Nothing yet"])}

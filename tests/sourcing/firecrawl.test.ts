@@ -19,6 +19,33 @@ describe("directories are not company websites", () => {
   });
 });
 
+describe("the website must look like the company's own", () => {
+  const pick = async (company: string, urls: string[]) => {
+    const m = mock([{ success: true, data: { web: urls.map((url) => ({ url })) } }]);
+    return findWebsite(createClient({ apiKey: "k", fetchFn: m.fetchFn, costCap: 5 }), company);
+  };
+  it("skips a sponsor directory and takes the franchise's own site", async () => {
+    expect(await pick("MID SURREY CARE SERVICES LTD t/a SURECARE MID SURREY", ["https://www.sponsorfinder.io/jobs/1", "https://surecare.co.uk/careers"])).toBe("https://surecare.co.uk");
+  });
+  it("refuses a regulator site", async () => {
+    expect(await pick("Mosanny Home Care Limited TA SureCare Ayrshire", ["https://www.careinspectorate.scot/about"])).toBeNull();
+  });
+  it("refuses a site that shares no distinctive word with the company", async () => {
+    expect(await pick("Abbeydale Residential Care Home", ["https://www.elder.org/x"])).toBeNull();
+  });
+  it.each([
+    ["Ardent Residential Care Home", "https://ardentcarehome.co.uk/x"],
+    ["Holistic healthcare cambridge", "https://www.holistichealthcareholdings.co.uk/careers"],
+    ["ARG Global Ltd t/a Tarry's Residential Home", "https://www.tarrysresidentialhome.co.uk/"],
+    ["SureCare Bromley Limited", "https://surecare.co.uk/careers/"],
+  ])("accepts %s -> %s", async (company, url) => {
+    expect(await pick(company, [url])).toBe(new URL(url).origin);
+  });
+  it("accepts nothing when the name has no distinctive word", async () => {
+    expect(await pick("Care Services Ltd", ["https://www.careservices.co.uk"])).toBeNull();
+  });
+});
+
 describe("rate limits", () => {
   const seq = (statuses: number[]) => {
     let n = 0;

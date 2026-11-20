@@ -1,6 +1,7 @@
 // Thin Firecrawl REST wrapper. Firecrawl only fetches/extracts; all decisions
 // are made by the rules engine. fetch is injected so tests never hit the network.
 // NOTE: the live endpoints/shapes are mock-tested only (no API key in dev).
+import { normaliseName } from "./names";
 import type { Job } from "./rules";
 
 export class CostCapExceeded extends Error {
@@ -59,11 +60,24 @@ function hostOf(u: string): string | null {
   try { return new URL(u).hostname.toLowerCase(); } catch { return null; }
 }
 
+// Words too common in care-company names to identify a company.
+const GENERIC_WORDS = new Set([
+  "care", "cares", "caring", "home", "homes", "residential", "services", "service", "group", "health",
+  "healthcare", "nursing", "support", "trading", "holdings", "community", "domiciliary", "limited", "company",
+]);
+
+/** A company's own site should contain a distinctive word from its name. */
+export function hostLooksLikeCompany(host: string, companyName: string): boolean {
+  const flat = host.toLowerCase().replace(/^www\./, "").split(".").slice(0, -1).join("").replace(/[^a-z0-9]/g, "");
+  const words = normaliseName(companyName).split(" ").filter((w) => w.length >= 4 && !GENERIC_WORDS.has(w));
+  return words.some((w) => flat.includes(w));
+}
+
 export async function findWebsite(c: Client, name: string): Promise<string | null> {
   const r = await call(c, "/search", CALL_COST.search, { query: `${name} UK official website`, limit: 8 });
   for (const hit of r?.data?.web ?? []) {
     const h = hostOf(hit.url);
-    if (!h || NOT_A_COMPANY_SITE.test(h + ".")) continue;
+    if (!h || NOT_A_COMPANY_SITE.test(h + ".") || !hostLooksLikeCompany(h, name)) continue;
     return `https://${h}`;
   }
   return null;
