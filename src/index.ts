@@ -36,6 +36,8 @@ import sponsors from "./sponsors";
 import sponsorCheckPage from "./sponsor-check.html";
 import sponsoredJobs from "./sponsored-jobs";
 import jobsBoardPage from "./jobs-board.html";
+import adminSourcingPage from "./admin-sourcing.html";
+import { sourcingAdmin } from "./sourcing-admin";
 import liveInCarersPage from "./live-in-carers.html";
 import liveInCarersSuccessPage from "./live-in-carers-success.html";
 import liveInProfilePage from "./live-in-profile.html";
@@ -56,6 +58,7 @@ type Bindings = {
   NEWS_INGEST_SECRET?: string;
   NEWSDATA_API_KEY?: string;
   SENDER_API_KEY?: string;
+  FIRECRAWL_API_KEY?: string;
   SENDER_FROM_EMAIL?: string;
   SENDER_FROM_NAME?: string;
 };
@@ -151,6 +154,10 @@ app.get("/rounds", (c) => c.html(roundsPage));
 app.get("/news-feed", (c) => c.html(newsFeedPage));
 app.get("/sponsor-check", (c) => c.html(sponsorCheckPage));
 app.get("/jobs", (c) => c.html(jobsBoardPage));
+// Admin-only sponsor sourcing tool (migration 0065). The page is a public shell;
+// every API call is gated by login + is_app_admin().
+app.get("/admin/sourcing", (c) => c.html(adminSourcingPage));
+app.route("/admin/sourcing/api", sourcingAdmin);
 // Renamed from Home to Rounds, 2026-09-12 — redirect anything still
 // linking the old path (nothing left in this repo does, but an external
 // bookmark or the browser's own history might).
