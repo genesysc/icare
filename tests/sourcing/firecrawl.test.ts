@@ -11,6 +11,24 @@ function mock(responses: unknown[]) {
   return { calls, fetchFn };
 }
 
+describe("default fetch", () => {
+  it("calls the global fetch without binding it to the client (Workers throw 'Illegal invocation' otherwise)", async () => {
+    const real = globalThis.fetch;
+    let seenThis: unknown = "unset";
+    globalThis.fetch = (function (this: unknown) {
+      seenThis = this;
+      return Promise.resolve(new Response(JSON.stringify({ success: true, data: { web: [] } })));
+    }) as unknown as typeof fetch;
+    try {
+      const c = createClient({ apiKey: "k", costCap: 5 });
+      await findWebsite(c, "Acme");
+      expect(seenThis === undefined || seenThis === globalThis).toBe(true);
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+});
+
 describe("firecrawl wrapper", () => {
   it("findWebsite skips job boards and directories, sends the key", async () => {
     const m = mock([{ success: true, data: { web: [
