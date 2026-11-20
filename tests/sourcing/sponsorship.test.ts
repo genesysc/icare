@@ -14,6 +14,9 @@ describe("detectSponsorship", () => {
   ])("treats a refusal as negated: %s", (t) => {
     expect(detectSponsorship(t)).toEqual({ mentions: true, negated: true });
   });
+  it("does not treat an unrelated 'do not offer' as a sponsorship refusal", () => {
+    expect(detectSponsorship("Visa sponsorship is available. We do not offer relocation or accommodation.")).toEqual({ mentions: true, negated: false });
+  });
   it("sees silence", () => {
     expect(detectSponsorship("Join our friendly team in Leeds")).toEqual({ mentions: false, negated: false });
   });

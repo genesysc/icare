@@ -1,12 +1,14 @@
 export type SponsorshipState = "none" | "switch_only" | "new_applicant";
 
+// A refusal must name sponsorship (or visas) within a few words of the negation,
+// so "we do not offer relocation" is not read as refusing sponsorship.
+const NEG = String.raw`(?:unable|not able|cannot|can't|can not|won't|will not|do not|don't|does not|doesn't|not)`;
+const OBJ = String.raw`(?:\w+\s+){0,4}?(?:sponsor\w*|visas?)`;
 const NEGATION = [
-  /\b(unable|not able)\s+to\s+(offer|provide|sponsor)\b/,
-  /\b(cannot|can't|can not|won't|will not|do not|don't|does not|doesn't|not)\s+(offer|provide|sponsor|currently offer|be able to)\b/,
+  new RegExp(String.raw`\b${NEG}\s+(?:to\s+)?${OBJ}`),
   /\bno\s+(visa\s+)?sponsorship\b/,
   /\bsponsorship\s+(is\s+)?(not|unavailable)\b/,
   /\bwithout\s+(the\s+need\s+for\s+)?sponsorship\b/,
-  /\bnot\s+(able\s+to\s+)?(offer|provide)\s+(visa\s+)?sponsorship\b/,
 ];
 const MENTION = /\bsponsor(ship|ed|ing)?\b|\bskilled worker\b|\bcertificate of sponsorship\b|\bcos\b/;
 
