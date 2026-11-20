@@ -44,6 +44,9 @@ describe("evaluateJob", () => {
   it("missing apply link rejects", () => {
     expect(evaluateJob(job({ applyUrl: "" }), ctx()).reasons).toContain("no_apply_link");
   });
+  it("a job with no location is rejected (so candidates know where it is)", () => {
+    for (const location of ["", "   "]) expect(evaluateJob(job({ location }), ctx()).reasons).toContain("no_location");
+  });
   it("no register match rejects", () => {
     expect(evaluateJob(job(), ctx({ registerMatched: false })).reasons).toContain("no_register_match");
   });
