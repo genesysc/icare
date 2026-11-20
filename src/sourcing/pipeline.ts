@@ -1,5 +1,6 @@
 import { CostCapExceeded } from "./firecrawl";
 import { normaliseName } from "./names";
+import type { Contact } from "./contacts";
 import { evaluateJob, jobKey, type Job, type Settings, type Verdict } from "./rules";
 
 export type CompanyStatus = "queued" | "no_website" | "no_careers_page" | "no_vacancies" | "done" | "needs_a_look";
@@ -15,12 +16,15 @@ export interface Store {
   existingKeys(companyId: string): Promise<Set<string>>;
   publish(companyId: string, job: Job, verdict: Verdict): Promise<{ published: boolean; reason?: string }>;
   reject(companyId: string, job: Job, reasons: string[]): Promise<void>;
+  saveContacts?(companyId: string, contacts: Contact[]): Promise<void>;
 }
 
 export interface Deps {
   findWebsite(name: string): Promise<string | null>;
   findCareersUrl(website: string): Promise<string | null>;
   extractVacancies(url: string): Promise<Job[]>;
+  /** Public business contacts for later outreach. Never sends anything. */
+  findContacts?(website: string): Promise<Contact[]>;
 }
 
 /** One row per company, however it is spelled or how often it is pasted. */
@@ -45,6 +49,15 @@ export async function processCompany(store: Store, deps: Deps, companyId: string
 
   const website = company.website || (await deps.findWebsite(company.name));
   if (!website) return mark("no_website");
+  if (deps.findContacts && store.saveContacts) {
+    try {
+      const found = await deps.findContacts(website);
+      if (found.length) await store.saveContacts(companyId, found);
+    } catch (e) {
+      if (e instanceof CostCapExceeded) throw e;
+      // contacts are a bonus: never block job processing
+    }
+  }
   const careers = company.careers_url || (await deps.findCareersUrl(website));
   await store.updateCompany(companyId, { website, careers_url: careers });
   if (!careers) return mark("no_careers_page");

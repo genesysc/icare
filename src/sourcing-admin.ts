@@ -2,8 +2,9 @@ import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { requireAuth } from "./middleware";
-import { createClient as createFc, findWebsite, findCareersUrl, extractVacancies } from "./sourcing/firecrawl";
+import { createClient as createFc, findWebsite, findCareersUrl, extractVacancies, scrapeText } from "./sourcing/firecrawl";
 import { createBatch, runBatch, type Store, type Deps } from "./sourcing/pipeline";
+import { extractContacts, saveContacts } from "./sourcing/contacts";
 import { jobKey } from "./sourcing/rules";
 import { runUpkeep, type UpkeepStore } from "./sourcing/upkeep";
 
@@ -22,7 +23,7 @@ export const adminOnly = createMiddleware<{ Bindings: Bindings; Variables: Varia
 });
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
-const DEFAULT_COST_CAP = 5;
+const DEFAULT_COST_CAP = 100; // Firecrawl calls per batch (~4 per company)
 
 export function supabaseStore(db: SupabaseClient, batchId: string | null): Store & { expiryDays(): Promise<number> } {
   const num = async (key: string, dflt: number) => {
@@ -86,6 +87,16 @@ export function supabaseStore(db: SupabaseClient, batchId: string | null): Store
       const r = data as { published: boolean; reason?: string };
       return r;
     },
+    async saveContacts(companyId, contacts) {
+      const { data: co } = await db.from("companies").select("name").eq("id", companyId).single();
+      await saveContacts({
+        async suppressed() {
+          const { data } = await db.from("contact_suppressions").select("email");
+          return new Set((data ?? []).map((r: any) => String(r.email).toLowerCase()));
+        },
+        async insert(rows) { await db.from("company_contacts").upsert(rows, { onConflict: "company_id,email", ignoreDuplicates: true }); },
+      }, companyId, co?.name ?? "", contacts);
+    },
     async reject(companyId, job, reasons) {
       await db.from("job_rejections").insert({
         company_id: companyId, batch_id: batchId, title: job.title, location: job.location,
@@ -125,7 +136,7 @@ sourcingAdmin.post("/batches", async (c) => {
   if (names.length === 0 || names.length > 200) return c.json({ error: "send 1-200 company names" }, 400);
   const db = c.get("supabase");
   const { data: b, error } = await db.from("sourcing_batches")
-    .insert({ created_by: c.get("userId"), cost_cap: Math.min(Number(body.costCap) || DEFAULT_COST_CAP, 100) }).select("id").single();
+    .insert({ created_by: c.get("userId"), cost_cap: Math.min(Number(body.costCap) || DEFAULT_COST_CAP, 1000) }).select("id").single();
   if (error) return c.json({ error: error.message }, 500);
   const ids = await createBatch(supabaseStore(db, b.id), names);
   return c.json({ batchId: b.id, companyIds: ids });
@@ -146,6 +157,10 @@ sourcingAdmin.post("/process/:id{[0-9a-fA-F-]{36}}", async (c) => {
     findWebsite: (n) => findWebsite(fc, n),
     findCareersUrl: (w) => findCareersUrl(fc, w),
     extractVacancies: (u) => extractVacancies(fc, u),
+    findContacts: async (w) => {
+      const url = `${w.replace(/\/$/, "")}/contact`;
+      return extractContacts(await scrapeText(fc, url), url);
+    },
   };
   const r = await runBatch(supabaseStore(db, batch?.id ?? null), deps, [id]);
   if (batch) await db.from("sourcing_batches").update({ cost_used: fc.used }).eq("id", batch.id);

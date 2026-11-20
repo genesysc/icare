@@ -51,7 +51,7 @@ create table if not exists sourcing_batches (
   created_by  uuid references auth.users(id) on delete set null,
   created_at  timestamptz not null default now(),
   status      text not null default 'queued' check (status in ('queued', 'running', 'done', 'failed')),
-  cost_cap    numeric(10, 2) not null default 5,
+  cost_cap    numeric(10, 2) not null default 100, -- Firecrawl calls per batch (~4 per company)
   cost_used   numeric(10, 2) not null default 0,
   note        text
 );

@@ -95,3 +95,9 @@ export async function extractVacancies(c: Client, url: string): Promise<Job[]> {
   }
   return out;
 }
+
+/** Plain text of one page (used to look for public contact details). */
+export async function scrapeText(c: Client, url: string): Promise<string> {
+  const r = await call(c, "/scrape", CALL_COST.extract, { url, formats: ["markdown"] });
+  return String(r?.data?.markdown ?? "");
+}

@@ -92,6 +92,23 @@ describe("processCompany", () => {
   });
 });
 
+describe("contacts in the pipeline", () => {
+  it("saves contacts found for the company, even when no jobs pass", async () => {
+    const saved: any[] = [];
+    const { store } = fakeStore({ saveContacts: async (id, contacts) => { saved.push({ id, contacts }); } });
+    const [id] = await createBatch(store, ["Acme Ltd"]);
+    const contact = { kind: "generic_email" as const, email: "info@a.co", sourceUrl: "https://a.co" };
+    await processCompany(store, deps({ extractVacancies: async () => [], findContacts: async () => [contact] }), id);
+    expect(saved).toEqual([{ id, contacts: [contact] }]);
+  });
+  it("a contact lookup failure does not stop job processing", async () => {
+    const { store, published } = fakeStore({ saveContacts: async () => {} });
+    const [id] = await createBatch(store, ["Acme Ltd"]);
+    await processCompany(store, deps({ findContacts: async () => { throw new Error("x"); } }), id);
+    expect(published.length).toBe(1);
+  });
+});
+
 describe("runBatch", () => {
   it("stops at the daily publish cap and flags needs_a_look", async () => {
     const { store, published, rejected, companies } = fakeStore({
