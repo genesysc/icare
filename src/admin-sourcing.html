@@ -75,7 +75,9 @@ document.getElementById("go").onclick=async function(){
   for(var i=0;i<b.companyIds.length;i++){
     document.getElementById("prog").textContent="Company "+(i+1)+" of "+b.companyIds.length+"...";
     var r=await api("/process/"+b.companyIds[i],{method:"POST"});
+    if(r&&r.rateLimited){say("Firecrawl is busy. Waiting 30 seconds, then trying this company again...");await new Promise(function(f){setTimeout(f,30000)});r=await api("/process/"+b.companyIds[i],{method:"POST"});if(r&&r.rateLimited)say("Firecrawl is still busy. Companies marked Waiting can be run again later.",true)}
     if(!r)break;n++;
+    await new Promise(function(f){setTimeout(f,3000)});
     if(r.stoppedForCost){say("Stopped: the cost limit for this batch was reached. Remaining companies are waiting.",true);break}
   }
   document.getElementById("prog").textContent="";if(!document.getElementById("msg").className)say("Finished "+n+" compan"+(n===1?"y":"ies")+".");

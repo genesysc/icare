@@ -23,6 +23,12 @@ describe("parseHourlyPay", () => {
   it("treats a bare figure above 100 as annual", () => {
     expect(parseHourlyPay("£26,000", null, 37.5).hourly).toBeCloseTo(26000 / 52 / 37.5, 4);
   });
+  it("treats a bare number of 100 or more as an annual salary", () => {
+    expect(parseHourlyPay("54000.00", null, 37.5).hourly).toBeCloseTo(54000 / 52 / 37.5, 4);
+  });
+  it("does not guess a small bare number", () => {
+    expect(parseHourlyPay("13.5", null, 37.5)).toEqual({ hourly: null, reason: "pay_unverified" });
+  });
   it("does not guess monthly pay", () => {
     expect(parseHourlyPay("£1,500 per month", null, 37.5)).toEqual({ hourly: null, reason: "pay_unverified" });
   });

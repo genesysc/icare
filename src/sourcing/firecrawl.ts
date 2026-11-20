@@ -9,33 +9,51 @@ export class CostCapExceeded extends Error {
   }
 }
 
+/** Firecrawl is busy (HTTP 429) even after retrying. Not the company's fault. */
+export class RateLimited extends Error {
+  constructor() { super("firecrawl rate limit"); }
+}
+
 export interface Client {
   apiKey: string;
   fetchFn: typeof fetch;
   costCap: number;
   used: number;
+  sleep: (ms: number) => Promise<void>;
 }
 
 export const CALL_COST = { search: 1, extract: 1 } as const;
 
-export function createClient(o: { apiKey: string; fetchFn?: typeof fetch; costCap: number }): Client {
-  return { apiKey: o.apiKey, fetchFn: o.fetchFn ?? ((input, init) => fetch(input, init)), costCap: o.costCap, used: 0 };
+export function createClient(o: { apiKey: string; fetchFn?: typeof fetch; costCap: number; sleep?: (ms: number) => Promise<void> }): Client {
+  return {
+    apiKey: o.apiKey, fetchFn: o.fetchFn ?? ((input, init) => fetch(input, init)), costCap: o.costCap, used: 0,
+    sleep: o.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
+  };
 }
+
+const BACKOFF_MS = [2000, 5000, 10000];
 
 async function call(c: Client, path: string, cost: number, body: unknown): Promise<any> {
   if (c.used + cost > c.costCap) throw new CostCapExceeded(c.used, c.costCap);
-  c.used += cost;
-  const res = await c.fetchFn(`https://api.firecrawl.dev/v2${path}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${c.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`firecrawl ${path} ${res.status}`);
-  return res.json();
+  for (let attempt = 0; ; attempt++) {
+    const res = await c.fetchFn(`https://api.firecrawl.dev/v2${path}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${c.apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.status === 429) {
+      if (attempt >= BACKOFF_MS.length) throw new RateLimited();
+      await c.sleep(BACKOFF_MS[attempt]);
+      continue;
+    }
+    if (!res.ok) throw new Error(`firecrawl ${path} ${res.status}`);
+    c.used += cost; // only calls that worked are counted
+    return res.json();
+  }
 }
 
 const NOT_A_COMPANY_SITE =
-  /(^|\.)(indeed|linkedin|facebook|twitter|x|instagram|glassdoor|reed|totaljobs|cv-library|monster|gov\.uk|companieshouse\.gov\.uk|youtube|wikipedia|trustpilot|cqc\.org\.uk|yell|endole|find-and-update\.company-information\.service\.gov\.uk)\./;
+  /(^|\.)(carehome\.co\.uk|homecare\.co\.uk|autumna\.co\.uk|nhs\.uk|caredirectory\.org\.uk|carehomes\.net|lottie\.org|bing|google|duckduckgo|indeed|linkedin|facebook|twitter|x|instagram|glassdoor|reed|totaljobs|cv-library|monster|gov\.uk|companieshouse\.gov\.uk|youtube|wikipedia|trustpilot|cqc\.org\.uk|yell|endole|find-and-update\.company-information\.service\.gov\.uk)\./;
 
 function hostOf(u: string): string | null {
   try { return new URL(u).hostname.toLowerCase(); } catch { return null; }
