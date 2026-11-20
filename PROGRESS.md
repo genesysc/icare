@@ -9,6 +9,13 @@ this file before ending a session (update `HANDOVER.md` too if something
 changes that a fresh agent needs up front). See `AGENTS.md` / `CLAUDE.md`
 for the standing instruction.
 
+## 2026-11-20 — Sponsor sourcing tool built (branch claude/adoring-mayer-tlvorf, unmerged)
+
+Built per the founder's handover spec: pay parsing, sponsorship detection + care-title cap, rules
+engine, name matching, Firecrawl wrapper, pipeline, upkeep, contacts, admin API + page, migration
+0065 (dry-run only, not applied). 86 vitest tests. See HANDOVER §31 and docs/SPONSOR_SOURCING.md.
+Stage 1 daily job sync (§27a-h) still awaiting go-ahead to merge.
+
 ## Status: Candidate track complete, merged and deployed; employer track next
 
 PR #9, #10, #11, #12, #13, and now #14 all merged and deployed
