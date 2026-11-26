@@ -41,12 +41,20 @@ label{display:inline-block;margin:4px 12px 4px 0;font-size:14px}input[type=numbe
 </main>
 <script>
 var API="/admin/sourcing/api";
-function tok(){try{var s=JSON.parse(localStorage.getItem("icare_session")||"null");return s&&s.access_token}catch(e){return null}}
+function sess(){try{return JSON.parse(localStorage.getItem("icare_session")||"null")}catch(e){return null}}
+function tok(){var s=sess();return s&&s.access_token}
 function say(t,bad){var m=document.getElementById("msg");m.textContent=t;m.className=bad?"bad":""}
+function signIn(){
+  try{localStorage.removeItem("icare_session")}catch(e){}
+  say("Your sign-in has expired. Taking you to sign in again - work already saved is kept.",true);
+  setTimeout(function(){location.href="/sign-in?next="+encodeURIComponent("/admin/sourcing")},1500);
+}
 async function api(path,opt){
-  var t=tok(); if(!t){location.href="/sign-in";return null}
-  opt=opt||{};opt.headers={Authorization:"Bearer "+t,"Content-Type":"application/json"};
+  var s=sess();
+  if(!s||!s.access_token||(s.expires_at&&Date.now()>=s.expires_at*1000)){signIn();return null}
+  opt=opt||{};opt.headers={Authorization:"Bearer "+s.access_token,"Content-Type":"application/json"};
   var r=await fetch(API+path,opt);var j=await r.json().catch(function(){return{}});
+  if(r.status===401){signIn();return null}
   if(r.status===403){say("This page is for the iCare admin only.",true);return null}
   if(!r.ok){say(j.error||("Error "+r.status),true);return null}
   return j}
